@@ -24,7 +24,6 @@
     "expo-image-picker": "~57.0.6",
     "expo-linking": "~57.0.4",
     "expo-local-authentication": "~57.0.2",
-    "expo-location": "~57.0.6",
     "expo-notifications": "~57.0.7",
     "expo-router": "~57.0.8",
     "expo-secure-store": "~57.0.1",
@@ -38,6 +37,7 @@
     "react-dom": "19.2.3",
     "react-native": "0.86.0",
     "react-native-nitro-modules": "^0.36.5",
+    "react-native-purchases": "^10.10.0",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
     "react-native-svg": "15.15.4",
@@ -85,6 +85,7 @@
     "ship": "node scripts/preflight.mjs && eas build --platform ios --profile production --non-interactive && eas submit --platform ios --profile production --latest --non-interactive",
     "test:rls": "bash supabase/tests/run.sh",
     "verify:zip": "node scripts/verify-proto-zip.mjs",
+    "verify:fresh": "node scripts/build-proto-zip.mjs --check",
     "shots:ipad": "node scripts/ipad-shots.mjs",
     "shots:appstore": "node scripts/appstore-shots.mjs",
     "qa:ipad": "node scripts/ipad-qa.mjs"

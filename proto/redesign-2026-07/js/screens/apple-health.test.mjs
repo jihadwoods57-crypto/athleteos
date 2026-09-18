@@ -106,3 +106,25 @@ test('the Settings label follows the probe honestly', () => {
   assert.equal(hkLabel(), 'Connected');
   HK.probed = false; HK.available = null; HK.connected = false; HK.activity = null;
 });
+
+test('the HealthKit description renders on EVERY device, including one with no HealthKit', () => {
+  // Guideline 2.5.1, App Review 2026-09-18: build 33 was reviewed on an iPad Air, HealthKit does
+  // not exist on iPad, and `${ios ? readsCard() : ''}` deleted every word identifying the
+  // integration on exactly that device. The identification is not allowed to depend on the answer.
+  assert.match(screen, /\$\{readsCard\(\)\}/);
+  assert.ok(!/\$\{ios \? readsCard\(\) : ''\}/.test(screen), 'readsCard() is gated on availability again');
+  // The three things the card names are the identification itself.
+  for (const s of ['What OnStandard reads', 'Activity', 'Recovery', 'Never written']) {
+    assert.ok(screen.includes(s), `missing from the HealthKit description: ${s}`);
+  }
+});
+
+test('an iPad is never told it is an Android', () => {
+  assert.ok(!screen.includes('Nothing to set up here on Android.'),
+    'the iPad/iOS-without-HealthKit case is printing the Android line again');
+  assert.match(screen, /function closingLine\(\)/);
+  assert.match(screen, /window\.__PLATFORM/);
+  // Android keeps a true sentence of its own; every other device gets the iPhone one.
+  assert.match(screen, /p === 'android'/);
+  assert.ok(screen.includes('Apple Health is available on iPhone.'));
+});

@@ -1,9 +1,25 @@
 # Go-live: consumer in-app purchases (checkout close)
 
-The **client last mile is now built** — paywall, Plan & billing screen, wired trial CTA, the
-`OnStandardNative.iap.*` bridge, and the `src/lib/iap` seam. Everything degrades honestly today
-(the paywall shows "Memberships open at launch" and the sponsor-code path works). What remains is
-the store/console/build work that **no code can do from a dev machine**. Do these in order.
+> ## ⚠ THIS IS A REJECTION BLOCKER, NOT A ROADMAP ITEM (2026-09-18)
+>
+> App Review rejected **1.0 (33)** (submission `d07c2cf9-32fa-4d1f-ae74-a1c5a93b61fb`, reviewed on
+> an iPad Air 11-inch) **twice** under Guideline 2.1(b) for this exact gap:
+>
+> - *"the app includes references to membership plans but the associated In-App Purchase products
+>   have not been submitted for review"*
+> - *"the in-app purchase options were not displayed accordingly at the purchase wall"*
+>
+> **Step 3 below is now DONE** (react-native-purchases is installed and `src/lib/iap/index.ts` is
+> implemented against it). Steps 1, 2, 4 and 5 are still open and **every one of them is founder
+> console work that no code can do**. Until they are finished `isIapAvailable` stays false, the
+> paywall still reads "Opens at launch", and a resubmission gets the same rejection.
+>
+> Do not resubmit before step 5 passes a sandbox purchase.
+
+The **client last mile is built** — paywall, Plan & billing screen, wired trial CTA, the
+`OnStandardNative.iap.*` bridge, and the `src/lib/iap` seam. Everything degrades honestly when the
+store is not reachable (the paywall shows "Opens at launch" and the sponsor-code path works). What
+remains is the store/console work that **no code can do from a dev machine**. Do these in order.
 
 ## 1. Store products (App Store Connect / Play Console)
 Create auto-renewable subscription products with ids matching
@@ -22,16 +38,29 @@ Family $18.99 / $156·yr. 14-day free trials. (Family = up to 4 seats — enforc
 
 ## 2. RevenueCat dashboard
 - Add the iOS + Android apps; create one **Offering** containing the six products above.
-- Copy the **public SDK keys** → set as `EXPO_PUBLIC_REVENUECAT_IOS` and `_ANDROID` (eas.json env).
+- Copy the **public SDK keys** → paste into `EXPO_PUBLIC_REVENUECAT_IOS` / `EXPO_PUBLIC_REVENUECAT_ANDROID`
+  in `eas.json`. The keys exist there as **empty strings in all three profiles** — empty is the
+  safe state (the paywall stays honest), and it is also the state that keeps the app rejected, so
+  this line is the one that unblocks resubmission.
 - Set the **webhook**: URL = the deployed `revenuecat-webhook` function; Authorization header =
   a secret you also `supabase secrets set REVENUECAT_WEBHOOK_SECRET=...`.
 
-## 3. Wire the native SDK (one file)
-- `npx expo install react-native-purchases` (let expo pick the SDK-57-compatible version).
-- Implement `configureIap` / `purchaseConsumer` / `restoreConsumer` in `src/lib/iap/index.ts`
-  against `react-native-purchases` (the function bodies have the exact calls in comments) and set
-  `export const isIapAvailable = true`. **Nothing else in the app changes** — the bridge, paywall,
-  and billing screen already call these.
+## 3. Wire the native SDK (one file) — ✅ DONE 2026-09-18
+- `react-native-purchases` is installed (`^10.10.0`, picked by `npx expo install`).
+- `configureIap` / `purchaseConsumer` / `restoreConsumer` are implemented in `src/lib/iap/index.ts`,
+  covered by `src/lib/iap/index.test.ts` (15 tests). Nothing else in the app changed — the bridge,
+  paywall and billing screen already called these.
+
+> **`isIapAvailable` is DERIVED, and this step no longer means "set it true".** The old instruction
+> here said to hardcode `true`. Do not. It is now computed from four facts, all of which must hold:
+> the SDK's JS resolved, the **RNPurchases native module is in this binary**, the platform is iOS or
+> Android, and a RevenueCat public key was compiled in. The native-module check is load-bearing:
+> `runtimeVersion` policy is `appVersion`, so this JS ships over the air to binaries built before
+> the pod existed, where the JS resolves fine and only the first native call throws. A hardcoded
+> `true` would paint a live "Start 14-day free trial" on those installs and fail on tap.
+>
+> **The practical consequence: a build with no key in `eas.json` still sells nothing.** Step 2 is
+> what actually turns the paywall on.
 
 ## 4. Backend
 - Apply migration `0102_consumer_iap_subscriptions.sql` to the live project.
@@ -40,6 +69,11 @@ Family $18.99 / $156·yr. 14-day free trials. (Family = up to 4 seats — enforc
   report is free and the paywall is reachable but non-blocking).
 
 ## 5. Build & verify
+> **Apple also requires the IAP products themselves to be SUBMITTED for review**, with an
+> **App Review screenshot** attached to each one in App Store Connect, and the **Paid Apps
+> Agreement** accepted by the Account Holder (Business section). Missing any of those three is the
+> literal text of the first 2.1(b) rejection. Products are reviewed in the sandbox and do not need
+> prior approval to function during review.
 - EAS production build (IAP does not work in Expo Go; needs a real signed build).
 - Sandbox test: buy Individual annual → confirm the RevenueCat webhook writes a
   `subscriptions` row `tier='consumer', status='active'` → confirm the monthly report + weekly

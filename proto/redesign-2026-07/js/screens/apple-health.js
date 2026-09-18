@@ -178,6 +178,16 @@ function readsCard() {
     </section>`;
 }
 
+/* The closing line for a device that cannot read Health. "Nothing to set up here on Android" was
+   printed on iPad too, which is how a supported platform got told it was the wrong OS entirely.
+   The shell injects window.__PLATFORM (ProtoApp.tsx); a plain browser has none, and the neutral
+   iPhone sentence is the right answer there as well. */
+function closingLine() {
+  const p = typeof window !== 'undefined' ? window.__PLATFORM : '';
+  if (p === 'android') return 'Apple Health is iPhone only. On Android, Health Connect is the equivalent and is not wired yet.';
+  return 'Apple Health is available on iPhone. Sign in there and the readings above turn on for this same account.';
+}
+
 function stepsCard() {
   return `
     <h2 class="eyebrow">Change what Health shares</h2>
@@ -200,16 +210,25 @@ export default {
     const head = backHead('Apple Health', 'What it reads, and how to change it', 'settings');
     if (!HK.probed) return `${head}${skeletonRows(3, 'Checking Apple Health')}`;
     const ios = HK.available !== false;
+    // GUIDELINE 2.5.1, App Review 2026-09-18 (build 33, reviewed on an iPad Air): an app that uses
+    // HealthKit must identify that functionality IN THE UI. readsCard() is that identification, and
+    // it used to render only where HealthKit answered yes. HealthKit does not exist on iPad
+    // (src/lib/health: isHealthDataAvailable is false there), so on the review device this screen
+    // collapsed to one "Not on this phone" card and a closing line that called an iPad an Android,
+    // and every word describing what OnStandard reads from Health vanished. The description is now
+    // unconditional: the value pills already stay blank when nothing is connected, so an
+    // unavailable device reads what the integration IS without being promised a reading it cannot
+    // take. Do not put readsCard() back behind `ios`.
     return `${head}
     ${statusCard()}
-    ${ios ? readsCard() : ''}
+    ${readsCard()}
     ${ios && (HK.connected || HK.osGranted) ? stepsCard() : ''}
     ${ios && HK.connected ? `
     <div class="hk-foot">
       <button class="btn ghost danger" id="hk-off" ${HK.busy ? 'disabled' : ''}>${HK.busy ? 'Disconnecting…' : 'Disconnect Apple Health'}</button>
       <div class="cs-p muted hk-center">Disconnecting stops OnStandard reading. To cut access at the phone level too, turn the categories off in the Health app.</div>
     </div>` : `
-    <div class="cs-p muted hk-center tall">${ios ? 'Connecting Health is only about your standards. It does not share anything else.' : 'Nothing to set up here on Android.'}</div>`}
+    <div class="cs-p muted hk-center tall">${ios ? 'Connecting Health is only about your standards. It does not share anything else.' : closingLine()}</div>`}
     ${HK.note ? `<div class="cs-p muted hk-note" role="status">${esc(HK.note)}</div>` : ''}`;
   },
 

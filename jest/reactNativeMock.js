@@ -6,4 +6,9 @@ module.exports = {
   // The Supabase client registers an AppState listener to keep the token fresh; stub it so the
   // module graph loads in node (the listener is never exercised — supabase is null in tests).
   AppState: { currentState: 'active', addEventListener: () => ({ remove: () => {} }) },
+  // src/lib/iap asks NativeModules.RNPurchases whether the RevenueCat POD is in this binary
+  // (the JS resolves even on a build that predates it — see that file's hasNativePurchases).
+  // Present here so the seam's wired-path tests exercise real logic; availability in the test
+  // env still turns on the RevenueCat key, which is unset unless a test sets it.
+  NativeModules: { RNPurchases: {} },
 };

@@ -59,7 +59,11 @@ export default {
     // mealDueState adds the honest read on top: this line used to be amber at every hour of the
     // day, so an athlete an hour PAST the window saw the same colour as one two hours early.
     const due = slotKey ? mealDueState(slotKey) : { label: L.due, tone: 'quiet' };
-    // Apple-style permission priming: explain BEFORE the OS ever asks
+    // Apple-style permission priming: explain BEFORE the OS ever asks.
+    // The CTA must NOT say "Allow" (or any other word from Apple's own alert). App Review
+    // rejected build 33 under 5.1.1(iv) for exactly that: a custom screen whose button read
+    // "Allow camera" reads as pressuring the answer to the system prompt that follows.
+    // Apple named the acceptable labels — "Continue" or "Next". Do not reword this back.
     if (!RT.camPrimed) {
       return `
       <div class="ob" style="padding-top:40px">
@@ -70,7 +74,7 @@ export default {
           <div class="ob-sub" style="padding:0 8px">OnStandard uses your camera to capture meal photos. They go to your coach connection only: never public, never sold, never used to train anything without asking.</div>
         </div>
         <div class="ob-foot" style="margin-top:auto">
-          <button class="btn primary" data-act="primeCamera" data-then="camera">Allow camera</button>
+          <button class="btn primary" data-act="primeCamera" data-then="camera">Continue</button>
           <button class="cam-textlink" type="button" data-go="food-search">Log without a camera</button>
         </div>
       </div>`;
