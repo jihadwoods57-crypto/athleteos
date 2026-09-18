@@ -54,7 +54,25 @@ export const PROFILE_WEIGHTS: Record<ScoringProfile, ProfileWeights> = {
  * one, so the rows above stay the mix for a day with no wake-up assigned, which is every day for
  * every athlete whose coach has not set one.
  */
-export const WAKEUP_SHIFT = 0.08;
+
+/**
+ * THE COACH-ASSIGNED NIGHT, and the total it is worth however many ways a coach measures it.
+ *
+ * The morning roll call and the Recovery Standard are the two ends of one behaviour: did this
+ * athlete run their night properly. So they SHARE this budget rather than each taking their own.
+ * Assign one and it carries the whole 0.08; assign both and they take 0.04 each. An athlete's
+ * exposure never grows because a coach added a second way of watching the same night.
+ *
+ * The alternative was letting each take 0.08 out of the check-in's 18, which leaves the two
+ * check-in slots 0.02 between them on a day carrying both. The check-in is the ONE component every
+ * athlete can earn with no hardware at all, and reducing it to two points so that a ring owner can
+ * be measured twice is exactly backwards. Nutrition's 82 is a founder ruling (v3, 2026-09-09: a
+ * perfect food day clears the 80 line on its own) and was never a candidate to pay for this.
+ */
+export const NIGHT_SHIFT = 0.08;
+
+/** The most the morning can carry: the whole night budget, on a day nothing shares it. */
+export const WAKEUP_SHIFT = NIGHT_SHIFT;
 
 /**
  * How much of the nightly check-in's 18 points moves to SLEEP on a day the coach assigned a
@@ -71,7 +89,8 @@ export const WAKEUP_SHIFT = 0.08;
  * shares the morning's budget or takes from nutrition's 82, is a founder call that wants a season
  * of real readings behind it, not a guess.
  */
-export const SLEEP_SHIFT = 0;
+/** The most sleep can carry: the same whole night budget, on a day nothing shares it. */
+export const SLEEP_SHIFT = NIGHT_SHIFT;
 
 /** The mix for a day that HAS an assigned wake-up. Taken evenly from the two check-in slots, so
  *  the day still sums to 1 and nutrition's 82 never moves. Always a fresh object. */
@@ -90,17 +109,18 @@ export function weightsForAssigned(
   assigned: { wakeup?: boolean; sleep?: boolean } = {},
 ): ProfileWeights {
   const base = PROFILE_WEIGHTS[profile] ?? PROFILE_WEIGHTS.athlete;
-  const wake = assigned.wakeup ? WAKEUP_SHIFT : 0;
-  const sleep = assigned.sleep ? SLEEP_SHIFT : 0;
-  const taken = wake + sleep;
-  if (!taken) return { ...base, wakeup: wake, sleep };
-  const half = taken / 2;
+  const n = (assigned.wakeup ? 1 : 0) + (assigned.sleep ? 1 : 0);
+  if (!n || !NIGHT_SHIFT) return { ...base, wakeup: 0, sleep: 0 };
+  // The night's budget is split between whichever of the two the coach actually assigned, so the
+  // total taken from the check-in is NIGHT_SHIFT whether one is on or both are.
+  const each = NIGHT_SHIFT / n;
+  const half = NIGHT_SHIFT / 2;
   return {
     ...base,
     recovery: base.recovery - half,
     checkin: base.checkin - half,
-    wakeup: wake,
-    sleep,
+    wakeup: assigned.wakeup ? each : 0,
+    sleep: assigned.sleep ? each : 0,
   };
 }
 

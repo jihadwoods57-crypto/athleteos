@@ -73,7 +73,26 @@ export function resolveStyleKey(x) {
  * This is the ONE number that turns the morning on. At 0 the wake-up slot exists everywhere, is
  * carried through every sum and every test, and changes nobody's score by a single point.
  */
-export const WAKEUP_SHIFT = 0.08;
+
+/**
+ * THE COACH-ASSIGNED NIGHT, and the total it is worth however many ways a coach measures it.
+ *
+ * The morning roll call and the Recovery Standard are the two ends of one behaviour: did this
+ * athlete run their night properly. So they SHARE this budget rather than each taking their own.
+ * Assign one and it carries the whole 0.08; assign both and they take 0.04 each. An athlete's
+ * exposure never grows because a coach added a second way of watching the same night.
+ *
+ * The alternative was letting each take 0.08 out of the check-in's 18, which leaves the two
+ * check-in slots 0.02 between them on a day carrying both. The check-in is the ONE component every
+ * athlete can earn with no hardware at all, and reducing it to two points so that a ring owner can
+ * be measured twice is exactly backwards. Nutrition's 82 is a founder ruling (v3, 2026-09-09: a
+ * perfect food day clears the 80 line on its own) and was never a candidate to pay for this.
+ */
+export const NIGHT_SHIFT = 0.08;
+
+/** The most the morning can carry: the whole night budget, on a day nothing shares it. Kept as
+ *  its own export because scoreIntegrity, WEIGHT_CAPS and scoreParity.test.ts all name it. */
+export const WAKEUP_SHIFT = NIGHT_SHIFT;
 
 /**
  * How much of the nightly check-in's 18 points moves to SLEEP on a day the coach assigned a
@@ -89,7 +108,8 @@ export const WAKEUP_SHIFT = 0.08;
  * assigned at 0.08 the two check-in slots are left 0.02 between them, and the check-in is the one
  * component every athlete can earn without owning hardware.
  */
-export const SLEEP_SHIFT = 0;
+/** The most sleep can carry: the same whole night budget, on a day nothing shares it. */
+export const SLEEP_SHIFT = NIGHT_SHIFT;
 
 /** Per-component ceiling, mirroring the 0193 evidence-ceiling slots. NOTHING may exceed these. */
 export const WEIGHT_CAPS = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: WAKEUP_SHIFT, sleep: SLEEP_SHIFT };
@@ -148,12 +168,19 @@ export function weightsForWakeupDay(profile) {
  */
 export function weightsForAssigned(profile, assigned = {}) {
   const base = weightsFor(null, profile);
-  const wake = assigned.wakeup ? WAKEUP_SHIFT : 0;
-  const sleep = assigned.sleep ? SLEEP_SHIFT : 0;
-  const taken = wake + sleep;
-  if (!taken) return { ...base, wakeup: wake, sleep };
-  const half = taken / 2;
-  return { ...base, recovery: base.recovery - half, checkin: base.checkin - half, wakeup: wake, sleep };
+  const n = (assigned.wakeup ? 1 : 0) + (assigned.sleep ? 1 : 0);
+  if (!n || !NIGHT_SHIFT) return { ...base, wakeup: 0, sleep: 0 };
+  // The night's budget is split between whichever of the two the coach actually assigned, so the
+  // total taken from the check-in is NIGHT_SHIFT whether one is on or both are.
+  const each = NIGHT_SHIFT / n;
+  const half = NIGHT_SHIFT / 2;
+  return {
+    ...base,
+    recovery: base.recovery - half,
+    checkin: base.checkin - half,
+    wakeup: assigned.wakeup ? each : 0,
+    sleep: assigned.sleep ? each : 0,
+  };
 }
 
 /** True when every component is within its cap AND the mix sums to 1 (within float slop).

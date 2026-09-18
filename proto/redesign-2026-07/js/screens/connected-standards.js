@@ -396,6 +396,14 @@ export const connectedStandardsList = {
    something the verifier can't answer. */
 
 const METRICS = [
+  /* Sleep is a RECOVERY standard sharing an activity standard's storage, editor and audience
+     model. It does not share the verifier: the five below are read from readActivity() and
+     describe what an athlete DID, while this one is read from readRecoverySample() and describes
+     what their night gave them. It leads the list because a coach setting one is asking a
+     different question than a coach setting steps, and because for a contact sport at practice
+     step targets are the wrong instrument anyway (a lineman does enormous work across almost no
+     distance). Scored through the night's single shared budget: see NIGHT_SHIFT. */
+  { key: 'sleep_hours', label: 'Sleep', unit: 'h', preset: 7.5 },
   { key: 'steps', label: 'Steps', unit: 'steps', preset: 8000 },
   { key: 'distance', label: 'Distance', unit: 'mi', preset: 3 },
   { key: 'workouts', label: 'Workouts', unit: 'workouts', preset: 4 },

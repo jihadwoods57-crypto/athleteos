@@ -2062,6 +2062,21 @@ export async function fetchMySubscription() {
 export function tierFlag(score) { const b = scoreBand(score); return b ? BAND_FLAG[b] : ''; }
 /** Merge a roster member (from the RPC) with today's real day row into a UI row.
     A member with no day row today is honestly "No logs today" — never a made-up score. */
+/* 'met' | 'short' | 'missed' | null, from the day's own evidence. Mirrors proto day.js
+   recoveryStandardParts, which is the tested spec: no target or no reading is NOT assigned, and
+   never reads as a failure. The ladder's three judged bands collapse to two words here because a
+   roster is scanned, not studied. */
+export function nightSignalOf(dayRow) {
+  const ck = (dayRow && dayRow.checkin) || null;
+  const std = ck && ck.sleepStandard;
+  const target = std && Number(std.targetHours);
+  const hours = ck && Number(ck.sleepHours);
+  if (!(target > 0) || !(hours > 0)) return null;
+  const min = Number(std.minHours) > 0 ? Number(std.minHours) : target;
+  if (hours >= target) return 'met';
+  return hours >= min - 1 ? 'short' : 'missed';
+}
+
 export function buildRosterRow(member, dayRow, extras = {}) {
   const name = member.athlete_name || 'Athlete';
   const logged = !!dayRow;
@@ -2084,6 +2099,11 @@ export function buildRosterRow(member, dayRow, extras = {}) {
       ? (score != null ? (score >= ON_STANDARD ? 'On standard today' : 'Logged · below the bar') : 'Logged today')
       : 'No logs today',
     tasks,
+    // The coach-facing half of the Recovery Standard: a VERDICT, never a number. A coach reading a
+    // roster does not need an athlete's sleep duration and should not be handed one; what they can
+    // act on is "the standard their coach set was missed". null unless a standard was assigned AND
+    // a reading arrived to judge it, because a ring on a charger is not a finding.
+    night: nightSignalOf(dayRow),
     scoreHistory: extras.scoreHistory || [],
     lastMealAt: extras.lastMealAt || null,
     // Athlete IANA timezone (0088) so the coach status engine judges due/overdue in the athlete's

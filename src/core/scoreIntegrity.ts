@@ -79,6 +79,16 @@ const V3_WAKEUP_CEILING = {
   checkinAndRecovery: Math.round((MAX_SUBSCORE_WEIGHT.recovery + MAX_SUBSCORE_WEIGHT.checkin - WAKEUP_SHIFT) * 100),
   wakeup: Math.round(WAKEUP_SHIFT * 100),
 } as const;
+/**
+ * A day carrying a coach-assigned NIGHT: a morning roll call, a Recovery Standard, or both.
+ *
+ * They share one budget (NIGHT_SHIFT), so the arithmetic is identical whichever is assigned and
+ * identical again when both are: the check-in slot gives up exactly the night's share once, and
+ * the night grants it back once. That is why this is the same pair of numbers as the wake-up
+ * ceiling above rather than a second, larger slot, and it is what keeps the ceiling LOOSE: a day
+ * splitting the night two ways earns at most what a day measuring it one way earns.
+ */
+const V3_NIGHT_CEILING = V3_WAKEUP_CEILING;
 /** A row dated in the v2 era can still be written by the v3 engine (offline backlog, a re-push),
  *  so its ceiling is the v2/v3 union — the same loose-direction argument as PRE_CUTOVER_CEILING. */
 const V2_ERA_CEILING = {
@@ -132,6 +142,14 @@ export interface ScoreEvidence {
   /** The morning was actually answered (on time or late), so its slot is justified. A missed
    *  morning is `wakeupAssigned` without this: the slot exists and earns nothing. */
   wakeupEarned?: boolean;
+  /** The coach assigned a Recovery Standard for this day AND a reading arrived to judge it
+   *  against. Shares the night's budget with the morning, so it shrinks the check-in slot by the
+   *  same amount and never by more. NO READING is not assigned: a ring on a charger is not
+   *  evidence, and it leaves the denominator exactly as an excused morning does. */
+  sleepAssigned?: boolean;
+  /** The standard was actually met to some degree, so the night's slot is justified. A standard
+   *  scored at its floor still earned part of it, which is why this is the same gate. */
+  sleepEarned?: boolean;
 }
 
 /**
@@ -146,11 +164,16 @@ export function evidenceScoreCeiling(ev: ScoreEvidence, rowDate: string): number
   // that scores it writes `checkin.wakeup` at all, so every row ever written before this shipped
   // has no gate set and lands on exactly the ceiling it has always had. The eras above stay
   // untouched; a row can only enter the wake-up shape by carrying the evidence for it.
-  const checkinSlot = ev.wakeupAssigned ? Math.min(c.checkinAndRecovery, V3_WAKEUP_CEILING.checkinAndRecovery) : c.checkinAndRecovery;
+  // EITHER half of the night shrinks the check-in slot, and by the same amount, because the two
+  // share one budget. EITHER half earned grants it back. A day carrying both is bounded exactly as
+  // a day carrying one, which is also what the engine computes for it.
+  const nightAssigned = !!ev.wakeupAssigned || !!ev.sleepAssigned;
+  const nightEarned = !!ev.wakeupEarned || !!ev.sleepEarned;
+  const checkinSlot = nightAssigned ? Math.min(c.checkinAndRecovery, V3_NIGHT_CEILING.checkinAndRecovery) : c.checkinAndRecovery;
   return Math.min(100,
     (ev.nutritionPossible ? c.nutrition : 0) +
     (ev.checkinPossible ? checkinSlot : 0) +
-    (ev.wakeupEarned ? V3_WAKEUP_CEILING.wakeup : 0) +
+    (nightEarned ? V3_NIGHT_CEILING.wakeup : 0) +
     (ev.commitmentPresent ? c.commitment : 0));
 }
 

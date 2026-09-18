@@ -39,6 +39,18 @@ import { VC, loadBoard } from '../commitment-data.js';
 import { hydrateAvatars } from '../avatar.js';
 import { wireReadMore } from '../thread-readmore.js';
 
+/* The Recovery Standard on a roster row: a verdict in three characters, never an athlete's sleep
+   duration. Purple is recovery (DESIGN.md: one meaning per hue) and carries the two states worth a
+   coach's attention; a met standard says so quietly in the neutral pill rather than competing with
+   the score beside it. Absent entirely when no standard was assigned or no reading arrived, which
+   is most of a real roster and must cost those athletes nothing. */
+function nightChip(night) {
+  if (!night) return '';
+  const label = night === 'met' ? 'Sleep met' : night === 'short' ? 'Sleep short' : 'Sleep missed';
+  return ` <span class="status-pill ${night === 'met' ? 'muted' : 'p'} rn-night">${label}</span>`;
+}
+
+
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 // Back-compat re-export: loadCoachRoster now lives in coach-data.js (shared across every coach
@@ -2039,7 +2051,7 @@ export const copilot = {
       ${belowBar.map(r => `
         <div class="roster-row" data-go="coach-athlete/${esc(r.athleteId)}" role="button" tabindex="0" aria-label="${esc(r.name)}${r.score != null ? `, score ${r.score}` : ''}. ${esc(r.note)}">
           <div class="flagdot ${r.flag}"></div>
-          <div class="rn"><div class="t">${esc(r.name)}</div><div class="s">${esc(r.note)}</div></div>
+          <div class="rn"><div class="t">${esc(r.name)}</div><div class="s">${esc(r.note)}${nightChip(r.night)}</div></div>
           <span class="rs" style="color:${scoreColor(r.score)}">${r.score != null ? r.score : '—'}</span>
         </div>`).join('')}
     </section>` : `

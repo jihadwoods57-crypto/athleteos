@@ -7,7 +7,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { recoveryStandardParts, weightsForDay, scoreFor, computeComponents } from './day.js';
-import { SLEEP_SHIFT, WAKEUP_SHIFT, weightsForAssigned, weightsWithinCaps } from './plan-style.js';
+import { SLEEP_SHIFT, WAKEUP_SHIFT, NIGHT_SHIFT, weightsForAssigned, weightsWithinCaps } from './plan-style.js';
 
 const STD = { targetHours: 7.5, minHours: 7 };
 const day = (over = {}) => ({
@@ -39,14 +39,27 @@ test('a standard with no explicit minimum falls back to the target', () => {
   assert.equal(recoveryStandardParts(day({ sleepStandard: only, sleepHours: 7.5 })).score, 60);
 });
 
-test('AT SHIFT 0 AN ASSIGNED STANDARD CANNOT MOVE A SCORE', () => {
-  // The whole safety argument for landing this while 1.0 is in review.
+test('the standard is LIVE, and an unassigned day is untouched by it', () => {
+  // Turned on 2026-09-18 with all three: shared night budget, server ceiling (0234), cutover
+  // argument (none needed, no engine before today writes checkin.sleepStandard).
+  assert.equal(SLEEP_SHIFT, NIGHT_SHIFT, 'sleep carries the whole night budget when nothing shares it');
   const plain = day({ ciSubmitted: true, ci: { sleep: 8 }, ciConfig: { sleep: true } });
-  const withStd = day({ ciSubmitted: true, ci: { sleep: 8 }, ciConfig: { sleep: true },
-    sleepStandard: STD, sleepHours: 4.0 });
-  assert.equal(SLEEP_SHIFT, 0, 'turning this on is a founder decision with a migration behind it');
-  assert.equal(scoreFor(withStd), scoreFor(plain),
-    'a catastrophic night changed the score while the shift is 0');
+  const before = scoreFor(plain);
+  // An athlete whose coach set no standard scores exactly as before, which is most of a roster.
+  // The mix is the UNTOUCHED frozen profile row, so it carries no sleep key at all; absent reads
+  // as 0 in weightsWithinCaps and in scoreFor, and that is the contract rather than an oversight.
+  assert.equal(weightsForDay(plain).sleep || 0, 0);
+  assert.equal(scoreFor(plain), before);
+  // A standard with no reading also cannot move it: a ring on a charger is not evidence.
+  const noReading = day({ ...plain, sleepStandard: STD });
+  assert.equal(scoreFor(noReading), before, 'an unread standard moved a score');
+});
+
+test('a met standard pays, and a missed one costs, once it is assigned', () => {
+  const base = { ciSubmitted: true, ci: { sleep: 8 }, ciConfig: { sleep: true } };
+  const met = scoreFor(day({ ...base, sleepStandard: STD, sleepHours: 8 }));
+  const missed = scoreFor(day({ ...base, sleepStandard: STD, sleepHours: 4 }));
+  assert.ok(met > missed, 'meeting the standard scored no better than missing it');
 });
 
 test('the slot exists in the components and in the mix, even at 0', () => {
@@ -72,9 +85,23 @@ test('every assignment combination still sums to 1 and stays within caps', () =>
   }
 });
 
-test('both shifts are paid out of the SAME 18, which is the decision behind raising either', () => {
+test('ONE NIGHT, ONE BUDGET: a second way of watching it never costs the athlete more', () => {
+  const wakeOnly = weightsForAssigned('athlete', { wakeup: true });
+  const sleepOnly = weightsForAssigned('athlete', { sleep: true });
   const both = weightsForAssigned('athlete', { wakeup: true, sleep: true });
-  const taken = WAKEUP_SHIFT + SLEEP_SHIFT;
-  assert.ok(Math.abs((both.recovery + both.checkin) - (0.18 - taken)) < 1e-9,
-    'the two check-in slots did not give up exactly the two shifts');
+
+  // Whichever is assigned, the check-in gives up the SAME amount. This is the decision: letting
+  // each take its own 0.08 would leave the two check-in slots 0.02 between them, and the check-in
+  // is the one component every athlete can earn with no hardware at all.
+  const given = (w) => 0.18 - (w.recovery + w.checkin);
+  for (const w of [wakeOnly, sleepOnly, both]) {
+    assert.ok(Math.abs(given(w) - NIGHT_SHIFT) < 1e-9, 'the night took more or less than its budget');
+  }
+  // Alone each carries the whole night; together they split it.
+  assert.equal(wakeOnly.wakeup, NIGHT_SHIFT);
+  assert.equal(sleepOnly.sleep, NIGHT_SHIFT);
+  assert.ok(Math.abs(both.wakeup - NIGHT_SHIFT / 2) < 1e-9);
+  assert.ok(Math.abs(both.sleep - NIGHT_SHIFT / 2) < 1e-9);
+  // And the check-in never falls below what a wake-up day already costs it today.
+  assert.ok(both.checkin >= 0.05 - 1e-9 && both.recovery >= 0.05 - 1e-9);
 });
