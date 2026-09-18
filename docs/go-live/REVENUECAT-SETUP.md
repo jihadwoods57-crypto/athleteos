@@ -72,8 +72,26 @@ to discover on a device.
 Android stays empty on purpose: Play Console is not set up, and a blank key keeps the Android
 build honest rather than promising a store it has no account with.
 
-The shared secret was **deliberately skipped**: it is StoreKit 1 only, and the In-App Purchase Key
-covers the StoreKit 2 path the SDK defaults to.
+> ## ⚠️ CORRECTION 2026-09-18 — THE SHARED SECRET IS NOT OPTIONAL
+>
+> This document previously said the App-Specific Shared Secret could be skipped because it is
+> "StoreKit 1 only". That came from RevenueCat's credentials page, and it is **wrong in practice**.
+> Their own troubleshooting page lists as the FIRST cause of unfetchable products:
+>
+> > "Both the App-Specific Shared Secret and In-App Purchase Key must be configured. Missing
+> > either of these credentials can prevent products and offerings from being fetched in your app."
+>
+> Build 41 on a real iPhone hit exactly that: the paywall rendered all three plans from the local
+> catalog and then RevenueCat reported *"None of the products registered in the RevenueCat
+> dashboard could be fetched from App Store Connect."* RevenueCat's own copy of the products
+> carries `duration=null` and `trial_duration=null`, which is what "never actually read them from
+> Apple" looks like.
+>
+> **Add the shared secret.** App Store Connect → My Apps → OnStandard → **App Information** →
+> scroll to the bottom → **App-Specific Shared Secret → Manage**. Then paste it into the RevenueCat
+> app's App Store configuration.
+>
+> Direct link: <https://appstoreconnect.apple.com/apps/6787705639/appstore/info>
 
 What remains: **a build (41+), a sandbox purchase, and the iPhone recording.** Nothing else in
 either dashboard.
