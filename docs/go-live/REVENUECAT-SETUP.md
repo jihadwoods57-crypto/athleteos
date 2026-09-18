@@ -45,19 +45,38 @@ correct secret -> 200 {"received":true,"note":"no owner reference"}
 consumer rows  -> 0        (the smoke test wrote nothing, by design)
 ```
 
-> ### ⛔ The one thing still missing: the public SDK key
->
-> RevenueCat's v2 API exposes **no endpoint** for public API keys (`/api_keys` and
-> `/public_api_keys` both 404), so this is the one step that cannot be scripted. Copy the iOS
-> **App-specific public key** (starts with `appl_`) from **Project settings → API keys** into
-> `EXPO_PUBLIC_REVENUECAT_IOS` in `eas.json`, in all three profiles.
->
-> Until it lands, `isIapAvailable` is false and the paywall still reads "Opens at launch".
+### ✅ The public SDK key is in, and it was tested before trusting it
+
+`EXPO_PUBLIC_REVENUECAT_IOS` now carries the `appl_` key in all three `eas.json` profiles. It was
+not merely pasted — it was exercised against RevenueCat with the same call the SDK makes:
+
+```
+GET /v1/subscribers/<throwaway>/offerings   Authorization: Bearer appl_…   X-Platform: ios
+ -> 200
+    current offering: default
+    6 packages: onstandard_individual_monthly, onstandard_individual_annual,
+                onstandard_individual_plus_monthly, onstandard_individual_plus_annual,
+                onstandard_family_monthly, onstandard_family_annual
+```
+
+That is the whole chain proven from the client's side: key → project → current offering → the six
+product identifiers `purchaseConsumer()` matches on. A wrong key would have cost a 20-minute build
+to discover on a device.
+
+> **This key is committed to a PUBLIC repo, and that is correct.** A RevenueCat *public* SDK key is
+> designed to live in a client binary — anyone can extract it from an IPA — and it can only read
+> offerings and post receipts. What must NEVER leave `.env` is `RC_V2_SECRET_KEY` (the `sk_` key
+> that configured all of this) and the Apple `.p8` files. `.env` and `ios-certs/` are both
+> gitignored; that was checked, not assumed.
+
+Android stays empty on purpose: Play Console is not set up, and a blank key keeps the Android
+build honest rather than promising a store it has no account with.
 
 The shared secret was **deliberately skipped**: it is StoreKit 1 only, and the In-App Purchase Key
 covers the StoreKit 2 path the SDK defaults to.
 
-What remains: the `appl_` key, a build, a sandbox purchase, and the iPhone recording.
+What remains: **a build (41+), a sandbox purchase, and the iPhone recording.** Nothing else in
+either dashboard.
 
 ---
 
