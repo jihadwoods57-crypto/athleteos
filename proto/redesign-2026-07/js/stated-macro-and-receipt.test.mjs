@@ -48,6 +48,36 @@ test('an ambiguous figure is not evidence', () => {
     'two different figures for one macro means the athlete is unsure; let the reference price it');
 });
 
+/* A figure is read from its FIRST digit or not at all. Both patterns used to start scanning at any
+ * digit, so a number with a thousands separator or a decimal point had its TAIL read as the whole
+ * figure: "1,200 calories" became 200, "22.5 g protein" became 5, "0.75 g fat" became 75. That is
+ * the exact failure this whole path exists to end - a wrong number wearing the athlete's own
+ * authority, and now beating the curated reference with it. */
+test('a grouped thousand is read whole, not by its last three digits', () => {
+  assert.deepEqual(statedMacros('that was about 1,200 calories'), { kcal: 1200 });
+  assert.deepEqual(statedMacros('it had 1,500 cal'), { kcal: 1500 });
+  assert.deepEqual(statedMacros('roughly 2,000 calories today'), { kcal: 2000 });
+  assert.deepEqual(statedMacros('1,200g carbs'), { carbs: 1200 });
+});
+
+test('a decimal figure is read whole, not by its fractional digits', () => {
+  assert.deepEqual(statedMacros('22.5 g protein'), { protein: 22.5 });
+  assert.deepEqual(statedMacros('it was 0.75 g fat'), { fat: 0.75 });
+  assert.deepEqual(statedMacros('1.5 g fat'), { fat: 1.5 });
+});
+
+test('a figure we cannot read is not evidence either', () => {
+  // Malformed grouping is a guess, not a reading. Let the reference price it.
+  assert.equal(statedMacros('add 1,20 calories'), null);
+  assert.equal(statedMacros('1,20 g protein'), null);
+  // European decimal comma vs thousands separator is genuinely ambiguous; refuse it.
+  assert.equal(statedMacros('1.200 calories'), null);
+  // Still bounded: a figure no food can have stays rejected.
+  assert.equal(statedMacros('12,000 calories'), null);
+  // And an unreadable figure poisons its macro, so a second one cannot quietly take its place.
+  assert.equal(statedMacros('1,20 g protein, no 42 g protein'), null);
+});
+
 /* ---- THE BUG, pinned against the founder's own plate ---- */
 
 const plate = () => ({

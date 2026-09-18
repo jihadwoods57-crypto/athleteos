@@ -20,9 +20,18 @@ const mockState = {
   told: [] as Array<{ p_instance: string; p_armed: boolean }>,
 };
 
+// NOT `{ virtual: true }`. Both of these modules really exist on disk, and a virtual mock is keyed
+// on the raw request string rather than on the file `require()` actually resolves to. Jest shares
+// one resolver — module-ID cache included — across every test file in a worker, so once ANOTHER
+// file (src/proto/bridge.test.ts, via bridge.ts -> wakeAlarms.ts) has resolved these same requests
+// for real, the cached id wins here and the virtual mock is silently skipped: `live()` handed back
+// the REAL native shim, `isAlarmSupported()` is false under node, and all 12 alarm behaviours
+// below asserted against a module that does nothing. It flaked roughly one full-suite run in eight,
+// purely on which worker the two files landed in together. A plain mock is keyed on the resolved
+// path, which is what `require()` asks for either way.
 jest.mock('@/lib/supabase/client', () => ({
   supabase: { rpc: async (fn: string, args: { p_instance: string; p_armed: boolean }) => { if (fn === 'set_wake_alarm_armed') mockState.told.push(args); return { error: null }; } },
-}), { virtual: true });
+}));
 
 jest.mock('react-native', () => ({ Platform: { OS: 'ios' } }));
 
@@ -47,7 +56,7 @@ jest.mock('../../../modules/rollcall-live', () => ({
     mockState.scheduled = mockState.scheduled.filter((x) => x.instanceId !== id);
   },
   scheduledWakeAlarms: () => mockState.scheduled,
-}), { virtual: true });
+}));
 
 const morning = (instanceId: string, hour = 5, minute = 45) => ({ instanceId, hour, minute, title: 'Wake up' });
 

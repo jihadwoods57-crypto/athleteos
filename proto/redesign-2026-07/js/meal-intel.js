@@ -76,26 +76,55 @@ export function normalizeDetected(detected) {
    it as 2g of protein would be a new lie in place of the old one; a unit ('42g protein') is
    accepted at any size, a bare figure only from 10 up. */
 const MACRO_WORD = { protein: 'protein', carb: 'carbs', carbs: 'carbs', carbohydrate: 'carbs', carbohydrates: 'carbs', fat: 'fat' };
+/* A FIGURE IS READ FROM ITS FIRST DIGIT OR NOT AT ALL. Both patterns below match the whole numeric
+   literal, separators and decimal point included, because a bare \d{1,4} can start matching at ANY
+   digit: "1,200 calories" matched its last three and read as 200, "22.5 g protein" read as 5, and
+   "0.75 g fat" read as 75. That is the precise failure this path exists to end, except worse: a
+   wrong number wearing the athlete's own authority, and beating the curated reference with it.
+
+   Reading the literal is not the same as trusting it. statedNumber returns null for anything it
+   cannot read UNAMBIGUOUSLY (malformed grouping like "1,20"; a lone dotted triple like "1.200",
+   which is 1.2 to one reader and 1200 to another), and an unreadable figure still counts against
+   its macro, so a second figure cannot quietly take the place of one we refused. */
+const NUM_SRC = '\\d[\\d,]*(?:\\.\\d+)?';
+function statedNumber(raw) {
+  const s = String(raw);
+  // Only strict thousands grouping is a reading. Anything else with a comma would be a guess.
+  if (s.includes(',')) {
+    if (!/^\d{1,3}(?:,\d{3})+(?:\.\d+)?$/.test(s)) return null;
+    return Number(s.replace(/,/g, ''));
+  }
+  if (/^\d{1,3}\.\d{3}$/.test(s)) return null;
+  const n = Number(s);
+  return isFinite(n) ? n : null;
+}
 export function statedMacros(text) {
   const t = String(text == null ? '' : text).toLowerCase();
   if (!t) return null;
   const out = {};
   const seen = {};
+  // A figure we REFUSED still counts against its macro, so it cannot be silently replaced by the
+  // next one in the same message. That is the ambiguity rule below, one step earlier.
   const bump = (key, n) => {
-    if (!isFinite(n) || n <= 0 || n > 2000) return;
     seen[key] = (seen[key] || 0) + 1;
+    if (n == null || !isFinite(n) || n <= 0 || n > 2000) return;
     out[key] = n;
   };
-  // "42g protein", "42 grams of protein", "42 protein"
-  for (const m of t.matchAll(/(\d{1,4})\s*(g|gs|gram|grams)?\s*(?:of\s+)?(protein|carbs?|carbohydrates?|fat)\b/g)) {
-    const n = Number(m[1]);
+  // "42g protein", "42 grams of protein", "42 protein", "22.5 g protein", "1,200g carbs"
+  for (const m of t.matchAll(new RegExp(`(${NUM_SRC})\\s*(g|gs|gram|grams)?\\s*(?:of\\s+)?(protein|carbs?|carbohydrates?|fat)\\b`, 'g'))) {
+    const n = statedNumber(m[1]);
     const unit = !!m[2];
-    if (!unit && n < 10) continue;              // a count, not a macro
+    if (n != null && !unit && n < 10) continue; // a count, not a macro
     const key = MACRO_WORD[m[3]] || null;
     if (key) bump(key, n);
   }
-  // "860 calories", "860 kcal", "860 cal"
-  for (const m of t.matchAll(/(\d{2,5})\s*(?:kcal|cals?|calories)\b/g)) bump('kcal', Number(m[1]));
+  // "860 calories", "860 kcal", "860 cal", "1,200 calories". Two digits minimum, as before: a
+  // one-digit calorie figure is a typo, not a reading.
+  for (const m of t.matchAll(new RegExp(`(${NUM_SRC})\\s*(?:kcal|cals?|calories)\\b`, 'g'))) {
+    const n = statedNumber(m[1]);
+    if (n != null && n < 10) continue;
+    bump('kcal', n);
+  }
   // AMBIGUITY IS NOT EVIDENCE. Two different protein figures in one message ("it was 42g, no wait
   // 30g") tells us the athlete is unsure, and picking one would be a guess wearing the authority
   // of a stated fact. Drop any macro said more than once and let the reference price it.

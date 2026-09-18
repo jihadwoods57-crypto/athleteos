@@ -22,7 +22,7 @@ not at build time. `npm run verify` is what catches it.
 
 ## Before you claim anything works
 
-`npm run verify` runs every gate — twelve as of 2026-08-23; trust the count its own
+`npm run verify` runs every gate — seventeen as of 2026-09-17; trust the count its own
 summary prints, not this sentence ("nine" sat here for weeks after test:fn and friends
 landed) — and prints a verdict for each — it no longer stops at the
 first failure, so you see the whole tree at once. `npm run verify:full` adds the SQL

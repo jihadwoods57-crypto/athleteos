@@ -54,6 +54,11 @@ const GATES = [
   // when someone pasted the command out of the comment at the top of the file.
   { name: 'test:fn',    what: 'the edge-function logic suites' },
   { name: 'verify:zip', what: 'the SHIPPED proto.zip parses and its imports all resolve' },
+  // Added 2026-09-17. verify:zip reads assets/proto.zip and proves that zip is sound — which a zip
+  // built from last week's proto also is. Nothing asked whether the artifact we ship is the one
+  // this source builds, so a proto edit that was never rebuilt went green through all sixteen
+  // gates and then shipped nothing: the OTA carries the zip, not proto/redesign-2026-07/.
+  { name: 'verify:fresh', what: 'the SHIPPED proto.zip is what this proto source builds' },
   { name: 'bundle',     what: 'expo export actually builds' },
 ];
 // Opt-in (`--with-rls`): needs a running local Supabase stack, so it cannot be a default gate.
