@@ -52,6 +52,12 @@ Family $18.99 / $155.99·yr. 14-day free trials. (Family = up to 4 seats — enf
 > products already exist in a console when you read this, the price there is the one that binds.
 
 ## 2. RevenueCat dashboard
+
+> **Full step-by-step with links, credentials and the sandbox proof: `docs/go-live/REVENUECAT-SETUP.md`.**
+> Also recorded there, verified 2026-09-18: the webhook is already DEPLOYED AND CONFIGURED (it
+> answers 401, not 503) and migration `0102` is already APPLIED to live prod, so steps 4 below are
+> largely done. What is NOT done is the RevenueCat project itself and the `appl_` key in `eas.json`.
+
 - Add the iOS + Android apps; create one **Offering** containing the six products above.
 - Copy the **public SDK keys** → paste into `EXPO_PUBLIC_REVENUECAT_IOS` / `EXPO_PUBLIC_REVENUECAT_ANDROID`
   in `eas.json`. The keys exist there as **empty strings in all three profiles** — empty is the
