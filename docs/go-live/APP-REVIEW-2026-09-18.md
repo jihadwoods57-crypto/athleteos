@@ -211,12 +211,23 @@ the shipped UI.
 
 ## Pre-resubmit checklist
 
+**All six products finished at 2026-09-18: `6/6 READY_TO_SUBMIT`, verified by reading ASC back.**
+
+| Product | USD | Territories priced | Trial | Screenshot | State |
+| ------- | --- | ------------------ | ----- | ---------- | ----- |
+| `onstandard_individual_monthly` | 9.99 | 175/175 | 175/175 | COMPLETE | READY_TO_SUBMIT |
+| `onstandard_individual_annual` | 84.00 | 175/175 | 175/175 | COMPLETE | READY_TO_SUBMIT |
+| `onstandard_individual_plus_monthly` | 14.99 | 175/175 | 175/175 | COMPLETE | READY_TO_SUBMIT |
+| `onstandard_individual_plus_annual` | 125.99 | 175/175 | 175/175 | COMPLETE | READY_TO_SUBMIT |
+| `onstandard_family_monthly` | 18.99 | 175/175 | 175/175 | COMPLETE | READY_TO_SUBMIT |
+| `onstandard_family_annual` | 155.99 | 175/175 | 175/175 | COMPLETE | READY_TO_SUBMIT |
+
 Done in App Store Connect on 2026-09-18, via the ASC API with the key in `ios-certs/`:
 
 - [x] Subscription group **"OnStandard Membership"** (`22394757`) created and localized
 - [x] All **six** subscription products created, named and localized (description cap is **55 chars**)
-- [x] Priced: $9.99 / $84 · $14.99 / **$125.99** · $18.99 / **$155.99**
-- [x] **14-day free trial** in all 175 territories, on all six
+- [x] Priced in **all 175 territories** — the state only flips to READY_TO_SUBMIT on the last one
+- [x] **14-day free trial** in all 175 territories, on all six (1,050 offers)
 - [x] **App Review screenshot** on all six, asset state `COMPLETE` (`npm run shots:iap`)
 - [x] Review notes rewritten and uploaded — the deleted-geofence paragraph is gone
 - [x] Demo accounts verified against live prod; the athlete account really is an athlete
@@ -232,8 +243,14 @@ Still open, and all of it needs a human in a console:
       (all three profiles, currently empty strings). Until this lands `isIapAvailable` is false and
       the paywall still reads "Opens at launch" — finding #3 verbatim.
 - [ ] Set `REVENUECAT_WEBHOOK_SECRET`, deploy `revenuecat-webhook`, apply migration `0102`
-- [ ] **Submit the six products for review.** They are blocked until every available territory has
-      a price; run the territory-pricing pass to completion, then submit.
+- [ ] **Submit the six products** — which happens BY SUBMITTING THE APP VERSION, not separately.
+      `READY_TO_SUBMIT` is the finished state for a product; it means "complete, waiting to go with
+      a version". `POST /v1/subscriptionSubmissions` refuses them with
+      `INVALID_REQUEST_ENTITY_STATE_INVALID`, and `reviewSubmissionItems` rejects a `subscription`
+      relationship outright — that standalone path is for apps already on sale. Apple's own wording
+      in the rejection is the instruction: *"submit the In-App Purchase products **and upload a new
+      binary**"*. So: upload build 41, attach it to version 1.0, submit, and the six products go
+      with it. Confirm on the version page that all six are listed before you hit submit.
 - [ ] **Sandbox purchase, end to end** — buy Individual annual, confirm the webhook writes
       `subscriptions.tier='consumer'` and premium unlocks
 - [ ] **Record the iPhone video** for 2.5.1 (shot list above) and attach it
