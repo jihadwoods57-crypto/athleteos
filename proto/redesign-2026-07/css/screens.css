@@ -3646,3 +3646,60 @@ body.kb-open .meal-foot { display: none; }
 .wakeface .wf-done.late .wf-done-mark::before{border-color:var(--amber-bright)}
 .wakeface .wf-done.late .wf-eyebrow{color:var(--amber-bright)}
 @media (prefers-reduced-motion: reduce){.wakeface{transition:none;transform:none}}
+
+/* ===== Sleep (#sleep) — evidence, never a score =====
+   Purple is recovery and a short night is a recovery signal, so `under` carries it. Amber is
+   warning ONLY and a night below your own average is a fact, not an alarm; red is missed and this
+   cannot be missed. The ring sweep is reserved for the six score surfaces and must never appear
+   here: the whole point of the screen is that these hours do not score. */
+
+.sl-lead { display: flex; gap: var(--s3); align-items: flex-start;
+  background: var(--surface-1); border-radius: var(--r-card); padding: var(--s4);
+  box-shadow: var(--sh-card); margin-bottom: var(--s4); }
+.sl-lead-ic { flex: 0 0 auto; width: 38px; height: 38px; border-radius: var(--r-card-sm);
+  display: grid; place-items: center;
+  background: rgba(var(--purple-rgb), .12); color: var(--purple-bright); }
+.sl-lead-t { font-size: var(--t-md); font-weight: 800; letter-spacing: var(--title-tight); }
+.sl-lead-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.5;
+  margin-top: var(--s1); }
+.sl-lead-act { margin-top: var(--s3); }
+
+/* The average is a STATEMENT, not a hero tile. No container, no big-number-with-gradient: that
+   template is the named anti-reference, and this number is not the score. */
+.sl-avg { padding: var(--s2) var(--s1) var(--s5); }
+.sl-avg-k { font-size: var(--t-eyebrow); font-weight: 800; text-transform: uppercase;
+  letter-spacing: var(--track-eyebrow); color: var(--text-3); }
+.sl-avg-v { font-size: var(--t-3xl); font-weight: 800; letter-spacing: var(--num-tight);
+  font-variant-numeric: tabular-nums; margin-top: var(--s1h); }
+.sl-avg-wait { font-size: var(--t-lg); font-weight: 800; letter-spacing: var(--title-tight);
+  color: var(--text-2); margin-top: var(--s1h); }
+.sl-avg-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); line-height: 1.5;
+  margin-top: var(--s1h); max-width: 46ch; }
+
+.sl-list { padding: 0 var(--s4); }
+.sl-night { display: flex; align-items: center; justify-content: space-between; gap: var(--s4);
+  min-height: 56px; padding: var(--s3) 0; border-bottom: 1px solid var(--hairline-soft); }
+.sl-night:last-child { border-bottom: 0; }
+.sl-l { min-width: 0; }
+.sl-when { font-size: var(--t-md); font-weight: 700; }
+.sl-said { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top: 2px; }
+.sl-said.none { color: var(--text-3); }
+.sl-r { text-align: right; flex: 0 0 auto; }
+.sl-dur { font-size: var(--t-md); font-weight: 800; letter-spacing: var(--num-tight);
+  font-variant-numeric: tabular-nums; }
+.sl-dur.none { font-size: var(--t-sm); font-weight: 600; color: var(--text-3);
+  letter-spacing: normal; }
+.sl-delta { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); margin-top: 2px; }
+.sl-delta.under { color: var(--purple-bright); }
+
+.sl-foot { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); line-height: 1.5;
+  padding: var(--s4) var(--s1) 0; max-width: 52ch; }
+
+/* The check-in anchor. Read-only context above the Sleep quality chips: the athlete answers
+   against a fact instead of a memory, and the tap count does not change. Absent entirely when
+   nothing was measured, which is the majority case and must cost that athlete nothing. */
+.rec-anchor { display: flex; align-items: baseline; gap: var(--s2); flex-wrap: wrap;
+  margin: var(--s1h) 0 var(--s2h); }
+.rec-anchor-v { font-size: var(--t-md); font-weight: 800; letter-spacing: var(--num-tight);
+  font-variant-numeric: tabular-nums; color: var(--purple-bright); }
+.rec-anchor-d { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); }

@@ -5,6 +5,7 @@ import { backHead, esc } from '../components.js';
 import { recoveryCoachMessage } from '../recovery-intel.js';
 import { scoreMoveDial, playScoreMove } from '../score-move.js';
 import * as roles from '../roles.js';
+import { fmtDuration } from '../sleep.js';
 
 /* The move this screen is allowed to show.
  *
@@ -141,6 +142,12 @@ export default {
             <span class="rec-name">${f.k}</span>
             <span class="rec-ends">${loEnd} → ${hiEnd}</span>
           </div>
+          ${/* Read-only anchor, SLEEP ONLY. A wearable knows how long you were asleep; this
+                question asks how it FELT, and those come apart constantly. Showing the hours here
+                lets the athlete answer against a fact instead of a memory without adding a tap.
+                Rendered empty and hidden: mount fills it only when a device actually reported,
+                so an athlete with no wearable sees exactly today's screen and loses nothing. */''}
+          ${f.key === 'sleep' ? '<div class="rec-anchor" id="rec-sleep-anchor" hidden></div>' : ''}
           <div class="chips5" data-toggle-group role="radiogroup" aria-label="${f.k}">
             ${ns.map(n => `<div class="chip ${n === f.val ? 'on' : ''}" data-n="${n}" role="radio" aria-checked="${n === f.val}" aria-label="${f.k}: ${n} of 5, ${n === 1 ? f.lo : n === 5 ? f.hi : 'between'}">${n}</div>`).join('')}
           </div>
@@ -236,5 +243,19 @@ export default {
       const row = root.querySelector('#rec-connect');
       if (row) row.style.display = '';
     }).catch(() => { /* no bridge — stays hidden */ });
+
+    // Last night's measured hours, patched into the sleep question. Patched rather than rendered
+    // for the reason the Settings health label is: a slow bridge must never re-render a screen
+    // the athlete already has a finger on. No reading, no anchor, no apology.
+    roles.healthRead().then((sample) => {
+      const el = root.querySelector('#rec-sleep-anchor');
+      if (!el || !root.isConnected) return;
+      const hours = sample && sample.sleepHours;
+      const text = fmtDuration(hours);
+      if (!text) return;
+      el.innerHTML = `<span class="rec-anchor-v">${esc(text)}</span>`
+        + '<span class="rec-anchor-d">measured last night</span>';
+      el.hidden = false;
+    }).catch(() => { /* no bridge, or nothing shared — the question stands on its own */ });
   },
 };

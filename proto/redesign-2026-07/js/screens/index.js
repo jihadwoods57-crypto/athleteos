@@ -235,4 +235,7 @@ export const screens = {
   'coach-standards-manage': lazy(coachConnected, 'coachStandardsManage'),
   'health-consent': lazy(() => import('./health-consent.js')),
   'apple-health': lazy(() => import('./apple-health.js')),
+  // Sleep (phase 1, evidence only). Registered so #sleep renders; DELIBERATELY UNLINKED from
+  // every shipped surface while 1.0 is in App Store review. Wiring it in is a separate decision.
+  sleep: lazy(() => import('./sleep.js')),
 };
