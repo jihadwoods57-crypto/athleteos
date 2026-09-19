@@ -42,7 +42,7 @@ const GATES = [
   { name: 'lint:space', what: 'the off-scale padding/margin/gap count did not grow' },
   { name: 'lint:score', what: 'no hardcoded score percentages' },
   { name: 'lint:undef', what: 'no proto module calls a name it never imported' },
-  { name: 'lint:widget', what: "the widget extension's copies of the shared Swift have not drifted" },
+  { name: 'lint:mirror', what: 'every checked-in copy of a shared source file still matches its original' },
   { name: 'typecheck',  what: 'tsc --noEmit' },
   { name: 'test',       what: 'jest' },
   { name: 'test:proto', what: 'the proto node:test suites' },

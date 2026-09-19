@@ -24,6 +24,7 @@ import { S, RT, act, mealDetail, athleteContextForAnalysis } from '../state.js';
 import { MEAL_KEYS } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, composer } from '../components.js';
+import { decideAiTurn } from '../ai-thread.js';
 import { threadMessages, reactionGroups, REACTION_EMOJI, contextForChat } from '../meal-intel.js';
 import { foodMemory, warmFoodMemory } from '../food-memory-data.js';
 import { remainingToday } from '../food-memory.js';
@@ -521,7 +522,7 @@ export default {
       if (!t) return;
       if (t.id === 'nc-members') { openMembersSheet(participantList(STATE.participants, RT.userId)); return; }
       if (t.id === 'nc-target-clear') { REPLY_TO = null; paint(); focusComposer(root.querySelector('#nc-msg')); return; }
-      if (t.id === 'nc-retry-ai') { setNote(''); void askAI(lastAsk.text, lastAsk.mealId); return; }
+      if (t.id === 'nc-retry-ai') { setNote(''); void askAI(lastAsk.text, lastAsk.mealId, lastAsk.turn); return; }
       if (t.id === 'nc-retry') { STATE.error = false; paint(); void load(); return; }
       t.disabled = true; t.textContent = 'Loading…';
       void load({ older: true });
@@ -578,10 +579,10 @@ export default {
        athlete's comment lands in meal_comments once, and a retry re-runs only this, so a failed
        reply can never duplicate the question. The AI's row is persisted server-side by meal-chat,
        so success is followed by a refetch, never by appending data.reply by hand. */
-    let lastAsk = { text: '', mealId: null };
-    const askAI = async (text, mealId) => {
+    let lastAsk = { text: '', mealId: null, turn: null };
+    const askAI = async (text, mealId, turn = null) => {
       if (!mealId) return;
-      lastAsk = { text, mealId };
+      lastAsk = { text, mealId, turn };
       const meal = mealById(STATE.meals, mealId);
       try {
         // Saved usual meals, so the AI can name what THEY eat and a suggest_meal bubble has
@@ -611,7 +612,8 @@ export default {
           exec: { met: ex.met, total: ex.total, score: ex.score, possible: ex.possible, next: ex.now && ex.now.title },
           day: { proteinSoFar: dp.proteinSoFar, proteinTarget: dp.proteinTarget, mealsRemaining: dp.mealsRemaining },
           recentMeals: recentAscending.map((m) => ({ type: m.type, protein: m.protein, kcal: m.kcal, quality: m.quality, date: m.day_date })),
-          thread: threadMessages(STATE.comments).slice(-20).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
+          // Identity-preserving transcript (ai-thread.js) — see the note in meal.js.
+          thread: turn ? turn.thread : threadMessages(STATE.comments).slice(-20).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
           usualMeals: suggestItems(),
         });
         setTyping(true);
@@ -628,6 +630,8 @@ export default {
             // screen and the thread describe the same athlete: sport, position spelled out,
             // level, bodyweight, training or rest day.
             ...athleteContextForAnalysis(),
+            // The addressing decision, re-checked server-side (ai-addressing.js).
+            ...(turn ? { speaker: turn.outgoing, addressing: turn.decision, participants: turn.participants } : {}),
             ...(slot ? { canApplyCorrection: true } : {}),
             // "I render the remember-this chips": unlocks the remember tool server-side.
             canRemember: true,
@@ -636,6 +640,8 @@ export default {
           },
         });
         setTyping(false);
+        // Same verdict, reached server-side: the AI was not addressed, so it stays quiet.
+        if (data && data.silent) return;
         if (error || !data || data.error) {
           // The vendored supabase-js throws FunctionsHttpError on any non-2xx, so `data` is null
           // and the function's JSON error body never reaches it — parse it off error.context,
@@ -781,10 +787,19 @@ export default {
       }
       // Forced: they just sent it and are watching for it to land.
       scrollThreadToEnd(root, { force: true });
-      // And now the room answers. Without this the athlete was typing into a conversation whose
-      // only other named participant could not hear them.
+      /* And now the room answers — IF the room was talking to it. The unconditional askAI here
+         is what made the AI reply to "yes coach". Same gate as the meal thread. */
+      const turn = decideAiTurn({
+        text,
+        comments: STATE.comments,
+        participants: STATE.participants || [],
+        self: { id: RT.userId, name: S.athlete.first || 'Athlete', role: 'athlete' },
+        athleteName: S.athlete.first || 'Athlete',
+        fallbackNoun: S.coach.noun,
+      });
+      if (!turn.decision.shouldRespond) return;
       startBurst();
-      void askAI(text, target.id);
+      void askAI(text, target.id, turn);
     };
     if (send) send.addEventListener('click', submit);
     // isComposing: Enter inside an IME composition (CJK keyboards) is choosing a character,

@@ -1,5 +1,9 @@
 #!/usr/bin/env node
-// OnStandard — the widget extension's copies of the shared Swift must never drift.
+// OnStandard — every checked-in copy of a shared source file must never drift from its original.
+//
+// Two module graphs in this repo cannot import each other, so each needs a copy of the code both
+// sides must agree on. A copy that silently diverges is the worst kind of bug: nothing throws, and
+// the two halves just quietly stop meaning the same thing. Hence a gate.
 //
 // WHY THERE ARE COPIES AT ALL. `targets/RollCallWidget/` compiles into the widget EXTENSION;
 // `modules/rollcall-live/ios/` compiles into the APP. Two of the types are needed by both:
@@ -23,9 +27,15 @@
 import { readFileSync, existsSync } from 'node:fs';
 
 const PAIRS = [
+  // The widget EXTENSION and the APP compile separately and both need these types.
   ['modules/rollcall-live/ios/RollCallAttributes.swift', 'targets/RollCallWidget/RollCallAttributes.swift'],
   ['modules/rollcall-live/ios/RollCallCheckInIntent.swift', 'targets/RollCallWidget/RollCallCheckInIntent.swift'],
   ['modules/rollcall-live/ios/RollCallWidget.swift', 'targets/RollCallWidget/RollCallWidget.swift'],
+  // WHO IS THIS MESSAGE FOR. The proto (browser ES modules, shipped in proto.zip) decides whether
+  // to call the AI at all; meal-chat (Deno) enforces the SAME decision server-side so a stale or
+  // tampered client cannot buy itself a turn. Two answers to one question is not a fix, so the
+  // decision is one file, copied. Drift here means the AI speaks when the app said it should not.
+  ['proto/redesign-2026-07/js/ai-addressing.js', 'supabase/functions/_shared/ai-addressing.mjs'],
 ];
 
 /** Line endings are not drift: git normalises them on this repo and the compiler does not care. */
@@ -44,12 +54,12 @@ for (const [source, copy] of PAIRS) {
     for (let i = 0; i < Math.max(la.length, lb.length); i++) {
       if (la[i] !== lb[i]) {
         console.error(`  first difference at line ${i + 1}:`);
-        console.error(`    app       ${JSON.stringify(la[i] ?? '(end of file)')}`);
-        console.error(`    extension ${JSON.stringify(lb[i] ?? '(end of file)')}`);
+        console.error(`    source ${JSON.stringify(la[i] ?? '(end of file)')}`);
+        console.error(`    copy   ${JSON.stringify(lb[i] ?? '(end of file)')}`);
         break;
       }
     }
-    console.error(`  fix: copy the app's version over the extension's, then re-read it.`);
+    console.error(`  fix: copy the source over the copy, then re-read it.`);
     bad++;
   }
 }
@@ -60,4 +70,4 @@ if (bad) {
   console.error('appears, which looks exactly like the feature not being installed.');
   process.exit(1);
 }
-console.log(`widget mirror: ${PAIRS.length}/${PAIRS.length} in sync`);
+console.log(`mirrors: ${PAIRS.length}/${PAIRS.length} in sync`);

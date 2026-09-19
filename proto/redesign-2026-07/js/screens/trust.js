@@ -15,6 +15,7 @@ import { layoutThread, MUTED_HIDDEN_NOTE, authorName, initialsFor, isAnalysisUpd
   correctionRowsOf,
 } from '../chat-view.js';
 import { openMembersSheet } from '../members-sheet.js';
+import { decideAiTurn } from '../ai-thread.js';
 import { hydrateAvatars } from '../avatar.js';
 
 /* Message clock + day key for the past-meal conversation — local, so a message at 11:58pm and
@@ -546,12 +547,24 @@ function mountThread(root, mealId, meal) {
       });
     }
     if (!text) { busy = false; return; } // a photo alone is a complete message — nothing to ask the AI
+    /* The same addressing gate the live thread uses. A past plate's thread is still a room with
+       a coach in it, and "thanks coach" three days later is no more the AI's to answer than it
+       was on the day. */
+    const turn = decideAiTurn({
+      text,
+      comments: rows,
+      participants,
+      self: { id: RT.userId, name: S.athlete.first || 'Athlete', role: 'athlete' },
+      athleteName: S.athlete.first || 'Athlete',
+      fallbackNoun: S.coach.noun,
+    });
+    if (!turn.decision.shouldRespond) { busy = false; return; }
     try {
-      await window.sb.functions.invoke('meal-chat', { body: { mealId, question: text, context: {
+      await window.sb.functions.invoke('meal-chat', { body: { mealId, question: text, speaker: turn.outgoing, addressing: turn.decision, participants: turn.participants, context: {
         meal: { name: meal.name || meal.type, slot: meal.type, quality: meal.quality,
                 macros: { protein: meal.protein, carbs: meal.carbs, fat: meal.fat, cals: meal.kcal }, note: meal.note },
         plan: { goal: RT.primaryGoal || null, allergies: RT.allergies },
-        thread: threadMessages(rows).slice(-20).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
+        thread: turn.thread,
       } } });
       await refresh();
     } catch { if (note) note.textContent = 'Sent. The reply will appear when the connection is back.'; }

@@ -33,6 +33,10 @@ import { flagOn } from '../_shared/feature-flags.ts';
 import { routeForCoachMeal } from '../_shared/followup.ts';
 import { chatVoiceDirective } from '../_shared/coach-voice.ts';
 import { athleteContextLine } from '../_shared/athlete-context.ts';
+// WHO IS THIS MESSAGE FOR. Byte-identical to proto/redesign-2026-07/js/ai-addressing.js
+// (`npm run lint:mirror` fails the build if they drift), so the client's decision not to spend
+// a turn and this function's refusal to spend one are the SAME decision, not two that agree.
+import { gateVerdict } from './addressing-gate.mjs';
 import { loadVoiceForAthlete } from '../_shared/coach-voice-load.ts';
 import { SUGGEST_MEAL_TOOL, parseSuggestMeal, suggestRowText, suggestRowMeta } from './suggest.mjs';
 // Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
@@ -275,6 +279,13 @@ Rules that bind you:
    work" — and never reuse the same opener or phrase twice in one thread. Each reply reads like
    a fresh text, not a template.
 5. When coach guidance appears in the context, defer to it explicitly.
+5b. YOU ARE IN A GROUP CHAT, NOT A HELPDESK. The context thread names every speaker
+   (senderName, senderRole) and this app has more than one human in the room: the athlete,
+   their coach or trainer, sometimes a parent. Read who said what to whom. You have already
+   been judged to be the person being addressed, so answer THAT, and nothing else in the
+   transcript. Never answer a question one human asked another, never respond to an
+   acknowledgement, a joke or a thank-you, and never explain to the room that you were not
+   being spoken to. Address the person who spoke to you by name when the thread gives it.
 6. Answer the athlete's question for THEIR goal and plan, not generic nutrition advice.
 6b. COACH THE ATHLETE IN FRONT OF YOU. When the context names their sport, position, level,
    bodyweight or whether today is a training or rest day, let it shape the answer: a linebacker
@@ -650,6 +661,39 @@ Deno.serve(async (req) => {
     // athlete's ability to ASK something — and so a correction spree cannot become a spend event.
     // Over cap is not an error: the correction itself already applied deterministically, and the
     // screen already confirmed it. Only the AI's acknowledgment is skipped.
+    /* ================= IS ANYONE TALKING TO THE AI? =================
+       The founder watched this happen in the app:
+
+           Coach Alex:      Good job
+           Athlete:         Thank you Coach
+           AI Nutritionist: <answers, about protein>
+
+       Every athlete composer used to end in an unconditional askAI(), so the model was handed a
+       turn whether or not it had been spoken to. The composers now decide first — but a decision
+       that only lives on the client is a request away from being bypassed, by a stale OTA, a
+       replayed call, or anything else holding a session. So the SAME function runs here, over the
+       SAME identity-preserving transcript the client sent, and a message addressed to a person is
+       refused before it can cost a token.
+
+       Enforced only when the caller sent the structured transcript (`speaker` + rich `thread`
+       entries): a client that predates this contract has nothing to judge, and silently muting it
+       would be worse than the behaviour being fixed. The OTA that adds the gate adds both halves.
+
+       Never applied to the coach's own modes (coachAsk is a button press, drafts and correction
+       receipts are not conversation) — those are addressed to the AI by construction. */
+    const verdict = gateVerdict(body, context, { coachMode, correctionUpdate, receiptRows }) as
+      { shouldRespond: boolean; intendedRecipient?: unknown; confidence?: number; reason?: string } | null;
+    if (verdict && !verdict.shouldRespond) {
+      // 200, not an error: the athlete's message DID land in the thread. The only thing that did
+      // not happen is the AI speaking, which is the point.
+      return new Response(JSON.stringify({
+        silent: true,
+        intendedRecipient: verdict.intendedRecipient ?? null,
+        confidence: verdict.confidence ?? null,
+        reason: verdict.reason ?? 'not addressed to the AI',
+      }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+
     if (correctionUpdate) {
       if (!(await withinKeyCap(`meal_correction:${callerId}`, 5))) {
         return new Response(JSON.stringify({ skipped: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });

@@ -25,6 +25,7 @@ import { recentRows, warmRecent as warmRecentShared } from '../recent-meals.js';
 import { foodMemory, warmFoodMemory } from '../food-memory-data.js';
 import { remainingToday } from '../food-memory.js';
 import { wireReadMore } from '../thread-readmore.js';
+import { decideAiTurn } from '../ai-thread.js';
 import {
   layoutThread, visibleThread, MUTED_HIDDEN_NOTE,
   authorName, initialsFor, participantList, participantSummary, participantMeta,
@@ -2302,7 +2303,7 @@ export const thread = {
     // `photoPath` is a storage KEY, never image bytes: meal-chat re-reads the object server-side
     // with the service role, so the client cannot make the model look at anything the athlete did
     // not actually attach to this thread.
-    const askAI = async (text, photoPath = null) => {
+    const askAI = async (text, photoPath = null, turn = null) => {
       try {
         const recent = await roles.fetchRecentMeals(RT.userId, roles.daysAgoISO(7)).catch(() => []);
         // Saved usual meals, so the AI can name what THEY eat and the suggest_meal bubble has
@@ -2331,7 +2332,11 @@ export const thread = {
           // day bars on this screen.
           day: (() => { const dp = S.mealDayProgress || {}; return { proteinSoFar: dp.proteinSoFar, proteinTarget: dp.proteinTarget, mealsRemaining: dp.mealsRemaining }; })(),
           recentMeals: recentAscending.map((m) => ({ type: m.type, protein: m.protein, kcal: m.kcal, quality: m.quality, date: m.day_date })),
-          thread: threadMessages(comments).slice(-20).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
+          // WHO SAID WHAT. This was `{role, text}` — two coaches, a trainer and a parent all
+          // arrived as 'coach', and a reply to the AI was indistinguishable from a reply to a
+          // person. buildAiThread keeps senderId/senderName/senderRole and the reply target,
+          // which is what lets the model (and the server-side gate) tell the room apart.
+          thread: turn ? turn.thread : threadMessages(comments).slice(-20).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
           usualMeals: suggestItems(),
         });
         setTyping(true);
@@ -2350,6 +2355,9 @@ export const thread = {
             // "I can apply a structured correction": unlocks the apply_correction tool
             // server-side. Only sent because the handler below actually applies it.
             canApplyCorrection: true,
+            // The addressing decision, so meal-chat can reach the SAME verdict rather than
+            // trusting this client's word for it (see ai-addressing.js).
+            ...(turn ? { speaker: turn.outgoing, addressing: turn.decision, participants: turn.participants } : {}),
             // "I render the remember-this chips": unlocks the remember tool. Same contract.
             canRemember: true,
             // "I fill a suggest_meal bubble from Food Memory and stage a tapped meal": unlocks
@@ -2363,6 +2371,10 @@ export const thread = {
         // chips under the new bubble are drawn from what the server holds, not from a minute-old
         // snapshot that predates the fact.
         if (data && data.memory && data.memory.id) void warmPendingFacts(RT.userId, { force: true });
+        // The server reached the same addressing verdict and declined the turn. Not an
+        // error and not a failure to reach anyone: the message is in the thread, and the AI
+        // simply had nothing it was asked for. Say nothing, show nothing.
+        if (data && data.silent) { setTyping(false); return; }
         if (error || !data || data.error) {
           // The vendored supabase-js (js/vendor/supabase.js) throws FunctionsHttpError on any
           // non-2xx response, so `data` is always null and the function's JSON error body never
@@ -2454,7 +2466,9 @@ export const thread = {
       if (retry) retry.addEventListener('click', async () => {
         if (busy) return;
         busy = true; setNote('');
-        await askAI(text);
+        // Same turn, same verdict: retry re-sends a request that was already judged worth
+        // making, never a fresh one the gate has not seen.
+        await askAI(text, null, turn);
         busy = false;
       });
     };
@@ -2531,10 +2545,23 @@ export const thread = {
       // Forced: the athlete just sent this and is watching for it to land. Every other repaint
       // leaves a reader where they are; this one always shows them their own message.
       scrollThreadToEnd(root, { force: true });
-      // The AI now SEES an attachment: meal-chat fetches it from storage server-side and passes it
-      // to the model as a real image block, so a wordless photo is a legitimate question ("what do
-      // you make of this?") rather than something only the coach can act on.
-      await askAI(typed, photoPath);
+      /* IS ANYONE TALKING TO THE AI? (founder 2026-09-18). This used to be an unconditional
+         askAI(typed) — the model answered "Thank you Coach" because answering was the only
+         thing it could do. Now the room decides first, through the same gate the other two
+         composers and the server use. A wordless photo is still a real question, so it keeps
+         its turn; anything the athlete said to a PERSON is left between them.
+         The message itself already posted either way — silence is the AI not speaking, never
+         the athlete not being heard. */
+      const turn = decideAiTurn({
+        text: typed,
+        comments,
+        participants: PARTICIPANTS.uid === RT.userId ? PARTICIPANTS.rows : [],
+        self: { id: RT.userId, name: S.athlete.first || 'Athlete', role: 'athlete' },
+        athleteName: S.athlete.first || 'Athlete',
+        fallbackNoun: S.coach.noun,
+      });
+      const wordlessPhoto = !typed && !!photoPath;
+      if (wordlessPhoto || turn.decision.shouldRespond) await askAI(typed, photoPath, turn);
       busy = false;
     };
     if (send) send.addEventListener('click', submit);
