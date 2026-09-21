@@ -82,14 +82,15 @@
     "verify": "node scripts/verify.mjs",
     "verify:full": "node scripts/verify.mjs --with-rls",
     "preflight": "node scripts/preflight.mjs",
-    "ship": "node scripts/preflight.mjs && eas build --platform ios --profile production --non-interactive && eas submit --platform ios --profile production --latest --non-interactive",
+    "ship": "node scripts/preflight.mjs && eas build --platform ios --profile production --non-interactive && eas submit --platform ios --profile production --latest --non-interactive && node scripts/release-testflight.mjs",
     "test:rls": "bash supabase/tests/run.sh",
     "verify:zip": "node scripts/verify-proto-zip.mjs",
     "verify:fresh": "node scripts/build-proto-zip.mjs --check",
     "shots:ipad": "node scripts/ipad-shots.mjs",
     "shots:appstore": "node scripts/appstore-shots.mjs",
     "shots:iap": "node scripts/iap-review-shot.mjs",
-    "qa:ipad": "node scripts/ipad-qa.mjs"
+    "qa:ipad": "node scripts/ipad-qa.mjs",
+    "release:testflight": "node scripts/release-testflight.mjs"
   },
   "private": true,
   "expo": {

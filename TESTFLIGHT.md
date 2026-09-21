@@ -14,17 +14,47 @@ export EXPO_TOKEN=<expo access token>          # or `eas login` once
 npm run ship
 ```
 
-`ship` runs a **preflight guard** first, then `eas build`, then `eas submit`. The guard
-is the fix for the "10 updates but TestFlight still had old code" bug:
+`ship` runs a **preflight guard**, then `eas build`, then `eas submit`, then
+**`release-testflight`**. The guard is the fix for the "10 updates but TestFlight still had old
+code" bug:
 
 > **EAS builds your last GIT COMMIT, not the files in your folder.** If you build with
 > uncommitted changes, you silently ship the OLD commit. The guard HARD-STOPS on a dirty
 > tree and prints the exact commit that will be built, so a stale build can't leave the ground.
 
-**Confirm it worked on your phone:** open the app → **Account** → the footer shows the
-commit the binary was built from (e.g. `7c22df6 · 2026-07-07 · production`). If that commit
-matches the one preflight printed, you're on the newest code. If it doesn't, you're looking
-at an old build — reinstall from TestFlight.
+### Uploading is not releasing (2026-09-21)
+
+`eas submit` puts a build on TestFlight. It does **not** give it to external testers. They can
+only install a build that has been **attached to their beta group** AND has **passed Apple's Beta
+App Review**. Neither happens automatically.
+
+This was silent for seven weeks: builds 26 through 41 uploaded fine and every external tester
+stayed on **build 25 from 31 July**, because build 25 was the only one ever approved. The founder
+never noticed — an **internal** tester skips beta review entirely and gets every build instantly,
+so two people were on two different products and nothing in the pipeline said so. The only place
+it showed was the tester's own TestFlight saying *Open* instead of *Update*.
+
+`scripts/release-testflight.mjs` is now the last step of `npm run ship`. It waits for Apple to
+finish processing, fills **What to Test** (required, defaults to the commit subject, never
+overwrites a note someone wrote), attaches the build to every external group, and submits for
+Beta App Review. It is idempotent, so re-running it is safe:
+
+```bash
+npm run release:testflight                  # release the newest build
+node scripts/release-testflight.mjs --build 41
+WHAT_TO_TEST="..." npm run release:testflight
+```
+
+### ⚠ There is no build stamp in the shipped app
+
+`buildLine()` in `src/lib/buildInfo.ts` returns exactly what you want — `commit · date · channel ·
+OTA` — and **nothing renders it**. It lives in `src/`, the legacy RN engine that mostly renders
+nothing; the shipped UI is the proto, and the proto's Account screen shows no version at all.
+
+So the old instruction here ("open Account, read the commit in the footer") never worked. Until
+that line is wired through the bridge into the proto, **there is no way to tell from a phone which
+commit it is running, or whether an OTA has ever applied to it.** Diagnosing a stale install today
+means comparing screenshots against `git log`, which is how the seven-week gap above stayed hidden.
 
 Raw two-command form (skips the guard — prefer `npm run ship`):
 ```bash
