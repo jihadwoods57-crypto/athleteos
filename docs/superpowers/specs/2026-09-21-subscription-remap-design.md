@@ -264,10 +264,22 @@ paywall — nobody else in the category says it.
 
 Nothing here is worth anything until something can take money. Ordered by that.
 
-1. **Wire `book_access` into `CAPS`.** `proto/redesign-2026-07/js/coach-data.js` keys capability
-   on book kind with every write hardcoded to `1`. This is the one change that makes a coach
-   subscription mean something. Gate **writes** only; reads stay open per §5. In the same pass,
-   set `offers`/`payments`/`packages` to `0` on practice books — Pay is off the roadmap (§2).
+1. ~~**Wire `book_access` into `CAPS`.**~~ **DONE 2026-09-21 — and most of it was already
+   built.** This spec claimed nothing called `book_access`. That was wrong: `coach-data.js`
+   already held `ACCESS`, `WRITE_CAPS` and `gatedCaps()`, `loadBookInner` already called
+   `roles.bookAccess(kind, bookId)` → the RPC, and `CD.caps` already returned the gated set. The
+   real gap was narrower and in two places:
+
+   - **The gate had no test.** The one predicate the business model rests on could have been
+     inverted or disconnected by any refactor and nothing would have caught it. Now covered by
+     three passes in `operator-book.test.mjs`: unknown answer fails open, `entitled: true` keeps
+     every write, `entitled: false` drops all 13 writes and keeps all 7 reads.
+   - **Three screens wrote without consulting caps** — `coach-rooms` (5 writes, all through one
+     `run()`), `coach-announce` (1), `pass-grant` (1). Gated at the action rather than the
+     button, because a disabled button can be re-enabled from a console. Six other coach screens
+     were checked and perform no writes.
+
+   Practice `offers`/`payments`/`packages` set to `0` in the same pass (§2).
 2. **Seat counting and the bands.** Surface the active-athlete count against the band, the
    3-athlete free floor, and the trial-end selection in §5.
 3. **Throw the Stripe live key** and add the Room / Team 100 products.

@@ -162,6 +162,14 @@ export const coachAnnounce = {
       if (!body.length) { say('Add what they need to know. The message can’t be blank.', true); return; }
       const teamId = CD.roster && CD.roster.teams[0] && CD.roster.teams[0].id;
       if (!teamId) { say('Your roster hasn’t loaded yet. Give it a second and try again.', true); return; }
+      /* Entitlement (0223). Checked BEFORE arming, not after: a coach who taps once, sees the
+         button arm, taps again to broadcast and only THEN learns their plan lapsed has been told
+         twice that this would work. The typed announcement survives either way. */
+      if (!CD.caps.announcements) {
+        ARM = false;
+        say('Your plan has lapsed, so this won’t send. Your draft is safe. Funding the team turns announcements back on.', true);
+        return;
+      }
       // First tap arms; the second, on the armed button, actually broadcasts.
       if (!ARM) { ARM = true; window.__render(); return; }
       ARM = false;

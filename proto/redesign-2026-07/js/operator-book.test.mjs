@@ -44,6 +44,9 @@ const MEALS = [{ id: 'm1', athlete_id: 'a1', day_date: TODAY, type: 'breakfast',
 const PLAN_META = [{ base_weight: 165, targets: { protein: 190, calories: 2600, weight: 165 } }];
 
 let KIND = 'team';   // flipped per pass; the stub answers as that book
+/* What book_access (0223) answers this pass. null = the pre-0223 shape a catch-all stub returns,
+   which must fail OPEN. The expired pass below flips it to a positive `entitled: false`. */
+let ACCESS_ANSWER = null;
 
 /* Minimal chainable stand-in for supabase-js: every filter returns `this`, and awaiting the
    builder resolves { data, error }. Enough for roles.js's read paths. */
@@ -92,6 +95,7 @@ const TA_CALLS = [];
 globalThis.window.sb = {
   from: table,
   async rpc(fn, args) {
+    if (fn === 'book_access') return { data: ACCESS_ANSWER, error: null };
     if (fn === 'team_roster') return { data: TEAM_MEMBERS, error: null };
     if (fn === 'practice_roster') return { data: PRACTICE_MEMBERS.map(m => ({ client_id: m.athlete_id, client_name: m.athlete_name })), error: null };
     if (fn === 'athlete_plan_meta') return { data: PLAN_META, error: null };
@@ -171,7 +175,12 @@ for (const kind of ['team', 'practice']) {
     assert.strictEqual(CD.caps.templates, 0, 'requirement_templates was NOT one of the six tables 0136 converted');
     assert.strictEqual(CD.caps.trustPass, 1, '0196: grant_pass authorizes is_trainer_of too, so a practice gets the reward');
     assert.strictEqual(CD.caps.rollups, 1, '0137 gave a practice its own insights rollup');
-    assert.strictEqual(CD.caps.offers, 1, 'a trainer keeps their monetization surface');
+    // OnStandard Pay is off the roadmap (founder ruling 2026-09-21): no take rate, no revenue
+    // forecast, and no surface. The Connect code stays where it is; what must not stay is a
+    // trainer clicking into "sell a package" and reaching a feature nobody is maintaining.
+    assert.strictEqual(CD.caps.offers, 0, 'Pay is off the roadmap — a trainer must not see a dead monetization surface');
+    assert.strictEqual(CD.caps.payments, 0, 'Pay is off the roadmap');
+    assert.strictEqual(CD.caps.packages, 0, 'Pay is off the roadmap');
   } else {
     assert.strictEqual(CD.caps.standards, 1);
     assert.strictEqual(CD.caps.templates, 1);
@@ -410,4 +419,46 @@ assert.deepStrictEqual(snapshotStatus.practice, snapshotStatus.team,
    handling rather than mounting a screen with dead internal hash checks. ---- */
 assert.strictEqual(screens['trainer-client'], undefined, 'trainer-client must not be a registered route');
 
-console.log('operator book (team + practice): all assertions passed');
+/* ---- ENTITLEMENT (0223): an expired book keeps every READ and loses every WRITE.
+   The gate shipped with book_access and had no test, which meant the one predicate the whole
+   business model rests on could have been silently inverted — or silently disconnected — by any
+   refactor. These three passes are that net: fail-open on an unknown answer, fail-open on a
+   positive yes, and reduce only on a positive no.
+
+   Fail-open is load-bearing and deliberate. A network blip, an unconfigured stub, or an RPC that
+   errors must never read as "this coach stopped paying" — the cost of a wrong deny is a real
+   coach locked out of a roster they built, mid-season. ---- */
+const READ_CAPS = ['roster', 'activity', 'inbox', 'athleteProfile', 'targets', 'approvals', 'rollups'];
+const GATED_WRITES = ['interventions', 'notes', 'exceptions', 'groups', 'standards', 'assignments',
+  'templates', 'rooms', 'staffRoles', 'weekPattern', 'announcements', 'recruiting', 'trustPass'];
+
+KIND = 'team';
+RT.authRole = 'coach';
+
+// 1. Unknown answer (the shape a pre-0223 server, or any failed read, produces) — fail OPEN.
+ACCESS_ANSWER = null;
+await loadBook(true, 'team');
+assert.strictEqual(CD.expired, false, 'an unknown book_access answer must not read as expired');
+assert.strictEqual(CD.caps.standards, 1, 'a failed entitlement read must not strip a paying coach');
+
+// 2. A positive yes — every write stays.
+ACCESS_ANSWER = { entitled: true, reason: 'paid', preview_ends_at: null };
+await loadBook(true, 'team');
+assert.strictEqual(CD.expired, false, 'entitled: true is not expired');
+for (const k of GATED_WRITES) assert.strictEqual(CD.caps[k], 1, `entitled book keeps ${k}`);
+
+// 3. A positive no — writes go, reads stay.
+ACCESS_ANSWER = { entitled: false, reason: 'expired', preview_ends_at: '2026-09-08T00:00:00Z' };
+await loadBook(true, 'team');
+assert.strictEqual(CD.expired, true, 'entitled: false must read as expired');
+assert.strictEqual(CD.access.reason, 'expired', 'the reason must survive to the UI that explains it');
+for (const k of GATED_WRITES) {
+  assert.strictEqual(CD.caps[k], 0, `an expired book must lose the ${k} write`);
+}
+for (const k of READ_CAPS) {
+  assert.strictEqual(CD.caps[k], 1, `an expired book must KEEP ${k} — the roster is still the coach's to look at`);
+}
+
+ACCESS_ANSWER = null;   // leave the stub as the next reader expects it
+
+console.log('operator book (team + practice + entitlement): all assertions passed');

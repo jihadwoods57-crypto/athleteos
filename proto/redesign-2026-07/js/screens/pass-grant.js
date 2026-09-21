@@ -195,6 +195,14 @@ export default {
 
     const submit = root.querySelector('#pg-submit');
     if (submit) submit.addEventListener('click', async () => {
+      /* Entitlement (0223). A trust pass is a WRITE onto an athlete's record, so it stops with
+         the rest of them when a book lapses. Checked before the busy flag, so a lapsed coach
+         gets the explanation instead of a spinner that resolves into a generic failure. */
+      if (!CD.caps.trustPass) {
+        UI.error = 'Your plan has lapsed, so passes can’t be granted. Funding the team turns this back on.';
+        if (window.__render) window.__render();
+        return;
+      }
       UI.busy = true; UI.error = null; if (window.__render) window.__render();
       const args = resolveArgs();
       const r = await roles.grantPass(athleteId, args);

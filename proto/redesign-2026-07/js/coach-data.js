@@ -118,7 +118,14 @@ const CAPS = {
     // practice_intervention_outcomes — Insights now reads real per-day-per-client history.
     rollups: 1,
     rooms: 0, staffRoles: 0, weekPattern: 0, announcements: 0, recruiting: 0, trustPass: 1,
-    offers: 1, payments: 1, packages: 1,
+    // OnStandard Pay is OFF THE ROADMAP (founder ruling 2026-09-21). No take rate, no revenue
+    // forecast, no surface. The Connect code (marketplace-checkout, pay-offer-checkout,
+    // public-offer-checkout, connect-onboarding, the 15% in pay_platform_config) stays where it
+    // is — it is not being ripped out, and it is not being maintained or sold either. What must
+    // not stay is the half of that decision the UI would otherwise keep: a trainer tapping into
+    // "sell a package" and landing on a flow nobody stands behind. A dead end is worse than an
+    // absent feature, because the trainer only finds out after they have tried.
+    offers: 0, payments: 0, packages: 0,
   },
 };
 const EMPTY_EXTRAS = { sets: [], groups: [], exceptions: [], interventions: [], rooms: [], scope: null, myRole: null };

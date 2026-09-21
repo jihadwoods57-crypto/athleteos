@@ -24,8 +24,18 @@ let ERR = '';            // one red status line (#rooms-status); set by any fail
 let ADD_VAL = '';        // the typed room name, preserved across a failed add
 let RENAME_VAL = null;   // the typed rename, preserved across a failed save, or null
 
+/* Entitlement (0223): every write on this screen — create, rename, delete, set owner, assign —
+   funnels through here, so this is the one place the `rooms` capability has to be honoured.
+   Gating at the action rather than at each button is deliberate: a disabled button can be
+   re-enabled from a console, and this screen's five writes would otherwise need five guards that
+   a sixth write could quietly skip.
+
+   Reads are untouched. An expired coach still opens Rooms and still sees who is in which unit —
+   the roster is theirs to look at. What stops is changing it. */
+const LAPSED = 'Your plan has lapsed. Rooms are still here to look at. Funding the team turns editing back on.';
 async function run(work) {
   if (BUSY) return;
+  if (!CD.caps.rooms) { ERR = LAPSED; window.__render(); return; }
   BUSY = true; ERR = ''; window.__render();
   try { await work(); } finally { BUSY = false; window.__render(); }
 }
