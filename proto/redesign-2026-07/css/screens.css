@@ -359,7 +359,7 @@
   display: grid; place-items: center; color: var(--ink-on-accent);
   transition: transform var(--dur-1) var(--ease-out);
 }
-.shutter:active { transform: scale(0.92); }
+.shutter:active { transform: scale(var(--press-tap)); }
 .shutter .inner { width: 62px; height: 62px; border-radius: 50%; border: 3px solid rgba(var(--ink-on-accent-rgb), 0.32); display:grid; place-items:center; }
 
 /* ----- Analysis / detected foods ----- */
@@ -1068,7 +1068,7 @@
    a photo alone is a complete message here (chat-attach.js) and the button has to stay tappable
    for it. keyboard.js keeps .has-text current. */
 .composer.at-end:not(.has-text) .send { opacity: 0.38; }
-.composer .send:active { transform: scale(0.9); }
+.composer .send:active { transform: scale(var(--press-tap)); }
 .composer .send:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
 /* The attach control is the one thing OUTSIDE the pill, where Messages keeps its "+": a quiet
    surface-toned circle the height of the resting pill, because sending is the primary action
@@ -1272,7 +1272,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   border-radius: var(--r-chip); display: inline-flex; align-items: center;
   transition: color var(--dur-1) var(--ease-out), opacity var(--dur-1) var(--ease-out);
 }
-.markread:active { transform: scale(0.97); }
+.markread:active { transform: scale(var(--press-btn)); }
 .markread[disabled] { color: var(--text-3); opacity: 0.5; cursor: default; pointer-events: none; }
 
 .notif { display: flex; gap:var(--s3h); padding:var(--s4) var(--s4); border-radius: var(--r-card); background: var(--surface-1); border: 1px solid transparent; margin-bottom:var(--s2h); box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), var(--sh-card); }
@@ -1394,7 +1394,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .pl-goalpill .cv { transition: transform var(--dur-1) var(--ease-out); display:inline-flex; }
 .pl-goalpill[aria-expanded="true"] { background: var(--blue-surface); }
 .pl-goalpill[aria-expanded="true"] .cv { transform: rotate(90deg); }
-.pl-goalpill:active { transform: scale(0.97); }
+.pl-goalpill:active { transform: scale(var(--press-btn)); }
 
 /* The goal panel: a well, not a card — it belongs to the pill above it. */
 .pl-goalpanel { margin:var(--s2h) 0 2px; padding:var(--s3h) var(--s4); border-radius: var(--r-tile);
@@ -1478,7 +1478,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .pl-q { font-size: var(--t-sm); font-weight:700; color: var(--text-2); cursor:pointer;
   background: var(--surface-2); border:1px solid var(--hairline); border-radius: var(--r-pill);
   padding:var(--s2) 13px; min-height:36px; display:inline-flex; align-items:center; }
-.pl-q:active { transform: scale(0.97); background: var(--surface-3); }
+.pl-q:active { transform: scale(var(--press-btn)); background: var(--surface-3); }
 
 /* Ask thread answer block (plan-ask screen). */
 .pa-ans { border-radius: var(--r-tile); background: var(--surface-1); box-shadow: var(--sh-card); padding:var(--s3h) var(--s4); }
@@ -1514,7 +1514,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 
 /* ---- execution loop: score strip, NOW card, groups ---- */
 .xstrip{display:flex;align-items:center;gap:var(--s3h);background:var(--surface-1);border:1px solid transparent;border-radius:var(--r-card);padding:var(--s3h) var(--s4);cursor:pointer;transition:transform var(--dur-1) var(--ease-out);box-shadow:var(--sh-card)}
-.xstrip:active{transform:scale(0.985)}
+.xstrip:active{transform:scale(var(--press-card))}
 .xstrip-chev{display:flex;flex:none;color:var(--text-3)}
 .xhero .xh-line .xstrip-chev,.xhero .xh-flow .xstrip-chev{display:inline-flex;vertical-align:-2px}
 /* ---- Daily Score hero (2026-07-16 restructure + formula upgrade): the score owns the
@@ -1539,7 +1539,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    Removed with it: the [data-band] variants, the light-theme opacity override, and the
    reduced-motion transition guard, all of which existed only to serve this pseudo-element.
    home.js no longer emits data-band at all. */
-.xhero:active{transform:scale(0.985)}
+.xhero:active{transform:scale(var(--press-card))}
 /* The ring is the whole top of the hero now (2026-09-07 audit): one ring, centred, at the
    same size the completed day draws, in every live state. .xh-ring exists to give the "+N"
    float a positioned box that is the RING's bounds rather than the whole section's. */
@@ -1667,7 +1667,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .res-rail{display:flex;gap:var(--s3);overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;margin:0 calc(-1 * var(--pad-screen));padding:2px var(--pad-screen) var(--s2);scrollbar-width:none}
 .res-rail::-webkit-scrollbar{display:none}
 .res-card{flex:0 0 158px;scroll-snap-align:start;display:flex;flex-direction:column;background:var(--surface-1);border: 1px solid transparent;border-radius:var(--r-card-sm);overflow:hidden;cursor:pointer;transition:transform var(--dur-1) var(--ease-out); box-shadow: var(--sh-card);}
-.res-card:active{transform:scale(0.97)}
+.res-card:active{transform:scale(var(--press-btn))}
 /* flex:1 lets a shorter card's media absorb the row stretch, so metric rows across the
    rail sit flush at the bottom instead of leaving dead space under one card. */
 .res-media{flex:1;min-height:84px;background-size:cover;background-position:center}
@@ -2098,7 +2098,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .msg.athlete .mtime{text-align:right}
 .qa-row{display:flex;gap:var(--s2);margin-top:var(--s3h);flex-wrap:wrap}
 .qa{height:44px;padding:0 var(--s4);border-radius:var(--r-chip);background:var(--surface-2);border:1px solid var(--hairline);color:var(--text-2);font-family:var(--font);font-size:var(--t-sm);font-weight:700;cursor:pointer;transition:transform var(--dur-1) var(--ease-out)}
-.qa:active{transform:scale(0.97)}
+.qa:active{transform:scale(var(--press-btn))}
 /* PRE-EXISTING GAP, found 2026-07-30: coach.js has rendered `class="qa on"` + aria-pressed for an
    already-added reaction since the coach reaction bar shipped, but no `.qa.on` rule ever existed —
    so the pressed state was announced to screen readers and invisible to everyone else. Now that
@@ -2157,6 +2157,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .tb-menu button:focus-visible{outline:2px solid var(--blue-bright);outline-offset:-2px}
 .tb-menu button svg{color:var(--text-2);flex:none}
 @media (prefers-reduced-motion: reduce){ .tb-veil,.tb-lift,.tb-menu{animation:none} .tb-lift{transform:none} }
+/* The one press deliberately off the --press-* scale: the tapback picker is the app's single
+   playful control (and its documented emoji exception), and a reaction wants a deeper, springier
+   push than a button that changes your day. Intentional, not missed by the 2026-09-21 migration. */
 .tapback button:active{transform:scale(0.88)}
 .tapback button.on{background:var(--blue-surface)}
 .tapback button:focus-visible{outline:2px solid var(--blue-bright);outline-offset:-2px}
@@ -2204,7 +2207,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .cm-rm:active{color:var(--red-bright);border-color:var(--red-border);background:var(--red-surface)}
 .cm-rm:disabled{opacity:0.45;cursor:default}
 .cm-rm:focus-visible{outline:2px solid var(--blue-bright);outline-offset:2px}
-.fx-chip:active{transform:scale(0.95)}
+.fx-chip:active{transform:scale(var(--press-btn))}
 .fx-other{display:flex;gap:var(--s2);flex:1}
 .fx-other .input{flex:1}
 /* Dimension tabs (2026-08-14). The first decision in the panel is "which dimension", so the
@@ -2212,7 +2215,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    and the selected one carries the action accent because it is the current selection. */
 .fx-axes{display:flex;flex-wrap:wrap;gap:var(--s1h);padding-bottom:var(--s3);margin-bottom:2px;border-bottom:1px solid var(--hairline-soft)}
 .fx-axis{display:inline-flex;align-items:center;gap:var(--s1);border:1px solid var(--hairline);background:none;color:var(--text-2);font-family:var(--font);font-size:var(--t-sm);font-weight:700;border-radius:var(--r-pill);padding:7px 13px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out),background var(--dur-1) var(--ease-out)}
-.fx-axis:active{transform:scale(0.96)}
+.fx-axis:active{transform:scale(var(--press-btn))}
 .fx-axis.on{color:var(--blue-bright);border-color:var(--blue-border);background:var(--blue-surface)}
 .fx-axis svg{color:var(--green-bright);opacity:.9}
 .fx-axis:focus-visible{outline:2px solid var(--blue-bright);outline-offset:2px}
@@ -3540,7 +3543,7 @@ body.kb-open .meal-foot { display: none; }
 .lm-hero .scorechip.big .k{font-size:calc(var(--lm-dial) * 0.115);text-transform:none;letter-spacing:0;font-weight:700;color:var(--text-2);margin-top:1px}
 /* The info mark: a small round button tucked at the chip's corner; opens the "why" row. */
 .lm-hero .lm-why{position:absolute;right:var(--s2);bottom:var(--s2);width:28px;height:28px;border-radius:50%;border:1px solid var(--hairline);background:var(--surface-1);color:var(--text-2);display:grid;place-items:center;cursor:pointer;padding:0;box-shadow:var(--sh-card);-webkit-tap-highlight-color:transparent}
-.lm-hero .lm-why:active{transform:scale(0.92)}
+.lm-hero .lm-why:active{transform:scale(var(--press-tap))}
 /* Sections: a heading, then content. Space does the separating. */
 .lm-sec{margin-top:var(--s6)}
 /* The heading never shrinks and the right-hand control wraps under it when the line is tight

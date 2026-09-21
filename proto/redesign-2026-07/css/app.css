@@ -700,7 +700,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); --bar-lift: var(
   box-shadow: var(--sh-green);
   cursor: pointer; transition: transform var(--dur-1) var(--ease-out), filter var(--dur-1) var(--ease-out);
 }
-.fab:active { transform: scale(0.92); filter: brightness(1.07); }
+.fab:active { transform: scale(var(--press-tap)); filter: brightness(1.07); }
 
 /* ===== Buttons ===== */
 /* The base carries the SECONDARY fill, not nothing. It used to declare no background at all, so a

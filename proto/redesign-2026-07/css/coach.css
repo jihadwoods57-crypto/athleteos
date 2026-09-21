@@ -662,7 +662,7 @@
   border-radius:var(--r-chip); border:1px solid transparent; background:var(--green-surface); color:var(--green-bright);
   font:800 var(--t-sm) var(--font); cursor:pointer; white-space:nowrap; }
 .std-proof-pill.check { background:var(--surface-2); color:var(--text-2); }
-.std-proof-pill:active { transform:scale(.96); }
+.std-proof-pill:active { transform:scale(var(--press-btn)); }
 .std-proof-pill svg { display:block; }
 /* Small chips shared by per-meal day-type and weigh weekdays */
 .std-daytype, .std-weighdays { display:flex; flex-wrap:wrap; gap:var(--s1h); }
@@ -671,7 +671,7 @@
   border-radius:var(--r-chip); border:1px solid transparent; background:var(--surface-2); color:var(--text-3);
   font:800 var(--t-sm) var(--font); cursor:pointer; user-select:none; }
 .std-daychip.on { background:var(--blue-surface); border-color:var(--blue-border); color:var(--blue-bright); }
-.std-daychip:active { transform:scale(.95); }
+.std-daychip:active { transform:scale(var(--press-btn)); }
 .std-meal-times { display:flex; align-items:center; gap:var(--s2); }
 .std-tlabel { font-size:var(--t-eyebrow); font-weight:800; letter-spacing:.05em; text-transform:uppercase;
   color:var(--text-3); flex:0 0 auto; }

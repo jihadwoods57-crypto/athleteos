@@ -41,7 +41,7 @@
   box-shadow: 0 0 26px rgba(var(--blue-rgb), 0.10);
   cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
-.day-sealed:active { transform: scale(0.99); }
+.day-sealed:active { transform: scale(var(--press-card)); }
 .day-sealed .ds-dial { position: relative; width: 62px; height: 62px; flex: none; }
 .day-sealed .ds-n {
   position: absolute; inset: 0; display: grid; place-items: center;
@@ -474,7 +474,7 @@
 .choice .cic { width: 38px; height: 38px; border-radius: var(--r-chip); display: grid; place-items: center; }
 .chip-row { display: flex; flex-wrap: wrap; gap:var(--s2h); }
 /* Press feedback on tappable chips/choices. */
-.choice:active { transform: scale(0.97); }
+.choice:active { transform: scale(var(--press-btn)); }
 /* The canonical .chip (app.css) wearing the .chp geometry, so onboarding and settings markup can
    move off .chp with no visual change. 44px is a floor, not a fixed height, and the label may wrap:
    a long answer is a soft chip, not a clipped one. The base .chip gap (8px) is what separates the
@@ -769,7 +769,7 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
   background: var(--surface-2); border: 1px solid var(--hairline-soft); cursor: pointer;
   transition: transform var(--dur-1) var(--ease-out);
 }
-.fmove:active { transform: scale(0.98); }
+.fmove:active { transform: scale(var(--press-btn)); }
 .fmove .fm-t { font-size: var(--t-base); font-weight: 800; }
 .fmove .fm-s { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); margin-top:1px; }
 .fmove .fm-v { font-size: var(--t-md); font-weight: 800; color: var(--green-bright); }
@@ -840,7 +840,7 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
    accent — tinted vessel, accent glyph — so the stripe was a second, redundant voice for the
    same fact. Removed 2026-08-12; the resume card's full accent border stays (that one is legal
    and does a real job: "this card is different from its siblings"). */
-.role-card:active { transform: scale(.985); }
+.role-card:active { transform: scale(var(--press-card)); }
 .role-card:hover { border-color: var(--hairline); box-shadow: var(--sh-raised); }
 .role-ic { width: 46px; height: 46px; border-radius: var(--r-card-sm); display: grid; place-items: center; flex: 0 0 auto; }
 .role-tt { flex: 1; min-width: 0; }

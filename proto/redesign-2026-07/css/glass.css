@@ -133,7 +133,7 @@ body.kb-open .tabbar { transform: translateY(calc(100% + 60px)); }
     backdrop-filter: blur(16px) saturate(1.4);
   }
 }
-.back-head .bk:active { transform: scale(0.92); }
+.back-head .bk:active { transform: scale(var(--press-tap)); }
 
 /* ===== 3. The scroll edge: a header holds its place and turns to glass under content ===== */
 /* Sticky at `top: 0`, and that zero is measured from INSIDE the scroller's padding: a sticky
