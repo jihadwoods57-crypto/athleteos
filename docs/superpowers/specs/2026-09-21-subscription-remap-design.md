@@ -137,7 +137,17 @@ expressed in software — it is the differentiator, and gating it would be the w
 | Team-scoped standards | — | — | ✓ |
 | Announcements, week pattern | — | — | ✓ |
 | Cross-room rollups & insights | — | — | ✓ |
-| Offers / payments / packages | — | — | practice books only |
+
+**OnStandard Pay is off the roadmap** (founder ruling, 2026-09-21). The platform take rate —
+15%, configured in `pay_platform_config`, wired through Stripe Connect on `marketplace-checkout`,
+`pay-offer-checkout` and `public-offer-checkout` — is **not** part of this model and no revenue is
+forecast from it. The code stays where it is; it is not being ripped out, and it is not being
+maintained or sold either.
+
+**Consequence that must be handled:** `CAPS` currently grants practice books
+`offers: 1, payments: 1, packages: 1`, so a trainer sees offer and payment surfaces today. With
+Pay off the roadmap those are dead ends. Set them to `0` in the same pass that wires
+`book_access` into `CAPS` (§6 step 1) so a trainer never clicks into a feature that goes nowhere.
 
 **Room is the entry SKU and the most important price in the catalog.** $249/mo needs an athletic
 director. $99/mo is a position coach's own card, or a line item approved without a meeting. It is
@@ -222,7 +232,8 @@ Nothing here is worth anything until something can take money. Ordered by that.
 
 1. **Wire `book_access` into `CAPS`.** `proto/redesign-2026-07/js/coach-data.js` keys capability
    on book kind with every write hardcoded to `1`. This is the one change that makes a coach
-   subscription mean something. Gate **writes** only; reads stay open per §5.
+   subscription mean something. Gate **writes** only; reads stay open per §5. In the same pass,
+   set `offers`/`payments`/`packages` to `0` on practice books — Pay is off the roadmap (§2).
 2. **Seat counting and the bands.** Surface the active-athlete count against the band, the
    3-athlete free floor, and the trial-end selection in §5.
 3. **Throw the Stripe live key** and add the Room / Team 100 products.
@@ -265,9 +276,23 @@ failure worse than the gap.
 
 1. **Discount depth.** The margin curve runs backwards (§1). Holding these prices through the
    first ten programs is the recommendation, not a settled decision.
-2. **Web checkout for consumer.** IAP costs 30% — $6 of every $19.99. US anti-steering rules
-   appear to permit linking out to external checkout, which would be roughly +38% revenue per
-   subscriber at the same price. **Needs legal verification before it is built**, and is not in
-   §6's build order until it has that.
+2. **Web checkout for consumer — verified 2026-09-21, and smaller than first claimed.** US App
+   Store apps may include external payment links with no entitlement, no approval and no Apple
+   commission (Guidelines 3.1.1/3.1.3, updated May 2025 after *Epic v. Apple*). Constraints: the
+   link must open a **real browser**, not a webview; IAP must remain available alongside it; US
+   storefront only (the EU needs an entitlement and still owes fees).
+
+   The gain was overstated at +38%, which assumed Apple's 30% rate. Under $1M/yr OnStandard
+   qualifies for the **Small Business Program at 15%**:
+
+   | On $19.99 | Net |
+   |---|---|
+   | IAP at 30% | $13.99 |
+   | IAP at 15% (Small Business) | $16.99 |
+   | Own web checkout | $19.11 |
+
+   So link-out is worth **~+12% today** and ~+37% only past $1M/yr. **Cheaper first move: confirm
+   Small Business Program enrolment** — a form, worth $3/subscriber/month immediately. Link-out
+   stays out of §6's build order until that is done and the numbers justify it.
 3. **Enterprise floor.** No number. Athletic departments are the only path to ~10x ACV, and
    nothing in this catalog addresses them.
