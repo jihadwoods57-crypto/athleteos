@@ -191,12 +191,61 @@ describe('a clean report passes untouched', () => {
         { name: 'Grilled chicken', kind: 'prepared', confidence: 'high', protein: 38, kcal: 220, carbs: 0, fat: 7 },
         { name: 'White rice', kind: 'prepared', confidence: 'high', protein: 4, kcal: 240, carbs: 52, fat: 1 },
         { name: 'Broccoli', kind: 'prepared', confidence: 'high', protein: 3, kcal: 50, carbs: 8, fat: 0 },
-        // fat sums a little under the stated total: within tolerance, left alone
+        // The stated kcal/carbs/fat do not match these items. As of 2026-09-21 that is no longer
+        // "within tolerance, left alone" — the items win, always. See the block below.
       ],
     };
     const { violations } = verifyMealReport(clean as any, 'Dinner');
     expect(violations.filter((v) => v.kind !== 'sum_mismatch' && v.kind !== 'atwater')).toEqual([]);
     const { input } = repairMealReport(clean as any, 'Dinner');
     expect(input.analysis).toBe(clean.analysis);
+  });
+});
+
+/* THE TILES MUST ADD UP TO THE BAR (2026-09-21).
+   Measured over 426 production analyses: 115 (27%) had stated totals that missed the sum of their
+   own items by more than the old 12% tolerance and were repaired. The ones that missed by LESS
+   were kept — which is the worse half of the bug, because the athlete is looking at both numbers
+   at once. A plate of food tiles that does not add up to the macro bar above it is the app
+   contradicting itself on screen, and both numbers came from us.
+
+   A total is not an observation. Seeing food and attributing macros to it is the model's job;
+   summing four columns is arithmetic, and arithmetic belongs in code. */
+describe('totals are always the sum of the items, never the model arithmetic', () => {
+  const items = [
+    { name: 'Grilled chicken', kind: 'prepared', confidence: 'high', protein: 38, kcal: 220, carbs: 0, fat: 7 },
+    { name: 'White rice', kind: 'prepared', confidence: 'high', protein: 4, kcal: 240, carbs: 52, fat: 1 },
+  ];
+  // 42g protein, 460 kcal, 52g carbs, 8g fat.
+
+  it('overwrites a total that is wrong by LESS than the old tolerance', () => {
+    // 44 vs 42 is under the old max(6, 12%) floor, so this survived before and was shown as-is.
+    const near = { name: 'Chicken & rice', protein: 44, kcal: 470, carbs: 53, fat: 8, detected: items };
+    const { input, repaired } = repairMealReport(near as any, 'Dinner');
+    expect(Number(input.protein)).toBe(42);
+    expect(Number(input.kcal)).toBe(460);
+    expect(Number(input.carbs)).toBe(52);
+    expect(repaired).toContain('totals_from_items');
+  });
+
+  it('fills a total the model omitted entirely, and does not call that an arithmetic error', () => {
+    const missing = { name: 'Chicken & rice', kcal: 460, carbs: 52, fat: 8, detected: items };
+    const { input, repaired } = repairMealReport(missing as any, 'Dinner');
+    expect(Number(input.protein)).toBe(42);
+    // Nothing "moved": a model that never stated a total never made a claim to be wrong about.
+    expect(repaired).not.toContain('totals_from_items');
+  });
+
+  it('leaves an already-correct total alone and reports no repair', () => {
+    const exact = { name: 'Chicken & rice', protein: 42, kcal: 460, carbs: 52, fat: 8, detected: items };
+    const { input, repaired } = repairMealReport(exact as any, 'Dinner');
+    expect(Number(input.protein)).toBe(42);
+    expect(repaired).not.toContain('totals_from_items');
+  });
+
+  it('will not invent totals when no item carries a macro', () => {
+    const nameOnly = { name: 'Something', protein: 40, kcal: 500, carbs: 40, fat: 10, detected: [{ name: 'steak' }] };
+    const { input } = repairMealReport(nameOnly as any, 'Dinner');
+    expect(Number(input.protein)).toBe(40);   // the stated total stands; there is nothing to sum
   });
 });
