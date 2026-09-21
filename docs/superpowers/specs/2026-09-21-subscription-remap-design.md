@@ -62,7 +62,8 @@ bill is; it must never read "$X plus $Y per athlete who logged N days."
 | Team 75 | $499 | $4,990 | 75 | $6.65 | Stripe |
 | Team 100 | $649 | $6,490 | 100 | $6.49 | Stripe |
 | Team 150 | $899 | $8,990 | 150 | $5.99 | Stripe |
-| Enterprise | Custom | Custom | 150+ | — | Stripe |
+| **School** | **$1,499** | **$14,990** | **300, unlimited teams & sports** | **$5.00** | Stripe |
+| Enterprise | Custom | Custom | 300+, districts & colleges | — | Stripe |
 | Individual | $19.99 | $199.99 | 1 | $19.99 | IAP |
 | Family | $24.99 | $249.99 | 4 | $6.25 | IAP |
 
@@ -101,6 +102,39 @@ figure is measured.
 
 **Family at four active athletes is the weakest account in the catalog** (12%). Accepted: the
 modal family is two, and policing household composition costs more than the leakage.
+
+### School is the best margin in the catalog, and it inverts the curve
+
+`teams.org_id` already hangs many teams — each with its own `sport` — off one org, so this tier
+needs no new data model. A typical American high school runs 7–10 varsity programs and
+**250–350 athletes** under one athletic director: the same person who has to approve a single
+football deal. Selling one sport into that building leaves 80% of it unsold in a conversation
+that already had to happen.
+
+**Seasons stagger, and the billing metric is active athletes.** Football is fall, basketball
+winter, baseball and track spring. Roughly a third of a school's athletes are in season at once,
+so a School account bills 300 and serves ~120.
+
+| | |
+|---|---|
+| Billed | 300 athletes |
+| Typically active | ~120 |
+| AI at $3.61 | ~$433/mo |
+| Net of fees | ~$1,455 |
+| **Contribution** | **~$1,022 (70%)** |
+| Floor, if all 300 were active at once | $372 (26%) |
+
+At 70% this is the **highest-margin tier in the catalog** and it reverses the backwards curve in
+§1 — every other band gets thinner as it grows because per-athlete price falls against flat
+per-athlete cost; School gets *fatter* because it charges for a roster and serves a season.
+
+Arbitrage runs the right way: 2 × Team 150 is $1,798 for the same 300, so consolidating is always
+cheaper for the customer, which is the behaviour we want. Per-athlete cost stays monotonic —
+9.90 → 8.30 → 6.65 → 6.49 → 5.99 → **5.00**.
+
+**The pitch is $50 per athlete per year, whole school, one invoice** — less than most schools
+already charge as a participation fee for a single sport, and well inside what §4's funding pool
+covers across 300 families.
 
 ### Known, accepted leaks
 
