@@ -1,0 +1,273 @@
+# Subscription re-map — design
+
+**Date:** 2026-09-21
+**Status:** awaiting founder review
+**Supersedes:** the pricing half of `docs/founding/BUSINESS_MODEL.md` §3 and the catalog in
+`src/core/pricing.ts`. Does **not** supersede the funded-access model (sponsor / trainer /
+parent), which this design leans on rather than replaces.
+
+---
+
+## §0 Measured ground truth (2026-09-21)
+
+Every number here was read from live prod on the date above. A claim below is labelled
+**measured**, **decided**, or **assumed** per the convention in `docs/founding/README.md`.
+
+| | Value | Source |
+|---|---|---|
+| Revenue, all time | **$0** | measured — `subscriptions`, `payments`, `offer_payments`, `offer_claims`, `sponsored_access`, `trainer_funded_access`, `plan_assignments` all 0 rows |
+| Profiles / active in 7 days | 60 / **4** | measured |
+| Weekly meal-logging athletes | **1** (peak 6, week of 2026-08-17) | measured |
+| **AI cost, heaviest real athlete, Sept** | **$3.61/month** (179 calls) | measured — `ai_call_costs` |
+| AI cost per meal-analysis call | **$0.0168** | measured |
+| AI cost per meal-chat call | **$0.0126** | measured |
+| Share of AI spend that is `analyze-meal` | **93%** | measured |
+| AI cost of a *paying* athlete | **unmeasured** | `deep-analysis`, `monthly-report`, `plan-generate` have **zero calls ever** |
+
+**The $3.61 is a floor, not a ceiling.** It is what a free-shaped athlete costs (photo logging
+plus chat). The three premium AI functions a paying subscriber unlocks have never been invoked by
+anyone, so their cost is unknown. Re-measure after the first ten paying athletes before trusting
+any margin below.
+
+### What already exists (and was wrongly assumed missing)
+
+- **Cost telemetry is complete.** `ai_calls` (one row per paid Anthropic call, with token
+  counts), `ai_model_prices`, the `ai_call_costs` view, `ai_cost_daily`, `ai_cost_per_meal`,
+  `ai_spend_pending`. Recording since 2026-07-22 via `supabase/functions/_shared/ai-telemetry.ts`.
+  A prior note claimed cost was uninstrumented; it had only checked `ai_usage_daily`, which
+  carries a call count and no dollars. **No new instrumentation is required.**
+- **`book_access(kind, book)` exists** (migration 0223) and already answers the entitlement
+  question, with a 14-day preview, grandfathering from 2026-09-08, and read-only-not-locked-out
+  semantics. **Nothing calls it.**
+- **Rooms are position groups.** `team_rooms` (with `staff_owner_id`), `team_members.room_id`,
+  and requirement sets scoped `team | position | group | athlete`.
+- **Staff exist and are scoped** — `team_staff` with `scope_kind in ('position','group')`.
+
+---
+
+## §1 The catalog
+
+The pricing metric is the **active athlete-month** — an athlete who logged ≥
+`ACTIVE_DAYS_THRESHOLD` days in the calendar month (migration 0163). Idle athletes cost nothing
+and count for nothing.
+
+**That metric is internal.** Customers see flat roster bands. A school needs to know what the
+bill is; it must never read "$X plus $Y per athlete who logged N days."
+
+| Plan | Monthly | Annual | Active athletes | Per athlete | Rail |
+|---|---|---|---|---|---|
+| Coach | Free | Free | **3** | — | — |
+| Room | $99 | $990 | 10 | $9.90 | Stripe |
+| Team 30 | $249 | $2,490 | 30 | $8.30 | Stripe |
+| Team 75 | $499 | $4,990 | 75 | $6.65 | Stripe |
+| Team 100 | $649 | $6,490 | 100 | $6.49 | Stripe |
+| Team 150 | $899 | $8,990 | 150 | $5.99 | Stripe |
+| Enterprise | Custom | Custom | 150+ | — | Stripe |
+| Individual | $19.99 | $199.99 | 1 | $19.99 | IAP |
+| Family | $24.99 | $249.99 | 4 | $6.25 | IAP |
+
+**Annual is ten months for twelve** on every Stripe plan. Consumer annual lands on the nearest
+real App Store price point ($199.99 / $249.99, not $199.90 / $249.90) — no round figure exists on
+Apple's ladder, and the store must never charge more than the paywall printed.
+
+### Checks this catalog passes
+
+- **Per-athlete cost decreases monotonically** across every band: 9.90 → 8.30 → 6.65 → 6.49 → 5.99.
+- **No band arbitrage.** 2 × Team 30 = $498 for 60; Team 75 = $499 for 75.
+- **No Room arbitrage.** 3 Rooms = $297 for 30; Team 30 = $249 for the same 30. Rooms stop being
+  the cheap answer at exactly three — see §3.
+- **Family beats 2 × Individual** by $14.99/mo at the modal two-athlete household. (At the prior
+  $9.99 Individual it saved $0.99, which is not a reason to choose a plan. Any future Individual
+  price change **must** re-check Family against 2×; this trap has bitten twice.)
+
+### Margin at the measured $3.61/athlete
+
+| Plan | Net of fees | AI | Contribution | Margin |
+|---|---|---|---|---|
+| Room | $96 | $36 | $60 | 61% |
+| Team 30 | $242 | $108 | $134 | 54% |
+| Team 75 | $484 | $271 | $213 | 43% |
+| Team 100 | $630 | $361 | $269 | 43% |
+| Team 150 | $873 | $542 | $331 | 38% |
+| Individual | $13.99 | $3.61 | $10.38 | 52% |
+| Family (2 active) | $17.49 | $7.22 | $10.27 | 41% |
+| Family (4 active) | $17.49 | $14.44 | $3.05 | **12%** |
+
+**The margin curve runs backwards** — 61% at the smallest band, 38% at the largest — because the
+per-athlete discount deepens while the per-athlete AI cost stays flat. This is tolerable at
+$3.61 and becomes a problem if the paying-athlete cost lands materially higher. **Decided:** hold
+these prices through the first ten programs; revisit the discount depth once §0's unmeasured
+figure is measured.
+
+**Family at four active athletes is the weakest account in the catalog** (12%). Accepted: the
+modal family is two, and policing household composition costs more than the leakage.
+
+### Known, accepted leaks
+
+- **Team 30 undercuts 30 Individuals by 58%** ($2,490 vs $5,999/yr). Thirty athletes could in
+  principle self-organise under a nominal coach. Accepted — coordinating thirty payers is harder
+  than it reads, and the team product is *governed* (a coach sets the standard), which a
+  self-organised group does not want.
+- **Four teammates are not a family.** Enforcement is app-side and thin. Accepted.
+- **The 3-athlete free floor is a fraud surface** — a trainer with 9 clients can open three coach
+  accounts. Worth a cheap signal check (same email domain, same device), not real engineering.
+
+---
+
+## §2 What you get
+
+**Staff are unlimited and free on every paid plan.** Only one of the ten Anthropic-calling
+functions is staff-triggered (`coach-voice-nudge`); the entire cost base is athletes logging.
+Per-coach pricing would make a head coach ration access, and the person cut is the position coach
+— the one who would open it daily. Rationing your own engagement driver to collect a few hundred
+dollars is a bad trade.
+
+**Rooms are unlimited and free on every paid plan.** A room costs nothing to serve. Rooms are how
+a roster gets organised, and organisation is what makes the product sticky. A room with an owning
+coach and its own scoped standard, overriding the team standard, is a Power-4 staff structure
+expressed in software — it is the differentiator, and gating it would be the wrong instinct.
+
+| | Coach (free) | Room | Team 30+ |
+|---|---|---|---|
+| Roster, invites, athlete profiles | ✓ | ✓ | ✓ |
+| Build standards | ✓ | ✓ | ✓ |
+| Active athletes | 3 | 10 | band |
+| Staff seats | 1 | 1 | unlimited |
+| Rooms | 1 | 1 | unlimited |
+| Team-scoped standards | — | — | ✓ |
+| Announcements, week pattern | — | — | ✓ |
+| Cross-room rollups & insights | — | — | ✓ |
+| Offers / payments / packages | — | — | practice books only |
+
+**Room is the entry SKU and the most important price in the catalog.** $249/mo needs an athletic
+director. $99/mo is a position coach's own card, or a line item approved without a meeting. It is
+the only price point a single coach can say yes to alone — and a single coach saying yes is the
+only sale OnStandard has ever made. It also converts the free-rider it replaces: the position
+coach with eight linebackers, who under a 10-athlete free tier would never have paid at all.
+
+---
+
+## §3 Room sprawl and the rollup
+
+A program adopts bottom-up: the LB coach buys a Room, the OL coach follows, then DBs. Five rooms
+later the school is paying $495/month across five cards, the head coach has no roster view, and
+they are spending Team 75 money for less than Team 75.
+
+**Trigger:** when a third room appears under the same org, show both the room owners and the head
+coach a consolidation prompt. Credit paid-but-unused time against the first team invoice.
+
+> West Orange Football is running 3 rooms — 30 athletes, $297/month. Team 30 covers the same 30
+> for $249 and adds the head coach's roster view, team standards and announcements. Consolidate?
+
+Three is the honest trigger because three is where the arithmetic flips. **One room is a coach;
+three rooms is a team.** Sprawl is also the cheapest lead source available — five position
+coaches paying out of pocket inside one building make the AD's decision for them.
+
+---
+
+## §4 The funding pool
+
+A high-school coach cannot sign a $4,990 purchase order, and discounting will not fix an
+authority problem. **Separate who uses OnStandard from who funds it.** One team entitlement, any
+number of funders.
+
+The coach shares one link. School athletics, the booster club, an NIL or sponsor partner, and
+parents all contribute against the same total. Once funded, every athlete on the roster works
+identically. **Coaches never see who contributed, and no athlete is ever marked paid or unpaid** —
+paid/unpaid badges scattered across a roster destroy the coach's value proposition, which is a
+single standard applied to everyone.
+
+**The per-athlete figure must be derived, never set.** Pool total = the band price. Per-athlete =
+band ÷ roster, displayed for parents deciding a share.
+
+> West Orange Football · Team 75 · 50 athletes · **$4,990/season**
+> School athletics $1,500 · Boosters $1,250 · Parents (18 families) $2,240 → **funded ✓**
+> Even split across 50 athletes: $99.80 each
+
+A worked example that set $8/athlete/month independently produced $4,000 against a $4,990
+invoice — the pool filled to 100% and the team was $990 short. Derive it.
+
+Implementation rides `sponsored_access` + `offers` + `sponsor-checkout`, all of which exist and
+have zero rows.
+
+---
+
+## §5 Read-only, in both places
+
+Read-only means: **everything already created stays visible and nothing new is produced.**
+
+**Team, at trial end or lapse.** The 3 most recently active athletes stay active automatically —
+the coach is never asked to pick three kids out of fifty, which is triage, not onboarding. The
+rest go read-only: full history, scores and photos remain; they stop logging new meals and stop
+receiving roll call. The coach may swap which 3 are active at any time. Funding restores everyone
+instantly, with nothing lost. The greyed rows are the conversion mechanism — forty-one frozen
+athletes explain the product faster than any email.
+
+**Athlete, at graduation or lapse.** Free forever: history, past scores, meal photos, progress,
+achievements, recruiting profile. Paid: continued logging, the AI Nutritionist, new scores, new
+recovery data, coach/trainer connection, deep analysis.
+
+**We never tell an athlete to pay or lose four years of their own data.** We monetise continued
+value, not access to what they already created. This is also the strongest line on the consumer
+paywall — nobody else in the category says it.
+
+`book_access` (0223) already documents exactly this posture: it answers, the client gates
+**writes**, and reads stay open.
+
+---
+
+## §6 Build order
+
+Nothing here is worth anything until something can take money. Ordered by that.
+
+1. **Wire `book_access` into `CAPS`.** `proto/redesign-2026-07/js/coach-data.js` keys capability
+   on book kind with every write hardcoded to `1`. This is the one change that makes a coach
+   subscription mean something. Gate **writes** only; reads stay open per §5.
+2. **Seat counting and the bands.** Surface the active-athlete count against the band, the
+   3-athlete free floor, and the trial-end selection in §5.
+3. **Throw the Stripe live key** and add the Room / Team 100 products.
+4. **Catalog edit.** `src/core/pricing.ts` is truth; five mirrors must move with it —
+   `pricing.test.ts`, `proto/js/pricing.js`, `proto/js/ob2.js`,
+   `docs/founding/LAUNCH-PRICING.md`, `docs/go-live/CONSUMER-IAP.md`. `obPlanPricingParity` is the
+   test that catches a mirror left behind.
+5. **Consumer prices in App Store Connect.** The six existing products are priced at the old
+   catalog; the store's price binds, so the console moves before the code claims the new figure.
+   Individual Plus is retired — see §7.
+6. **Funding pool** (§4).
+7. **Room rollup prompt** (§3).
+
+**Explicitly not in this spec:** RLS write policies consulting `book_access`. 0223 states the
+boundary — that change must run the SQL authorization suite (`npm run verify:full`, needs a local
+Supabase stack), and a wrong deny locks real coaches out of rosters they built. That is the one
+failure worse than the gap.
+
+---
+
+## §7 Decisions made in this design
+
+| Decision | Ruling |
+|---|---|
+| Free tier | Coach account + **3** active athletes, permanent, + one 14-day full-roster trial **per org**, not per coach |
+| Individual Plus | **Retired.** It sold the recruiting card; `has_premium_access` never reads `tier`, so every paid athlete already had it. $5 for nothing. |
+| Individual | $19.99 / $199.99 |
+| Family | $24.99 / $249.99, unchanged — raising Individual closed the 2× trap |
+| Team 150 | **$899.** Measured cost puts it at 38% margin, not underwater as feared |
+| Team 100 | **New, $649.** A full program is 7–10 rooms and 90–100 athletes; without it they buy Team 150 and pay $8.99/athlete — worse per athlete than Team 30, for the best customer |
+| Room | **New, $99 / 10 athletes.** Priced *above* Team 30 per-athlete so 3 Rooms never beat Team 30 |
+| Band overflow | **Grace, not a block.** The 31st athlete activates and works; coach is notified; 30 days; plan moves up at the next billing date unless trimmed. Never a surprise line item — predictability is the sale. |
+| Active-athlete metric | Internal only. Customers see flat bands. |
+| Staff seats | Unlimited, free |
+| Rooms | Unlimited, free |
+| Graduation | **Read-only**, never dark |
+| Sport | **Not a pricing dimension.** Eight sports ship; sport and position are profile fields feeding AI context and roster labels. No sport-specific logic exists, so there is nothing to sell. |
+
+## §8 Open — founder rulings still owed
+
+1. **Discount depth.** The margin curve runs backwards (§1). Holding these prices through the
+   first ten programs is the recommendation, not a settled decision.
+2. **Web checkout for consumer.** IAP costs 30% — $6 of every $19.99. US anti-steering rules
+   appear to permit linking out to external checkout, which would be roughly +38% revenue per
+   subscriber at the same price. **Needs legal verification before it is built**, and is not in
+   §6's build order until it has that.
+3. **Enterprise floor.** No number. Athletic departments are the only path to ~10x ACV, and
+   nothing in this catalog addresses them.
