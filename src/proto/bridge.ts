@@ -470,7 +470,21 @@ export const BRIDGE_SHIM = `
   try { navigator.share = function(data){ window.OnStandardNative.share({ title:data&&data.title, message:data&&data.text, url:data&&data.url }); return Promise.resolve(); }; } catch(e){}
 
   // Light haptic on every real interaction (the proto delegates via [data-go]/[data-act]).
-  document.addEventListener('click', function(e){
+  //
+  // ON POINTERDOWN, NOT CLICK (2026-09-21). This listened for 'click', which on iOS fires when
+  // the finger LIFTS. So the app buzzed on release: you pressed a button, nothing happened, and
+  // the confirmation arrived after you had already let go. That is the wrong half of the
+  // gesture, and it is most of why taps felt unresponsive no matter what the CSS did.
+  //
+  // A second thing falls out of this for free. WKWebView only applies :active reliably once a
+  // touch listener exists on the document; with the old click-phase listener it did not, so even
+  // the handful of controls that HAD a pressed style could fail to paint it. Listening here fixes
+  // the visual press and the haptic in one move.
+  //
+  // KNOWN COST, accepted: a finger that lands on a row and then drags to scroll gets one light
+  // tick it did not ask for. Judged the better trade than every button in the app answering late.
+  // If that reads badly on device, the fix is a short move threshold here, not a return to click.
+  document.addEventListener('pointerdown', function(e){
     var t = e.target && e.target.closest && e.target.closest('[data-go],[data-act],button,a,[role=button],.tab,.chip');
     if(t) window.OnStandardNative.haptic('light');
   }, true);

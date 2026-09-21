@@ -237,6 +237,19 @@
   --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
   --dur-1: 160ms; --dur-2: 280ms; --dur-3: 460ms; --dur-ring: 1400ms;
 
+  /* PRESS (2026-09-21). Three depths, because perceived depression is scale x SIZE, not scale.
+     A 44px icon button at .94 moves about 2.6px; a 340px card at .99 moves about 3.4px. Those
+     read as the same push. One value used everywhere would make small controls look dead and
+     large ones look like they buckled, which is how seven different hand-picked scales
+     (.92 .94 .95 .96 .97 .98 .992) ended up in the sheets with no rule behind them.
+
+     --dur-press is deliberately far under --dur-1: a finger-down that takes 160ms to land reads
+     as lag, not as travel. The RELEASE keeps --dur-1, so a control falls fast and rises easy. */
+  --press-tap:  0.94;   /* <= 44px: icon buttons, circles, the FAB */
+  --press-btn:  0.97;   /* buttons, chips, segments */
+  --press-card: 0.99;   /* large surfaces: cards, list rows, anything full-width */
+  --dur-press: 90ms;
+
   /* ---- Material ----
      Film grain over the canvas. Two jobs: it breaks up the banding that a large, very dark
      radial gradient produces on an OLED panel (where #070B14 -> #0A1120 across 600px has

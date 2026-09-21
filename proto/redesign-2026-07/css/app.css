@@ -6,6 +6,41 @@
    stops iOS inflating type on its own. The image viewer sets its own touch-action and, being a
    class selector, still wins. */
 html, body { height: 100%; touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
+/* ── PRESS FEEDBACK, THE BASELINE (2026-09-21) ────────────────────────────────────────────────
+   The reset above turns off `-webkit-tap-highlight-color` app-wide, which is right: iOS's grey
+   flash is the wrong shape on rounded cards and cannot be themed. But turning it off means the
+   app owes every tappable a replacement, and it had not paid: 324 [data-go] targets ship in the
+   screens and exactly ONE class (.co-pulse) styled its pressed state. The other 323 did nothing
+   at all when a finger landed on them.
+
+   So this is the floor, not the finish. Anything the app made tappable now moves under a thumb.
+   Deliberately the LOWEST-priority press rule in the sheet: it sits at the top of app.css so
+   every purpose-built :active below (.btn, .iconbtn, .chip, .fab, the switches) overrides it on
+   source order. It is what a control gets when nobody styled one for it.
+
+   --press-card is the baseline depth because a [data-go] is usually a row or a card. Small
+   controls get their own smaller scale from their own rules, which is the whole point of the
+   three tokens.
+
+   .tab is excluded: the capsule tab bar positions a sliding glass lens against it, and a
+   transform on the button would become that lens's containing block. */
+[data-go]:not(.tab), [data-act]:not(.tab), .tappable {
+  cursor: pointer;
+  transition: transform var(--dur-1) var(--ease-out);
+}
+[data-go]:not(.tab):active, [data-act]:not(.tab):active, .tappable:active {
+  transform: scale(var(--press-card));
+  transition-duration: var(--dur-press);   /* down fast, up easy */
+}
+/* Reduced motion keeps the ACKNOWLEDGEMENT and drops the travel: a press still has to answer,
+   or the athlete taps twice and the app does it twice. */
+@media (prefers-reduced-motion: reduce) {
+  [data-go]:not(.tab):active, [data-act]:not(.tab):active, .tappable:active {
+    transform: none;
+    filter: brightness(1.12);
+  }
+}
 body {
   font-family: var(--font);
   font-variant-numeric: tabular-nums; /* numbers are the product; they never jitter */
@@ -244,7 +279,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); --bar-lift: var(
   display: grid; place-items: center; color: var(--text); position: relative;
   cursor: pointer; transition: background var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
 }
-.iconbtn:active { transform: scale(0.94); background: var(--surface-2); }
+.iconbtn:active { transform: scale(var(--press-tap)); background: var(--surface-2); }
 .iconbtn .dot {
   position: absolute; top: 6px; right: 7px; min-width: 18px; height: 18px; padding:0 var(--s1);
   /* --danger-solid, not --red: this is 10.5px white text ON the fill, and --red is tuned to be
@@ -547,7 +582,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); --bar-lift: var(
   flex: none; width: 158px; border-radius: var(--r-card); overflow: hidden;
   background: var(--surface-1); border: 1px solid transparent; cursor: pointer;
   transition: transform var(--dur-1) var(--ease-out); box-shadow: var(--sh-card);}
-.act-card:active { transform: scale(0.97); }
+.act-card:active { transform: scale(var(--press-btn)); }
 .act-time { padding:var(--s3) var(--s3h) 0; font-size: var(--t-xs); font-weight: 700; color: var(--text-3); letter-spacing: 0.01em; }
 .act-media {
   height: 104px; margin:var(--s2h) var(--s2h) 0; border-radius: var(--r-card-sm);
@@ -682,7 +717,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); --bar-lift: var(
 }
 /* Press = scale down + a touch brighter: the surface compresses AND catches light, which is what a
    physical press does. The transition already covers filter, so release eases back on its own. */
-.btn:active { transform: scale(0.98); filter: brightness(1.08); }
+.btn:active { transform: scale(var(--press-btn)); filter: brightness(1.08); }
 /* Ink rides --ink-on-accent, the same logic .btn.green already uses: dark accents are 400-level
    (white on --blue-bright measured 2.5:1, an AA failure on the app's most important control), so
    the dark ink is near-black; light accents are 700-level and the token flips to white. The dark
@@ -753,7 +788,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); --bar-lift: var(
   display: grid; place-items: center; cursor: pointer;
   transition: transform var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out);
 }
-.back-head .bh-act:active { transform: scale(0.94); }
+.back-head .bh-act:active { transform: scale(var(--press-tap)); }
 .back-head .bh-act[aria-expanded="true"] { background: var(--blue-surface); color: var(--blue-bright); }
 .back-head .bh-act:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
 .screen-title { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: var(--title-tight); padding:var(--s2) 0 var(--s1); }
@@ -927,7 +962,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); --bar-lift: var(
   display: inline-flex; align-items: center; justify-content: center; gap: var(--s2);
   transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
 }
-.chip:active { transform: scale(0.96); }
+.chip:active { transform: scale(var(--press-btn)); }
 .chip.on { background: var(--surface-3); color: var(--text); border-color: var(--blue-border); }
 
 /* Tab badge (router.js tabbar). Was inline color:#fff + a raw 9px font-size in the router — the one
