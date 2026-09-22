@@ -91,7 +91,8 @@
     "shots:iap": "node scripts/iap-review-shot.mjs",
     "qa:ipad": "node scripts/ipad-qa.mjs",
     "release:testflight": "node scripts/release-testflight.mjs",
-    "lint:boot": "node proto/redesign-2026-07/tools/boot-closure-ratchet.mjs"
+    "lint:boot": "node proto/redesign-2026-07/tools/boot-closure-ratchet.mjs",
+    "check:review": "node scripts/review-readiness.mjs"
   },
   "private": true,
   "expo": {
