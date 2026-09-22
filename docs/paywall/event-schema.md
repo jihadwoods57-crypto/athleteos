@@ -51,7 +51,8 @@ per-install session id**, never a user id or email.
 
 Enum values (all enum-shaped, PII-safe):
 - `variant`: `individual` · `team_covered` · `trainer_covered` · `org` · `pro` · `free` · `seat`
-- `plan`: `individual` · `individual_plus` · (pro/org ids when those flows are wired)
+- `plan`: `individual` · `family` · (pro/org ids when those flows are wired). `individual_plus`
+  was retired 2026-09-21 and no longer appears; historical events carrying it are still valid data.
 - `cadence`: `annual` · `monthly`
 
 Existing adjacent events already in the vocabulary: `onboarding_completed {role}` (account created),

@@ -15,7 +15,7 @@
 - **Athletes & clients:** $0 while on a roster (full app, full AI, full history, portable forever).
 - **Professional (trainers, RDs, private coaches):** Solo $99/mo (25 active clients) or Professional $179/mo (50 active clients); $10/mo per active client beyond. 14-day free trial.
 - **Programs & facilities:** $249 / $499 / $799/mo for 30 / 75 / 150 active athletes; $15/mo per active athlete beyond; Enterprise custom. 14-day free trial. Billing counts **active** athletes only — idle seats are free.
-- **Consumer (optional, IAP):** Individual $14.99, Individual Plus $24.99, Family $39.99 (4 athletes); annual = 30% off; 7-day trial.
+- **Consumer (optional, IAP):** Individual $19.99/mo or $199.99/yr; Family $24.99/mo or $249.99/yr (4 athletes); 14-day trial. *(Re-mapped 2026-09-21; Individual Plus retired the same day.)*
 - **Founding 50:** today's price locked permanently, including the overage rate at claim time ($10/mo pro, $15/mo org) — a lock, never a discount, and never free (the "free through the beta" clause was retired 2026-07-30).
 
 ## Target Audience

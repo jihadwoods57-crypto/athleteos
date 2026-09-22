@@ -116,6 +116,15 @@ is not urgent. It is, however, the most consequential decision in this document.
 
 Prices are `src/core/pricing.ts`, the source of truth, as of 2026-09-08.
 
+> **Consumer was re-mapped on 2026-09-21** (founder ruling;
+> `docs/superpowers/specs/2026-09-21-subscription-remap-design.md` §7): Individual **$19.99 /
+> $199.99**, Family **$24.99 / $249.99**, and **Individual Plus retired** — it charged $5 for
+> entitlements `has_premium_access()` already granted every paid athlete. The table and the
+> arithmetic below still run on the 2026-09-08 figures and are left as the analysis that was
+> done on the day, not silently re-footed. The consumer column in §4's target table ("consumer
+> subs at $84") is the one number the re-map moves most: at $199.99 the same targets need
+> roughly 2.4x fewer consumer subscriptions.
+
 | Plan | Buyer | Rail | Annual | Seats | Per athlete / yr |
 |---|---|---|---|---|---|
 | Individual | athlete | IAP | $84 | 1 | $84 |

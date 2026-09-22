@@ -1,7 +1,10 @@
 // OnStandard — the Discipline Record (add-on build 2026-07-04; pure TS, no RN imports).
 //
-// The recruiting-side seller of Individual Plus ("your full portable record + a shareable
-// recruiting card"). An athlete's #1 want is to get recruited; what a college coach can't
+// The recruiting-side seller of the Individual plan ("your full portable record + a shareable
+// recruiting card"). This was sold as Individual Plus until 2026-09-21; Plus is retired because
+// has_premium_access() never read tier, so every paid athlete always had this record and the
+// extra $5 bought nothing. The record itself is unchanged.
+// An athlete's #1 want is to get recruited; what a college coach can't
 // get from film is whether a kid shows up every day. This record is that proof: computed
 // ONLY from real logged history (score days, streaks, weight arc), earned in-app, so a
 // recruiter reading it knows it wasn't self-typed. Nothing is fabricated: a short history

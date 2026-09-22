@@ -103,7 +103,7 @@ test('every state both screens used to carry is still rendered', () => {
     'How it works, straight',                  // the all-or-nothing contract, before the switch
     'Building your record',                    // under minDays
     'A parent or guardian has to approve first', // minor without consent
-    'The public page rides with Individual Plus', // paywall
+    'The public page rides with the Individual plan', // paywall
     'Publish my page',
     'Your page is live',
     'Copy link',

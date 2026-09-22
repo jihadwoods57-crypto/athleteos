@@ -188,10 +188,15 @@ export function entitlementFeatures(e: Entitlement): FeatureKey[] {
   return FEATURE_KEYS.filter((k) => hasFeature(e, k));
 }
 
-/** Friendly name for a consumer plan id (individual / individual_plus / family). */
+/** Friendly name for a consumer plan id (individual / family).
+ *
+ *  INDIVIDUAL PLUS IS RETIRED (2026-09-21) and its 'Individual+' case is gone with it. A
+ *  grandfathered row still carrying plan_id 'individual_plus' therefore falls through to the
+ *  default and reads 'Individual', which is the truth: the plan it named no longer exists, the
+ *  athlete keeps every entitlement it ever granted, and naming a plan nobody can buy would send
+ *  them looking for it. Never re-add a case here without a catalog entry in src/core/pricing.ts. */
 function consumerPlanName(planId?: string | null): string {
   switch (planId) {
-    case 'individual_plus': return 'Individual+';
     case 'family': return 'Family';
     default: return 'Individual';
   }

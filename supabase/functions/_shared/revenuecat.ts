@@ -15,14 +15,22 @@ export type ConsumerStatus = 'active' | 'past_due' | 'canceled' | 'paused';
 export const CONSUMER_PRODUCTS: Record<string, string> = {
   onstandard_individual_monthly: 'individual',
   onstandard_individual_annual: 'individual',
-  onstandard_individual_plus_monthly: 'individual_plus',
-  onstandard_individual_plus_annual: 'individual_plus',
   onstandard_family_monthly: 'family',
   onstandard_family_annual: 'family',
 };
 
-// Loose fallback order: most specific id first (so "individual_plus" wins over "individual").
-const PLAN_IDS = ['individual_plus', 'family', 'individual'];
+// INDIVIDUAL PLUS RETIRED (2026-09-21). `onstandard_individual_plus_monthly` / `_annual` are gone
+// from the map above and stop existing as products. They are deliberately NOT listed as unknown:
+// a grandfathered subscriber's renewal, a refund, or a late EXPIRATION can still arrive naming a
+// plus product id long after the product is delisted, and mapping that to null would file a real
+// paying athlete as "consumer plan unknown". The loose contains-match below resolves it instead —
+// "onstandard_individual_plus_annual" contains "individual", so it lands on 'individual', which is
+// exactly the plan that absorbed Plus's entitlements. Do NOT add 'individual_plus' back to the
+// list: that is the one edit that would make these events resolve to a plan the catalog no longer
+// carries.
+//
+// Loose fallback order: most specific id first, so "family" is tested before "individual".
+const PLAN_IDS = ['family', 'individual'];
 
 /** plan_id from a store product id: exact map first, then a loose contains-match so a renamed or
  *  region-suffixed SKU still resolves; null when nothing matches (still a valid consumer plan). */

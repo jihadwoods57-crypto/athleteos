@@ -157,7 +157,7 @@ function pageSection() {
   }
   if (st.requiresPlan && !st.paid) {
     blocks.push(`<section class="card pad">
-      <div class="tt" style="margin-bottom:var(--s1)">The public page rides with Individual Plus</div>
+      <div class="tt" style="margin-bottom:var(--s1)">The public page rides with the Individual plan</div>
       <div class="ts" style="margin-bottom:var(--s3)">Weekly share cards stay free for everyone. The live page recruiters can open is part of the plan that carries your portable record.</div>
       <button class="btn primary" data-go="paywall" style="width:100%">See plans</button>
     </section>`);

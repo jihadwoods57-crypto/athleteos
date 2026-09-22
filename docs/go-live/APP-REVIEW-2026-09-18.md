@@ -277,15 +277,22 @@ Left open at the end of the list.
 | 1.2 | Coach side of the meal thread had no Report/Mute; terms had no objectionable-content clause | members sheet on the coach header; clause added and deployed |
 | — | Terms/Privacy/support rows were `target=_blank` anchors that loaded the website INSIDE the WebView with no way back | router hands https anchors to the system browser; `onShouldStartLoadWithRequest` in ProtoApp (build 42) |
 
-**Left open, deliberately or for a ruling:**
-- No profanity/image filtering of user content. Report + Mute + the terms clause is what most apps
-  pass 1.2 on; a word filter is cheap if Apple asks.
-- Announcements, the squad board, display names and avatars have no report path of their own.
-- The review athlete has **zero meals**. Log three or four real ones from a phone before
-  resubmitting so the reviewer sees the product working, not empty states.
-- Coach/trainer/parent/dietitian onboarding has no date-of-birth gate (athlete and client do).
-- `#recruiting`, `#restrictions`, `#states`, `#sleep` are registered but unlinked.
-- The 2026-09-21 repricing is still not applied anywhere; code and store agree at the old prices.
+**Closed on 2026-09-22, second pass ("do all that's left"):**
+
+| Was open | Now |
+| --- | --- |
+| No filtering of user content | `js/content-filter.js`: a short whole-word list of slurs, threats and sexual abuse, checked before a chat message posts, an announcement arms, or a display name saves. Human review behind Report stays the real moderation. |
+| Announcements, squad board had no report path | Squad rows open the members sheet (Report + Mute, new kind `teammate`); announcement rows carry Report into the urgent safety queue. |
+| No date-of-birth gate on operator onboarding | `ob2.js adultDobSteps`: coach, trainer, dietitian and parent doors ask a birth date after the name, floor 18, with a blocked screen that points minors at the athlete door. |
+| Review athlete had zero meals | Three meals logged on 2026-09-22 through the app's own actions (headless proto against prod: `act.signIn` → `captureManual` → `logMeal` → outbox), day row scored. Log more from a phone the day before submitting so "today" is not empty either. |
+| 2026-09-21 repricing unapplied | Applied everywhere: App Store Connect (four products at $19.99 / $199.99 / $24.99 / $249.99 in 175 territories, both Plus products DELETED), RevenueCat (offering + entitlement hold exactly four), review notes, and the code mirrors. Report: `REPRICING-2026-09-22.md`. |
+
+**Still yours, and only yours:**
+- Paid Applications agreement → Active (ASC → Business). The single blocker.
+- Sandbox purchase on the newest TestFlight build (part 1 of `SANDBOX-AND-RECORDING.md`).
+- The iPhone recording for 2.5.1 (part 2).
+- Submit: open submission `d07c2cf9` (Unresolved Issues), reply per finding with the text above,
+  confirm the FOUR subscriptions are listed on the version page, submit.
 
 ### The gotchas this pass paid for
 

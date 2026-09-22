@@ -23,6 +23,22 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http:
 (globalThis as any).localStorage = dom.window.localStorage;
 
 const { PLANS } = require('../../proto/redesign-2026-07/js/ob2.js');
+// The paywall's own catalog — the THIRD mirror, and until 2026-09-21 the only one with no gate.
+// ob2.js was locked to pricing.ts while proto/js/pricing.js (what the in-app paywall actually
+// renders and what mints the store product id) was free to drift, which is the same hole this
+// suite exists to close, one file over.
+const { CONSUMER_PLANS } = require('../../proto/redesign-2026-07/js/pricing.js');
+
+/* THE FACTS EACH CONSUMER PLAN MUST STATE, on every screen that describes it. Individual Plus was
+   retired on 2026-09-21 and its selling points (full history, unlimited supporters, the recruiting
+   card) moved onto Individual, because has_premium_access() never read tier and every paid athlete
+   always had them. Deleting a plan is easy; deleting a plan and silently dropping the three things
+   it advertised is how a paywall stops describing what it sells. Both descriptions of a plan must
+   carry these. */
+const CONSUMER_FACTS: Record<string, string[]> = {
+  individual: ['history', 'supporters', 'recruiting card'],
+  family: ['4 athletes', 'one bill'],
+};
 
 type OfferedPlan = { variant: string; id: string; price: string; name: string; sub: string; tag?: string; custom?: boolean };
 
@@ -113,6 +129,54 @@ describe('ob2 PLANS ↔ pricing.ts PLAN_CATALOG', () => {
     const iapIds = PLAN_CATALOG.filter((p) => p.rail === 'iap').map((p) => p.id).sort();
     const offered = (PLANS.individual as Array<{ id: string }>).map((p) => p.id).sort();
     expect(offered).toEqual(iapIds);
+  });
+
+  /* INDIVIDUAL PLUS IS RETIRED (2026-09-21). The consumer-list test above already fails if ob2
+     offers a plan the catalog does not carry, but it fails with a diff of two sorted arrays. This
+     names the thing, in every variant and in the paywall catalog too, so the next person reading a
+     red test knows a retired plan came back rather than that a list changed. */
+  test('no screen offers a retired Individual Plus plan', () => {
+    const offenders = [
+      ...offeredPlans().filter((p) => /plus/i.test(p.id) || /plus/i.test(p.name))
+        .map((p) => `ob2 ${p.variant}:${p.id}`),
+      ...(CONSUMER_PLANS as Array<{ id: string; name: string }>)
+        .filter((p) => /plus/i.test(p.id) || /plus/i.test(p.name)).map((p) => `paywall:${p.id}`),
+      ...PLAN_CATALOG.filter((p) => /plus/i.test(p.id) || /plus/i.test(p.name)).map((p) => `catalog:${p.id}`),
+    ];
+    expect(offenders).toEqual([]);
+  });
+
+  test('the paywall catalog is the IAP catalog, plan for plan and field for field', () => {
+    const iap = PLAN_CATALOG.filter((p) => p.rail === 'iap');
+    expect((CONSUMER_PLANS as Array<{ id: string }>).map((p) => p.id)).toEqual(iap.map((p) => p.id));
+    const mismatches = (CONSUMER_PLANS as Array<Record<string, unknown>>)
+      .map((p) => {
+        const plan = PLAN_CATALOG.find((c) => c.id === p.id)!;
+        if (p.name !== plan.name) return `${p.id}: name "${p.name}" vs catalog "${plan.name}"`;
+        if (p.monthly !== plan.monthly) return `${p.id}: monthly ${p.monthly} vs catalog ${plan.monthly}`;
+        if (p.annual !== plan.annual) return `${p.id}: annual ${p.annual} vs catalog ${plan.annual}`;
+        if (p.trialDays !== plan.trialDays) return `${p.id}: trial ${p.trialDays} vs catalog ${plan.trialDays}`;
+        // seatLimit is 0 on the paywall where the catalog leaves it undefined (one seat).
+        if ((p.seatLimit || 0) !== (plan.seatLimit || 0)) return `${p.id}: seats ${p.seatLimit} vs catalog ${plan.seatLimit}`;
+        return null;
+      })
+      .filter(Boolean);
+    expect(mismatches).toEqual([]);
+  });
+
+  test('both descriptions of a consumer plan state the same facts', () => {
+    const obSub = new Map((PLANS.individual as Array<Record<string, string>>).map((p) => [p.id, String(p.sub || '')]));
+    const pwBlurb = new Map((CONSUMER_PLANS as Array<Record<string, string>>).map((p) => [p.id, String(p.blurb || '')]));
+    const misses: string[] = [];
+    for (const [id, facts] of Object.entries(CONSUMER_FACTS)) {
+      for (const [where, text] of [['onboarding', obSub.get(id)], ['paywall', pwBlurb.get(id)]] as const) {
+        if (text === undefined) { misses.push(`${where} never describes ${id}`); continue; }
+        for (const f of facts) {
+          if (!text.toLowerCase().includes(f.toLowerCase())) misses.push(`${where}:${id} never states "${f}"`);
+        }
+      }
+    }
+    expect(misses).toEqual([]);
   });
 
   test('consumer annual prices and per-month effective rates match the catalog', () => {

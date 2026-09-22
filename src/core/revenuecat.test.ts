@@ -14,14 +14,23 @@ const NOW = '2026-07-21T00:00:00.000Z';
 
 describe('planIdFromProduct', () => {
   it('maps the known store products to catalog plan ids', () => {
+    expect(planIdFromProduct('onstandard_individual_monthly')).toBe('individual');
     expect(planIdFromProduct('onstandard_individual_annual')).toBe('individual');
-    expect(planIdFromProduct('onstandard_individual_plus_monthly')).toBe('individual_plus');
+    expect(planIdFromProduct('onstandard_family_monthly')).toBe('family');
     expect(planIdFromProduct('onstandard_family_annual')).toBe('family');
   });
   it('loose-matches a renamed/suffixed SKU, most specific first', () => {
-    expect(planIdFromProduct('com.onstandard.individual_plus.annual.us')).toBe('individual_plus');
     expect(planIdFromProduct('com.onstandard.individual.monthly')).toBe('individual');
     expect(planIdFromProduct('com.onstandard.family.yearly')).toBe('family');
+  });
+  // INDIVIDUAL PLUS RETIRED (2026-09-21). The two plus products are gone from CONSUMER_PRODUCTS,
+  // but a grandfathered subscriber's renewal, refund or late EXPIRATION can still name one for
+  // months. It must resolve to 'individual' — the plan that absorbed every Plus entitlement — and
+  // never to null, which would file a real payer as "consumer plan unknown".
+  it('still resolves a retired Individual Plus product id to individual', () => {
+    expect(planIdFromProduct('onstandard_individual_plus_monthly')).toBe('individual');
+    expect(planIdFromProduct('onstandard_individual_plus_annual')).toBe('individual');
+    expect(planIdFromProduct('com.onstandard.individual_plus.annual.us')).toBe('individual');
   });
   it('returns null for an unknown product (still a valid consumer plan, planId unknown)', () => {
     expect(planIdFromProduct('mystery_sku')).toBeNull();

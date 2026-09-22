@@ -1,12 +1,13 @@
-// App Review screenshot for the six consumer subscription products.
+// App Review screenshot for the four consumer subscription products (six until the 2026-09-22
+// repricing retired Individual Plus).
 //
 // App Store Connect will not let a subscription be SUBMITTED without a review screenshot, and
 // "the In-App Purchase products have not been submitted for review" was half of the 2.1(b)
-// rejection of 1.0 (33) on 2026-09-18. One screenshot covers all six: they are one purchase wall.
+// rejection of 1.0 (33) on 2026-09-18. One screenshot covers all four: they are one purchase wall.
 //
 // Rendered from the REAL paywall, not a mockup. The only thing faked is the store bridge — a
 // headless browser has no App Store, so OnStandardNative.iap.available() is stubbed true, which is
-// exactly the answer a device with the RevenueCat key gives. Everything else (the three plans,
+// exactly the answer a device with the RevenueCat key gives. Everything else (the two plans,
 // the prices, the trial line, Terms and Privacy) comes from the shipped catalog in js/pricing.js,
 // so if the catalog moves the screenshot moves with it and cannot quietly go stale.
 //
@@ -116,7 +117,7 @@ console.log('  prices        :', seen.prices.join('  '));
 console.log('  purchase CTA  :', JSON.stringify(seen.buy));
 console.log('  terms/privacy :', seen.terms && seen.privacy);
 console.log('  auto-renew    :', seen.renews);
-if (seen.plans !== 3 || !seen.buy) {
+if (seen.plans !== 2 || !seen.buy) {
   console.error('iap-review-shot: the purchase wall did not render its plans — not a usable review screenshot.');
   process.exit(1);
 }

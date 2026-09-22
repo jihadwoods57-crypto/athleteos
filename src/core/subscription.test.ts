@@ -146,7 +146,7 @@ describe('billingRowCopy', () => {
         { tier: 'team', status: 'canceled' },
         { tier: 'consumer', status: 'active', planId: 'individual' },
         { tier: 'consumer', status: 'past_due', planId: 'family' },
-        { tier: 'consumer', status: 'paused', planId: 'individual_plus' },
+        { tier: 'consumer', status: 'paused', planId: 'individual' },
         { tier: 'consumer', status: 'active', planId: 'family', cancelAtPeriodEnd: true, renewsAt: '2026-08-01' },
         { tier: 'consumer', status: 'canceled', planId: 'individual' },
       ] as Entitlement[]) {
@@ -166,13 +166,13 @@ describe('consumer IAP tier (RevenueCat rail)', () => {
     expect(isPro({ tier: 'consumer', status: 'paused' })).toBe(false);
     expect(needsBillingAttention({ tier: 'consumer', status: 'past_due' })).toBe(true);
   });
-  it('maps a consumer row (individual+/family) into the entitlement', () => {
+  it('maps a consumer row (family) into the entitlement', () => {
     const e = entitlementFromRow({
       tier: 'consumer', status: 'active', seats: null, seats_used: null, current_period_end: '2026-08-01',
-      plan_id: 'individual_plus', cancel_at_period_end: false, payment_failed_at: null,
+      plan_id: 'family', cancel_at_period_end: false, payment_failed_at: null,
     });
     expect(e.tier).toBe('consumer');
-    expect(e.planId).toBe('individual_plus');
+    expect(e.planId).toBe('family');
     expect(isPro(e)).toBe(true);
   });
   it('unlocks the athlete-facing paid set but NOT the B2B roster tools', () => {
@@ -191,8 +191,11 @@ describe('consumer IAP tier (RevenueCat rail)', () => {
   it('labels consumer plans by name', () => {
     expect(planLabel({ tier: 'consumer', status: 'active', planId: 'individual' })).toBe('Individual');
     expect(planLabel({ tier: 'consumer', status: 'active', planId: 'family' })).toBe('Family');
-    expect(planLabel({ tier: 'consumer', status: 'active', planId: 'individual_plus', cancelAtPeriodEnd: true })).toBe('Individual+ · ending soon');
+    expect(planLabel({ tier: 'consumer', status: 'active', planId: 'family', cancelAtPeriodEnd: true })).toBe('Family · ending soon');
     expect(planLabel({ tier: 'consumer', status: 'past_due', planId: 'individual' })).toBe('Individual · payment due');
+    // Individual Plus retired 2026-09-21. A grandfathered row keeps its access and reads as the
+    // plan that still exists, never as a plan nobody can buy.
+    expect(planLabel({ tier: 'consumer', status: 'active', planId: 'individual_plus' })).toBe('Individual');
   });
   it('billing row: a paying athlete sees their own store-managed plan', () => {
     const c = billingRowCopy({ tier: 'consumer', status: 'active', planId: 'individual', renewsAt: '2026-08-01' }, 'app');

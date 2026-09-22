@@ -6,8 +6,9 @@
 // so a price change is a Stripe dashboard edit, never a deploy. KEEP THE SEAT NUMBERS IN SYNC
 // with src/core/pricing.ts (the client catalog) until the catalog moves to a table (memo D4).
 //
-// Consumer plans (individual / individual_plus / family) are Apple/Google IAP by App Store
-// rule — they are NOT in this map, and billing-checkout rejects them.
+// Consumer plans (individual / family) are Apple/Google IAP by App Store rule — they are NOT in
+// this map, and billing-checkout rejects them. Individual Plus was retired 2026-09-21 and is gone
+// from the client catalog too; nothing here ever carried it.
 
 export interface ServerPlan {
   /** Athlete/client seats the plan includes (null = custom/enterprise, not self-serve). */

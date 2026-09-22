@@ -220,8 +220,15 @@ it's the instant kill-switch. As of ~2026-07-02 it's been flipped **on** and mig
 Priced by **active participants** (graduated/inactive seats free up automatically). Opening
 catalog (data, not code — changeable without an app release):
 
-**Consumer:** Individual **$14.99/mo** ($149/yr, 7-day trial) · Individual Plus **$24.99/mo**
-($249/yr) — adds portable multi-org history + a shareable recruiting card.
+> **This section is stale on every rail and has been since 2026-07-04.** `src/core/pricing.ts` is
+> the truth. Only the consumer line below has been brought current (2026-09-21); the professional
+> and organization figures beneath it are retired numbers left in place rather than half-fixed.
+
+**Consumer:** Individual **$19.99/mo** ($199.99/yr, 14-day trial) — score, AI meal analysis,
+full history and trends, unlimited supporters, and the recruiting card a coach can open ·
+Family **$24.99/mo** ($249.99/yr, up to 4 athletes, one bill). *Individual Plus was retired
+2026-09-21: it charged $5 more for the recruiting card and the portable record, which every paid
+athlete already had.*
 
 **Professional (trainers/nutritionists):** Solo **$69/mo** (up to 25 clients, 14-day trial) ·
 Professional **$124.99/mo** (up to 50 clients; +$3/active client beyond).

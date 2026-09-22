@@ -432,12 +432,14 @@ export function operatorPlanCards(list, isOn, fine = '') {
 }
 
 export const PLANS = {
+  /* TWO CONSUMER PLANS, NOT THREE (2026-09-21 founder ruling). Individual Plus is retired: it
+     charged $5 more for the recruiting card and the portable record, and has_premium_access()
+     never read tier, so every paid athlete already had both. Its facts moved into the Individual
+     subtitle below, which is the same sentence pricing.js states in its blurb. */
   individual: [
-    { id: 'individual', name: 'Individual', monthly: '$9.99', annual: '$84', annualPer: '$7', save: 'Save $36', tag: '14-day free trial',
-      sub: 'Daily Score, AI meal analysis, streaks, one connected supporter.' },
-    { id: 'individual_plus', name: 'Individual Plus', monthly: '$14.99', annual: '$125.99', annualPer: '$10.50', save: 'Save $54',
-      sub: 'The recruiting card a coach can open, plus your record across every team.' },
-    { id: 'family', name: 'Family', monthly: '$18.99', annual: '$155.99', annualPer: '$13', save: 'Save $72',
+    { id: 'individual', name: 'Individual', monthly: '$19.99', annual: '$199.99', annualPer: '$16.67', save: 'Save $40', tag: '14-day free trial',
+      sub: 'Daily Score, AI meal analysis and streaks, your full history and trends, unlimited supporters, and the recruiting card a coach can open.' },
+    { id: 'family', name: 'Family', monthly: '$24.99', annual: '$249.99', annualPer: '$20.83', save: 'Save $50',
       sub: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
   ],
   /* Names are CANONICAL (pricing.ts .name), never audience flavours. "Pro Solo" / "Nutrition Pro" /

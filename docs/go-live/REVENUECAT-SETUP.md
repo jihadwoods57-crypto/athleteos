@@ -59,6 +59,10 @@ GET /v1/subscribers/<throwaway>/offerings   Authorization: Bearer appl_…   X-P
                 onstandard_family_monthly, onstandard_family_annual
 ```
 
+> That probe is the record of 2026-09-18 and is left as it was read. **The offering now carries
+> four packages, not six** — the two `individual_plus` ones were deleted on 2026-09-22 (step 3a),
+> and the read-back that proves it is in `REPRICING-2026-09-22.md`.
+
 That is the whole chain proven from the client's side: key → project → current offering → the six
 product identifiers `purchaseConsumer()` matches on. A wrong key would have cost a 20-minute build
 to discover on a device.
@@ -168,20 +172,33 @@ Create them in this order. The names below are not cosmetic — step 5 depends o
 
 ### 3a. Products
 
-Import from the App Store (or add by identifier). All six, exactly:
+Import from the App Store (or add by identifier). All four, exactly:
 
 ```
 onstandard_individual_monthly
 onstandard_individual_annual
-onstandard_individual_plus_monthly
-onstandard_individual_plus_annual
 onstandard_family_monthly
 onstandard_family_annual
 ```
 
+> **It was six until 2026-09-21, and the cleanup is DONE (2026-09-22).**
+> `onstandard_individual_plus_monthly` and `onstandard_individual_plus_annual` are **retired**
+> (founder ruling; Individual Plus charged $5 for entitlements `has_premium_access()` already
+> granted every paid athlete). Both were detached from the `premium` entitlement, their packages
+> deleted from the `default` offering, and the products deleted from the project — in that order,
+> which is the order that works. Read-back: 4 products, 4 entitlement attachments, 4 packages.
+> Full record in `REPRICING-2026-09-22.md`.
+>
+> A webhook event still naming a plus product resolves to plan `individual` by the loose
+> contains-match in `supabase/functions/_shared/revenuecat.ts`, so nothing breaks for a
+> grandfathered subscriber.
+>
+> Prices also moved: Individual **$19.99 / $199.99**, Family **$24.99 / $249.99**. App Store
+> Connect is the binding copy; `src/core/pricing.ts` carries the same numbers.
+
 ### 3b. Entitlement
 
-Create **one** entitlement — `premium` is fine — and attach all six products to it.
+Create **one** entitlement — `premium` is fine — and attach all four products to it.
 
 > The webhook does **not** care what you call it. `supabase/functions/_shared/revenuecat.ts` maps
 > the **`product_id`** to a plan, not the entitlement. But `restoreConsumer` in `src/lib/iap`
@@ -190,7 +207,7 @@ Create **one** entitlement — `premium` is fine — and attach all six products
 
 ### 3c. Offering — **this one is required**
 
-Create an Offering, mark it **Current**, and add a **Package** for each of the six products.
+Create an Offering, mark it **Current**, and add a **Package** for each of the four products.
 
 > `purchaseConsumer()` calls `getOfferings()` first and buys the *package*, because that is what
 > preserves RevenueCat's attribution for the sale. It falls back to `getProducts()` if no offering

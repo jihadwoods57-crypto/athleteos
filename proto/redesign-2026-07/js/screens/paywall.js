@@ -1,5 +1,6 @@
-/* Consumer paywall — the in-app membership screen. Shows the three consumer plans with the
-   30%-off annual math, the up-front FTC auto-renewal disclosure, and a purchase CTA that calls
+/* Consumer paywall — the in-app membership screen. Shows the consumer plans (two since Individual
+   Plus was retired 2026-09-21; the count comes from the catalog, never from this sentence) with
+   the annual math, the up-front FTC auto-renewal disclosure, and a purchase CTA that calls
    the native store (App Store / Play IAP via RevenueCat) through the bridge. Reached from the
    monthly-report locked card and the Plan & billing screen.
 
@@ -104,14 +105,16 @@ function statusBanner() {
 export default {
   tab: 'progress',
   render() {
-    // The chip is DERIVED from the catalog (annual = monthly * 12 * 0.70 in pricing.js): if the
-    // discount ever moves, the label moves with it instead of advertising a stale 30.
+    // The chip is DERIVED from the catalog: annual is now a literal App Store price point rather
+    // than a percentage (pricing.js, 2026-09-21), so the only honest way to print a percentage is
+    // to compute it from the two numbers actually charged. It reads 17% today and follows the
+    // catalog if either figure moves, instead of advertising a stale 30.
     const ind = planById('individual');
     const savePct = ind ? Math.round((annualSavings(ind) / (ind.monthly * 12)) * 100) : 0;
     return `${backHead('Membership', 'Unlock the written coaching', 'progress')}
 
     ${/* THE STATE LEADS (2026-09-07 audit). When the store rail is not wired, this screen used to
-          open with a live cadence switch and three selectable plan cards, and only told you that
+          open with a live cadence switch and a row of selectable plan cards, and only told you that
           none of it could be bought in a note UNDER the disabled button, three cards down. So the
           athlete made a choice and then learned the choice does nothing. The one thing that DOES
           unlock premium today was the smallest row on the screen, below the fold. The state is now

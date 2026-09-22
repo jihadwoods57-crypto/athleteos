@@ -3,17 +3,23 @@
    supabase/functions/_shared/revenuecat.ts CONSUMER_PRODUCTS. Pure data + display
    helpers — nothing here charges anyone; the store SDK does that via the bridge.
 
-   Annual = monthly * 12 * 0.70 (30% off, 2026-07-21). Keep in sync with pricing.ts. */
+   ANNUAL IS A STORE PRICE POINT, NOT A PERCENTAGE (2026-09-21). It used to be monthly * 12 * 0.70.
+   It is now the literal figure Apple's ladder carries ($199.99, $249.99) because the store's price
+   is what the card is charged and this screen must never print less than that. Do not re-derive
+   it; copy it from src/core/pricing.ts, which moves only alongside App Store Connect. */
 
 /* Blurbs state the SAME facts as ob2.js PLANS.individual: the onboarding plan cards and this
    paywall describe one plan each, and two descriptions of one plan is how a member buys a thing
    the other screen never promised. Keep the two in step. */
+/* INDIVIDUAL PLUS RETIRED (2026-09-21 founder ruling). It charged $5 more for full history,
+   unlimited supporters and the shareable verified record, and has_premium_access() never read
+   tier, so every paying athlete already had all three. The features did not go away with the
+   plan: they are written into the Individual blurb below, which is where they always belonged.
+   Two plans on this paywall now, not three. */
 export const CONSUMER_PLANS = [
-  { id: 'individual', name: 'Individual', monthly: 9.99, annual: 84, trialDays: 14, seatLimit: 0,
-    blurb: 'Your daily score, AI meal analysis, and streaks, with one connected supporter.' },
-  { id: 'individual_plus', name: 'Individual Plus', monthly: 14.99, annual: 125.99, trialDays: 14, seatLimit: 0,
-    blurb: 'Everything in Individual, plus full history, trends, unlimited supporters, and a shareable verified record.' },
-  { id: 'family', name: 'Family', monthly: 18.99, annual: 155.99, trialDays: 14, seatLimit: 4,
+  { id: 'individual', name: 'Individual', monthly: 19.99, annual: 199.99, trialDays: 14, seatLimit: 0,
+    blurb: 'Your daily score, AI meal analysis and streaks, your full history and trends, unlimited supporters, and the recruiting card a coach can open.' },
+  { id: 'family', name: 'Family', monthly: 24.99, annual: 249.99, trialDays: 14, seatLimit: 4,
     blurb: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
 ];
 
@@ -29,10 +35,10 @@ export function storeName() {
 
 export function planById(id) { return CONSUMER_PLANS.find((p) => p.id === id) || null; }
 
-/** Whole dollars drop the cents ($126), otherwise two places ($14.99). */
+/** Whole dollars drop the cents ($99), otherwise two places ($19.99). */
 export function fmtPrice(n) { return Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`; }
 
-/** The effective monthly cost when billed annually ($10.50 for Individual). */
+/** The effective monthly cost when billed annually ($16.67 for Individual). */
 export function effectiveMonthly(p) { return Math.round((p.annual / 12) * 100) / 100; }
 
 /** Whole-dollar saving of annual vs 12× monthly. */

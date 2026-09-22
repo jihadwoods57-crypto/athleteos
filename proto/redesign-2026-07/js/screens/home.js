@@ -701,14 +701,16 @@ const row = (i, hidePill) => `<div class="xrow-item ${i.color === 'green' ? 'gre
    or they were removed — the highest-intent consumer conversion moment the product has, and
    until now nothing marked it. Once dismissed it never returns; an athlete who rejoins a roster
    simply stops matching. Honest by construction: the free record really does stay theirs — the
-   card sells CONTINUING (Individual Plus's portable record + written coaching), not ransom. */
+   card sells CONTINUING (the Individual plan's portable record + written coaching), not ransom.
+   It named Individual Plus until that plan was retired on 2026-09-21; the portable record was
+   never Plus-only, because has_premium_access() never read tier. */
 function keepRecordCard() {
   if (!RT.hadRoster || RT.keepRecordSeen) return '';
   if ((RT.myCoach && RT.myCoach.teamId) || (RT.myTrainer && RT.myTrainer.practiceId)) return '';
   return `<div class="lrow" id="keep-record" style="margin:12px 0 10px;background:linear-gradient(100deg, rgba(var(--green-rgb),0.10), rgba(var(--blue-rgb),0.05));border:1px solid var(--green-border);border-radius:var(--r-card-sm);padding:12px 13px;cursor:pointer">
     <div class="xico sm green">${icon('shield', 16)}</div>
     <div class="xr"><div class="xa">Your record stays yours</div>
-    <div class="xb" style="white-space:normal;line-height:1.45">Your roster ended. Every day you proved is still here. See Individual Plus to keep it going.</div></div>
+    <div class="xb" style="white-space:normal;line-height:1.45">Your roster ended. Every day you proved is still here. See the Individual plan to keep it going.</div></div>
     <span class="status-pill g">See plans</span>
   </div>`;
 }
@@ -1204,7 +1206,7 @@ export default {
     reveal(root, { key: `day:${DAY.date}:${S.exec.score}`, haptic: null });
     // The score hero answers a press with depth (tilt.js) — the one surface that earns it.
     pressTilt(root.querySelector('.xhero'));
-    // Keep-your-record: tapping goes to the plans (Individual Plus is the portable-record pitch);
+    // Keep-your-record: tapping goes to the plans (Individual carries the portable record);
     // either way it is marked seen — a conversion card that nags is a churn card.
     const keep = root.querySelector('#keep-record');
     if (keep) keep.addEventListener('click', () => {

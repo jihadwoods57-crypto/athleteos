@@ -15,16 +15,41 @@ days that month — with a block included in the plan and **$10/month per active
 it** on Solo/Professional, **$15/month** on every organization (gym) tier. Idle seats are free: a kid who quits stops counting, which is both
 the honest pitch and the alignment of revenue with our real AI cost (only active athletes burn
 paid meal reads). Consumer plans are the moat, not the business: the free-with-roster record is
-the coach's switching cost, and Individual Plus is the "your record stays yours" continuation
-when a roster ends.
+the coach's switching cost, and Individual is the "your record stays yours" continuation when a
+roster ends.
 
-## Consumer (Apple/Google IAP · 7-day trial · annual = 30% off)
+## Consumer (Apple/Google IAP · 14-day trial · annual = an App Store price point)
+
+**Re-mapped 2026-09-21** on measured AI cost (founder ruling; design in
+`docs/superpowers/specs/2026-09-21-subscription-remap-design.md` §7).
 
 | Plan | Monthly | Annual | Effective /mo | Who it's for |
 |---|---|---|---|---|
-| Individual | $9.99 | $84 | $7.00 | History, score, AI coach, one supporter |
-| Individual Plus | $14.99 | $126 | $10.50 | Recruiting card + portable record |
-| Family | $18.99 | $156 | $13.00 | Up to 4 athletes, one bill, parent dashboards |
+| Individual | $19.99 | $199.99 | $16.67 | Score, AI coach, full history, unlimited supporters, recruiting card |
+| Family | $24.99 | $249.99 | $20.83 | Up to 4 athletes, one bill, parent dashboards |
+
+Three things changed at once, and each depends on the others:
+
+- **Individual $9.99 → $19.99.** The old price was set "for capture, not ARPU" against an AI cost
+  nobody had measured. It has been measured: **$3.61 per athlete per month** (`ai_call_costs`,
+  Sept), and that is the figure for a *free-shaped* athlete — the three premium AI functions a
+  subscriber unlocks have never been invoked by anyone, so the paying-athlete cost is still
+  unknown and can only be higher. At $9.99 the plan netted $6.99 after Apple and cleared the
+  measured floor by three dollars. $19.99 nets $13.99 and contributes $10.38 (52%).
+- **Family $18.99 → $24.99.** Family must move whenever Individual moves or the 2× trap reopens:
+  against a $9.99 Individual it saved a two-athlete household $0.99 a month. It now saves $14.99.
+  `src/core/pricing.test.ts` asserts the comparison so the trap cannot reopen silently a third
+  time.
+- **Individual Plus is retired.** It sold the recruiting card and the portable record for $5 more,
+  and `has_premium_access()` never read `tier` — every paid athlete already had both. Those facts
+  are now part of the Individual description, which is where they always belonged. The products
+  `onstandard_individual_plus_monthly` / `_annual` stop existing; a webhook event still naming one
+  resolves to plan `individual`.
+
+**Annual is not a percentage on this rail.** $199.99 and $249.99 are real App Store price points;
+the ~17% they work out to is an output, not a rule. The old "30% off" line could not survive the
+ladder — Apple sells no $167.93 — and the store's price is what the card is charged. Pro/org keep
+two months free, below.
 
 ## Professional & organization (Stripe · 14-day trial · annual = 2 months free · $10/mo overage on Solo/Professional, $15/mo on organization tiers)
 
@@ -69,7 +94,9 @@ idempotent). The remaining count is public via `founding_slots_left()`.
 - The cheap-first read router (`ANTHROPIC_MODEL_ANALYZE_FIRST` on analyze-meal) can roughly
   cancel the September increase — enable only after an eval replay shows quality holds.
 - Sponsor seats default **$60/seat-year** (`SPONSOR_SEAT_PRICE_CENTS=6000`): a real community
-  discount (~52% off Individual annual), not the $20 accident that undercut the paywall 6x.
+  discount — ~70% off Individual annual since the 2026-09-21 re-map, which is deeper than the
+  ~52% it was set to be. Not re-derived here: sponsor pricing was out of scope of that ruling and
+  is a founder call, flagged rather than quietly moved.
 
 ## Change control
 

@@ -17,8 +17,14 @@ export interface PricedPlan {
   rail: BillingRail;
   /** USD per month (0 for custom/enterprise). */
   monthly: number;
-  /** USD per year. 30% off twelve months, i.e. about three and a half months free — NOT the
-   *  conventional "two months free", which understates it by more than a month. */
+  /** USD per year.
+   *
+   *  TWO DIFFERENT RULES, ON PURPOSE (2026-09-21). Stripe plans are ten months for twelve, the
+   *  conventional B2B anchor. Consumer plans are NOT a percentage at all any more: they land on
+   *  the nearest real App Store price point at or below the rule ($199.99, $249.99), because the
+   *  store's ladder is what the card is actually charged and the paywall must never print less
+   *  than the store takes. Do not re-derive a consumer annual from a discount percentage; read
+   *  the literal number, and change it only alongside the App Store Connect product. */
   annual: number;
   /** Free-trial length in days.
    *
@@ -65,8 +71,35 @@ export const PLAN_CATALOG: PricedPlan[] = [
   // coach cannot assemble a roster out of Individual subscriptions — Individual sells the
   // ATHLETE their record, the org tiers sell the COACH the roster, priorities and assignments.
   // Different products on the same data.
-  { id: 'individual', name: 'Individual', audience: 'individual', rail: 'iap', monthly: 9.99, annual: 84, trialDays: 14,
-    blurb: 'Keep your history, score, AI coach, and daily game plan — on your own.' },
+  //
+  // CONSUMER RE-MAPPED ON MEASURED COST (2026-09-21 founder ruling; design in
+  // docs/superpowers/specs/2026-09-21-subscription-remap-design.md §7). Three changes, one pass:
+  //
+  //   1. Individual $9.99 -> $19.99 / $84 -> $199.99. The note above priced consumer "for capture,
+  //      not ARPU" against an AI cost nobody had read. It has now been read: $3.61 per athlete per
+  //      month for a free-shaped athlete (`ai_call_costs`, Sept), and the three premium AI
+  //      functions a subscriber unlocks have never been invoked by anyone, so the paying-athlete
+  //      figure is still unmeasured and can only go up. At $9.99 net of Apple's cut ($6.99) the
+  //      plan cleared the measured floor by about three dollars and the UNMEASURED half by
+  //      nothing at all. $19.99 nets $13.99 and contributes $10.38 (52%).
+  //   2. Family $18.99 -> $24.99 / $155.99 -> $249.99. Family MUST move whenever Individual does,
+  //      or the 2x trap reopens: at $9.99 Individual the family plan saved a two-athlete
+  //      household $0.99 a month, which is not a reason to choose a plan. It now saves $14.99.
+  //      Seats, rail and posture are unchanged.
+  //   3. Individual Plus is RETIRED and removed from this catalog. It sold the recruiting card and
+  //      the portable record for $5 more, and `has_premium_access()` never read `tier` — every
+  //      paid athlete already had both. It was $5 for nothing, and a plan that charges for what
+  //      the plan below it already grants is a packaging bug. Its features are now described as
+  //      part of Individual, which is what they always were. The product ids
+  //      `onstandard_individual_plus_monthly` / `_annual` stop existing; a webhook event still
+  //      naming one resolves to `individual` through the loose fallback in
+  //      supabase/functions/_shared/revenuecat.ts, so a grandfathered subscriber never loses
+  //      access.
+  //
+  // Annual is no longer a percentage on this rail (see the `annual` field above): $199.99 and
+  // $249.99 are App Store price points, picked because no round figure exists on Apple's ladder.
+  { id: 'individual', name: 'Individual', audience: 'individual', rail: 'iap', monthly: 19.99, annual: 199.99, trialDays: 14,
+    blurb: 'Your score, AI meal analysis and streaks, your full history and trends, unlimited supporters, and the recruiting card a coach can open.' },
   // THE STORE'S PRICE POINT BINDS (2026-09-18). Individual Plus annual was 126 and Family annual
   // 156. Neither exists as an App Store price point: Apple's ladder runs ... 124.99, 125.99,
   // 126.99 ... and ... 154.99, 155.99, 156.99, with no round 126 or 156 (84 does exist, which is
@@ -75,9 +108,9 @@ export const PLAN_CATALOG: PricedPlan[] = [
   // actually take. The derived maths are unmoved: effectiveMonthly is still 10.50 and 13.00, and
   // annualSavings still rounds to 54 and 72. Only the printed string changes, and it changes to
   // the truth. This is the rule docs/go-live/CONSUMER-IAP.md already stated: if the product exists
-  // in the console, the price there is the one that binds.
-  { id: 'individual_plus', name: 'Individual Plus', audience: 'individual', rail: 'iap', monthly: 14.99, annual: 125.99, trialDays: 14,
-    blurb: 'Adds the recruiting card a coach can open, and your record carried across every team.' },
+  // in the console, the price there is the one that binds. (That pass set Individual Plus to
+  // 125.99; the plan itself was retired three days later, see the 2026-09-21 note above. The rule
+  // it established is what survives, and it is why the new consumer annuals end in .99 too.)
   // Family plan (add-on build 2026-07-04): a parent with 2-4 athlete kids pays one bill.
   // Families churn slower than solo teens, and the parent digest gives the payer their own
   // value. IAP rail (consumer), same as Individual — 30% annual too.
@@ -94,7 +127,12 @@ export const PLAN_CATALOG: PricedPlan[] = [
   // ($19.00). The cost is margin on 3-4 athlete households; the gain is that 2-athlete
   // households stop having a rational reason to refuse the plan. Consumer is a free byproduct
   // in this model (BUSINESS_MODEL.md §3), so capture beats ARPU here.
-  { id: 'family', name: 'Family', audience: 'individual', rail: 'iap', monthly: 18.99, annual: 155.99, trialDays: 14, seatLimit: 4,
+  //
+  // Moved again 2026-09-21 to $24.99/$249.99 (see the consumer note above). The trap this plan
+  // exists to avoid is checked against the CURRENT Individual price every time either moves: two
+  // Individuals are $39.98/mo, Family is $24.99, so the household that picks the family option
+  // saves $14.99 a month. It has been re-opened twice by moving one price and not the other.
+  { id: 'family', name: 'Family', audience: 'individual', rail: 'iap', monthly: 24.99, annual: 249.99, trialDays: 14, seatLimit: 4,
     blurb: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
   // Cost sweep 2026-07-04: Solo/Professional were repriced up (69->99, 124.99->179) and the extra-seat
   // add-on 3->10. The old numbers sat at/below the per-seat AI-cost floor once a trainer's roster was
@@ -158,11 +196,11 @@ export function planById(id: string): PricedPlan | undefined {
 }
 
 export interface PlanTerms {
-  /** "$14.99 / month" or "Custom pricing". */
+  /** "$19.99 / month" or "Custom pricing". */
   price: string;
   /** "Billed monthly, auto-renews until canceled." */
   renewal: string;
-  /** "14-day free trial, then $9.99/month." or "" when none. Rendered from trialDays, never typed. */
+  /** "14-day free trial, then $19.99/month." or "" when none. Rendered from trialDays, never typed. */
   trial: string;
   /** "Cancel anytime in your account settings — no phone call, no runaround." */
   cancellation: string;
