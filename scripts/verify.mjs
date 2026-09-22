@@ -41,6 +41,7 @@ const GATES = [
   { name: 'lint:dash',  what: 'em dashes in copy did not grow (DESIGN.md ban)' },
   { name: 'lint:space', what: 'the off-scale padding/margin/gap count did not grow' },
   { name: 'lint:score', what: 'no hardcoded score percentages' },
+  { name: 'lint:boot',  what: 'the eager boot graph did not grow (every module here is parsed before the first frame)' },
   { name: 'lint:undef', what: 'no proto module calls a name it never imported' },
   { name: 'lint:mirror', what: 'every checked-in copy of a shared source file still matches its original' },
   { name: 'typecheck',  what: 'tsc --noEmit' },

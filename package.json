@@ -90,7 +90,8 @@
     "shots:appstore": "node scripts/appstore-shots.mjs",
     "shots:iap": "node scripts/iap-review-shot.mjs",
     "qa:ipad": "node scripts/ipad-qa.mjs",
-    "release:testflight": "node scripts/release-testflight.mjs"
+    "release:testflight": "node scripts/release-testflight.mjs",
+    "lint:boot": "node proto/redesign-2026-07/tools/boot-closure-ratchet.mjs"
   },
   "private": true,
   "expo": {
