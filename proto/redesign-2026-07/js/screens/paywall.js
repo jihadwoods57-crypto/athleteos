@@ -8,7 +8,7 @@
    founder wires react-native-purchases + store products). When it isn't, the CTA reads
    "Available at launch" — never a dead button — and the always-working sponsor-code path is
    right there. The numbers a member unlocks are the written coaching, never the athlete's stats. */
-import { isIOSApp, storeNotice } from '../store-policy.js';
+import { isIOSApp } from '../store-policy.js';
 import { backHead, esc } from '../components.js';
 import { icon } from '../icons.js';
 import { RT } from '../state.js';
@@ -122,7 +122,15 @@ export default {
           coming rather than as a checkout. Nothing is hidden: the prices are still the catalog's,
           and the picker still works, so an athlete can see exactly what they will be choosing. */''}
     ${UI.iapReady === false ? `
-    ${isIOSApp() ? storeNotice('Membership is not bought in the app yet.', 'Your stats are always yours; membership only adds the written coaching.') : `
+    ${/* On iOS this state means ONE thing: the binary predates the store module (builds before
+          41 have no RNPurchases pod and no RevenueCat key), and this JS reached it over the air.
+          "Not bought in the app yet" read as a coming-soon placeholder — the founder's iPad on
+          build 39 showed exactly that (2026-09-22). The honest sentence is the fix: update. */''}
+    ${isIOSApp() ? `<div class="sidebox">
+      <div class="req-icon b s38">${icon('download', 17)}</div>
+      <div><div class="tt">Update OnStandard to join</div>
+      <div class="ts">This version of the app was built before memberships opened. The App Store has the current one; your stats are always yours either way.</div></div>
+    </div>` : `
     <div class="sidebox pw-pre">
       <div class="req-icon b s38">${icon('clock', 17)}</div>
       <div><div class="tt">Memberships open at launch</div>
