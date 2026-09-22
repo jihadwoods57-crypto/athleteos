@@ -92,7 +92,8 @@
     "qa:ipad": "node scripts/ipad-qa.mjs",
     "release:testflight": "node scripts/release-testflight.mjs",
     "lint:boot": "node proto/redesign-2026-07/tools/boot-closure-ratchet.mjs",
-    "check:review": "node scripts/review-readiness.mjs"
+    "check:review": "node scripts/review-readiness.mjs",
+    "seed:review": "node scripts/seed-review-meals.cjs"
   },
   "private": true,
   "expo": {

@@ -58,6 +58,10 @@ Reply text for 5.1.1(iv), 2.5.4 and 2.5.1 is in `APP-REVIEW-2026-09-18.md`.
 
 ## The runbook, in order
 
+The same six steps, with direct links, the sandbox tester and paste-ready replies, as a page:
+<https://claude.ai/artifact/2vq9sJpaNuWGagBJaZgtBn>. `npm run seed:review` logs the demo athlete's meals for the day.
+
+
 1. App Store Connect → Business: Paid Applications **Active**.
 2. TestFlight build 43 on a physical iPhone → `SANDBOX-AND-RECORDING.md` part 1 (sandbox buy).
 3. `npm run check:review` → must print **GO** (or "GO, with notes").
