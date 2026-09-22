@@ -106,12 +106,17 @@ function resetDay() {
   // 2026-08-19 hierarchy pass: weight + photos merged into ONE "Body" group (the old "Weight
   // Trend" eyebrow is gone on purpose). The contract under test is unchanged: the client's
   // outcome section leads, the team athlete's score section leads.
+  // 2026-09-21 distill pass: the "Score Trend" eyebrow is gone — it labelled the one card on the
+  // screen that needs no label (a 44px score, a week delta and seven day bars, directly under the
+  // h1). The contract under test is still the ORDER, so the marker moved to the trend card's own
+  // `data-tour` anchor, which is what the tour tip points at and cannot be renamed silently.
   const BODY_MARK = '<h2 class="eyebrow">Body</h2>';
+  const SCORE_MARK = 'data-tour="trend"';
   const clientHtml = progress.render();
   const wIdx = clientHtml.indexOf(BODY_MARK);
-  const sIdx = clientHtml.indexOf('Score Trend');
+  const sIdx = clientHtml.indexOf(SCORE_MARK);
   assert.ok(wIdx >= 0 && sIdx >= 0, 'both sections must render');
-  assert.ok(wIdx < sIdx, 'a client sees the Body group BEFORE Score Trend — the outcome leads');
+  assert.ok(wIdx < sIdx, 'a client sees the Body group BEFORE the score trend — the outcome leads');
   // The progress-photo card carried the only noun-parity assertion here and was removed with the
   // feature (2026-09-07). The contract this block actually tests is the ORDER, above: a client
   // sees the Body group before Score Trend. Noun parity is still covered where a noun still
@@ -120,8 +125,8 @@ function resetDay() {
   RT.myCoach = { teamId: 't1', teamName: 'Northside Prep', name: 'Coach J' }; RT.myTrainer = null;
   const teamHtml = progress.render();
   const wIdx2 = teamHtml.indexOf(BODY_MARK);
-  const sIdx2 = teamHtml.indexOf('Score Trend');
-  assert.ok(sIdx2 < wIdx2, 'a team athlete keeps Score Trend FIRST — unchanged order');
+  const sIdx2 = teamHtml.indexOf(SCORE_MARK);
+  assert.ok(sIdx2 >= 0 && sIdx2 < wIdx2, 'a team athlete keeps the score trend FIRST — unchanged order');
   // Its coach-side twin went with the same card; the order assertion above is the live contract.
 }
 

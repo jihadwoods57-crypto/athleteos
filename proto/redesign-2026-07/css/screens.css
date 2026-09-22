@@ -932,13 +932,9 @@
 .phero .pk { font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.11em; text-transform: uppercase; color: var(--text-3); }
 .phero .pc { margin-left:auto; font-size: var(--t-xs); font-weight: 700; color: var(--blue-bright); }
 
-/* What is still coming today, striped so it never reads as banked. Without it, 81 of 180g at
-   dinner looks like failing when it is squarely on pace. */
-.cons-row .track { position: relative; }
-.cons-row .ghostb {
-  position: absolute; top: 0; bottom: 0; border-radius: inherit; opacity: 0.5;
-  background: repeating-linear-gradient(90deg, rgba(var(--blue-rgb), 0.55) 0 4px, transparent 4px 8px);
-}
+/* The striped "still coming today" bar lives on `.tb-track .ghostb` (further down this file),
+   which is what meal.js renders. The `.cons-row`-scoped copy that sat here was superseded by it
+   and matched nothing. */
 .pace { font-size: var(--t-micro); font-weight: 600; color: var(--text-3); margin-top:-2px; }
 
 /* Who can read this conversation - disclosure, opened from the facepile. */
@@ -1181,19 +1177,38 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .wb.b-on .bar { background: linear-gradient(180deg, var(--green), var(--green-deep)); opacity: 1; box-shadow: 0 0 14px rgba(var(--green-rgb), 0.28); }
 @keyframes xf-grow-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 .wb .d { font-size: var(--t-micro); font-weight: 700; color: var(--text-3); text-align: center; }
-.consist { display: flex; flex-direction: column; gap:var(--s3); }
-.cons-row { display: flex; align-items: center; gap:var(--s3); }
-.cons-row .k { width: 86px; font-size: var(--t-sm); font-weight: 700; color: var(--text-2); flex: none; }
-.cons-row .track { flex: 1; height: 8px; border-radius: var(--r-micro); background: var(--surface-3); overflow: hidden; }
-.cons-row .fillb { height: 100%; border-radius: var(--r-micro); }
-.cons-row .v { width: 42px; text-align: right; font-size: var(--t-base); font-weight: 800; flex: none; }
+/* Category trend rows on Progress. This family replaces `.consist` / `.cons-row`, which had six
+   rules and no markup anywhere in the app — while `.cat-trend` (the class Progress has actually
+   rendered since it was written) had NONE, so the whole Category trends section came out as
+   unstyled stacked text with an invisible bar. It was never caught because the QC seed feeds the
+   getter fewer than four scored days, so every capture showed the placeholder instead.
+   Four columns, so the values line up down the column however long a label runs. */
+.cat-trends { display: flex; flex-direction: column; gap:var(--s3h); }
+.cat-trend { display: grid; grid-template-columns: 76px 1fr 52px 38px; align-items: center; gap:var(--s3); }
+.cat-trend .ct-k { font-size: var(--t-sm); font-weight: 700; color: var(--text-2); }
+.cat-trend .track { height: 8px; border-radius: var(--r-micro); background: var(--surface-3); overflow: hidden; }
+.cat-trend .fillb { height: 100%; border-radius: var(--r-micro); }
+.cat-trend .fillb.g { background: linear-gradient(90deg, var(--green), var(--green-deep)); }
+.cat-trend .fillb.p { background: linear-gradient(90deg, var(--purple), var(--purple-deep)); }
+.cat-trend .ct-v { text-align: right; font-size: var(--t-base); font-weight: 800; font-variant-numeric: tabular-nums; }
+/* Direction reads EXACTLY like the week delta above it (.bigstat .d.up/.down) — up is good and
+   down is bad for a category score, and one page should not own two ways of saying so. */
+.cat-trend .ct-d { text-align: right; font-size: var(--t-sm); font-weight: 700; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.cat-trend .ct-d.up { color: var(--green-bright); }
+.cat-trend .ct-d.down { color: var(--red); }
 .bigstat { display: flex; align-items: baseline; gap:var(--s2h); }
 .bigstat .n { font-size: 44px; font-weight: 800; letter-spacing: -0.04em; }
 .bigstat .d { font-size: var(--t-base); font-weight: 700; color: var(--text-2); }
 .bigstat .d.up { color: var(--green-bright); }
 .bigstat .d.down { color: var(--red); }
-.insight { display: flex; gap:var(--s3); padding:var(--s4) var(--s4); border-radius: var(--r-card); background: linear-gradient(120deg, rgba(var(--green-rgb), 0.10), rgba(var(--teal-rgb), 0.04)); border: 1px solid var(--green-border); }
+/* The one actionable sentence, as the FOOTER of the card holding the trend that produced it.
+   It used to be a standalone green-gradient box under its own eyebrow, which put a third green
+   on a screen that already has green day bars and a green week delta, and made the sentence a
+   separate container from its own evidence. It gets its weight from position now, not decoration:
+   last thing in the card, above a hairline, and the only icon in the section. */
+.insight { display: flex; gap:var(--s3); align-items: flex-start; margin-top:var(--s4); padding-top:var(--s4); border-top: 1px solid var(--hairline-soft); }
 .insight p { font-size: var(--t-base); font-weight: 700; line-height: 1.5; }
+.insight:first-child { margin-top:0; padding-top:0; border-top: none; }
 .losttable .lrow2 { display:flex; justify-content:space-between; padding:var(--s3) 2px; border-bottom: 1px solid var(--hairline-soft); font-size: var(--t-base); font-weight: 700; }
 .losttable .lrow2:last-child { border-bottom: none; }
 .losttable .amt { font-weight: 800; }
@@ -2010,7 +2025,6 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .nut-panel .day-bars{margin-top:0;border-top:1px solid var(--hairline-soft);padding:13px var(--s4) var(--s3h)}
 /* Day-target bars (also render standalone if the panel is ever absent) */
 .day-bars{margin-top:var(--s3);display:flex;flex-direction:column;gap:var(--s2h);padding:0 2px}
-.day-bars .cons-row .k{font-size:var(--t-sm)}
 .day-bars .pace{margin-top:2px}
 /* ---- Dietitian board (0197 discipline lens) ----
    The queue leads with the PLATE: a photo thumb per row (a dietitian reviews food by eye), the
@@ -2372,6 +2386,28 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    3-column grid whenever consistency was still null. Three numerals, always three columns;
    .dim marks a value that hasn't earned a number yet (an em-dash placeholder, on scale). ----- */
 .pg-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2h);margin-top:var(--s3h)}
+
+/* ----- Progress: the screen's own small parts, named instead of inlined.
+   Each of these was a repeated `style="font-size:var(--t-sm);font-weight:600;color:…"` blob
+   written out longhand at four to six call sites, which is how the same secondary line ended up
+   three different sizes on one screen. One rule each, so they cannot drift again. ----- */
+.pg-sub{font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:var(--s1);line-height:1.45}
+.pg-note{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s2);line-height:1.45}
+.pg-flush{margin-top:0}
+.pg-share-row{margin-top:var(--s3h)}
+.pg-tail{height:var(--s3)}
+/* The records list: `.lrow` brings its own vertical air, so the card only insets the sides. */
+.pg-rows{padding:var(--s1h) var(--s4)}
+.pg-wrow{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s3)}
+.pg-wempty{font-size:var(--t-md);font-weight:800}
+.pg-wbtn{margin-top:var(--s3);width:auto;padding:0 var(--s4h)}
+/* A measured quantity, not a score: the unit rides at label weight beside the numeral so the
+   number still reads as the figure. `.md` is the weight card's smaller hero.
+   The negative margin pulls most of `.bigstat`'s own --s2h gap back so "lb" tucks against the
+   figure it belongs to (net --s1), while the delta after it keeps the full gap. Both terms are
+   tokens: a raw px here is what the spacing ratchet counts. */
+.bigstat.md .n{font-size:var(--t-3xl)}
+.bigstat .u{font-size:var(--t-base);font-weight:700;color:var(--text-2);margin-left:calc(var(--s1) - var(--s2h))}
 
 /* ----- Streak week calendar (spec §14.3) ----- */
 .stk-week{display:flex;gap:var(--s2);margin-top:var(--s1)}

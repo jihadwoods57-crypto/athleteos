@@ -41,18 +41,20 @@ function weightCard() {
   return `
   <section class="card pad">
     ${W.current != null ? `
-    <div style="display:flex;justify-content:space-between;align-items:baseline">
+    <div class="pg-wrow">
       <!-- weight direction is goal-dependent (a gain can be good or bad depending on the athlete's
            target): the honest signal is the S.weight.pace pill, never color this by sign -->
-      <div class="bigstat"><span class="n" style="font-size:var(--t-3xl)">${W.current}</span>${W.deltaMonth ? `<span class="d">${W.deltaMonth}</span>` : ''}</div>
+      ${/* The hero carried no unit while its own subtitle printed "lb" twice, so the one number
+            an athlete reads first was the only bare figure on the card. */''}
+      <div class="bigstat md"><span class="n">${W.current}</span><span class="u">lb</span>${W.deltaMonth ? `<span class="d">${W.deltaMonth}</span>` : ''}</div>
       ${W.pace ? `<span class="status-pill ${W.pace === 'On pace' ? 'g' : 'a'}">${W.pace}</span>` : ''}
     </div>
-    <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:2px">${W.start != null ? `Started ${W.start} lb · ` : ''}${W.target != null ? `goal ${W.target} lb · ` : ''}never affects your daily score</div>
-    <button class="btn ghost sm" data-go="weight" style="margin-top:12px;width:auto;padding:0 18px">${icon('scale', 16)} Log weight</button>`
+    <div class="pg-sub">${W.start != null ? `Started ${W.start} lb · ` : ''}${W.target != null ? `goal ${W.target} lb · ` : ''}never affects your daily score</div>
+    <button class="btn ghost sm pg-wbtn" data-go="weight">${icon('scale', 16)} Log weight</button>`
     : `
-    <div style="font-size:var(--t-md);font-weight:800">Start your weight trend</div>
-    <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:4px;line-height:1.45">Weight tracks long-term progress and does not affect your daily score.</div>
-    <button class="btn primary sm" data-go="weight" style="margin-top:12px;width:auto;padding:0 20px">${icon('scale', 16)} Log weight</button>`}
+    <div class="pg-wempty">Start your weight trend</div>
+    <div class="pg-sub">Weight tracks long-term progress and does not affect your daily score.</div>
+    <button class="btn primary sm pg-wbtn" data-go="weight">${icon('scale', 16)} Log weight</button>`}
   </section>`;
 }
 
@@ -65,27 +67,45 @@ function bodySection() {
   ${weightCard()}`;
 }
 
-/* Entry to the training log (0135). Quiet link-out; sessions live in #training-history. Tracked,
-   not scored — same as weight. */
-function trainingCard() {
+/* Every link-out on this screen, in ONE card and ONE row vocabulary.
+   It used to be two groups. "Training" held two `.lrow`s in a card; "More" held three
+   `.sidebox`es — a different container, a different ground, and a different affordance: Squad
+   got a right-hand chevron, Score history's chevron landed INLINE beside its title (`.sidebox`
+   is `align-items:flex-start` with no spacer, so a short subtitle lets the third child ride up
+   next to the heading), and Monthly report, equally tappable, had no chevron at all. Neither
+   heading described its contents either: Squad, Score history and a monthly report are not
+   "More" in any sense a reader could act on. They are all records and reports, so they are one
+   list, under the one heading that fits them.
+   Subtitles say what each row IS. The old ones said "tracked, not scored", "a separate record
+   from your score" and "never affects your daily score" — one idea in three voices on one
+   screen. The weight card keeps that sentence, once, where the anxiety actually lives.
+   The training-log row was cut 2026-09-21 (founder call). #training-history is still routed and
+   still reachable; it is no longer promoted from Progress. */
+function recordsSection() {
+  const row = (go, ic, title, sub, extra) => `
+    <div class="lrow" data-go="${go}">
+      <div class="lic">${icon(ic, 17)}</div>
+      <div class="lm"><div class="lt">${title}${extra || ''}</div><div class="ls">${sub}</div></div>
+      ${/* No inline colour: icon() already stamps `ic-chevron`, and app.css's
+            `.lrow > .ic-chevron:last-child` is what greys it. Every old row passed
+            style="color:var(--text-3)" restating a rule that was already there. */''}
+      ${icon('chevron', 17)}
+    </div>`;
   return `
-  <h2 class="eyebrow">Training</h2>
-  <section class="card" style="padding:6px 16px">
-    <div class="lrow" data-go="training-history">
-      <div class="lic">${icon('bolt', 17)}</div>
-      <div class="lm"><div class="lt">Training log</div><div class="ls">Your sessions &amp; notes · tracked, not scored</div></div>
-      ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-    </div>
+  <h2 class="eyebrow">Records</h2>
+  <section class="card pg-rows">
     ${/* Morning Readiness is the roll-call / commitments record. With the feature switched off
           (ROLLCALL_OFF) the server returns no rows, so this link led to a permanently empty
           screen. The row is hidden rather than the screen changed: the record itself is intact
           and reappears with the feature. */''}
-    ${ROLLCALL_OFF ? '' : `
-    <div class="lrow" data-go="accountability">
-      <div class="lic">${icon('sun', 17)}</div>
-      <div class="lm"><div class="lt">Roll call record</div><div class="ls">Roll calls &amp; sessions · a separate record from your score</div></div>
-      ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-    </div>`}
+    ${ROLLCALL_OFF ? '' : row('accountability', 'sun', 'Roll call record', 'Roll calls and sessions')}
+    ${S.coach.hasCoach && S.coach.kind === 'coach'
+      ? row('squad', 'users', 'Squad', 'Opt-in · your score number only') : ''}
+    ${/* `clock`, not `clipboard`: Score history and Monthly report both drew the clipboard, so
+          the icon column said nothing on either row. */''}
+    ${row('history', 'clock', 'Score history', 'The proof trail, day by day')}
+    ${row('monthly-report', 'clipboard', 'Monthly report', 'Your month in review',
+    ` <span class="status-pill b">Premium</span>`)}
   </section>`;
 }
 
@@ -99,7 +119,9 @@ function styleBandRow() {
   <div class="ps-band" aria-label="Plan style history">
     ${bands.map(b => `<span class="seg s-${esc(b.style)}"><i></i>${esc(b.name)} · ${b.days}d · avg ${b.avg}</span>`).join('')}
   </div>
-  <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:6px;line-height:1.45">Your plan style changed during this stretch. Each style measures your day differently, so compare within a band, not across.</div>`;
+  ${/* One line, not three. The pills above already say the style changed, so the sentence that
+        opened by restating it was spending the headline card's last inches on a caveat. */''}
+  <div class="pg-note">Each style measures your day differently. Compare within a band, not across.</div>`;
 }
 
 export default {
@@ -119,7 +141,7 @@ export default {
       ${RT.day0 ? `
       ${emptyState({ icon: 'camera', title: 'Today counts the moment you log', body: 'Your first meal photo starts the record.', action: { go: 'camera', label: 'Log a meal' }, compact: true })}` : ''}
       ${bodySection()}
-      ${trainingCard()}
+      ${recordsSection()}
       <div style="height:10px"></div>`;
     }
 
@@ -146,11 +168,16 @@ export default {
     const cutIdx = cutoverIndex(P.weekDates);
     const CUTOVER_LABEL = 'Scoring changed. Days before this were scored a different way';
 
+    // No "SCORE TREND" eyebrow. It sat directly under the h1 "Progress" and labelled a card that
+    // opens with a 44px score, a week delta and seven day bars — the one card on the screen that
+    // needs no label at all. The tour tip's anchor moved onto the card with it.
     const scoreTrendSection = `
-    <h2 class="eyebrow" data-tour="trend">Score Trend</h2>
-    <section class="card pad">
+    <section class="card pad" data-tour="trend">
       <div class="bigstat"><span class="n">${P.weekAvg}</span>${P.weekDelta ? `<span class="d${ddir}">${P.weekDelta} vs prior week</span>` : ''}</div>
-      <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:2px">${P.onDays} days on standard (≥80) · best streak ${P.bestStreak}d</div>
+      ${/* "best streak Nd" used to close this line and then render again as its own tile 16px
+            below. The tile is the better home for a numeral; the line keeps the fact the tiles
+            cannot show. */''}
+      <div class="pg-sub">${P.onDays} days on standard (≥80)</div>
       <div class="weekbars" role="img" aria-label="Last ${P.weekScores.length} days: ${P.weekScores.map((v, i) => `${P.weekDayLabels[i] || ''} ${v}`).join(', ')}. The standard is 80.${cutIdx !== -1 ? ` ${esc(CUTOVER_LABEL)}.` : ''}">
         ${P.weekScores.map((v, i) => `
           ${i === cutIdx ? `<div class="wb-cutover" aria-hidden="true" title="${esc(CUTOVER_LABEL)}" style="align-self:stretch;width:2px;border-radius:1px;background:var(--text-3);opacity:.4"></div>` : ''}
@@ -159,10 +186,10 @@ export default {
             <span class="d">${P.weekDayLabels[i] || ''}</span>
           </div>`).join('')}
       </div>
-      ${cutIdx !== -1 ? `<div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:6px;line-height:1.4">${esc(CUTOVER_LABEL)}</div>` : ''}
+      ${cutIdx !== -1 ? `<div class="pg-note">${esc(CUTOVER_LABEL)}</div>` : ''}
       ${styleBandRow()}
-      <div class="sd-cta" style="margin-top:12px">
-        <button class="btn ghost sm" id="pg-share" style="width:auto;padding:0 18px" aria-label="Share today's score as an image">${icon('share', 16)} Share today</button>
+      <div class="sd-cta pg-share-row">
+        <button class="btn ghost sm" id="pg-share" aria-label="Share today's score as an image">${icon('share', 16)} Share today</button>
       </div>
     </section>
     ${streakRow}
@@ -176,28 +203,33 @@ export default {
       <div class="stat center${P.monthConsistency == null ? ' dim' : ''}"><div class="v">${P.monthConsistency != null ? `${P.monthConsistency}%` : '–'}</div><div class="k">Consistency</div></div>
     </div>
 
-    <h2 class="eyebrow">Category trends</h2>
-    ${trends ? `
-    <section class="card pad" style="padding-top:8px;padding-bottom:8px">
-      ${trends.map(t => `
+    ${/* Category trends and the insight were two eyebrows over two containers, back to back —
+          and the second is COMPUTED FROM the first (progressInsight reads categoryTrends). One
+          heading, one card: the evidence, then the sentence it produced, under a hairline. The
+          card still renders with either half alone: the insight has two branches (a late-meal
+          pattern, a week average under 80) that need no trends, and trends arrive a day before
+          any of them can fire. */''}
+    ${trends || insight ? `
+    <h2 class="eyebrow">What's moving</h2>
+    <section class="card pad">
+      ${trends ? `
+      <div class="cat-trends">
+        ${trends.map(t => `
         <div class="cat-trend">
           <span class="ct-k">${esc(t.key)}</span>
           <div class="track"><div class="fillb ${t.accent}" style="width:${t.now}%"></div></div>
           <span class="ct-v">${t.now}%</span>
-          <span class="ct-d ${t.delta > 0 ? 'up' : t.delta < 0 ? 'down' : ''}">${t.delta > 0 ? `↑ ${t.delta}` : t.delta < 0 ? `↓ ${Math.abs(t.delta)}` : '–'}</span>
+          <span class="ct-d ${t.delta > 0 ? 'up' : t.delta < 0 ? 'down' : ''}">${t.delta > 0 ? `↑${t.delta}` : t.delta < 0 ? `↓${Math.abs(t.delta)}` : '–'}</span>
         </div>`).join('')}
+      </div>` : ''}
+      ${insight ? `
+      <div class="insight">
+        <div class="req-icon g s38">${icon('target', 18)}</div>
+        <p>${esc(insight)}</p>
+      </div>` : ''}
     </section>` : `
-    <div class="pl-standard" style="margin-top:0">Category trends appear after your fourth scored day.</div>`}`;
-
-    // ONE actionable sentence, and it used to render dead last — under Weight, Photos, Training,
-    // Squad and Monthly report, well below the fold on every phone. The most useful thing on the
-    // screen was the least likely to be read. It sits directly under the trend that produced it.
-    const insightSection = insight ? `
-    <h2 class="eyebrow">Your biggest opportunity</h2>
-    <div class="insight">
-      <div class="req-icon g s38">${icon('target', 18)}</div>
-      <p>${esc(insight)}</p>
-    </div>` : '';
+    <h2 class="eyebrow">What's moving</h2>
+    <div class="pl-standard pg-flush">Category trends appear after your fourth scored day.</div>`}`;
 
     // A client is chasing a body outcome, not a sport standard — their Progress tab leads with
     // weight + photos; a team athlete keeps the score-first order (unchanged). Same sections,
@@ -206,28 +238,9 @@ export default {
     const isClient = S.audience === 'client';
     return `
     <h1 class="screen-title">Progress</h1>
-    ${isClient ? bodySection() + scoreTrendSection + insightSection : scoreTrendSection + insightSection + bodySection()}
-    ${trainingCard()}
-
-    <!-- Squad and Monthly report used to follow trainingCard() with no eyebrow of their own, so
-         both sat visually inside the "TRAINING" group. Neither is training. Own heading. -->
-    <h2 class="eyebrow">More</h2>
-    ${S.coach.hasCoach && S.coach.kind === 'coach' ? `
-    <div class="sidebox" data-go="squad" style="cursor:pointer">
-      <div class="req-icon b s38">${icon('users', 17)}</div>
-      <div><div class="tt">Squad</div><div class="ts">Your team's board · opt-in, score number only</div></div>
-      ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-    </div>` : ''}
-    <div class="sidebox" data-go="history" style="cursor:pointer">
-      <div class="req-icon b s38">${icon('clipboard', 17)}</div>
-      <div><div class="tt">Score history</div><div class="ts">The proof trail, day by day</div></div>
-      ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-    </div>
-    <div class="sidebox" data-go="monthly-report" style="cursor:pointer">
-      <div class="req-icon b s38">${icon('clipboard', 17)}</div>
-      <div><div class="tt" style="display:flex;align-items:center;gap:7px">Monthly report <span class="status-pill b">Premium</span></div><div class="ts">Your month in review</div></div>
-    </div>
-    <div style="height:10px"></div>
+    ${isClient ? bodySection() + scoreTrendSection : scoreTrendSection + bodySection()}
+    ${recordsSection()}
+    <div class="pg-tail"></div>
     `;
   },
 
