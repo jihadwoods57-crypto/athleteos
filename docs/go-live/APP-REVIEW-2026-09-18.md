@@ -255,6 +255,38 @@ Still open — in this order, and each needs a human:
       the text in this doc, confirm all six subscriptions are listed on the version page, submit.
       No new build is needed.
 
+## Reviewer-style audit, 2026-09-22 — what a second rejection would have named
+
+Read the shipped proto and the store listing the way App Review does, after the five findings
+above were closed. Everything here was live on iOS in build 41 and is fixed in `caf2f30e`
+(proto, published over the air to `production`, update group `8d99b2af`) and build 42 (native).
+Left open at the end of the list.
+
+| Guideline | What was live | Fix |
+| --- | --- | --- |
+| 3.1.1 | Coach/trainer/dietitian onboarding: "Pick your program plan", $99–$799 ladder, trial tags | iOS renders the store notice, no prices (`ob2.js operatorPlan*`) |
+| 3.1.1 | Founding 50 card quoting $10/$15 a month; coach-home "Start trial" pill and preview cards; lapsed FAB "Choose a plan"; Plan & billing "See plans · free 14-day trial" | all gated on `canOpenExternalCheckout()` |
+| 3.1.2 | Paywall legal links only in the live-CTA state; "Privacy Policy" opened the #privacy settings screen | real links to onstandard.app/terms and /privacy, every state |
+| 3.1.2 | Description had no Terms of Use / Privacy Policy links, no auto-renew terms | added in App Store Connect |
+| 2.3.10 | "App Store or Google Play" on the paywall and in both disclosures; "an Android phone" on the alarm switch | `pricing.js storeName()`, copy reworded |
+| 2.1 | "Opens at launch" disabled CTA; two onboarding steps of invented testimonials | "Update the app to join"; testimonials removed |
+| 5.1.1(iv) | "Turn on recovery data", "Enable Face ID" | both "Continue" |
+| 5.1.1 | Expo's placeholder microphone purpose string + RECORD_AUDIO, nothing records audio | `microphonePermission:false` on both camera plugins (build 42) |
+| 5.1.3 | Privacy policy never mentioned Apple Health; still described the deleted location feature | rewritten and deployed |
+| 1.4.1 | No "not medical advice" on any AI surface; #safety mock claimed disordered-eating detection | `aiDisclaimer()` under the meal read and the chat; #safety unregistered |
+| 1.2 | Coach side of the meal thread had no Report/Mute; terms had no objectionable-content clause | members sheet on the coach header; clause added and deployed |
+| — | Terms/Privacy/support rows were `target=_blank` anchors that loaded the website INSIDE the WebView with no way back | router hands https anchors to the system browser; `onShouldStartLoadWithRequest` in ProtoApp (build 42) |
+
+**Left open, deliberately or for a ruling:**
+- No profanity/image filtering of user content. Report + Mute + the terms clause is what most apps
+  pass 1.2 on; a word filter is cheap if Apple asks.
+- Announcements, the squad board, display names and avatars have no report path of their own.
+- The review athlete has **zero meals**. Log three or four real ones from a phone before
+  resubmitting so the reviewer sees the product working, not empty states.
+- Coach/trainer/parent/dietitian onboarding has no date-of-birth gate (athlete and client do).
+- `#recruiting`, `#restrictions`, `#states`, `#sleep` are registered but unlinked.
+- The 2026-09-21 repricing is still not applied anywhere; code and store agree at the old prices.
+
 ### The gotchas this pass paid for
 
 - **Availability must be set BEFORE pricing.** Pricing a subscription that is available nowhere
