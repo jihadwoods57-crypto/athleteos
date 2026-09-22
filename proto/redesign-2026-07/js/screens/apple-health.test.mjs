@@ -128,3 +128,29 @@ test('an iPad is never told it is an Android', () => {
   assert.match(screen, /p === 'android'/);
   assert.ok(screen.includes('Apple Health is available on iPhone.'));
 });
+
+/* THE GUARDIAN GATE IS THE SERVER'S RULE, NOT A SECOND COPY OF IT (2026-09-22).
+   Both screens used to compute it themselves from `athlete_profiles.base_age` alone, and treated
+   an unknown age as a MINOR:  `age == null ? true : Number(age) < 18`.
+   Migration 0050's is_provable_minor says the opposite — `coalesce(base_age, 99) < 18 or (dob is
+   not null and dob > current_date - 18y)`, i.e. unknown age is an ADULT — and it also reads dob,
+   which neither screen did. 30 of 31 athlete profiles on prod have base_age null, so every one of
+   them was shown "Connect, with a guardian" and bounced to #guardian instead of the Health sheet.
+   Ask the server; never restate the rule here. */
+for (const [name, src] of [['apple-health.js', screen], ['health-consent.js', consent]]) {
+  test(`${name} asks the server whether the athlete is a minor`, () => {
+    assert.ok(!/age == null \? true/.test(src),
+      `${name} still treats an unknown age as a minor; the server's rule says unknown = adult`);
+    assert.ok(!/select\('base_age'\)/.test(src),
+      `${name} still reads base_age directly — that misses dob, and RLS can make it null`);
+    assert.match(src, /rpc\('is_provable_minor', \{ p: uid \}\)/,
+      `${name} must call the server's own is_provable_minor`);
+  });
+}
+
+test('an unreachable minor check never invents a guardian wall', () => {
+  // The RPC failing leaves the flag null, and both screens compare against `=== true`, so the
+  // athlete keeps the ordinary CTA. A dropped request must not read as "you are a child".
+  assert.match(screen, /HK\.isMinor === true && HK\.consent !== true/);
+  assert.match(consent, /IS_MINOR === true && CONSENT !== true/);
+});

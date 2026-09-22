@@ -67,12 +67,14 @@ async function probe() {
     if (!uid) return;
     const { data } = await c.rpc('has_health_consent', { p_athlete: uid });
     CONSENT = data === true;
-    // Age drives which grant is even possible. Unknown age is treated as a minor by is_minor()
-    // server-side, and the copy below follows the same default rather than promising a button
-    // that the server will refuse.
-    const { data: ap } = await c.from('athlete_profiles').select('base_age').eq('athlete_id', uid).maybeSingle();
-    const age = ap && ap.base_age;
-    IS_MINOR = age == null ? true : Number(age) < 18;
+    /* Age drives which grant is even possible, and the server is the one that decides it (0050
+       is_provable_minor). The comment that used to sit here said 'unknown age is treated as a
+       minor by is_minor() server-side'. That was simply wrong. The function reads
+       'coalesce(base_age, 99) < 18 or (dob is not null and dob > current_date - 18y)': unknown
+       age is an ADULT, and dob counts, which the old base_age-only read ignored. Asking the
+       server keeps this screen and apple-health.js from drifting apart again. */
+    const { data: minor, error: minorErr } = await c.rpc('is_provable_minor', { p: uid });
+    if (!minorErr) IS_MINOR = minor === true;
   } catch { /* leave CONSENT null — "checking", never a false yes */ }
 }
 

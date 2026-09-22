@@ -55,9 +55,17 @@ export async function probeHealth() {
       if (uid) {
         const { data } = await c.rpc('has_health_consent', { p_athlete: uid });
         HK.consent = data === true;
-        const { data: ap } = await c.from('athlete_profiles').select('base_age').eq('athlete_id', uid).maybeSingle();
-        const age = ap && ap.base_age;
-        HK.isMinor = age == null ? true : Number(age) < 18;
+        /* THE SERVER OWNS THIS RULE (0050 is_provable_minor), and this screen used to keep a
+           second copy that disagreed with it: it read base_age ALONE and treated an unknown age
+           as a MINOR. The server says 'coalesce(base_age, 99) < 18 or (dob is not null and dob >
+           current_date - 18y)': unknown age is an ADULT, and dob counts. base_age is null on
+           almost every athlete_profiles row, so the old line showed 'Connect, with a guardian'
+           to grown adults and bounced them to #guardian instead of the Health sheet. It is also
+           SECURITY DEFINER, so no RLS shape can turn a real answer into a null one. A failed
+           call leaves isMinor null, which renders as the ordinary CTA: a dropped request must
+           never read as 'you are a child'. Never restate the rule here. */
+        const { data: minor, error: minorErr } = await c.rpc('is_provable_minor', { p: uid });
+        if (!minorErr) HK.isMinor = minor === true;
       }
     } catch { /* consent stays null: "checking", never a false yes */ }
   }
