@@ -259,7 +259,7 @@ Still open — in this order, and each needs a human:
 
 Read the shipped proto and the store listing the way App Review does, after the five findings
 above were closed. Everything here was live on iOS in build 41 and is fixed in `caf2f30e`
-(proto, published over the air to `production`, update group `8d99b2af`) and build 42 (native).
+(proto, published over the air to `production`, update group `8d99b2af`) and **build 42** (`f7a533c4`, VALID, on TestFlight, **attached to version 1.0** in place of 41).
 Left open at the end of the list.
 
 | Guideline | What was live | Fix |
