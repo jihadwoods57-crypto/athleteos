@@ -149,7 +149,6 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.RECORD_AUDIO",
         "android.permission.CAMERA"
       ]
     },
@@ -173,13 +172,17 @@
         "expo-image-picker",
         {
           "photosPermission": "OnStandard lets you pick an existing meal photo to log and analyze.",
-          "cameraPermission": "OnStandard uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only."
+          "cameraPermission": "OnStandard uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only.",
+          "microphonePermission": false
         }
       ],
       [
         "expo-camera",
         {
-          "cameraPermission": "OnStandard uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only."
+          "_comment": "microphonePermission:false and recordAudioAndroid:false: nothing in the app records audio (the proto calls getUserMedia with audio:false), yet both this plugin and expo-image-picker inject Expo's placeholder NSMicrophoneUsageDescription ('Allow $(PRODUCT_NAME) to access your microphone') and RECORD_AUDIO by default. A boilerplate purpose string for a permission the app never uses is a 5.1.1 rejection on its own. Verify with npx expo config --type introspect.",
+          "cameraPermission": "OnStandard uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ],
       "expo-secure-store",

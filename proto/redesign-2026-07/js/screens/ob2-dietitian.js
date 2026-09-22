@@ -21,6 +21,7 @@ import { setMyTeamCode } from '../roles.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, simChip, mirrorCard, countStat,
   phoneCard, testimonial, planCard, PLANS, capture, ob, gateCta, structureStep, commitContinue,
+  operatorPlanTitle, operatorPlanSub, operatorPlanCards,
 } from '../ob2.js';
 import { SAMPLE_MEAL } from '../ob2-meal.js';
 import { roleLabel, normalizeRole } from '../staff-access.js';
@@ -539,13 +540,11 @@ const steps = [
   {
     id: 'plans', ch: 4, noFoot: true, back: 'obd/code',
     when: (o) => !isStaffJoin(o),
-    title: () => 'Pick your program plan.',
-    sub: () => 'Start free. Decide when the roster’s on the board.',
+    title: () => operatorPlanTitle('Pick your program plan.'),
+    sub: () => operatorPlanSub('Start free. Decide when the roster’s on the board.'),
     body: (o) => `
-      <div class="ob2-plans" data-obkey="plan">
-        ${PLANS.org.map((p) => planCard({ ...p, on: o.plan ? o.plan === p.id : p.id === 'org_starter' })).join('')}
-      </div>
-      <div class="ob2-fine">No card today. You’ll confirm before anything ever charges.</div>
+      ${operatorPlanCards(PLANS.org, (p) => (o.plan ? o.plan === p.id : p.id === 'org_starter'),
+        '<div class="ob2-fine">No card today. You’ll confirm before anything ever charges.</div>')}
       <div class="ob-foot">
         <button class="btn primary" id="obd-start" data-go="coach-home">Start free. No card today</button>
       </div>`,

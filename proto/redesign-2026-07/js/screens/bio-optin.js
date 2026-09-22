@@ -15,7 +15,7 @@ export default {
       </div>
       <div class="ob-foot" style="margin-top:auto">
         <div id="bio-err" role="alert" style="color:var(--red-bright);font-size:var(--t-sm);font-weight:600;min-height:18px;text-align:center;margin-bottom:8px"></div>
-        <button class="btn primary" id="bio-on">Enable Face ID</button>
+        <button class="btn primary" id="bio-on">Continue</button>
         <div class="ob-textlink" style="padding-top:14px" data-go="home">Not now</div>
       </div>
     </div>`;

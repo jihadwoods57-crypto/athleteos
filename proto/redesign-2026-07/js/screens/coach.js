@@ -1,4 +1,5 @@
 import { S, RT, act, fmtClock, nutritionConfigForGoal, liveWeightPct } from '../state.js';
+import { openMembersSheet } from '../members-sheet.js';
 import { icon } from '../icons.js';
 import { accentVar, scoreColor, ON_STANDARD, qualityAccent } from '../score-band.js';
 import { backHead, titleHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner, copyText, scoreRing, sayStatus } from '../components.js';
@@ -15,6 +16,7 @@ import { pastMealDetail } from './trust.js';
 import { layoutThread, visibleThread, MUTED_HIDDEN_NOTE, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor,
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
   correctionRowsOf,
+  participantList,
 } from '../chat-view.js';
 import { openImageViewer } from '../image-viewer.js';
 import { wireTapback } from '../tapback.js';
@@ -3315,7 +3317,10 @@ export const coachMeal = {
           + `<span class="fpav ai">${icon('sparkle', 13)}</span>`;
         const names = rows.map((p) => p.name).filter(Boolean);
         const line = [...names, 'AI Nutritionist'].join(', ');
-        return `<div class="facepile disc-fp" id="cm-members-slot"><span class="fp">${faces}</span><span class="names"><b>Team discussion</b>${line ? `<small>${esc(line)}</small>` : ''}</span></div>`;
+        /* A BUTTON, as on the athlete's screen: it opens the members sheet, which is where Report
+           and Mute live (Guideline 1.2). Until 2026-09-22 the operator side had the mute FILTER
+           but no way to report or mute anyone — a coach harassed by an athlete had no door. */
+        return `<button type="button" class="facepile disc-fp" id="cm-members-slot" aria-label="Who can see this conversation"><span class="fp">${faces}</span><span class="names"><b>Team discussion</b>${line ? `<small>${esc(line)}</small>` : ''}</span></button>`;
       })()}
     </div>
     ${MC.comments && MC.comments.error ? `
@@ -3582,6 +3587,8 @@ export const coachMeal = {
     if (noteSend) noteSend.addEventListener('click', saveNote);
     if (noteInput) noteInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) saveNote(); });
     const input = root.querySelector('#cm-input');
+    const membersBtn = root.querySelector('#cm-members-slot');
+    if (membersBtn) membersBtn.addEventListener('click', () => openMembersSheet(participantList((MC && MC.participants) || [], RT.userId), { mealId: MC && MC.mealId }));
     const send = root.querySelector('#cm-send');
     const cmNote = root.querySelector('#cm-note');
     // The 2-message cap is gone (0157). A meal thread is a conversation now, and a coach who has

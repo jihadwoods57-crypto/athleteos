@@ -15,6 +15,7 @@ import { flagStateByMeal } from '../inbox.js';
 import { allowedCreateKeys } from '../staff-access.js';
 import { paintStandardsBoard } from './coach-connected.js';
 import { maybeStartTour } from '../tour.js';
+import { canOpenExternalCheckout } from '../store-policy.js';
 
 /* This screen is nav:'operator' — it renders for a coach's team AND a trainer's practice, so it
    must load whichever book the signed-in role owns. Calling loadCoachRoster() here would fetch
@@ -190,7 +191,8 @@ function setupRow(i, required, n) {
 const PLAN_CTA = { sub: undefined };   // undefined = not probed yet; null = probed, none
 function obPlanCard() {
   const picked = RT.ob && RT.ob.plan;
-  if (!picked || RT.obPlanCtaDone) return '';
+  // The iOS build sells no Stripe plan (store-policy.js, 3.1.1): no "Start trial" pill for one.
+  if (!picked || RT.obPlanCtaDone || !canOpenExternalCheckout()) return '';
   // Resolve from the operator plan lists (ob2.js) — the proto's planById knows only consumer
   // plans, and a consumer pick has its own rail (the IAP paywall), so it is correctly not here.
   const plan = [...PLANS.pro, ...PLANS.org, ...PLANS.seat].find((p) => p.id === picked && !p.custom);
@@ -1036,19 +1038,23 @@ function planCard() {
       <div class="ts">Everything is switched on until then, and nothing is charged. We will talk before it runs out.</div></div>
     </div>`;
   }
+  /* The iOS build sells no Stripe plan (store-policy.js, Guideline 3.1.1): the countdown stays,
+     honestly, but nothing here invites a purchase — no trial promise, no plan link, no button.
+     A statement of where the account is managed is the line 3.1.3(b) draws. */
+  const web = canOpenExternalCheckout();
   if (a.entitled) {
     const soon = daysLeft != null && daysLeft <= 3;
-    return `<div class="sidebox pw-pre tap${soon ? ' warn' : ''}" data-go="plan-upgrade" role="button">
+    return `<div class="sidebox pw-pre${web ? ' tap' : ''}${soon ? ' warn' : ''}"${web ? ' data-go="plan-upgrade" role="button"' : ''}>
       <div class="req-icon ${soon ? 'a' : 'b'} s38">${icon('clock', 17)}</div>
       <div class="pw-body"><div class="tt">Your free preview ends ${when}</div>
-      <div class="ts">Pick a plan before then and nothing changes. The first plan starts with a 14-day free trial.</div></div>
-      ${icon('chevron', 16, 'class="req-chev"')}
+      <div class="ts">${web ? 'Pick a plan before then and nothing changes. The first plan starts with a 14-day free trial.' : 'Your roster, activity and inbox stay readable after that. Team plans are set up from your account on the web.'}</div></div>
+      ${web ? icon('chevron', 16, 'class="req-chev"') : ''}
     </div>`;
   }
   return `<div class="sidebox pw-pre ended">
     <div class="req-icon a s38">${icon('lock', 17)}</div>
     <div class="pw-body"><div class="tt">Your free preview has ended</div>
-    <div class="ts">Your roster, activity and inbox are all still here to read. Assigning, nudging, announcing and setting standards need a plan.</div>
-    <button class="btn primary sm pw-cta" data-go="plan-upgrade">Choose a plan</button></div>
+    <div class="ts">Your roster, activity and inbox are all still here to read. Assigning, nudging, announcing and setting standards need a plan${web ? '' : ', which is set up from your account on the web'}.</div>
+    ${web ? '<button class="btn primary sm pw-cta" data-go="plan-upgrade">Choose a plan</button>' : ''}</div>
   </div>`;
 }

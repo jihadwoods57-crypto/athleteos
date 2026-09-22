@@ -22,6 +22,7 @@ import { esc, copyText } from '../components.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, simChip, mirrorCard, countStat,
   phoneCard, testimonial, planCard, PLANS, chatSim, structureStep, commitContinue,
+  operatorPlanTitle, operatorPlanSub, operatorPlanCards,
 } from '../ob2.js';
 import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
 import { SAMPLE_MEAL } from '../ob2-meal.js';
@@ -486,12 +487,10 @@ const steps = [
   },
   {
     id: 'plans', ch: 4, noFoot: true,
-    title: () => 'Pick your plan.',
-    sub: () => 'Start free today: billing turns on at launch, and nothing charges until then.',
+    title: () => operatorPlanTitle('Pick your plan.'),
+    sub: () => operatorPlanSub('Start free today: billing turns on at launch, and nothing charges until then.'),
     body: (o) => `
-      <div class="ob2-plans" data-obkey="plan">
-        ${PLANS.pro.map((p, i) => planCard({ ...p, on: o.plan ? o.plan === p.id : i === 0 })).join('')}
-      </div>
+      ${operatorPlanCards(PLANS.pro, (p) => (o.plan ? o.plan === p.id : p.id === PLANS.pro[0].id))}
       <div class="ob-foot" style="margin-top:18px">
         <button class="btn primary" id="obt-start" data-go="trainer">Start free, no card today</button>
         <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px">Invite your first client from your dashboard.</div>

@@ -22,6 +22,7 @@ import { esc, copyText } from '../components.js';
 import {
   defineFlow, saveProgressStep, ob, capture, gateCta, meter, countStat, mirrorCard, simChip,
   chatSim, notifCard, phoneCard, testimonial, planCard, choiceGrid, chipRow, PLANS, structureStep, commitContinue,
+  operatorPlanTitle, operatorPlanSub, operatorPlanCards,
 } from '../ob2.js';
 import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
 import { accountBody, wireAccount } from './ob-account.js';
@@ -614,13 +615,11 @@ const steps = [
   {
     id: 'plans', ch: 4, noFoot: true, back: 'obk/code',
     when: (o) => !isStaffJoin(o),
-    title: () => 'Pick your program plan.',
-    sub: () => 'Start free. Decide when the team’s on the board.',
+    title: () => operatorPlanTitle('Pick your program plan.'),
+    sub: () => operatorPlanSub('Start free. Decide when the team’s on the board.'),
     body: (o) => `
-      <div class="ob2-plans" data-obkey="plan">
-        ${PLANS.org.map((p) => planCard({ ...p, on: o.plan ? o.plan === p.id : p.id === 'org_starter' })).join('')}
-      </div>
-      <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px;line-height:1.5">No card today. You’ll confirm before anything ever charges.</div>
+      ${operatorPlanCards(PLANS.org, (p) => (o.plan ? o.plan === p.id : p.id === 'org_starter'),
+        '<div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px;line-height:1.5">No card today. You’ll confirm before anything ever charges.</div>')}
       <div class="ob-foot" style="margin-top:auto">
         <button class="btn primary" id="obk-start" data-go="coach-home">Start free, no card today</button>
         <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px">Your rooms are next.</div>

@@ -2086,6 +2086,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* honest estimate / no-targets note under the breakdown */
 .est-note{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s2);line-height:1.45}
 .est-note .link{color:var(--blue-bright);font-weight:700;cursor:pointer}
+.ai-note{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s2);line-height:1.45}
+.chat-dock .ai-note{margin:0 0 var(--s1h);text-align:center}
 /* "Wrong meal?" — the slot/delete correction row (impeccable critique 2026-09-16). It sits at the
    bottom of the already-collapsed breakdown, separated by a hairline rather than made into a card:
    nesting a card inside the breakdown card is the nested-card shape DESIGN.md bans, and this is a
@@ -2365,6 +2367,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    without this they render as the note's own gray and nothing says "tappable". Their 44px
    hit area comes from the grouped expander below; the type stays quiet on purpose. */
 .pw-note .link{color:var(--blue-bright);cursor:pointer}
+.pw-legal{margin-top:var(--s3)}
 
 /* Progress photos and the before/after compare lived here (0133). The feature was removed
    2026-09-07 (founder call) and its rules went with it: .pp-*, .tl-*, .cmp-*. */

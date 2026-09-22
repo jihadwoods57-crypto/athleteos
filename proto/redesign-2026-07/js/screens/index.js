@@ -206,7 +206,10 @@ export const screens = {
   'coach-voice': lazy(features, 'coachVoice'),
   'trust-pass-policy': lazy(features, 'trustPassPolicy'),
   'week-pattern': lazy(features, 'weekPattern'),
-  safety: lazy(features, 'safety'),
+  /* 'safety' (features.js) is a design preview of wellness flags that nothing computes. It was
+     reachable by hash and read as a claim that the app screens for disordered eating; App Review
+     reads such a screen as a medical claim (1.4.1) and as a placeholder (2.1). Unregistered
+     2026-09-22 until the detection is real and clinically reviewed. */
   'bio-optin': lazy(() => import('./bio-optin.js')),
   'pass-grant': lazy(() => import('./pass-grant.js')),
   paywall: lazy(() => import('./paywall.js')),

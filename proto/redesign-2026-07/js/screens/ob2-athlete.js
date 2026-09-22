@@ -413,15 +413,10 @@ const steps = [
   saveProgressStep(3),
 
   /* ============================== ch4 · Start ============================== */
-  {
-    id: 'proof', ch: 4, cta: 'Next',
-    title: () => 'It works when it’s seen',
-    sub: () => 'Illustrative, not actual customers yet.',
-    /* Launch placeholders — the founder swaps these for real customer quotes before release. */
-    body: () => `
-      ${testimonial({ quote: 'My coach stopped asking if I ate. He just checks the board. I put on 9 lb over the season without one nagging text.', name: 'Marcus', role: 'RB · high school senior', initials: 'M', stat: '+9 lb', statKey: 'in a season' })}
-      ${testimonial({ quote: 'The photo takes five seconds. Knowing my trainer sees the score is what actually changed my weekends.', name: 'Dani', role: 'Soccer · college sophomore', initials: 'D', stat: '41 days', statKey: 'logging streak' })}`,
-  },
+  /* The "proof" step — two invented testimonials labelled "Illustrative, not actual customers
+     yet" — was removed 2026-09-22. Placeholder content is a 2.1 App Completeness finding, and a
+     made-up quote with a made-up name is not proof of anything. It returns when a real athlete
+     says something real, with permission. */
   {
     id: 'connect', ch: 4, cta: 'Connect', skip: true,
     /* Reachable twice: once in the normal run (→ dob → account), and again from the
@@ -567,10 +562,6 @@ const steps = [
       const cad = o.cadence || 'annual';
       const plan = o.plan || PLANS.individual[0].id;
       return `
-      ${/* Deliberately NOT the Marcus quote from `proof` three screens back — the same
-            words twice reads as one customer, not as proof. Launch placeholder either way. */''}
-      <div class="ob2-scan-note">Illustrative, not actual customers yet.</div>
-      ${testimonial({ quote: 'The photo takes five seconds. Knowing my trainer sees the score is what actually changed my weekends.', name: 'Dani', role: 'Soccer · college sophomore', initials: 'D', stat: '41 days', statKey: 'logging streak' })}
       <div class="ob2-cadence" role="tablist" aria-label="Billing period">
         <button class="cad ${cad === 'annual' ? 'on' : ''}" data-cad="annual" role="tab" aria-selected="${cad === 'annual'}">Annual<small>Save 30%</small></button>
         <button class="cad ${cad === 'monthly' ? 'on' : ''}" data-cad="monthly" role="tab" aria-selected="${cad === 'monthly'}">Monthly</button>

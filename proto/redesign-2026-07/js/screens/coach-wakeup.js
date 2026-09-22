@@ -226,7 +226,7 @@ export const coachWakeupEdit = {
         <div class="std-sw-m">
           <div class="std-sw-t">Ring as an alarm</div>
           <div class="std-sw-s" id="wk-alarm-sub">${d.escalation.alarm
-            ? `Rings through silent mode, Do Not Disturb and a Sleep Focus. Needs iOS 26.1 or an Android phone; anyone else gets the notification.`
+            ? `Rings through silent mode, Do Not Disturb and a Sleep Focus. Needs a phone with alarm support (iOS 26.1 or later); anyone else gets the notification.`
             : 'A notification only, so it stays quiet on silent or in a Sleep Focus, which is most phones at 5 AM.'}</div>
         </div>
         <div class="std-switch ${d.escalation.alarm ? 'on' : ''}" aria-hidden="true"></div>

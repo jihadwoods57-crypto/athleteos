@@ -17,6 +17,7 @@ import { icon } from './icons.js';
 import { esc } from './components.js';
 import { track, EVENTS } from './analytics.js';
 import { STRUCTURE_ANSWERS } from './plan-style.js';
+import { canOpenExternalCheckout, storeNotice } from './store-policy.js';
 
 export const CHAPTERS = ['Discover', 'See it', 'Your plan', 'Commit', 'Start'];
 
@@ -416,6 +417,19 @@ export function paywallVariant(role) {
    is go-live gated so these capture intent, they don't charge. Because nothing here
    charges, a wrong number never surfaces as a failed payment — src/core/obPlanPricingParity.test.ts
    locks every price below to the catalog so it can't drift again. */
+/* The operator plan step, platform-aware. The iOS build sells no Stripe plan (store-policy.js,
+   Guideline 3.1.1): a screen titled "Pick your program plan" with a $249–$799 ladder, trial tags
+   and "Start free" is read as a purchase path for subscriptions Apple does not sell, so on iOS the
+   step keeps its one true promise — start free — and drops the ladder, the tags and every price. */
+export const operatorPlanTitle = (web) => (canOpenExternalCheckout() ? web : 'Start free.');
+export const operatorPlanSub = (web) => (canOpenExternalCheckout() ? web : 'Everything you set up here is yours. Team and practice plans are set up from your account on the web, not inside the app.');
+export function operatorPlanCards(list, isOn, fine = '') {
+  if (!canOpenExternalCheckout()) return storeNotice('Team and practice plans are set up from your account on the web, not inside the app.', 'Nothing to pay here.');
+  return `<div class="ob2-plans" data-obkey="plan">
+        ${list.map((p) => planCard({ ...p, on: isOn(p) })).join('')}
+      </div>${fine}`;
+}
+
 export const PLANS = {
   individual: [
     { id: 'individual', name: 'Individual', monthly: '$9.99', annual: '$84', annualPer: '$7', save: 'Save $36', tag: '14-day free trial',

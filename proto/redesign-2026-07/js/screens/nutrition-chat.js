@@ -23,7 +23,7 @@
 import { S, RT, act, mealDetail, athleteContextForAnalysis } from '../state.js';
 import { MEAL_KEYS } from '../day.js';
 import { icon } from '../icons.js';
-import { backHead, esc, composer } from '../components.js';
+import { backHead, esc, composer, aiDisclaimer } from '../components.js';
 import { decideAiTurn } from '../ai-thread.js';
 import { threadMessages, reactionGroups, REACTION_EMOJI, contextForChat } from '../meal-intel.js';
 import { foodMemory, warmFoodMemory } from '../food-memory-data.js';
@@ -216,6 +216,7 @@ export default {
       <div class="msg-status" id="nc-status">Loading your conversation…</div>
     </div>
     <div class="chat-dock">
+      ${aiDisclaimer()}
       <div class="nc-target" id="nc-target" hidden></div>
       ${composer({ inputId: 'nc-msg', sendId: 'nc-send', placeholder: 'Ask about this meal…', sendLabel: 'Send', atEnd: true })}
       <div id="nc-note" style="min-height:18px"></div>

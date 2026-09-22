@@ -1,7 +1,7 @@
 import { S, RT, tier, act, MEAL, mealDetail, fmtClock, liveWeightPct, athleteContextForAnalysis } from '../state.js';
 import { DAY, slotDeadline, dayStandard } from '../day.js';
 import { icon } from '../icons.js';
-import { backHead, esc, safeImg, nonLiveBadge, composer, segBar, skeletonRows, sayStatus } from '../components.js';
+import { backHead, esc, safeImg, nonLiveBadge, composer, segBar, skeletonRows, sayStatus, aiDisclaimer } from '../components.js';
 import { reveal, buzz } from '../motion.js';
 import { playPerfectMoment } from '../perfect-moment.js';
 import { scoreMoveBar, playScoreMove } from '../score-move.js';
@@ -1246,6 +1246,7 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
             food's name, the meal title, per-item macros, totals, the score, and the coach's
             copy. This line only points at the composer. */''}
       ${emptyRead || !you ? '' : M.mealId ? `<div class="est-note">${fromPhoto ? 'Estimated from the photo. ' : ''}Something off or left out? <span class="link" id="tell-ai" role="button" tabindex="0">Tell the AI Nutritionist below</span> and the name, numbers and score update together.</div>` : ''}
+      ${emptyRead ? '' : aiDisclaimer()}
       ${/* WRONG MEAL? (impeccable critique 2026-09-16.)
             The chat above corrects what the plate WAS. Nothing corrected whether it should exist
             at all, or which slot it belonged to — so a lunch photographed at 2pm on a day

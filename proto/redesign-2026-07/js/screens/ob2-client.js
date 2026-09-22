@@ -271,15 +271,8 @@ const steps = [
 
   /* ==================== ch4 · Start ==================== */
 
-  { id: 'proof', ch: 4, cta: 'Continue',
-    title: () => 'What holding it looks like.',
-    sub: () => 'Illustrative, not actual customers yet.',
-    /* LAUNCH PLACEHOLDERS — realistic composites, not real customers. The founder
-       swaps these for real client quotes (with permission) before go-live. */
-    body: () => `
-      ${testimonial({ quote: 'I stopped narrating my week to my trainer. She opens my score and we spend the session training instead of confessing.', name: 'Dana', role: 'Fitness client', initials: 'D', stat: '9 wk', statKey: 'logging streak' })}
-      ${testimonial({ quote: 'The weekends were my black box. One photo per meal fixed what two years of food diaries never did.', name: 'Marcus', role: 'Fitness client', initials: 'M', stat: '−14 lb', statKey: 'in 5 months' })}
-      <div class="ob2-scan-note">Results vary with consistency. The score only reflects what you actually log.</div>` },
+  /* The "proof" step of invented client testimonials was removed 2026-09-22: placeholder content
+     is a 2.1 App Completeness finding. It returns with a real client's words, with permission. */
 
   { id: 'connect', ch: 4, cta: 'Continue', skip: true,
     /* If the account already exists (user returned here via "I have a code" on the paywall),

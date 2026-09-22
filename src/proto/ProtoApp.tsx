@@ -306,6 +306,16 @@ export function ProtoApp() {
       style={styles.web}
       containerStyle={styles.web}
       originWhitelist={['*']}
+      // External links leave the app. The proto's Terms / Privacy / support rows are real anchors;
+      // without this, a target=_blank tap loads the website INSIDE this WebView (there is no
+      // second window to open) and the shell is gone with no back gesture. The router intercepts
+      // those taps first (router.js); this catches whatever it does not — a window.open fallback,
+      // a redirect, a link inside injected content. The proto itself is served from file://, and
+      // its data goes over fetch, never navigation, so any http(s) main-frame load is external.
+      onShouldStartLoadWithRequest={(req) => {
+        if (/^https?:\/\//i.test(req.url)) { void Linking.openURL(req.url).catch(() => undefined); return false; }
+        return true;
+      }}
       // iOS: sibling-file read (js/css/assets next to index.html) comes SOLELY from
       // allowingReadAccessToURL pointing at the proto ROOT dir; allowFileAccess is Android-only.
       // allowUniversalAccessFromFileURLs is load-bearing — it bypasses the null-origin CORS block

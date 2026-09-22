@@ -73,18 +73,23 @@
     <li><strong>Payment and subscription data (paid accounts only):</strong> for a coach, trainer, or organization
     on a paid plan, we and our payment processor keep your billing email, the plan, your subscription status and
     renewal date, and the processor's customer and subscription identifiers. <strong>Card numbers are entered
-    directly with our payment processor and never reach our servers.</strong> Athletes and clients attached to a
+    directly with our payment processor and never reach our servers.</strong> For an individual or family membership bought
+    in the app, Apple bills you under the App Store's terms and we never see your payment details; our subscription
+    platform (RevenueCat) tells us only your plan, its status and renewal date, keyed to your account identifier. Athletes and clients attached to a
     paying account pay nothing and provide no payment data.</li>
     <li><strong>Notifications:</strong> if you enable reminders or digests, we store a device push token so we can
     deliver them. You can turn notifications off at any time in the app or your device settings.</li>
     <li><strong>Technical and security data:</strong> we process your IP address transiently to rate-limit and
     protect the service from abuse (for example, to cap automated requests). We use it for security, not to build a
     profile of you or track you across apps or sites.</li>
-    <li><strong>Location (only for arrival verification, and only if you opt in):</strong> if your coach schedules a
-    Verified Commitment tied to a place and you allow location access, the app checks whether your device is inside
-    that single location during the event's window. It returns only an inside/outside result: <strong>your coordinates
-    are never sent to or stored on our servers</strong> — only that yes/no result and its timestamp are kept. You can
-    decline location and check in with a button instead. Coaches see the arrival result, never your location.</li>
+    <li><strong>Apple Health (iPhone, optional, read-only):</strong> if you choose to connect Apple Health, the app
+    reads last night's sleep, heart rate variability, resting heart rate, steps, walking and running distance, and
+    workouts, with your permission, so your recovery check-in has real context. <strong>We never write to Apple
+    Health.</strong> Health data is used only to show you and your linked coach the check-in context you already see; it
+    is never used for advertising or marketing, never sold, never shared with third parties, never used to make
+    eligibility or insurance decisions, and is not stored in iCloud. You can disconnect at any time in the app
+    (Preferences &rsaquo; Health) or in the iOS Health app, and we stop reading immediately.</li>
+    <li><strong>Location: none.</strong> The app does not request or use your location on any platform.</li>
     <li><strong>We do NOT collect</strong> advertising identifiers, cross-app tracking data, or analytics from
     third-party advertising/tracking SDKs, and we never use location for advertising or to track you across apps or
     sites. The app contains no third-party analytics, advertising, attribution, or crash-tracking SDKs.</li>

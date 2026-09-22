@@ -173,7 +173,7 @@ function readsCard() {
     <section class="card rows hk-reads" role="list">
       ${readRow('bolt', 'Activity', 'Steps, walking and running distance, workouts. Verifies the standards your coach set.', actVal, act)}
       ${readRow('moon', 'Recovery', recSub, recVal, rec)}
-      ${os && !rec ? `<div class="hk-foot"><button class="btn ghost" id="hk-rec" ${HK.busy ? 'disabled' : ''}>${HK.busy ? 'Asking…' : 'Turn on recovery data'}</button></div>` : ''}
+      ${os && !rec ? `<div class="hk-foot"><button class="btn ghost" id="hk-rec" ${HK.busy ? 'disabled' : ''}>${HK.busy ? 'Asking…' : 'Continue'}</button></div>` : ''}
       ${readRow('shield', 'Never written', 'OnStandard reads only. Nothing is ever written to Health, and your coach never sees raw health data.', '', false)}
     </section>`;
 }

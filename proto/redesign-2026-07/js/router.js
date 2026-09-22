@@ -197,7 +197,7 @@ function tabbar(activeTab, nav = 'athlete', { remember = true } = {}) {
       let fabRoute = t.route;
       let fabLabel = nav === 'athlete' ? 'Log a meal' : 'Create';
       // An operator whose book has lapsed (0223) gets the plans from the plus, not a bounce.
-      if (nav !== 'athlete' && CD.expired) { fabRoute = 'plan-upgrade'; fabLabel = 'Choose a plan'; }
+      if (nav !== 'athlete' && CD.expired) { fabRoute = 'plan-upgrade'; fabLabel = window.__PLATFORM === 'ios' ? 'Your plan' : 'Choose a plan'; }   // store-policy.js isIOSApp, inlined: the router is in the eager boot graph
       if (nav === 'athlete') {
         try {
           const open = (S.exec.items || []).filter((i) => i.proof === 'photo'
@@ -549,6 +549,18 @@ function wireDelegatedNav(device) {
   DELEGATED = true;
   const buzz = (ms) => { try { if (RT.haptics !== false && navigator.vibrate) navigator.vibrate(ms); } catch { /* no-op */ } };
   device.addEventListener('click', async (e) => {
+    /* External links (Terms, Privacy, support, social) leave the app for the system browser.
+       Inside the native shell a target=_blank anchor would otherwise load INSIDE this WebView —
+       react-native-webview has no second window to open, so it navigates the shell itself — and
+       the app becomes the website with no way back (App Review taps "Terms of Use" on the
+       subscription screen, 3.1.2, and that is the screen they would have been stranded on).
+       The bridge's OPEN_URL is https-only; mailto: is handed off by the WebView on its own. */
+    const anchor = e.target.closest && e.target.closest('a[href]');
+    if (anchor && /^https:\/\//i.test(anchor.getAttribute('href') || '') && window.OnStandardNative && window.OnStandardNative.openUrl) {
+      e.preventDefault();
+      window.OnStandardNative.openUrl(anchor.href);
+      return;
+    }
     const el = e.target.closest && e.target.closest('[data-go],[data-back],[data-act]');
     if (!el) return;
     if (el.hasAttribute('data-go')) {

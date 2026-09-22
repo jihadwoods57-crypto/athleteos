@@ -17,6 +17,16 @@ export const CONSUMER_PLANS = [
     blurb: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
 ];
 
+/* Guideline 2.3.10: an iOS build never names another platform. The store is the one this build
+   is sold through; a plain browser preview genuinely is either. window.__PLATFORM is injected by
+   the native shell (ProtoApp.tsx). */
+export function storeName() {
+  const p = typeof window !== 'undefined' ? window.__PLATFORM : undefined;
+  if (p === 'ios') return 'the App Store';
+  if (p === 'android') return 'Google Play';
+  return 'the App Store or Google Play';
+}
+
 export function planById(id) { return CONSUMER_PLANS.find((p) => p.id === id) || null; }
 
 /** Whole dollars drop the cents ($126), otherwise two places ($14.99). */
@@ -49,8 +59,8 @@ export function disclosure(p, cadence) {
   if (cadence === 'annual') {
     const eff = fmtPrice(effectiveMonthly(p));
     const trial = p.trialDays > 0 ? `Free for ${p.trialDays} days, then ` : '';
-    return `${trial}${fmtPrice(p.annual)}/year (${eff}/mo). Auto-renews yearly until canceled in the App Store or Google Play.`;
+    return `${trial}${fmtPrice(p.annual)}/year (${eff}/mo). Auto-renews yearly until canceled in ${storeName()}.`;
   }
   const trial = p.trialDays > 0 ? `Free for ${p.trialDays} days, then ` : '';
-  return `${trial}${fmtPrice(p.monthly)}/month. Auto-renews monthly until canceled in the App Store or Google Play.`;
+  return `${trial}${fmtPrice(p.monthly)}/month. Auto-renews monthly until canceled in ${storeName()}.`;
 }

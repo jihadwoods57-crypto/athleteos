@@ -831,3 +831,11 @@ export function wireEmailVerifyBanner(root) {
   // hit area. The keydown shim the old role="button" span needed is gone with it.
   if (dismiss) dismiss.addEventListener('click', doDismiss);
 }
+
+/* Guideline 1.4.1. One line under every surface where the AI gives food advice — the meal read
+   and the nutrition chat — not only three taps deep on Terms & Privacy. Same sentence
+   src/core/coaching.ts medicalDisclaimer() has always carried for the legacy engine; the proto is
+   what ships, and until now it never said it anywhere the advice was read. */
+export function aiDisclaimer() {
+  return '<div class="ai-note" role="note">Nutrition education, not medical advice. Talk to a doctor or registered dietitian before making big changes to how you eat.</div>';
+}

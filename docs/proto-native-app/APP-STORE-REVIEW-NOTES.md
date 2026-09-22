@@ -1,3 +1,8 @@
+> **SUPERSEDED (2026-09-22).** The notes Apple actually reads live in App Store Connect and are
+> mirrored in `docs/go-live/APP-REVIEW-2026-09-18.md`. This file predates Sign in with Apple and
+> Google sign-in (both ship now, symmetric, on sign-in and sign-up), the six subscription products,
+> and the removal of the geofence. Do not paste it into App Store Connect.
+
 # App Store review notes (template — founder fills the credentials)
 
 Draft reviewer guidance for the OnStandard submission. Fill the **`<<…>>`** placeholders with

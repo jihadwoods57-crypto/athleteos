@@ -62,7 +62,8 @@ export const planUpgrade = {
     const plans = listFor();
     // Overage rate differs by ladder — org (gym/facility) is $15/mo, pro/seat is $10/mo.
     const overageRate = RT.authRole === 'trainer' ? 10 : 15;
-    const founding = UP.slots != null && UP.slots > 0
+    // No price on the iOS screen that says nothing is sold here (store-policy.js, 3.1.1).
+    const founding = canOpenExternalCheckout() && UP.slots != null && UP.slots > 0
       ? `<section class="card" style="padding:14px 16px;border-color:var(--green-border);margin-top:14px">
           <div style="display:flex;gap:12px;align-items:center">
             <div class="req-icon g" style="width:40px;height:40px">${icon('flame', 19)}</div>
@@ -82,7 +83,7 @@ export const planUpgrade = {
     // line, and the line is cleared once read so it never haunts a later, voluntary visit.
     const wall = RT.planWall ? `<div class="sidebox pw-pre warn">
       <div class="req-icon a s38">${icon('lock', 17)}</div>
-      <div><div class="tt">That needs a plan</div><div class="ts">Your free preview has ended. Your roster is still yours to read; ${esc(RT.planWall)} needs one of the plans below.</div></div>
+      <div><div class="tt">That needs a plan</div><div class="ts">Your free preview has ended. Your roster is still yours to read; ${esc(RT.planWall)} needs ${canOpenExternalCheckout() ? 'one of the plans below' : 'a plan, which is set up from your account on the web'}.</div></div>
     </div>` : '';
     RT.planWall = null;
     return `<div id="pu-root">${canOpenExternalCheckout()

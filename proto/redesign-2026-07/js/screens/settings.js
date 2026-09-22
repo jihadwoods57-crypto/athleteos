@@ -1,5 +1,5 @@
 import { S, RT, act, roleNav, roleProfileRoute, liveWeightPct } from '../state.js';
-import { canOpenExternalCheckout } from '../store-policy.js';
+import { canOpenExternalCheckout, storeNotice } from '../store-policy.js';
 import { icon } from '../icons.js';
 import { mapPressure } from '../exec.js';
 import { normalizePrefs } from '../notify-plan.js';
@@ -527,12 +527,12 @@ export const billing = {
         <div class="lm"><div class="lt">Restore purchases</div><div class="ls">Moved devices? Restore your membership</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>`}
-    </section>` : operator ? `
+    </section>` : operator ? (canOpenExternalCheckout() ? `
     <section class="card pad">
       <button class="btn primary" id="bill-upsell-pro" style="width:100%">See plans · free 14-day trial</button>
       <div style="height:10px"></div>
       <div style="font-size:12px;font-weight:600;color:var(--text-3);line-height:1.5;text-align:center">Every plan counts <b>active</b> athletes only; idle seats are free.</div>
-    </section>` : `
+    </section>` : storeNotice('Team and practice plans are set up from your account on the web, not inside the app.', 'Whatever is already active shows here.')) : `
     <section class="card pad">
       <button class="btn primary" id="bill-upsell" style="width:100%">See membership plans</button>
       <div style="height:10px"></div>
@@ -1134,7 +1134,7 @@ export const terms = {
       ${[
         ['Your photos are yours', 'Meal photos are private to your account and your coach connection. They are not public and not sold.'],
         ['Health & AI disclaimer', 'OnStandard gives execution feedback, not medical or dietary advice. AI meal reads are estimates; verify anything health-critical yourself.'],
-        ['Children & guardians', 'Under 13 requires a parent or guardian. A guardian of a minor can request access to or deletion of the minor’s data at any time.'],
+        ['Children & guardians', 'OnStandard is for ages 13 and up. A guardian of a minor can request access to or deletion of the minor’s data at any time.'],
         ['No ad tracking', 'No ad trackers or third-party ad identifiers in the app.'],
         ['Delete anytime', 'Full in-app account deletion. Export first if you want your history.'],
       ].map(([t, s]) => `

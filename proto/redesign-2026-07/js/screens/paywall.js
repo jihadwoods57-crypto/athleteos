@@ -13,7 +13,7 @@ import { icon } from '../icons.js';
 import { RT } from '../state.js';
 import * as roles from '../roles.js';
 import { track, EVENTS } from '../analytics.js';
-import { CONSUMER_PLANS, planById, productId, cadencePriceParts, effectiveMonthly, annualSavings, fmtPrice, disclosure } from '../pricing.js';
+import { CONSUMER_PLANS, planById, productId, cadencePriceParts, effectiveMonthly, annualSavings, fmtPrice, disclosure, storeName } from '../pricing.js';
 
 // iapReady: null = not checked yet, true/false = native store can transact.
 let UI = { cadence: 'annual', planId: 'individual', busy: false, iapReady: null, probing: false, status: null };
@@ -52,15 +52,15 @@ function ctaState() {
   // claim nothing either way: not the live CTA (a purchase promise the build may not keep),
   // not "Opens at launch" (a verdict nobody has yet). Once the probe says no, the banner at
   // the top of the screen already explains; all that is left here is the control itself.
+  // A binary that cannot transact (built before the store SDK existed) is told to update, which
+  // is the one action that fixes it. Never "opens at launch": that is a coming-soon placeholder,
+  // and 2.1 App Completeness rejects a purchase screen that promises instead of sells.
   if (UI.iapReady !== true) {
-    return `<button class="btn primary" style="width:100%;opacity:.6" disabled>${UI.iapReady === null ? 'Checking the store…' : 'Opens at launch'}</button>`;
+    return `<button class="btn primary" style="width:100%;opacity:.6" disabled>${UI.iapReady === null ? 'Checking the store…' : 'Update the app to join'}</button>`;
   }
   const label = p.trialDays > 0 ? `Start ${p.trialDays}-day free trial` : `Start ${esc(p.name)}`;
   return `<button class="btn primary" id="pw-buy" style="width:100%">${label}</button>
-    <div class="pw-note">${esc(disclosure(p, UI.cadence))} No charge today.</div>
-    ${/* Guideline 3.1.2: an auto-renewing subscription screen links its Terms of Use and Privacy
-          Policy in the binary, not only in the store listing. */''}
-    <div class="pw-note"><span class="link" data-go="terms" role="button" tabindex="0">Terms of Use</span> · <span class="link" data-go="privacy" role="button" tabindex="0">Privacy Policy</span></div>`;
+    <div class="pw-note">${esc(disclosure(p, UI.cadence))} No charge today.</div>`;
 }
 
 // The checking beat used to render the disabled "Checking the store…" button alone — header,
@@ -151,12 +151,20 @@ export default {
     </section>`}
     ${statusBanner()}
 
+    ${/* Guideline 3.1.2: an auto-renewing subscription screen links its Terms of Use and Privacy
+          Policy in the binary, in EVERY state of this screen — not only once the store rail is
+          live. These used to live inside the live-CTA branch, so the checking beat, the
+          cannot-buy state and the post-purchase state all showed none. Real anchors to the real
+          documents: the router hands http(s) hrefs to the system browser (router.js), and the
+          old "Privacy Policy" target was #privacy, the who-sees-what settings screen. */''}
+    <div class="pw-note pw-legal"><a class="link" href="https://onstandard.app/terms" target="_blank" rel="noopener">Terms of Use</a> · <a class="link" href="https://onstandard.app/privacy" target="_blank" rel="noopener">Privacy Policy</a></div>
+
     <div style="text-align:center;margin-top:14px">
       <button class="btn ghost sm" id="pw-restore" style="width:auto;padding:0 18px">Restore purchases</button>
     </div>
 
     <div style="height:12px"></div>
-    <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);padding:0 20px;line-height:1.4">Your stats are always yours. Membership adds the written coaching, not the numbers. Cancel anytime in the App Store or Google Play.</div>
+    <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);padding:0 20px;line-height:1.4">Your stats are always yours. Membership adds the written coaching, not the numbers. Cancel anytime in ${storeName()}.</div>
     <div style="height:14px"></div>
     `;
   },
