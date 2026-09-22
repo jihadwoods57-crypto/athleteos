@@ -16,6 +16,7 @@ import { scoreColor } from '../score-band.js';
 import {
   defineFlow, saveProgressStep, ob, capture, gateCta, choiceGrid, chipRow,
   simChip, mirrorCard, notifCard, phoneCard, structureStep, commitContinue,
+  adultDobSteps,
 } from '../ob2.js';
 import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
@@ -123,6 +124,7 @@ const steps = [
       if (first.value.trim() && last.value.trim()) first.setAttribute('data-ok', '');
     },
   },
+  ...adultDobSteps({ R: 'obp', next: 'athlete', who: 'Parent' }),
   {
     id: 'athlete', ch: 0, cta: 'Continue',
     title: () => 'Who are you supporting?',

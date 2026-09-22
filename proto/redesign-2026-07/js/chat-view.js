@@ -38,6 +38,9 @@ const KINDS = {
   readonly: { ic: 'eye', noun: 'Staff', access: 'Can read this thread' },
   trainer: { ic: 'biceps', noun: 'Trainer', access: 'Sees this athlete’s meals and scores' },
   guardian: { ic: 'shield', noun: 'Parent or guardian', access: 'Sees this athlete’s meals and scores' },
+  // A squad-board row (squad.js): not in any thread, but a person whose name and score you see,
+  // and so a person you can report or mute (Guideline 1.2).
+  teammate: { ic: 'user', noun: 'Teammate', access: 'On the squad board with you' },
 };
 const FALLBACK = { ic: 'user', noun: 'Staff', access: 'Can read this thread' };
 

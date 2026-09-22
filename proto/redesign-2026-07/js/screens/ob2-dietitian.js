@@ -22,6 +22,7 @@ import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, simChip, mirrorCard, countStat,
   phoneCard, testimonial, planCard, PLANS, capture, ob, gateCta, structureStep, commitContinue,
   operatorPlanTitle, operatorPlanSub, operatorPlanCards,
+  adultDobSteps,
 } from '../ob2.js';
 import { SAMPLE_MEAL } from '../ob2-meal.js';
 import { roleLabel, normalizeRole } from '../staff-access.js';
@@ -164,6 +165,7 @@ const steps = [
       sync();
     },
   },
+  ...adultDobSteps({ R: 'obd', next: 'door', who: 'Dietitian' }),
   {
     id: 'door', ch: 0, cta: 'Next',
     title: () => 'Your seat.',

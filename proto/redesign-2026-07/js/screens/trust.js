@@ -1,4 +1,5 @@
 import { S, RT, tier } from '../state.js';
+import { FILTERED_NOTE } from '../content-filter.js';
 import { DAY, MEAL_KEYS } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, emptyState, errorState, skeletonRows, segBar } from '../components.js';
@@ -524,7 +525,7 @@ function mountThread(root, mealId, meal) {
     });
     if (!res.ok) {
       busy = false;
-      if (note) note.textContent = res.error === 'upload'
+      if (note) note.textContent = res.error === 'filtered' ? FILTERED_NOTE : res.error === 'upload'
         ? "Couldn't upload that photo. Try again, or remove it and send."
         : "Couldn't send that. Try again when you're back online.";
       return;

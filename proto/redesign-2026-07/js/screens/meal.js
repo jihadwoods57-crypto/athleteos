@@ -1,4 +1,5 @@
 import { S, RT, tier, act, MEAL, mealDetail, fmtClock, liveWeightPct, athleteContextForAnalysis } from '../state.js';
+import { FILTERED_NOTE } from '../content-filter.js';
 import { DAY, slotDeadline, dayStandard } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, nonLiveBadge, composer, segBar, skeletonRows, sayStatus, aiDisclaimer } from '../components.js';
@@ -2509,7 +2510,7 @@ export const thread = {
         // Give the text back — re-submitting IS the retry — and don't reach the AI for a question
         // that never landed. The photo stays held so it is not lost with it.
         input.value = typed;
-        setNote(res.error === 'upload'
+        setNote(res.error === 'filtered' ? FILTERED_NOTE : res.error === 'upload'
           ? "Couldn't upload that photo. Try again, or remove it and send."
           : "Couldn't send. Try again.");
         busy = false;

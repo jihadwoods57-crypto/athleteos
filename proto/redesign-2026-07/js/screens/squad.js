@@ -10,6 +10,7 @@ import { icon } from '../icons.js';
 import { backHead, esc, emptyState, errorState, skeletonRows } from '../components.js';
 import { scoreColor } from '../score-band.js';
 import * as roles from '../roles.js';
+import { openMembersSheet } from '../members-sheet.js';
 
 /* Module cache, loadAthleteProfile-style: null = loading, {offline:true} = failed honest,
    {rows} = loaded. A generation counter so a slow first load can't clobber a retry.
@@ -45,8 +46,10 @@ function boardRow(r, rank, today) {
   const scoreCell = r.score == null
     ? `<span class="status-pill" style="color:var(--text-3)">No log yet</span>`
     : `<div style="text-align:right"><div style="font-size:var(--t-lg);font-weight:800;color:${scoreColor(r.score)}">${r.score}</div>${fresh ? '' : `<div style="font-size:var(--t-micro);font-weight:700;color:var(--text-3)">yesterday</div>`}</div>`;
+  /* A teammate's row is a button: it opens the members sheet, which is where Report and Mute
+     live (Guideline 1.2). Your own row stays inert. */
   return `
-    <div class="lrow" role="listitem" style="cursor:default${me ? ';background:var(--blue-surface);margin:0 -16px;padding-left:16px;padding-right:16px;border-radius:12px' : ''}">
+    <div class="lrow" role="${me ? 'listitem' : 'button'}"${me ? '' : ` tabindex="0" data-squad-uid="${esc(r.athlete_id || '')}" data-squad-name="${esc(r.athlete_name || 'Teammate')}"`} style="cursor:${me ? 'default' : 'pointer'}${me ? ';background:var(--blue-surface);margin:0 -16px;padding-left:16px;padding-right:16px;border-radius:12px' : ''}">
       <div class="lic" style="${me ? 'background:var(--blue-surface);color:var(--blue-bright)' : ''}"><b>${rank}</b></div>
       <div class="lm"><div class="lt">${esc(me ? `${first} · You` : first)}</div>
       <div class="ls">${esc(r.position || (me ? 'Your number is on the board' : ''))}</div></div>
@@ -69,6 +72,12 @@ export default {
          shared their score with the squad and they did not. The honest read is a snap. */
       if (!ok) { RT.shareSquadScore = !on; window.__render(); return; }
       loadBoard(true);
+    });
+    if (root) root.addEventListener('click', (e) => {
+      const row = e.target.closest && e.target.closest('[data-squad-uid]');
+      if (!row || !row.getAttribute('data-squad-uid')) return;
+      openMembersSheet([{ id: row.getAttribute('data-squad-uid'), name: row.getAttribute('data-squad-name') || 'Teammate', kind: 'teammate' }],
+        { teamId: RT.myCoach && RT.myCoach.teamId });
     });
     const retry = root && root.querySelector('#squad-retry');
     if (retry) retry.addEventListener('click', () => { BOARD = null; window.__render(); loadBoard(true); });

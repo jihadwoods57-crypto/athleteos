@@ -17,6 +17,7 @@ import { icon } from './icons.js';
 import { esc } from './components.js';
 import { track, EVENTS } from './analytics.js';
 import { STRUCTURE_ANSWERS } from './plan-style.js';
+import { dobFromParts, ageOn } from './ob-helpers.js';
 import { canOpenExternalCheckout, storeNotice } from './store-policy.js';
 
 export const CHAPTERS = ['Discover', 'See it', 'Your plan', 'Commit', 'Start'];
@@ -469,3 +470,93 @@ export const PLANS = {
     { id: 'professional', name: 'Professional', price: '$179', sub: '50 active clients included, then $10/mo each. Everything in Solo, for a full review load.' },
   ],
 };
+
+/* The adult age gate for coach, trainer, dietitian and parent onboarding (2026-09-22). The athlete
+   and client flows have carried a 13+ date-of-birth step since 2026-08-25; the four operator
+   doors had none, so a minor could open an account that reads other minors' data. Staff and
+   guardian accounts are for adults. Same fields, same digits-only inputs, same future-date and
+   invalid-date handling as ob2-athlete.js; only the floor (18) and the words differ. Returns the
+   two steps — the gate and the blocked screen — to spread into a flow right after its name step. */
+export function adultDobSteps({ R, next, who }) {
+  return [
+    {
+      id: 'dob', ch: 0, cta: 'Next',
+      next: (o) => (o.dobBlocked ? 'blocked' : next),
+      title: () => 'Your birth date',
+      sub: () => `Asked once. ${who} accounts are for adults.`,
+      body: (o) => {
+        const [y, m, d] = o.dob ? String(o.dob).split('-') : ['', '', ''];
+        return `
+        <div class="dob-row">
+          <input id="ob-dob-m" class="ob-input" type="text" inputmode="numeric" maxlength="2" placeholder="MM" aria-label="Birth month" value="${esc(m ? String(+m) : '')}" />
+          <input id="ob-dob-d" class="ob-input" type="text" inputmode="numeric" maxlength="2" placeholder="DD" aria-label="Birth day" value="${esc(d ? String(+d) : '')}" />
+          <input id="ob-dob-y" class="ob-input" type="text" inputmode="numeric" maxlength="4" placeholder="YYYY" aria-label="Birth year" value="${esc(y || '')}" />
+        </div>
+        <div id="ob-age-err" class="ob-age-err"></div>
+        <div class="ob-age-note">You must be 18 or older to open a ${esc(who.toLowerCase())} account.</div>`;
+      },
+      mount(root) {
+        const dm = root.querySelector('#ob-dob-m'), dd = root.querySelector('#ob-dob-d'), dy = root.querySelector('#ob-dob-y');
+        const errEl = root.querySelector('#ob-age-err');
+        const btn = root.querySelector('#ob2-next');
+        if (btn) btn.setAttribute('data-gate-extra', '#ob-dob-y.ok');
+        const todayISO = () => {
+          const t = new Date();
+          return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+        };
+        const digitsOnly = (el, max) => { const v = el.value.replace(/\D/g, '').slice(0, max); if (v !== el.value) el.value = v; };
+        const sync = () => {
+          const raw = !!(dm.value && dd.value && dy.value);
+          const dob = dobFromParts(dm.value, dd.value, dy.value);
+          const future = dob != null && dob > todayISO();
+          const minor = dob != null && !future && ageOn(dob, todayISO()) < 18;
+          if (minor) capture({ dob: null, dobBlocked: true });
+          else capture({ dob: (dob && !future) ? dob : null, dobBlocked: false });
+          if (!btn) return;
+          if (minor) {
+            errEl.textContent = `${who} accounts are for adults 18 and older.`;
+            btn.setAttribute('data-go', `${R}/blocked`);
+            dy.classList.add('ok');
+            btn.disabled = false;
+            return;
+          }
+          btn.setAttribute('data-go', `${R}/${next}`);
+          if (future) {
+            errEl.textContent = "That birth year hasn't happened yet.";
+            dy.classList.remove('ok');
+            btn.disabled = true;
+          } else if (raw && !dob) {
+            errEl.textContent = "That's not a valid date.";
+            dy.classList.remove('ok');
+            btn.disabled = true;
+          } else {
+            errEl.textContent = '';
+            dy.classList.toggle('ok', !!dob);
+            btn.disabled = !dob;
+          }
+        };
+        dm.addEventListener('input', () => { digitsOnly(dm, 2); if (dm.value.length >= 2) dd.focus(); sync(); });
+        dd.addEventListener('input', () => { digitsOnly(dd, 2); if (dd.value.length >= 2) dy.focus(); sync(); });
+        dy.addEventListener('input', () => { digitsOnly(dy, 4); sync(); });
+        sync();
+      },
+    },
+    {
+      id: 'blocked', ch: 0, noFoot: true, back: `${R}/dob`,
+      when: (o) => !!o.dobBlocked,
+      body: () => `
+      <div class="standard-set ob-blocked-set">
+        <div class="halo ob-blocked-halo"><div class="core ob-blocked-core">${icon('lock', 26)}</div></div>
+        <div class="ob-title ob-blocked-title">Not this door.</div>
+        <div class="ob-sub ob-blocked-sub">${esc(who)} accounts are for adults 18 and older, because they read other people's records. If you're an athlete, the athlete door is open to you from 13.</div>
+      </div>
+      <div class="ob-foot ob-foot-push">
+        <button class="btn ghost" data-go="welcome">Back to start</button>
+      </div>`,
+      mount() {
+        capture({ firstName: '', lastName: '', name: '' });
+        track(EVENTS.AGE_BLOCKED);
+      },
+    },
+  ];
+}

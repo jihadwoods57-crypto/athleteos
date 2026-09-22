@@ -1,6 +1,7 @@
 import { S, RT, roleNav, notifsFetchFailed } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc, skeletonRows, emptyState } from '../components.js';
+import { openFeedback } from './feedback.js';
 
 const isOperator = () => RT.authRole === 'coach' || RT.authRole === 'trainer';
 
@@ -13,6 +14,9 @@ function notif(n, read) {
       <span class="level-tag ${n.level}">${n.tag || { high: 'urgent', medium: 'reminder', positive: 'nice work', critical: 'now', info: 'announcement' }[n.level] || n.level}</span>
       <div class="nt">${esc(n.title)}</div>
       <div class="nb">${esc(n.body)}</div>
+      ${/* An announcement is a coach's free text on an athlete's screen (Guideline 1.2): it needs
+            a way to report it. Straight into the safety queue, which is human-read and urgent. */''}
+      ${n.level === 'info' && !isOperator() ? '<button type="button" class="btn ghost xs nf-report" data-report-announcement>Report</button>' : ''}
     </div>
     ${/* The chevron follows the ROUTE, not the read state (2026-09-07 audit). It used to render
           only on read rows, so the newest and most actionable notifications — the unread ones,
@@ -42,7 +46,14 @@ export default {
   // settings row below differ.
   get nav() { return roleNav(); },
   tab: 'home',
-  async mount() {
+  async mount(root) {
+    if (root) root.addEventListener('click', (e) => {
+      const b = e.target.closest && e.target.closest('[data-report-announcement]');
+      if (!b) return;
+      e.stopPropagation();
+      openFeedback('notifications', 'safety');
+      location.hash = '#feedback';
+    });
     if (VISIT.settled || VISIT.fetching) return;
     VISIT.fetching = true;
     try {

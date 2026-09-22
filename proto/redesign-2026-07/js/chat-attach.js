@@ -15,6 +15,7 @@
  * change: 0003's storage RLS only ever checks that the first path segment is the caller's own
  * uid, and coaches read through the same can_view() arm they already use for logged plates.
  */
+import { objectionable } from './content-filter.js';
 
 /** The storage path attached to a comment, or null. Tolerates every shape `meta` can arrive in
  *  (absent on old rows, a string on a database that stored it untyped, junk from a bad client). */
@@ -91,6 +92,9 @@ export function isPhotoOnly(comment) {
 export async function postChatMessage(rolesMod, {
   mealId, athleteId, authorId, role, text = '', photo = null,
 }) {
+  // Guideline 1.2 filter, BEFORE the photo upload: a message that will not be posted must not
+  // leave its attachment behind in storage.
+  if (objectionable(text)) return { ok: false, photoPath: null, error: 'filtered' };
   let photoPath = null;
   if (photo && photo.base64) {
     photoPath = await rolesMod.uploadChatPhoto(authorId, photo.base64);

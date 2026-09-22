@@ -6,6 +6,7 @@
    deep-link) → what (title + body) → send. A short "Recent announcements" history reads the
    announcements table back (staff-read RLS) so the coach can see what already went out. */
 import { backHead, esc, errorState, skeletonRows, sayStatus } from '../components.js';
+import { objectionable, FILTERED_NOTE } from '../content-filter.js';
 import { icon } from '../icons.js';
 import * as roles from '../roles.js';
 import { CD, loadCoachRoster } from '../coach-data.js';
@@ -170,6 +171,7 @@ export const coachAnnounce = {
         say('Your plan has lapsed, so this won’t send. Your draft is safe. Funding the team turns announcements back on.', true);
         return;
       }
+      if (objectionable(title) || objectionable(body)) { ARM = false; say(FILTERED_NOTE, true); return; }
       // First tap arms; the second, on the armed button, actually broadcasts.
       if (!ARM) { ARM = true; window.__render(); return; }
       ARM = false;

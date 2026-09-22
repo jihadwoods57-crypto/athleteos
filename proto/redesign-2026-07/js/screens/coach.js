@@ -1,4 +1,5 @@
 import { S, RT, act, fmtClock, nutritionConfigForGoal, liveWeightPct } from '../state.js';
+import { FILTERED_NOTE } from '../content-filter.js';
 import { openMembersSheet } from '../members-sheet.js';
 import { icon } from '../icons.js';
 import { accentVar, scoreColor, ON_STANDARD, qualityAccent } from '../score-band.js';
@@ -3633,7 +3634,7 @@ export const coachMeal = {
         // Post failed: keep the typed text so it isn't lost, tell the coach, let them retry. The
         // old code cleared the input BEFORE the await — a failed send silently ate the comment.
         if (cmNote) {
-          cmNote.textContent = res.error === 'upload'
+          cmNote.textContent = res.error === 'filtered' ? FILTERED_NOTE : res.error === 'upload'
             ? "Couldn't upload that photo. Try again, or remove it and send."
             : "Couldn't send. Try again.";
         }
@@ -3686,7 +3687,7 @@ export const coachMeal = {
       const res = await postChatMessage(roles, { mealId: sub, athleteId: athleteId0, authorId: RT.userId, role: 'coach', text, photo: pendingPhoto });
       if (!res.ok) {
         aiBtn.disabled = false;
-        note(res.error === 'upload' ? "Couldn't upload that photo. Try again, or remove it and send." : "Couldn't send. Try again.");
+        note(res.error === 'filtered' ? FILTERED_NOTE : res.error === 'upload' ? "Couldn't upload that photo. Try again, or remove it and send." : "Couldn't send. Try again.");
         return;
       }
       if (input) input.value = '';

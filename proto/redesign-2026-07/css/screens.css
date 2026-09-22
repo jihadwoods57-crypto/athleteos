@@ -1512,6 +1512,15 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .dob-row{display:flex;gap:var(--s2h)}
 .dob-row .ob-input{flex:1 1 0;min-width:0;padding:0 var(--s2);text-align:center}
 .dob-row #ob-dob-y{flex:1.5 1 0}
+.ob-age-err{color:var(--amber-bright);font-size:var(--t-sm);font-weight:700;min-height:18px;margin-top:var(--s2h)}
+.ob-age-note{font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin-top:var(--s1h);line-height:1.5}
+.ob-blocked-set{padding-bottom:var(--s1h)}
+.ob-blocked-halo{background:radial-gradient(closest-side,rgba(148,163,184,0.20),transparent 75%)}
+.ob-blocked-core{background:var(--surface-2);color:var(--text-2)}
+.ob-blocked-title{margin-top:var(--s4h)}
+.ob-blocked-sub{padding:0 var(--s2)}
+.ob-foot-push{margin-top:auto}
+.nf-report{margin-top:var(--s1h)}
 /* hold-to-commit (used by Task 5) */
 .hold-btn{position:relative;overflow:hidden}
 /* Full-size fill revealed by scaleX (ob-commit.js): the button clips it and owns the radius. */

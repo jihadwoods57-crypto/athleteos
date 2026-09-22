@@ -3839,6 +3839,9 @@ export const act = {
   async saveIdentity({ full_name, sport, position, school }) {
     const sb = window.sb;
     if (!sb || !RT.userId) return false;
+    // A display name is user-generated content every teammate and coach sees (Guideline 1.2).
+    // Dynamic import: state.js is parsed before the first frame and the filter is not.
+    if (full_name) { const { objectionable } = await import('./content-filter.js'); if (objectionable(full_name)) return false; }
     let ok = true;
     try {
       if (full_name) { const { error } = await sb.from('profiles').update({ full_name }).eq('id', RT.userId); if (error) ok = false; }

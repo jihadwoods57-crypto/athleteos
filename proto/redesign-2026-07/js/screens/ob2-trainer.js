@@ -23,6 +23,7 @@ import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, simChip, mirrorCard, countStat,
   phoneCard, testimonial, planCard, PLANS, chatSim, structureStep, commitContinue,
   operatorPlanTitle, operatorPlanSub, operatorPlanCards,
+  adultDobSteps,
 } from '../ob2.js';
 import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
 import { SAMPLE_MEAL } from '../ob2-meal.js';
@@ -146,6 +147,7 @@ const steps = [
       sync();
     },
   },
+  ...adultDobSteps({ R: 'obt', next: 'clients', who: 'Trainer' }),
   {
     id: 'clients', ch: 0, cta: 'Next',
     title: () => 'How many clients do you train?',

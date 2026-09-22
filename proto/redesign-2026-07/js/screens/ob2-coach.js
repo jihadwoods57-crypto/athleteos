@@ -23,6 +23,7 @@ import {
   defineFlow, saveProgressStep, ob, capture, gateCta, meter, countStat, mirrorCard, simChip,
   chatSim, notifCard, phoneCard, testimonial, planCard, choiceGrid, chipRow, PLANS, structureStep, commitContinue,
   operatorPlanTitle, operatorPlanSub, operatorPlanCards,
+  adultDobSteps,
 } from '../ob2.js';
 import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
 import { accountBody, wireAccount } from './ob-account.js';
@@ -193,6 +194,7 @@ const steps = [
       }
     },
   },
+  ...adultDobSteps({ R: 'obk', next: 'sport', who: 'Coach' }),
   {
     id: 'sport', ch: 0, cta: 'Next',
     title: () => 'Your sport.',
