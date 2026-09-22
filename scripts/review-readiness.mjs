@@ -165,6 +165,22 @@ await guard('policy pages', HARD, async () => {
   check('terms are live and carry the objectionable-content clause (1.2)', terms.ok && /objectionable/i.test(tt), `${terms.status}`);
 });
 
+// 4b. The over-the-air bundle is compiled from the EAS production ENVIRONMENT, not from eas.json
+//     and not from .env (EAS CLI sets EXPO_NO_DOTENV=1 for `eas update`). On 2026-09-22 that
+//     environment held only the Supabase pair, so every published update carried no RevenueCat
+//     key and no Google client ids: the store and Google sign-in switched off on any device that
+//     took an update, build 43 included. Every EXPO_PUBLIC_* in the production build profile
+//     must also exist server-side, or the next update repeats it.
+await guard('EAS production environment carries every public variable the build profile does', HARD, async () => {
+  const { execSync } = await import('node:child_process');
+  const want = Object.keys(JSON.parse(readFileSync(join(ROOT, 'eas.json'), 'utf8')).build.production.env).filter((k) => !k.startsWith('_'));
+  const out = execSync('npx eas-cli env:list --environment production', { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const have = new Set([...out.matchAll(/^(EXPO_PUBLIC_[A-Z0-9_]+)=/gm)].map((m) => m[1]));
+  const missing = want.filter((k) => !have.has(k));
+  check('EAS production environment carries every public variable the build profile does (an OTA is compiled from it)', missing.length === 0,
+    missing.length ? `missing on the server: ${missing.join(', ')} — run: npx eas-cli env:create production --name <NAME> --value <value> --visibility plaintext` : `${want.length}/${want.length} present`);
+});
+
 // 5. The binary's declarations, from the tree that built it
 await guard('app config', HARD, async () => {
   const cfg = JSON.parse(readFileSync(join(ROOT, 'app.json'), 'utf8')).expo;
