@@ -9,10 +9,12 @@
 >   have not been submitted for review"*
 > - *"the in-app purchase options were not displayed accordingly at the purchase wall"*
 >
-> **Step 3 below is now DONE** (react-native-purchases is installed and `src/lib/iap/index.ts` is
-> implemented against it). Steps 1, 2, 4 and 5 are still open and **every one of them is founder
-> console work that no code can do**. Until they are finished `isIapAvailable` stays false, the
-> paywall still reads "Opens at launch", and a resubmission gets the same rejection.
+> **Status 2026-09-22: steps 1–4 are DONE** (products READY_TO_SUBMIT, RevenueCat wired, key in
+> build 41, webhook + migration live) and build 41 is attached to version 1.0. The one thing left
+> that keeps this rejection open is the **Paid Apps Agreement**, still Pending in ASC → Business.
+> While it is Pending, Apple serves no product metadata, so the paywall's purchase tap fails —
+> finding #3 again. Then: sandbox purchase, iPhone recording, resubmit. See
+> `APP-REVIEW-2026-09-18.md`.
 >
 > Do not resubmit before step 5 passes a sandbox purchase.
 

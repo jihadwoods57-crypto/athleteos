@@ -33,7 +33,7 @@
       "privacyManifests": {
         "NSPrivacyTracking": false,
         "NSPrivacyTrackingDomains": [],
-        "_NSPrivacyCollectedDataTypes_comment": "Was an empty array, which declares 'this app collects nothing' \u2014 false, and a known rejection/removal trigger. Each entry below was traced to a real column or table, not assumed. Tracking is false throughout: there are no ad, attribution or third-party analytics SDKs, so there is no ATT prompt. NOT declared, deliberately: LOCATION. The geofence is evaluated on device and only arrived_at + a status cross the wire \u2014 commitment_responses has no lat/lng, and the coach's venue in commitment_locations is the coach's own data, not the athlete's whereabouts. Apple's question is about transmission, so 'no' is the accurate answer and should not be 'corrected' later. PURCHASES will need adding the day Stripe or IAP starts charging. FOUNDER: this is a legal attestation \u2014 confirm it against docs/go-live/APP-STORE-SETUP.md before you submit.",
+        "_NSPrivacyCollectedDataTypes_comment": "Was an empty array, which declares 'this app collects nothing' \u2014 false, and a known rejection/removal trigger. Each entry below was traced to a real column or table, not assumed. Tracking is false throughout: there are no ad, attribution or third-party analytics SDKs, so there is no ATT prompt. NOT declared, deliberately: LOCATION. The app has had no location feature since the geofenced arrival check-in was removed on 2026-09-09 (8e7506bb): no location permission is requested on either platform, no location purpose string is declared, and nothing location-shaped crosses the wire. App Review 2.5.4 (2026-09-18) was about the stale 'location' background mode from before that removal. PURCHASES will need adding the day Stripe or IAP starts charging. FOUNDER: this is a legal attestation \u2014 confirm it against docs/go-live/APP-STORE-SETUP.md before you submit.",
         "NSPrivacyCollectedDataTypes": [
           {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeName",
@@ -150,10 +150,7 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.CAMERA",
-        "android.permission.ACCESS_COARSE_LOCATION",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.ACCESS_BACKGROUND_LOCATION"
+        "android.permission.CAMERA"
       ]
     },
     "web": {

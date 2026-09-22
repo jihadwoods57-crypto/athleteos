@@ -7,7 +7,10 @@ The review device matters. Four of the five findings are explained by it: build 
 commit `bac11235` on **2026-09-08**, and the iPad is a device where HealthKit does not exist.
 
 > **Binary under review:** build 33 = `bac11235`, finished 2026-09-08 21:45.
-> **Latest build:** 40 = `6e888145`, 2026-09-16. Everything below lands in the NEXT build.
+> **Build 41** = `dd95998b`, 2026-09-18, VALID on TestFlight, carries every code fix below plus the
+> RevenueCat key, and was **attached to version 1.0 on 2026-09-22** (the version moved from
+> REJECTED to PREPARE_FOR_SUBMISSION; review submission `d07c2cf9` sits in UNRESOLVED_ISSUES
+> waiting to be resubmitted). Nothing needs rebuilding.
 
 ---
 
@@ -32,7 +35,7 @@ why, so it does not get reworded back.
 
 ---
 
-## 2 & 3. Guideline 2.1(b) — In-App Purchase ⛔ BLOCKED ON FOUNDER CONSOLE WORK
+## 2 & 3. Guideline 2.1(b) — In-App Purchase ⛔ BLOCKED ON THE PAID APPS AGREEMENT
 
 **What Apple said.** Two separate findings: the IAP products were never **submitted for review**,
 and the purchase wall **did not display purchase options**.
@@ -50,18 +53,18 @@ names plans nothing can buy.
 - `isIapAvailable` is **derived**, not hardcoded — see `docs/go-live/CONSUMER-IAP.md` step 3 for
   why a literal `true` would ship a dead CTA over the air to older binaries.
 
-**⛔ This alone does NOT fix the rejection.** Four things remain, and none are code:
+**Where this stands (re-checked against ASC and RevenueCat on 2026-09-22):**
 
-| # | Do this in a console | Without it |
-| - | -------------------- | ---------- |
-| 1 | Accept the **Paid Apps Agreement** (App Store Connect → Business) | No IAP can transact at all |
-| 2 | Create the **6 subscription products** (ids in `CONSUMER-IAP.md` §1) | Nothing to buy |
-| 3 | **Submit each product for review** with an **App Review screenshot** | Finding #2 repeats verbatim |
-| 4 | RevenueCat offering + **paste the public SDK keys into `eas.json`** | `isIapAvailable` stays false → "Opens at launch" → finding #3 repeats |
+| # | Needed | State |
+| - | ------ | ----- |
+| 1 | **Paid Apps Agreement** active (ASC → Business) | ⛔ **PENDING** — founder awaiting an EIN for tax info. RevenueCat still reports `duration: null` on all six products, meaning Apple has not served their metadata yet. No API exposes the agreement; look at <https://appstoreconnect.apple.com/business>. |
+| 2 | Six subscription products, priced, with review screenshots | ✅ `6/6 READY_TO_SUBMIT`, USD 9.99 / 84 / 14.99 / 125.99 / 18.99 / 155.99 |
+| 3 | Products **submitted for review** | ✅ ready — they go WITH the version; build 41 is attached, so hitting Submit sends them |
+| 4 | RevenueCat offering + public key compiled into the binary | ✅ `appl_` key in all three `eas.json` profiles, built into 41; paywall verified on an iPhone (3 plans, prices, live trial CTA) |
 
-The keys sit in `eas.json` as **empty strings in all three build profiles**. Empty is the safe
-state (the paywall stays honest rather than showing a CTA that throws), and it is also the state
-that keeps the app rejected.
+Until #1 flips to Active, StoreKit returns no products, RevenueCat reports *"None of the products
+could be fetched"*, and a purchase tap fails — which is finding #3 again in a new build. Do not
+resubmit before the agreement is Active and a sandbox purchase has gone through.
 
 **Do not send a reply on these two findings until a sandbox purchase succeeds** (CONSUMER-IAP §5).
 
@@ -232,29 +235,25 @@ Done in App Store Connect on 2026-09-18, via the ASC API with the key in `ios-ce
 - [x] Review notes rewritten and uploaded — the deleted-geofence paragraph is gone
 - [x] Demo accounts verified against live prod; the athlete account really is an athlete
 
-Still open, and all of it needs a human in a console:
+Done since, read back from the consoles on 2026-09-22:
 
-- [ ] **Confirm the Paid Apps Agreement is in effect** (ASC → Business). Product creation worked,
-      which is a hint but not proof; nothing can actually be *sold* without it.
-- [ ] **RevenueCat**: create the project, add the iOS app, build one Offering containing all six
-      products. There are no RevenueCat credentials anywhere in this repo, so this cannot be
-      scripted from here.
-- [ ] Paste the **public SDK keys** into `EXPO_PUBLIC_REVENUECAT_IOS` / `_ANDROID` in `eas.json`
-      (all three profiles, currently empty strings). Until this lands `isIapAvailable` is false and
-      the paywall still reads "Opens at launch" — finding #3 verbatim.
-- [ ] Set `REVENUECAT_WEBHOOK_SECRET`, deploy `revenuecat-webhook`, apply migration `0102`
-- [ ] **Submit the six products** — which happens BY SUBMITTING THE APP VERSION, not separately.
-      `READY_TO_SUBMIT` is the finished state for a product; it means "complete, waiting to go with
-      a version". `POST /v1/subscriptionSubmissions` refuses them with
-      `INVALID_REQUEST_ENTITY_STATE_INVALID`, and `reviewSubmissionItems` rejects a `subscription`
-      relationship outright — that standalone path is for apps already on sale. Apple's own wording
-      in the rejection is the instruction: *"submit the In-App Purchase products **and upload a new
-      binary**"*. So: upload build 41, attach it to version 1.0, submit, and the six products go
-      with it. Confirm on the version page that all six are listed before you hit submit.
-- [ ] **Sandbox purchase, end to end** — buy Individual annual, confirm the webhook writes
-      `subscriptions.tier='consumer'` and premium unlocks
-- [ ] **Record the iPhone video** for 2.5.1 (shot list above) and attach it
-- [ ] New production build (41+), `npm run verify` green, `assets/proto.zip` rebuilt and committed
+- [x] RevenueCat project, offering, entitlement and webhook — see `REVENUECAT-SETUP.md`
+- [x] `EXPO_PUBLIC_REVENUECAT_IOS` in all three `eas.json` profiles; build 41 confirmed loading it
+- [x] `REVENUECAT_WEBHOOK_SECRET` rotated and proven; `revenuecat-webhook` deployed; migration `0102` applied
+- [x] Build 41 uploaded, VALID, and **attached to version 1.0** (was still build 33 until 2026-09-22)
+- [x] Leftover Android location permissions removed from `app.json` (nothing used them; the iOS side was already clean)
+- [x] Review notes: the paywall path now names the athlete button, "See membership plans"
+
+Still open — in this order, and each needs a human:
+
+- [ ] **Paid Apps Agreement → Active** (ASC → Business). The single blocker. Signal that it worked:
+      RevenueCat products show a non-null `duration`/`trial_duration`.
+- [ ] **Sandbox purchase, end to end** on build 41 (`SANDBOX-AND-RECORDING.md` part 1) — confirm
+      `subscriptions.rc_app_user_id` is the athlete UUID, not `$RCAnonymousID`.
+- [ ] **Record the iPhone video** for 2.5.1 (shot list above) and attach it in the reply.
+- [ ] **Resubmit**: in ASC open submission `d07c2cf9` (Unresolved Issues), reply to each finding with
+      the text in this doc, confirm all six subscriptions are listed on the version page, submit.
+      No new build is needed.
 
 ### The gotchas this pass paid for
 
