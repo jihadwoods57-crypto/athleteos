@@ -1,7 +1,8 @@
-// OnStandard — the roll-call escalation ladder. Scheduled every 5 minutes, right behind
-// commitment-reminders. Shared cron key (reuse COMMITMENT_CRON_KEY). Deploy --no-verify-jwt:
+// OnStandard — the roll-call escalation ladder. Scheduled every minute (schedule_commitment_escalation,
+// 0211/0159: '* * * * *'), right behind commitment-reminders. Shared cron key (reuse
+// COMMITMENT_CRON_KEY). Deploy --no-verify-jwt:
 //   supabase functions deploy commitment-escalation --use-api --no-verify-jwt
-//   select schedule_commitment_reminders(...)  -- schedule this fn on the same 5-min cadence
+//   select schedule_commitment_escalation(...)  -- schedule this fn on the same one-minute cadence
 //
 // WHAT IT DOES
 //   1. Claims the responses whose deadline just crossed while still pending (claim_missed_commitments,

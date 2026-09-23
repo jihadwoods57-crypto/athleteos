@@ -155,18 +155,21 @@ export function codeDeadlineMs(row: { closes_at?: string | null; respond_by_at?:
   return Number.isFinite(d) ? d : nowMs;
 }
 
-/** Which Live Activity phase a claimed rung pushes, and whether it may START a card (2026-09-23).
+/** Which Live Activity phase a claimed rung pushes, and whether it may START a card for ONE
+ *  athlete (2026-09-23, per-athlete fix round).
  *
  *  The card now goes up at the OPEN, 10 minutes before the start (0242 rollcall_opens_at), through
- *  its own once-per-instance claim (claim_rollcall_card_opens). The start-time rung is still the
- *  loud moment (the coach's words, with sound), but for an instance the open already claimed it
- *  only UPDATES the card that is there: starting a second one would stack two cards on a phone
- *  whose app never got to report its update token. When the open never ran (a roll call made at
- *  5:55 for 6:00), the start-time rung starts the card as it always has. A follow-up rung never
- *  starts one. */
-export function cardPlanAtRung(row: ReminderRow, cardOpened: boolean): { phase: 'initial' | 'reminder'; allowStart: boolean } {
+ *  a claim per ATHLETE, not per instance (claim_rollcall_card_opens / claim_rollcall_card_starts;
+ *  see commitment_responses.card_started_at) — a once-per-INSTANCE claim meant an athlete whose
+ *  first attempt never reached Apple, or who registered a start token after the open, never got a
+ *  card for the rest of the morning. The start-time rung is still the loud moment (the coach's
+ *  words, with sound); `alreadyStarted` says whether THIS athlete's start was already claimed
+ *  (whether or not it actually reached the device) — only then does starting a second one risk
+ *  stacking two cards on a phone whose app never got to report its update token. A follow-up rung
+ *  never starts one. */
+export function cardPlanAtRung(row: ReminderRow, alreadyStarted: boolean): { phase: 'initial' | 'reminder'; allowStart: boolean } {
   if (!isInitialPush(row)) return { phase: 'reminder', allowStart: false };
-  return { phase: 'initial', allowStart: !cardOpened };
+  return { phase: 'initial', allowStart: !alreadyStarted };
 }
 
 /** The reminder push's tap target: a wake-up opens its team board (roll call rebuilt,

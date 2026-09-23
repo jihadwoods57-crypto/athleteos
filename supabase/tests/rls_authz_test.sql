@@ -4356,6 +4356,7 @@ insert into _rc_t4calls values
   ('select rollcall_team_board_svc((select id from _rc_b))'),
   ('select * from rollcall_live_card((select id from _rc_b))'),
   ('select * from claim_rollcall_card_opens(1)'),
+  ('select * from claim_rollcall_card_starts((select id from _rc_b), array[''eeee0000-0000-0000-0000-0000000000e1''::uuid])'),
   ('select * from rollcall_live_update_targets((select id from _rc_b))'),
   ('select * from claim_live_team_updates((select id from _rc_b), array[''eeee0000-0000-0000-0000-0000000000e1''::uuid], 60)'),
   ('select * from rollcall_window_rows_svc(''eeee0000-0000-0000-0000-0000000000e1''::uuid, 7)'),
@@ -4452,18 +4453,41 @@ select _ok(claim_rollcall_summary((select id from _rc_b)) and not claim_rollcall
   '0242 task 4: the closing summary is claimed exactly once');
 update commitment_instances set summary_sent_at = null where id = (select id from _rc_b);
 
--- the card opens at the OPEN: a roll call starting in 5 minutes (opened 5 minutes ago) is claimed
--- once, with the athletes still pending on it; the one who already answered is left off
+-- the card opens at the OPEN, per ATHLETE (fix round 2026-09-23 — commitment_responses
+-- .card_started_at, not the instance-level card_opened_at): a roll call starting in 5 minutes
+-- (opened 5 minutes ago) is claimed once per still-pending athlete; the one who already answered
+-- is left off.
 update commitment_instances set starts_at = now() + interval '5 minutes', respond_by_at = now() + interval '10 minutes',
        card_opened_at = null, live_ended_at = null where id = (select id from _rc_b);
+update commitment_responses set card_started_at = null
+ where instance_id = (select id from _rc_b)
+   and athlete_id in ('eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2');
 create temp table _rc_open as select * from claim_rollcall_card_opens(500);
 select _ok((select athlete_ids @> array['eeee0000-0000-0000-0000-0000000000e2']::uuid[]
                and not (athlete_ids @> array['eeee0000-0000-0000-0000-0000000000e1']::uuid[])
               from _rc_open where instance_id = (select id from _rc_b)),
   '0242 task 4: the card opens at the open, for the athletes still pending');
 select _ok(not exists (select 1 from claim_rollcall_card_opens(500) where instance_id = (select id from _rc_b)),
-  '0242 task 4: a card is opened once per instance');
+  '0242 fix round: the same athlete is not claimed twice by the open pass');
 drop table _rc_open;
+
+-- fix round 2026-09-23: card_opened_at used to gate the WHOLE instance, so an athlete the open
+-- pass missed (a start token registered a minute late, a claim that ran before the card existed)
+-- never got a card for the rest of the morning. claim_rollcall_card_starts is the start-time
+-- rung's own retry, per athlete: it claims a still-pending, never-started athlete...
+update commitment_responses set card_started_at = null
+ where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+select _ok((select array_agg(a) from claim_rollcall_card_starts((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2']::uuid[]) a)
+           = array['eeee0000-0000-0000-0000-0000000000e2']::uuid[],
+  '0242 fix round: claim_rollcall_card_starts claims a still-pending athlete missed by the open (e1 already answered, so is never a start candidate)');
+-- ...and never claims the same athlete twice, so a card already attempted is never started again
+-- (the one thing the old instance-level flag protected: no second Live Activity stacked on a
+-- phone whose app never got to report its update token).
+select _ok(not exists (select 1 from claim_rollcall_card_starts((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e2']::uuid[])),
+  '0242 fix round: the same athlete is not claimed twice by claim_rollcall_card_starts');
+
 update commitment_instances set starts_at = now() + interval '15 minutes', respond_by_at = now() + interval '20 minutes',
        card_opened_at = null where id = (select id from _rc_b);
 select _ok(not exists (select 1 from claim_rollcall_card_opens(500) where instance_id = (select id from _rc_b)),
@@ -4471,7 +4495,51 @@ select _ok(not exists (select 1 from claim_rollcall_card_opens(500) where instan
 -- put the fixture back as the board section left it
 update commitment_instances set starts_at = now() - interval '20 minutes', respond_by_at = now() - interval '15 minutes',
        card_opened_at = null where id = (select id from _rc_b);
+update commitment_responses set card_started_at = null
+ where instance_id = (select id from _rc_b)
+   and athlete_id in ('eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2');
 drop table _rc_t4calls;
+
+-- ---- fix round 2026-09-23 (Task 3/4 family): active membership, on the window codes and the board ----
+-- e2 is removed from T1 (status -> 'removed'), their commitment_responses row on _rc_b left
+-- exactly as it was (still 'pending'): a stale response row must not be enough, exactly as
+-- section 8 already proves for rollcall_team_board's CALLER check — this is the same rule
+-- applied to the CONTENT of rollcall_window_rows_svc and rollcall_team_board_svc.
+select _as('11111111-0000-0000-0000-000000000001');   -- (fixture) baseline: e2 is still active
+select _ok((select r->>'athlete_id' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') is not null,
+  '0242 fix round: (fixture) e2 is on the board while still an active member');
+select _superuser();
+select _ok(exists (select 1 from rollcall_window_rows_svc('eeee0000-0000-0000-0000-0000000000e2', 7)
+                    where instance_id = (select id from _rc_b)),
+  '0242 fix round: (fixture) e2''s own roll call mints a window while still an active member');
+
+update team_members set status = 'removed' where team_id = '77777777-1111-0000-0000-000000000001'
+  and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+
+select _ok(not exists (select 1 from rollcall_window_rows_svc('eeee0000-0000-0000-0000-0000000000e2', 7)
+                        where instance_id = (select id from _rc_b)),
+  '0242 fix round: a removed athlete mints no window codes for the roll call (Task 3)');
+
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((select r->>'athlete_id' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') is null,
+  '0242 fix round: a removed athlete''s pending row no longer shows on the board (Task 4)');
+select _ok((select (j->>'total')::int from (select rollcall_team_board((select id from _rc_b)) as j) x) = 1,
+  '0242 fix round: total drops to just e1 once e2 (pending, removed) leaves the board');
+select _superuser();
+select _ok(not exists (select 1 from jsonb_array_elements(rollcall_team_board_svc((select id from _rc_b))->'rows') r
+                        where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2'),
+  '0242 fix round: rollcall_team_board_svc (the edge functions'' own read) applies the same gate');
+
+-- put e2 back exactly as the rest of the suite expects them
+update team_members set status = 'active' where team_id = '77777777-1111-0000-0000-000000000001'
+  and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((select r->>'athlete_id' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') is not null,
+  '0242 fix round: (fixture restored) e2 is back on the board, active again');
+select _superuser();
 
 -- ---- arrival: a place on the roll call, arrive by the start, 10 minutes of grace ----
 insert into commitment_locations (id, team_id, name, lat, lng, created_by)

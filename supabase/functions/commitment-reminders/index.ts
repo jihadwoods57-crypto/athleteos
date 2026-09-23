@@ -10,8 +10,9 @@
 // due and marks it in the same statement, so two overlapping cron ticks cannot double-send, and
 // only PENDING responses are ever selected — an athlete who already answered is never pinged.
 //
-// INVOCATION: scheduled every 5 minutes. Protected by a shared key so only the scheduler can fire
-// it (deploy with --no-verify-jwt; an anon caller without the key gets 401):
+// INVOCATION: scheduled every minute (schedule_commitment_reminders, 0211: '* * * * *').
+// Protected by a shared key so only the scheduler can fire it (deploy with --no-verify-jwt; an
+// anon caller without the key gets 401):
 //   supabase secrets set COMMITMENT_CRON_KEY=<long random string>
 //   supabase functions deploy commitment-reminders --use-api --no-verify-jwt
 // Then: select schedule_commitment_reminders('<fn url>', '<the same key>');
@@ -73,9 +74,12 @@ Deno.serve(async (req: Request) => {
   // I'm Up posts the check-in with the app closed. The alert is SILENT: the card lights the screen,
   // but the loud moment stays the start (the alarm, or the start-time rung below, which then
   // UPDATES this card with the coach's words and the sound instead of starting a second one).
-  // Claimed once per instance (card_opened_at), before the early return: a tick with no reminder
-  // rungs due still has cards to open. No notification here: an athlete whose card did not start
-  // still gets the start-time notification, exactly as before.
+  // Claimed once per ATHLETE (commitment_responses.card_started_at, fix round 2026-09-23 — a
+  // once-per-INSTANCE claim meant an athlete the first pass missed, or whose attempt simply never
+  // reached Apple, got no card for the rest of the morning), before the early return: a tick with
+  // no reminder rungs due still has cards to open, and this same call runs every tick, so any
+  // athlete still unclaimed is picked up on a later one. No notification here: an athlete whose
+  // card did not start still gets the start-time notification, exactly as before.
   const opened = { instances: 0, started: 0, skipped: 0, revoked: 0 };
   const apnsForOpen = apnsFromEnv((k) => Deno.env.get(k));
   if (apnsForOpen) {
@@ -112,7 +116,7 @@ Deno.serve(async (req: Request) => {
   // call, so a burst that crosses more due reminders than one page could ever hold no longer
   // marks rows delivered that this invocation never actually saw — page until a call returns
   // fewer than p_limit rows (fully drained). PAGE_CAP is a hard backstop against a runaway loop
-  // outrunning the function's own wall clock; hitting it just means the next 5-minute tick picks
+  // outrunning the function's own wall clock; hitting it just means the next minute's tick picks
   // up where this one left off (claim_due_commitment_reminders is safe to call again — anything
   // still due and not yet reminded stays eligible).
   const CLAIM_LIMIT = 500;
@@ -189,50 +193,75 @@ Deno.serve(async (req: Request) => {
       list.push(d);
       byInstance.set(d.instance_id, list);
     }
-    // Which instances already had their card opened at the open (card_opened_at, 0242). Unknown
-    // (a read failure, an un-migrated stack) reads as NOT opened, which is the pre-0242 behaviour:
-    // the start-time rung starts the card itself.
-    const cardOpened = new Set<string>();
+    // Which (instance, athlete) pairs already have a start claimed (card_started_at, fix round
+    // 2026-09-23 — see the column comment in 0242). Per athlete, not per instance: an athlete the
+    // open pass never reached (a start token registered a minute late, a roll call made after its
+    // own open already passed) still gets a start attempt from THIS rung, below. Unknown (a read
+    // failure, an un-migrated stack) reads as NOT started, the pre-0242 behaviour: everyone gets an
+    // attempt.
+    const started = new Set<string>(); // `${instanceId}:${athleteId}`
     if (byInstance.size) {
       try {
-        const { data: inst } = await svc
-          .from('commitment_instances').select('id,card_opened_at')
-          .in('id', [...byInstance.keys()]).not('card_opened_at', 'is', null);
-        for (const r of (inst ?? []) as Array<{ id: string }>) cardOpened.add(r.id);
+        const { data: resp } = await svc
+          .from('commitment_responses').select('instance_id,athlete_id')
+          .in('instance_id', [...byInstance.keys()]).not('card_started_at', 'is', null);
+        for (const r of (resp ?? []) as Array<{ instance_id: string; athlete_id: string }>) {
+          started.add(`${r.instance_id}:${r.athlete_id}`);
+        }
       } catch { /* best effort */ }
     }
     const ackUrl = ackUrlFor(SUPABASE_URL);
     for (const [instanceId, rows] of byInstance) {
       const card = await loadLiveCard(svc, instanceId);
       if (!card) continue;
-      // The start-time rung UPDATES the card the open started (or starts it, when the open never
-      // ran); any later rung updates it. Every update carries the team count, because a content
-      // state replaces the whole card: an update without it would zero the count on screen.
-      const plan = cardPlanAtRung(rows[0], cardOpened.has(instanceId));
-      const phase = plan.phase;
+      // Only the phase matters here; allowStart is decided per athlete just below, so the second
+      // argument (which only affects allowStart) is irrelevant.
+      const phase = cardPlanAtRung(rows[0], true).phase;
       const board = await loadTeamBoard(svc, instanceId);
       const c = copy.get(rows[0])!;
-      // Two sends when some of this instance's athletes have a real alarm armed: the same card,
-      // the same words, one with the sound and one without.
+      // Claim a fresh start for whichever of this rung's athletes have never been claimed — the
+      // open pass may have missed them entirely. Atomic (claim_rollcall_card_starts), so a
+      // concurrent open-pass tick cannot also attempt the same athlete: only the ids it returns may
+      // start; anyone else in `rows` already has a claim (started or not) and gets update-only.
+      let justClaimed = new Set<string>();
+      if (phase === 'initial') {
+        const candidates = [...new Set(rows.map((r) => r.athlete_id))]
+          .filter((id) => !started.has(`${instanceId}:${id}`));
+        if (candidates.length) {
+          try {
+            const { data: won } = await svc.rpc('claim_rollcall_card_starts', {
+              p_instance: instanceId, p_athletes: candidates,
+            });
+            justClaimed = new Set((Array.isArray(won) ? won : []).map((x: unknown) =>
+              typeof x === 'string' ? x : String(Object.values((x ?? {}) as Record<string, unknown>)[0] ?? '')));
+          } catch { /* best effort: nobody newly claimed here; the open pass may still catch them */ }
+        }
+      }
+      // Two axes: alarm-armed (sound on/off) and start-eligible (start vs update-only). The card IS
+      // the notification now, so its alert is what lights the phone up and plays the sound. Same
+      // words the suppressed notification would have carried.
       const loud = [...new Set(rows.filter((x) => !isArmed(x)).map((x) => x.athlete_id))];
       const quiet = [...new Set(rows.filter((x) => isArmed(x)).map((x) => x.athlete_id))].filter((id) => !loud.includes(id));
-      for (const [ids, sound] of [[loud, 'default'], [quiet, '']] as Array<[string[], string]>) {
-        if (!ids.length) continue;
-        const r = await pushLiveActivity({
-          svc, apns, card, phase,
-          athleteIds: ids,
-          allowStart: plan.allowStart,
-          team: (id) => teamFields(board, id),
-          ackCodes: plan.allowStart ? await windowCodesFor(ACK_SECRET, card, ids) : undefined,
-          ackUrl,
-          // The card IS the notification now, so its alert is what lights the phone up and plays
-          // the sound. Same words the suppressed notification would have carried.
-          alert: { title: c.title, body: c.subtitle ?? c.body, sound },
-          nowMs: now,
-        });
-        live.started += r.started; live.updated += r.updated; live.ended += r.ended;
-        live.revoked += r.revoked; live.skipped += r.skipped;
-        for (const id of r.live) hasCard.add(id);
+      for (const [group, sound] of [[loud, 'default'], [quiet, '']] as Array<[string[], string]>) {
+        if (!group.length) continue;
+        const starters = group.filter((id) => justClaimed.has(id));
+        const updaters = group.filter((id) => !justClaimed.has(id));
+        for (const [ids, allowStart] of [[starters, true], [updaters, false]] as Array<[string[], boolean]>) {
+          if (!ids.length) continue;
+          const r = await pushLiveActivity({
+            svc, apns, card, phase,
+            athleteIds: ids,
+            allowStart: phase === 'initial' && allowStart,
+            team: (id) => teamFields(board, id),
+            ackCodes: (phase === 'initial' && allowStart) ? await windowCodesFor(ACK_SECRET, card, ids) : undefined,
+            ackUrl,
+            alert: { title: c.title, body: c.subtitle ?? c.body, sound },
+            nowMs: now,
+          });
+          live.started += r.started; live.updated += r.updated; live.ended += r.ended;
+          live.revoked += r.revoked; live.skipped += r.skipped;
+          for (const id of r.live) hasCard.add(id);
+        }
       }
     }
   }

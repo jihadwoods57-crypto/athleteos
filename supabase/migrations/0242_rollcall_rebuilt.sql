@@ -546,21 +546,41 @@ comment on function save_commitment_place(jsonb) is
 --                    stamp, an answer inside the minute after a teammate's was never sent and the
 --                    card sat on I'M UP. The answered update is claimed once per card, never
 --                    throttled by counts (claim_live_answered_update).
---   card_opened_at   the once-per-instance claim that STARTS the card at the open (10 minutes
---                    before the start), apart from the start-time notification rung.
+--   card_opened_at   INFORMATIONAL ONLY (fix round, 2026-09-23): the first moment
+--                    commitment-reminders' open pass touched this instance. No longer gates
+--                    anything — see card_started_at below for why a once-per-INSTANCE gate was
+--                    wrong.
+--   card_started_at  (on commitment_responses) the real claim: once per ATHLETE, not once per
+--                    instance. The open pass used to stamp card_opened_at on the instance the
+--                    moment it ran, whether or not a card actually started for anyone (an athlete
+--                    with no push-to-start token yet, APNs down for the minute, the card RPC
+--                    briefly unreachable) — after that stamp, NOTHING on that instance ever tried
+--                    again: an athlete who registered a start token a minute after the open, or
+--                    whose first attempt simply never reached Apple, went the rest of the morning
+--                    with no lock-screen card, silently. Per-athlete claiming lets the SAME open
+--                    pass (it already runs every cron tick) pick up any athlete still missing a
+--                    start on a later tick, and lets the start-time rung do the same for anyone the
+--                    open never got to — while still claiming BEFORE attempting, so the one thing
+--                    the instance-level flag protected (never starting a SECOND activity on a
+--                    phone whose update token has not yet been reported back) still holds: once an
+--                    athlete's card_started_at is stamped, no path may attempt to start one again
+--                    for them on this instance.
 --   summary_sent_at  the once-per-instance guard on the coach's closing summary.
 alter table rollcall_live_tokens add column if not exists last_update_at timestamptz;
 alter table rollcall_live_tokens add column if not exists answered_update_at timestamptz;
 alter table commitment_instances add column if not exists card_opened_at timestamptz;
 alter table commitment_instances add column if not exists summary_sent_at timestamptz;
+alter table commitment_responses add column if not exists card_started_at timestamptz;
 comment on column rollcall_live_tokens.last_update_at is
   'Last team-count Live Activity update sent to this update token (roll-call-ack throttle, 60 s). 0242.';
 comment on column rollcall_live_tokens.answered_update_at is
   'When this card was sent the athlete''s own answered update (claim_live_answered_update): once per card, independent of the team-count throttle. 0242.';
 comment on column commitment_instances.card_opened_at is
-  'When commitment-reminders claimed this wake-up to START its Live Activity at the open (claim_rollcall_card_opens). 0242.';
+  'Informational: first moment the open pass touched this instance. Does NOT gate a start any more (card_started_at does, per athlete) — fix round, 2026-09-23.';
 comment on column commitment_instances.summary_sent_at is
   'When the coach''s closing summary push was claimed for this instance (claim_rollcall_summary): once per instance. 0242.';
+comment on column commitment_responses.card_started_at is
+  'When a Live Activity start was CLAIMED for this athlete on this instance (claim_rollcall_card_opens at the open, or claim_rollcall_card_starts at the start-time rung, for an athlete the open missed): claimed once, before the attempt, so a start is never attempted twice for one athlete even if the first attempt never actually reached the device. Per athlete, never per instance. Fix round, 2026-09-23.';
 
 -- The card RPC learns the window's OPEN (for the window code) and whether the roll call asks an
 -- arrival (the card's points: 8 alone, 4 with arrival). Same body as 0239 plus two columns; the
@@ -592,9 +612,14 @@ language sql security definer set search_path = public as $$
   where ci.id = p_instance;
 $$;
 
--- Start the card at the OPEN. Claims each wake-up once (card_opened_at), from its open until its
--- deadline, and returns the athletes still pending on it. A cron tick that runs late still starts
--- the card; one that runs after the deadline leaves it to the start-time rung and the late push.
+-- Start the card at the OPEN, per ATHLETE (fix round, 2026-09-23 — see card_started_at above).
+-- Runs every cron tick (index.ts calls it unconditionally, not just "at" the open), so it is not a
+-- one-shot: any instance still inside its window, with any pending athlete not yet claimed
+-- (card_started_at is null), is returned again on the next tick. An athlete already claimed —
+-- whether their card started, or the attempt simply never reached Apple — is never returned again
+-- by this function; a later attempt for them is the start-time rung's job
+-- (claim_rollcall_card_starts), not another pass of this one. card_opened_at is stamped once, the
+-- first time an instance is touched here, purely as a "when did this first run" record.
 create or replace function claim_rollcall_card_opens(p_limit int default 200)
 returns table (instance_id uuid, athlete_ids uuid[])
 language plpgsql security definer set search_path = public as $$
@@ -602,30 +627,48 @@ begin
   if not vc_enabled() then return; end if;
   return query
   with due as (
-    select i.id
-      from commitment_instances i
+    select r.instance_id, r.athlete_id
+      from commitment_responses r
+      join commitment_instances i on i.id = r.instance_id
       join commitments c on c.id = i.commitment_id
      where c.type = 'morning_roll_call'
        and c.active
        and i.status = 'scheduled'
-       and i.card_opened_at is null
        and i.live_ended_at is null
+       and r.status = 'pending' and r.acknowledged_at is null and r.card_started_at is null
+       and vc_enabled(r.athlete_id)
        and now() >= rollcall_opens_at(c.type, i.starts_at, i.respond_by_at, c.starts_min, c.opens_min)
        and now() <  coalesce(i.respond_by_at, i.starts_at)
      order by i.starts_at
      limit greatest(1, p_limit)
-       for update of i skip locked
+       for update of r skip locked
   ), claimed as (
+    update commitment_responses r set card_started_at = now()
+      from due where r.instance_id = due.instance_id and r.athlete_id = due.athlete_id
+    returning r.instance_id, r.athlete_id
+  ), touched as (
     update commitment_instances i set card_opened_at = now()
-      from due where i.id = due.id
-    returning i.id
+      where i.id in (select distinct cl2.instance_id from claimed cl2) and i.card_opened_at is null
   )
-  select cl.id,
-         coalesce((select array_agg(r.athlete_id) from commitment_responses r
-                    where r.instance_id = cl.id and r.status = 'pending' and r.acknowledged_at is null
-                      and vc_enabled(r.athlete_id)), array[]::uuid[])
-    from claimed cl;
+  select cl.instance_id, array_agg(cl.athlete_id)
+    from claimed cl
+   group by cl.instance_id;
 end $$;
+
+-- The start-time rung's fallback (fix round, 2026-09-23): for the athletes it is about to push a
+-- reminder to, claim any that are still missing a start (card_started_at is null) so it may attempt
+-- one for them too — the open pass may never have reached them (a late-registered start token, a
+-- roll call made after the open already passed), and no other path retries a specific athlete.
+-- Athletes NOT in the returned set already have a start claimed (started or not): the caller must
+-- not attempt to start one for them again, only update the card they may already hold.
+create or replace function claim_rollcall_card_starts(p_instance uuid, p_athletes uuid[])
+returns setof uuid
+language sql security definer set search_path = public as $$
+  update commitment_responses r set card_started_at = now()
+   where r.instance_id = p_instance and r.athlete_id = any(p_athletes)
+     and r.status = 'pending' and r.acknowledged_at is null and r.card_started_at is null
+  returning r.athlete_id;
+$$;
 
 -- Every live update token on one instance, with the throttle stamp and the phase the card is in
 -- now, so a team-count update never flips an amber (reminder) card back to blue. The reminder
@@ -702,6 +745,13 @@ $$;
 -- The windows an athlete's phone should hold codes for: their own wake-ups, not yet closed,
 -- starting within p_days (1..14). roll-call-ack's authenticated mint route reads this with the
 -- caller's VERIFIED user id; the function itself trusts no caller, which is why it is service only.
+--
+-- Active-membership gate (fix round, 2026-09-23): a response row alone is not enough, exactly as
+-- section 8 of the RLS suite already proves for rollcall_team_board — an athlete removed from the
+-- team or practice the commitment belongs to gets no window codes for it, even though their old
+-- commitment_responses row is still sitting there. Same predicate rollcall_team_board's caller
+-- check uses (team_members.status / practice_clients.status = 'active'); commitments always names
+-- exactly one owner (commitments_one_owner), so exactly one branch ever applies.
 create or replace function rollcall_window_rows_svc(p_athlete uuid, p_days int default 7)
 returns table (instance_id uuid, opens_at timestamptz, closes_at timestamptz)
 language sql stable security definer set search_path = public as $$
@@ -718,6 +768,10 @@ language sql stable security definer set search_path = public as $$
      and r.status <> 'excused'
      and rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at) > now()
      and i.starts_at < now() + make_interval(days => least(greatest(coalesce(p_days, 7), 1), 14))
+     and ((c.team_id is not null and exists (select 1 from team_members m
+             where m.team_id = c.team_id and m.athlete_id = p_athlete and m.status = 'active'))
+       or (c.practice_id is not null and exists (select 1 from practice_clients pc
+             where pc.practice_id = c.practice_id and pc.client_id = p_athlete and pc.status = 'active')))
    order by i.starts_at
    limit 50;
 $$;
@@ -749,7 +803,8 @@ revoke all on function _haversine_m(double precision,double precision,double pre
 -- with the service role.
 do $$ declare f text; begin
   foreach f in array array['rollcall_team_board_svc(uuid)', 'rollcall_live_card(uuid)',
-                           'claim_rollcall_card_opens(int)', 'rollcall_live_update_targets(uuid)',
+                           'claim_rollcall_card_opens(int)', 'claim_rollcall_card_starts(uuid,uuid[])',
+                           'rollcall_live_update_targets(uuid)',
                            'claim_live_team_updates(uuid,uuid[],int)', 'rollcall_window_rows_svc(uuid,int)',
                            'claim_rollcall_summary(uuid)', 'claim_live_answered_update(uuid,uuid)',
                            'release_live_answered_update(uuid,uuid)'] loop
@@ -834,6 +889,14 @@ grant execute on function verify_arrival_at(uuid,text,double precision,double pr
 --     A commitment with no place is 'wake' whatever its type: nothing else can be judged.
 --     Same body as section 2 plus the one key. rollcall_team_board calls this, so it gains the key
 --     too; create or replace keeps the service-only grants set above.
+--
+-- Active-membership gate (fix round, 2026-09-23), same family as Task 3/rollcall_window_rows_svc: a
+-- response row alone is not enough. A removed athlete's stale pending row must not show to
+-- teammates or inflate `total`/`up`. This is the same predicate rollcall_team_board's own caller
+-- check already applies to the CALLER; here it applies to every ROW. commitments always names
+-- exactly one owner (commitments_one_owner), so exactly one branch ever matches. An athlete who
+-- already checked in that morning and was removed later is excluded too, same as any other row —
+-- that is fine (spec: Task 4).
 create or replace function rollcall_team_board_svc(p_instance uuid) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare
@@ -852,6 +915,10 @@ begin
         r.ack_source, r.sync_review, r.review_resolution) as verdict
     from commitment_responses r join profiles p on p.id = r.athlete_id
     where r.instance_id = p_instance
+      and ((c.team_id is not null and exists (select 1 from team_members m
+              where m.team_id = c.team_id and m.athlete_id = r.athlete_id and m.status = 'active'))
+        or (c.practice_id is not null and exists (select 1 from practice_clients pc
+              where pc.practice_id = c.practice_id and pc.client_id = r.athlete_id and pc.status = 'active')))
   ), rows as (
     select b.*,
       case when c.location_id is null then null
