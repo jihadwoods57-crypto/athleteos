@@ -172,6 +172,37 @@ export function cardPlanAtRung(row: ReminderRow, alreadyStarted: boolean): { pha
   return { phase: 'initial', allowStart: !alreadyStarted };
 }
 
+/** One push group for the start-time rung: which athletes, what sound, and whether this group
+ *  may attempt a fresh card START (2026-09-23, fix round 1 — review round 1, Minor #2).
+ *
+ *  Extracted from the rung's orchestration so the starters/updaters × loud/quiet fan-out is
+ *  tested directly rather than only ever exercised end to end. `sound: ''` is the quiet channel
+ *  for an athlete whose own alarm is already ringing (isArmed); `allowStart: true` is only ever
+ *  set for an athlete `justClaimed` names — one the caller just atomically claimed a fresh start
+ *  for (claim_rollcall_card_starts). Everyone else in the batch already has a claim (accepted, or
+ *  awaiting release) or no start token at all, and must only be sent an update, never a second
+ *  start attempt. */
+export type StartPushGroup = { ids: string[]; sound: 'default' | ''; allowStart: boolean };
+
+export function splitStartGroups(
+  athleteIds: string[],
+  isArmed: (athleteId: string) => boolean,
+  justClaimed: Set<string>,
+): StartPushGroup[] {
+  const uniq = [...new Set(athleteIds)];
+  const loud = uniq.filter((id) => !isArmed(id));
+  const quiet = uniq.filter((id) => isArmed(id));
+  const out: StartPushGroup[] = [];
+  for (const [ids, sound] of [[loud, 'default'], [quiet, '']] as Array<[string[], 'default' | '']>) {
+    if (!ids.length) continue;
+    const starters = ids.filter((id) => justClaimed.has(id));
+    const updaters = ids.filter((id) => !justClaimed.has(id));
+    if (starters.length) out.push({ ids: starters, sound, allowStart: true });
+    if (updaters.length) out.push({ ids: updaters, sound, allowStart: false });
+  }
+  return out;
+}
+
 /** The reminder push's tap target: a wake-up opens its team board (roll call rebuilt,
  *  2026-09-23); every other commitment its detail. Older pushes' roll-call/<id> is handed over by
  *  the proto before it paints. */

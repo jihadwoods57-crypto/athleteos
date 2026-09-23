@@ -557,14 +557,24 @@ comment on function save_commitment_place(jsonb) is
 --                    briefly unreachable) — after that stamp, NOTHING on that instance ever tried
 --                    again: an athlete who registered a start token a minute after the open, or
 --                    whose first attempt simply never reached Apple, went the rest of the morning
---                    with no lock-screen card, silently. Per-athlete claiming lets the SAME open
---                    pass (it already runs every cron tick) pick up any athlete still missing a
---                    start on a later tick, and lets the start-time rung do the same for anyone the
---                    open never got to — while still claiming BEFORE attempting, so the one thing
---                    the instance-level flag protected (never starting a SECOND activity on a
---                    phone whose update token has not yet been reported back) still holds: once an
---                    athlete's card_started_at is stamped, no path may attempt to start one again
---                    for them on this instance.
+--                    with no lock-screen card, silently. Per-athlete claiming closes this two ways
+--                    (review round 1, Important #1):
+--                      1. claim_rollcall_card_opens / claim_rollcall_card_starts only claim an
+--                         athlete who is currently START-ELIGIBLE — an unrevoked kind='start' token
+--                         on rollcall_live_tokens, and no unrevoked kind='update' token on THIS
+--                         instance yet (a card already exists for them). An athlete with no start
+--                         token yet is simply never claimed, so a token registered a minute later
+--                         makes them eligible on the very next tick.
+--                      2. release_rollcall_card_start undoes the claim for anyone the push did not
+--                         actually reach (not in pushLiveActivity's `live` set: APNs refused it,
+--                         the token was gone, or anything after the claim threw), so the SAME
+--                         open pass (it already runs every cron tick) or the start-time rung
+--                         (claim_rollcall_card_starts) tries them again next tick.
+--                    What the once-per-athlete claim still protects, unchanged: once an athlete's
+--                    push was genuinely ACCEPTED (they are in `live`), card_started_at stays
+--                    stamped and no path may attempt a second start for them on this instance —
+--                    the phone may not have reported its update token back yet, and starting a
+--                    second activity would stack two cards on one lock screen.
 --   summary_sent_at  the once-per-instance guard on the coach's closing summary.
 alter table rollcall_live_tokens add column if not exists last_update_at timestamptz;
 alter table rollcall_live_tokens add column if not exists answered_update_at timestamptz;
@@ -612,12 +622,24 @@ language sql security definer set search_path = public as $$
   where ci.id = p_instance;
 $$;
 
+-- The two predicates below both mean "this athlete is worth claiming a start for right now":
+--   * an unrevoked push-to-start token exists (rollcall_live_tokens kind='start') — no token,
+--     no possible start, so an athlete with none yet is simply left unclaimed rather than
+--     claimed-and-wasted; they become claimable the instant their phone registers one.
+--   * no unrevoked update token exists YET for this instance (kind='update') — once one does, a
+--     card already exists for them and claiming a start again would risk a second activity.
+-- Inlined into both claiming functions below (fix round, review round 1, Important #1) rather than
+-- factored into a shared helper: each is a single indexed EXISTS/NOT EXISTS pair, cheap enough to
+-- repeat, and inlining keeps each function's own atomic UPDATE ... WHERE self-contained.
+
 -- Start the card at the OPEN, per ATHLETE (fix round, 2026-09-23 — see card_started_at above).
 -- Runs every cron tick (index.ts calls it unconditionally, not just "at" the open), so it is not a
--- one-shot: any instance still inside its window, with any pending athlete not yet claimed
--- (card_started_at is null), is returned again on the next tick. An athlete already claimed —
--- whether their card started, or the attempt simply never reached Apple — is never returned again
--- by this function; a later attempt for them is the start-time rung's job
+-- one-shot: any instance still inside its window, with any pending, START-ELIGIBLE athlete not yet
+-- claimed (card_started_at is null), is returned again on the next tick. An athlete claimed here
+-- whose push is then genuinely ACCEPTED (index.ts checks pushLiveActivity's `live` set) is never
+-- returned again; one whose push the caller could not confirm is released
+-- (release_rollcall_card_start) so this same query picks them back up. A later attempt for an
+-- athlete this pass never claimed at all (no start token yet) is the start-time rung's job
 -- (claim_rollcall_card_starts), not another pass of this one. card_opened_at is stamped once, the
 -- first time an instance is touched here, purely as a "when did this first run" record.
 create or replace function claim_rollcall_card_opens(p_limit int default 200)
@@ -639,6 +661,19 @@ begin
        and vc_enabled(r.athlete_id)
        and now() >= rollcall_opens_at(c.type, i.starts_at, i.respond_by_at, c.starts_min, c.opens_min)
        and now() <  coalesce(i.respond_by_at, i.starts_at)
+       and exists (select 1 from rollcall_live_tokens st
+                    where st.athlete_id = r.athlete_id and st.kind = 'start' and st.revoked_at is null)
+       and not exists (select 1 from rollcall_live_tokens ut
+                    where ut.athlete_id = r.athlete_id and ut.instance_id = r.instance_id
+                      and ut.kind = 'update' and ut.revoked_at is null)
+       -- Same active-membership gate as rollcall_window_rows_svc / rollcall_team_board_svc
+       -- (review round 1, Minor #1): materialize_active_commitments already deletes a removed
+       -- athlete's pending row on every tick before this runs, so this is defense in depth for the
+       -- one tick where materialization itself failed, not the primary guard.
+       and ((c.team_id is not null and exists (select 1 from team_members m
+               where m.team_id = c.team_id and m.athlete_id = r.athlete_id and m.status = 'active'))
+         or (c.practice_id is not null and exists (select 1 from practice_clients pc
+               where pc.practice_id = c.practice_id and pc.client_id = r.athlete_id and pc.status = 'active')))
      order by i.starts_at
      limit greatest(1, p_limit)
        for update of r skip locked
@@ -656,18 +691,44 @@ begin
 end $$;
 
 -- The start-time rung's fallback (fix round, 2026-09-23): for the athletes it is about to push a
--- reminder to, claim any that are still missing a start (card_started_at is null) so it may attempt
--- one for them too — the open pass may never have reached them (a late-registered start token, a
--- roll call made after the open already passed), and no other path retries a specific athlete.
--- Athletes NOT in the returned set already have a start claimed (started or not): the caller must
--- not attempt to start one for them again, only update the card they may already hold.
+-- reminder to, claim any that are still missing a start AND are start-eligible right now (see the
+-- predicate note above) so it may attempt one for them too — the open pass may never have reached
+-- them (a start token registered after the open ran), and no other path retries a specific
+-- athlete. Athletes NOT in the returned set either already have a start claimed (accepted, or
+-- awaiting release) or have no start token at all yet: the caller must not attempt to start one for
+-- them again, only update the card they may already hold.
 create or replace function claim_rollcall_card_starts(p_instance uuid, p_athletes uuid[])
 returns setof uuid
 language sql security definer set search_path = public as $$
   update commitment_responses r set card_started_at = now()
-   where r.instance_id = p_instance and r.athlete_id = any(p_athletes)
+   from commitment_instances i, commitments c
+   where i.id = p_instance and c.id = i.commitment_id
+     and r.instance_id = p_instance and r.athlete_id = any(p_athletes)
      and r.status = 'pending' and r.acknowledged_at is null and r.card_started_at is null
+     and exists (select 1 from rollcall_live_tokens st
+                  where st.athlete_id = r.athlete_id and st.kind = 'start' and st.revoked_at is null)
+     and not exists (select 1 from rollcall_live_tokens ut
+                  where ut.athlete_id = r.athlete_id and ut.instance_id = r.instance_id
+                    and ut.kind = 'update' and ut.revoked_at is null)
+     -- Same active-membership gate as claim_rollcall_card_opens (review round 1, Minor #1).
+     and ((c.team_id is not null and exists (select 1 from team_members m
+             where m.team_id = c.team_id and m.athlete_id = r.athlete_id and m.status = 'active'))
+       or (c.practice_id is not null and exists (select 1 from practice_clients pc
+             where pc.practice_id = c.practice_id and pc.client_id = r.athlete_id and pc.status = 'active')))
   returning r.athlete_id;
+$$;
+
+-- Undo a start claim whose push did NOT genuinely reach a device — APNs refused it, the token was
+-- gone, or anything after the claim threw before the caller could tell — so the next minute's tick
+-- (claim_rollcall_card_opens or claim_rollcall_card_starts, whichever applies) claims and retries
+-- them instead of leaving them claimed-but-silent for the rest of the morning. Mirrors
+-- release_live_answered_update below. Never throws the caller's push loop off course: nothing here
+-- can fail in a way that leaves an athlete worse off than "retry next tick".
+create or replace function release_rollcall_card_start(p_instance uuid, p_athletes uuid[])
+returns void
+language sql security definer set search_path = public as $$
+  update commitment_responses set card_started_at = null
+   where instance_id = p_instance and athlete_id = any(p_athletes) and card_started_at is not null;
 $$;
 
 -- Every live update token on one instance, with the throttle stamp and the phase the card is in
@@ -804,6 +865,7 @@ revoke all on function _haversine_m(double precision,double precision,double pre
 do $$ declare f text; begin
   foreach f in array array['rollcall_team_board_svc(uuid)', 'rollcall_live_card(uuid)',
                            'claim_rollcall_card_opens(int)', 'claim_rollcall_card_starts(uuid,uuid[])',
+                           'release_rollcall_card_start(uuid,uuid[])',
                            'rollcall_live_update_targets(uuid)',
                            'claim_live_team_updates(uuid,uuid[],int)', 'rollcall_window_rows_svc(uuid,int)',
                            'claim_rollcall_summary(uuid)', 'claim_live_answered_update(uuid,uuid)',

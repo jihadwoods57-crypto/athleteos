@@ -4357,6 +4357,7 @@ insert into _rc_t4calls values
   ('select * from rollcall_live_card((select id from _rc_b))'),
   ('select * from claim_rollcall_card_opens(1)'),
   ('select * from claim_rollcall_card_starts((select id from _rc_b), array[''eeee0000-0000-0000-0000-0000000000e1''::uuid])'),
+  ('select release_rollcall_card_start((select id from _rc_b), array[''eeee0000-0000-0000-0000-0000000000e1''::uuid])'),
   ('select * from rollcall_live_update_targets((select id from _rc_b))'),
   ('select * from claim_live_team_updates((select id from _rc_b), array[''eeee0000-0000-0000-0000-0000000000e1''::uuid], 60)'),
   ('select * from rollcall_window_rows_svc(''eeee0000-0000-0000-0000-0000000000e1''::uuid, 7)'),
@@ -4454,35 +4455,73 @@ select _ok(claim_rollcall_summary((select id from _rc_b)) and not claim_rollcall
 update commitment_instances set summary_sent_at = null where id = (select id from _rc_b);
 
 -- the card opens at the OPEN, per ATHLETE (fix round 2026-09-23 — commitment_responses
--- .card_started_at, not the instance-level card_opened_at): a roll call starting in 5 minutes
--- (opened 5 minutes ago) is claimed once per still-pending athlete; the one who already answered
--- is left off.
+-- .card_started_at, not the instance-level card_opened_at), AND only for a START-ELIGIBLE
+-- athlete (fix round 1, review round 1, Important #1): an unrevoked push-to-start token, no
+-- unrevoked update token yet on this instance. All live tokens were deleted just above, so e1/e2
+-- currently hold none.
 update commitment_instances set starts_at = now() + interval '5 minutes', respond_by_at = now() + interval '10 minutes',
        card_opened_at = null, live_ended_at = null where id = (select id from _rc_b);
 update commitment_responses set card_started_at = null
  where instance_id = (select id from _rc_b)
    and athlete_id in ('eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2');
+select _ok(not exists (select 1 from claim_rollcall_card_opens(500) where instance_id = (select id from _rc_b)),
+  '0242 fix round 1: a pending athlete with no push-to-start token yet is not claimed');
+
+-- e2 registers a start token: now they are start-eligible, and the open pass claims them.
+insert into rollcall_live_tokens (athlete_id, instance_id, kind, token)
+  values ('eeee0000-0000-0000-0000-0000000000e2', null, 'start', 'tok-e2-start-0242');
 create temp table _rc_open as select * from claim_rollcall_card_opens(500);
 select _ok((select athlete_ids @> array['eeee0000-0000-0000-0000-0000000000e2']::uuid[]
                and not (athlete_ids @> array['eeee0000-0000-0000-0000-0000000000e1']::uuid[])
               from _rc_open where instance_id = (select id from _rc_b)),
-  '0242 task 4: the card opens at the open, for the athletes still pending');
+  '0242 task 4: the card opens at the open, for the start-eligible athletes still pending');
 select _ok(not exists (select 1 from claim_rollcall_card_opens(500) where instance_id = (select id from _rc_b)),
   '0242 fix round: the same athlete is not claimed twice by the open pass');
 drop table _rc_open;
 
--- fix round 2026-09-23: card_opened_at used to gate the WHOLE instance, so an athlete the open
--- pass missed (a start token registered a minute late, a claim that ran before the card existed)
--- never got a card for the rest of the morning. claim_rollcall_card_starts is the start-time
--- rung's own retry, per athlete: it claims a still-pending, never-started athlete...
+-- fix round 1 (review round 1, Important #1): a claim whose push did not genuinely reach a
+-- device is released, so the very next tick's claim retries it instead of leaving the athlete
+-- silently claimed for the rest of the morning.
+select release_rollcall_card_start((select id from _rc_b), array['eeee0000-0000-0000-0000-0000000000e2']::uuid[]);
+select _ok((select card_started_at is null from commitment_responses
+             where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'),
+  '0242 fix round 1: release_rollcall_card_start clears the claim');
+create temp table _rc_open2 as select * from claim_rollcall_card_opens(500);
+select _ok((select athlete_ids @> array['eeee0000-0000-0000-0000-0000000000e2']::uuid[]
+              from _rc_open2 where instance_id = (select id from _rc_b)),
+  '0242 fix round 1: a released claim is picked back up by the very next tick');
+drop table _rc_open2;
+
+-- an athlete who already has an unrevoked UPDATE token for this instance (a card already exists)
+-- is never claimed for a fresh start, even with a start token and card_started_at null — claiming
+-- one would risk starting a second activity on a phone that just hasn't reported back yet.
 update commitment_responses set card_started_at = null
  where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+insert into rollcall_live_tokens (athlete_id, instance_id, kind, token)
+  values ('eeee0000-0000-0000-0000-0000000000e2', (select id from _rc_b), 'update', 'tok-e2-update-0242');
+select _ok(not exists (select 1 from claim_rollcall_card_starts((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e2']::uuid[])),
+  '0242 fix round 1: an athlete who already has an update token (a card already exists) is never claimed for a fresh start');
+delete from rollcall_live_tokens where token = 'tok-e2-update-0242';
+
+-- fix round 1 (review round 1, Minor #1): claim_rollcall_card_starts also requires active
+-- membership, same as the board and the window codes.
+update team_members set status = 'removed' where team_id = '77777777-1111-0000-0000-000000000001'
+  and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+select _ok(not exists (select 1 from claim_rollcall_card_starts((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e2']::uuid[])),
+  '0242 fix round 1: a removed athlete is never claimed for a start, even start-eligible');
+update team_members set status = 'active' where team_id = '77777777-1111-0000-0000-000000000001'
+  and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+
+-- claim_rollcall_card_starts is the start-time rung's own retry, per athlete: with e2 back to
+-- start-eligible + active, it claims a still-pending, never-started athlete the open missed...
 select _ok((select array_agg(a) from claim_rollcall_card_starts((select id from _rc_b),
               array['eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2']::uuid[]) a)
            = array['eeee0000-0000-0000-0000-0000000000e2']::uuid[],
-  '0242 fix round: claim_rollcall_card_starts claims a still-pending athlete missed by the open (e1 already answered, so is never a start candidate)');
+  '0242 fix round: claim_rollcall_card_starts claims a still-pending, start-eligible athlete missed by the open (e1 already answered, so is never a start candidate)');
 -- ...and never claims the same athlete twice, so a card already attempted is never started again
--- (the one thing the old instance-level flag protected: no second Live Activity stacked on a
+-- (the one thing the once-per-athlete claim still protects: no second Live Activity stacked on a
 -- phone whose app never got to report its update token).
 select _ok(not exists (select 1 from claim_rollcall_card_starts((select id from _rc_b),
               array['eeee0000-0000-0000-0000-0000000000e2']::uuid[])),
@@ -4498,6 +4537,7 @@ update commitment_instances set starts_at = now() - interval '20 minutes', respo
 update commitment_responses set card_started_at = null
  where instance_id = (select id from _rc_b)
    and athlete_id in ('eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2');
+delete from rollcall_live_tokens where token = 'tok-e2-start-0242';
 drop table _rc_t4calls;
 
 -- ---- fix round 2026-09-23 (Task 3/4 family): active membership, on the window codes and the board ----

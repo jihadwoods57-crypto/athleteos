@@ -159,6 +159,45 @@ describe('cardPlanAtRung: who may START a card at a rung', () => {
   });
 });
 
+// ------------------------------------------------ fix round 1 (review round 1, Minor #2): the
+// starters/updaters × loud/quiet fan-out, extracted so it is tested directly.
+import { splitStartGroups } from './logic';
+describe('splitStartGroups: the start-time rung fan-out', () => {
+  const armed = new Set(['b']);
+  const isArmed = (id: string) => armed.has(id);
+
+  test('a fresh start goes only to the athlete just claimed; everyone else is update-only', () => {
+    const groups = splitStartGroups(['a', 'b', 'c'], isArmed, new Set(['a']));
+    expect(groups).toEqual([
+      { ids: ['a'], sound: 'default', allowStart: true },
+      { ids: ['c'], sound: 'default', allowStart: false },
+      { ids: ['b'], sound: '', allowStart: false },
+    ]);
+  });
+
+  test('an armed athlete who was just claimed still gets the quiet channel, and still starts', () => {
+    const groups = splitStartGroups(['b'], isArmed, new Set(['b']));
+    expect(groups).toEqual([{ ids: ['b'], sound: '', allowStart: true }]);
+  });
+
+  test('nobody just claimed: every group is update-only, none omitted for being empty', () => {
+    const groups = splitStartGroups(['a', 'b'], isArmed, new Set());
+    expect(groups).toEqual([
+      { ids: ['a'], sound: 'default', allowStart: false },
+      { ids: ['b'], sound: '', allowStart: false },
+    ]);
+  });
+
+  test('duplicate athlete ids are collapsed once', () => {
+    const groups = splitStartGroups(['a', 'a'], isArmed, new Set(['a']));
+    expect(groups).toEqual([{ ids: ['a'], sound: 'default', allowStart: true }]);
+  });
+
+  test('no athletes: no groups', () => {
+    expect(splitStartGroups([], isArmed, new Set())).toEqual([]);
+  });
+});
+
 import { reminderRoute } from './logic';
 
 describe('reminderRoute (roll call rebuilt, 2026-09-23)', () => {

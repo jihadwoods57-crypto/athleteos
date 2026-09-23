@@ -16,10 +16,10 @@
 //   supabase secrets set COMMITMENT_CRON_KEY=<long random string>
 //   supabase functions deploy commitment-reminders --use-api --no-verify-jwt
 // Then: select schedule_commitment_reminders('<fn url>', '<the same key>');
-import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { signRollCallCode } from '../_shared/rollcall-code.ts';
 import { rollCallCategoryId, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL } from '../_shared/rollcall-category.ts';
-import { composeReminderPush, codeDeadlineMs, platformCopy, isInitialPush, cardPlanAtRung, clockIn, reminderRoute, type ReminderRow } from './logic.ts';
+import { composeReminderPush, codeDeadlineMs, platformCopy, isInitialPush, cardPlanAtRung, splitStartGroups, clockIn, reminderRoute, type ReminderRow } from './logic.ts';
 import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
 import { pushLiveActivity, loadLiveCard, loadTeamBoard, windowCodesFor, ackUrlFor } from '../_shared/rollcall-live-send.ts';
 import { rollCallPushData, teamFields } from '../_shared/rollcall-live.ts';
@@ -48,6 +48,18 @@ function safeEqual(a: string, b: string): boolean {
 
 type Due = ReminderRow;
 
+/** Undo a start claim (commitment_responses.card_started_at) for athletes a push did not
+ *  genuinely reach, or after anything downstream of the claim threw — so the next minute's tick
+ *  claims and retries them instead of leaving them silently claimed forever (fix round 1, review
+ *  round 1, Important #1). Best effort and never throws: a release that itself fails just means
+ *  the retry happens a tick later than it could have. */
+async function releaseCardStarts(svc: SupabaseClient, instanceId: string, athleteIds: string[]): Promise<void> {
+  if (!athleteIds.length) return;
+  try {
+    await svc.rpc('release_rollcall_card_start', { p_instance: instanceId, p_athletes: athleteIds });
+  } catch { /* best effort */ }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
   if (!CRON_KEY || !safeEqual(req.headers.get('x-commitment-key') ?? '', CRON_KEY)) {
@@ -74,12 +86,17 @@ Deno.serve(async (req: Request) => {
   // I'm Up posts the check-in with the app closed. The alert is SILENT: the card lights the screen,
   // but the loud moment stays the start (the alarm, or the start-time rung below, which then
   // UPDATES this card with the coach's words and the sound instead of starting a second one).
-  // Claimed once per ATHLETE (commitment_responses.card_started_at, fix round 2026-09-23 — a
-  // once-per-INSTANCE claim meant an athlete the first pass missed, or whose attempt simply never
-  // reached Apple, got no card for the rest of the morning), before the early return: a tick with
-  // no reminder rungs due still has cards to open, and this same call runs every tick, so any
-  // athlete still unclaimed is picked up on a later one. No notification here: an athlete whose
-  // card did not start still gets the start-time notification, exactly as before.
+  // Claimed once per ATHLETE (commitment_responses.card_started_at), before the early return: a
+  // tick with no reminder rungs due still has cards to open, and this same call runs every tick.
+  // Fix round 1 (review round 1, Important #1): claim_rollcall_card_opens now only claims an
+  // athlete who is START-ELIGIBLE right now (an unrevoked push-to-start token, no card yet), so an
+  // athlete with no token at all is simply left unclaimed rather than claimed-and-wasted — the
+  // very next tick, once their phone registers one, claims them. And any athlete claimed here
+  // whose push does NOT land in pushLiveActivity's `live` set (APNs refused it, the token was
+  // gone) or whose push throws is released (release_rollcall_card_start) below, so the next
+  // tick's claim picks them straight back up instead of leaving them silently claimed forever.
+  // No notification here: an athlete whose card did not start still gets the start-time
+  // notification, exactly as before.
   const opened = { instances: 0, started: 0, skipped: 0, revoked: 0 };
   const apnsForOpen = apnsFromEnv((k) => Deno.env.get(k));
   if (apnsForOpen) {
@@ -92,20 +109,28 @@ Deno.serve(async (req: Request) => {
           opened.instances++;
           const ids = Array.isArray(o.athlete_ids) ? o.athlete_ids : [];
           if (!ids.length) continue;
-          const card = await loadLiveCard(svc, o.instance_id);
-          if (!card) continue;
-          const board = await loadTeamBoard(svc, o.instance_id);
-          const dl = clockIn(card.respond_by_at, card.timezone);
-          const title = card.title || 'Wake-Up Roll Call';
-          const r = await pushLiveActivity({
-            svc, apns, card, phase: 'initial', athleteIds: ids, allowStart: true,
-            alert: { title: card.coach_name || title, body: dl ? `${title} · up by ${dl}` : title, sound: '' },
-            team: (id) => teamFields(board, id),
-            ackCodes: await windowCodesFor(ACK_SECRET, card, ids),
-            ackUrl: ackUrlFor(SUPABASE_URL),
-            nowMs: Date.now(),
-          });
-          opened.started += r.started + r.updated; opened.skipped += r.skipped; opened.revoked += r.revoked;
+          try {
+            const card = await loadLiveCard(svc, o.instance_id);
+            if (!card) { await releaseCardStarts(svc, o.instance_id, ids); continue; }
+            const board = await loadTeamBoard(svc, o.instance_id);
+            const dl = clockIn(card.respond_by_at, card.timezone);
+            const title = card.title || 'Wake-Up Roll Call';
+            const r = await pushLiveActivity({
+              svc, apns, card, phase: 'initial', athleteIds: ids, allowStart: true,
+              alert: { title: card.coach_name || title, body: dl ? `${title} · up by ${dl}` : title, sound: '' },
+              team: (id) => teamFields(board, id),
+              ackCodes: await windowCodesFor(ACK_SECRET, card, ids),
+              ackUrl: ackUrlFor(SUPABASE_URL),
+              nowMs: Date.now(),
+            });
+            opened.started += r.started + r.updated; opened.skipped += r.skipped; opened.revoked += r.revoked;
+            const missed = ids.filter((id) => !r.live.has(id));
+            if (missed.length) await releaseCardStarts(svc, o.instance_id, missed);
+          } catch {
+            // Anything that threw after the claim (a bad card read, a push that blew up) leaves
+            // these athletes claimed with no attempt made — release so the next tick retries them.
+            await releaseCardStarts(svc, o.instance_id, ids);
+          }
         }
       }
     } catch { /* the RPC may not exist on an un-migrated stack; the rungs below are unaffected */ }
@@ -193,12 +218,12 @@ Deno.serve(async (req: Request) => {
       list.push(d);
       byInstance.set(d.instance_id, list);
     }
-    // Which (instance, athlete) pairs already have a start claimed (card_started_at, fix round
-    // 2026-09-23 — see the column comment in 0242). Per athlete, not per instance: an athlete the
-    // open pass never reached (a start token registered a minute late, a roll call made after its
-    // own open already passed) still gets a start attempt from THIS rung, below. Unknown (a read
-    // failure, an un-migrated stack) reads as NOT started, the pre-0242 behaviour: everyone gets an
-    // attempt.
+    // Which (instance, athlete) pairs already have a start claimed (card_started_at). Per
+    // athlete, not per instance: an athlete the open pass never reached (no start token yet at
+    // the open, a roll call made after its own open already passed) still gets a start attempt
+    // from THIS rung, below, once claim_rollcall_card_starts finds them start-eligible. Unknown (a
+    // read failure, an un-migrated stack) reads as NOT started, the pre-0242 behaviour: everyone
+    // is a start candidate below (claim_rollcall_card_starts still gates on eligibility either way).
     const started = new Set<string>(); // `${instanceId}:${athleteId}`
     if (byInstance.size) {
       try {
@@ -219,10 +244,12 @@ Deno.serve(async (req: Request) => {
       const phase = cardPlanAtRung(rows[0], true).phase;
       const board = await loadTeamBoard(svc, instanceId);
       const c = copy.get(rows[0])!;
-      // Claim a fresh start for whichever of this rung's athletes have never been claimed — the
-      // open pass may have missed them entirely. Atomic (claim_rollcall_card_starts), so a
+      // Claim a fresh start for whichever of this rung's athletes have never been claimed AND are
+      // start-eligible right now (claim_rollcall_card_starts checks the push-to-start token) — the
+      // open pass may have missed them entirely, or they had no token until just now. Atomic, so a
       // concurrent open-pass tick cannot also attempt the same athlete: only the ids it returns may
-      // start; anyone else in `rows` already has a claim (started or not) and gets update-only.
+      // start; anyone else in `rows` already has a claim (accepted, or awaiting release) or still
+      // has no start token, and gets update-only.
       let justClaimed = new Set<string>();
       if (phase === 'initial') {
         const candidates = [...new Set(rows.map((r) => r.athlete_id))]
@@ -237,30 +264,36 @@ Deno.serve(async (req: Request) => {
           } catch { /* best effort: nobody newly claimed here; the open pass may still catch them */ }
         }
       }
-      // Two axes: alarm-armed (sound on/off) and start-eligible (start vs update-only). The card IS
-      // the notification now, so its alert is what lights the phone up and plays the sound. Same
-      // words the suppressed notification would have carried.
-      const loud = [...new Set(rows.filter((x) => !isArmed(x)).map((x) => x.athlete_id))];
-      const quiet = [...new Set(rows.filter((x) => isArmed(x)).map((x) => x.athlete_id))].filter((id) => !loud.includes(id));
-      for (const [group, sound] of [[loud, 'default'], [quiet, '']] as Array<[string[], string]>) {
-        if (!group.length) continue;
-        const starters = group.filter((id) => justClaimed.has(id));
-        const updaters = group.filter((id) => !justClaimed.has(id));
-        for (const [ids, allowStart] of [[starters, true], [updaters, false]] as Array<[string[], boolean]>) {
-          if (!ids.length) continue;
+      // Two axes: alarm-armed (sound on/off) and start-eligible (start vs update-only) — pure,
+      // tested in logic.ts (splitStartGroups, review round 1, Minor #2). The card IS the
+      // notification now, so its alert is what lights the phone up and plays the sound. Same words
+      // the suppressed notification would have carried.
+      const armedIds = new Set(rows.filter((x) => isArmed(x)).map((x) => x.athlete_id));
+      const groups = splitStartGroups(rows.map((r) => r.athlete_id), (id) => armedIds.has(id), justClaimed);
+      for (const g of groups) {
+        try {
           const r = await pushLiveActivity({
             svc, apns, card, phase,
-            athleteIds: ids,
-            allowStart: phase === 'initial' && allowStart,
+            athleteIds: g.ids,
+            allowStart: phase === 'initial' && g.allowStart,
             team: (id) => teamFields(board, id),
-            ackCodes: (phase === 'initial' && allowStart) ? await windowCodesFor(ACK_SECRET, card, ids) : undefined,
+            ackCodes: (phase === 'initial' && g.allowStart) ? await windowCodesFor(ACK_SECRET, card, g.ids) : undefined,
             ackUrl,
-            alert: { title: c.title, body: c.subtitle ?? c.body, sound },
+            alert: { title: c.title, body: c.subtitle ?? c.body, sound: g.sound },
             nowMs: now,
           });
           live.started += r.started; live.updated += r.updated; live.ended += r.ended;
           live.revoked += r.revoked; live.skipped += r.skipped;
           for (const id of r.live) hasCard.add(id);
+          // Fix round 1 (review round 1, Important #1): a start we just claimed but that did not
+          // genuinely reach a device is released, so the next tick's claim retries it instead of
+          // leaving that athlete silently claimed for the rest of the morning.
+          if (g.allowStart) {
+            const missed = g.ids.filter((id) => !r.live.has(id));
+            if (missed.length) await releaseCardStarts(svc, instanceId, missed);
+          }
+        } catch {
+          if (g.allowStart) await releaseCardStarts(svc, instanceId, g.ids);
         }
       }
     }
