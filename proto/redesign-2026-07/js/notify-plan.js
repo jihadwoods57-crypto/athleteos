@@ -22,6 +22,7 @@
      rotate on a deterministic day seed so no sentence repeats within a day; weight stays
      trend-only. */
 import { fmtMin } from './requirements.js';
+import { ROLLCALL_OFF } from './commitments.js';
 
 export const DEFAULT_NOTIF_PREFS = {
   enabled: true,
@@ -437,10 +438,10 @@ export function planNotifications({
       id: `vc:${instanceId}:${c.at}`,
       fireAtMin: c.at, dayOffset, immediate: false, stage: 'commitment',
       // A wake-up opens its team board directly (roll call rebuilt, 2026-09-23): a cold launch
-      // through roll-call/<id> would only hand over to it. Every other commitment keeps its
-      // detail screen. The literal form mirrors commitments.js boardRoute (this file stays free
-      // of the commitments graph).
-      route: c.type === 'morning_roll_call' ? `rollcall-board/${instanceId}` : `roll-call/${instanceId}`,
+      // through roll-call/<id> would only hand over to it. Every other commitment, and every one
+      // while the roll call is switched off (ROLLCALL_OFF), keeps its detail screen. The literal
+      // form mirrors commitments.js boardRoute.
+      route: !ROLLCALL_OFF && c.type === 'morning_roll_call' ? `rollcall-board/${instanceId}` : `roll-call/${instanceId}`,
       title: c.title, subtitle: c.subtitle || null, body: c.body,
     });
   }

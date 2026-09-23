@@ -126,3 +126,18 @@ describe('closingSummary: one push to the coach when the window closes', () => {
     expect(summaryRoute('abc')).toBe('rollcall-board/abc/missed');
   });
 });
+
+import { lateRoute, digestRoute } from './logic';
+
+describe('push routes (roll call rebuilt, 2026-09-23)', () => {
+  test('a late wake-up opens its team board; a plain commitment keeps its detail', () => {
+    expect(lateRoute('morning_roll_call', 'i1')).toBe('rollcall-board/i1');
+    expect(lateRoute('practice', 'i1')).toBe('roll-call/i1');
+    expect(lateRoute(null, 'i1')).toBe('roll-call/i1');
+  });
+  test('a wake-up digest opens the board on the misses, the same route as its bell row and the summary', () => {
+    expect(digestRoute(true, 'i1')).toBe('rollcall-board/i1/missed');
+    expect(digestRoute(true, 'i1')).toBe(summaryRoute('i1'));
+    expect(digestRoute(false, 'i1')).toBe('coach-commitments/i1');
+  });
+});

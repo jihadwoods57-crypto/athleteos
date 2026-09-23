@@ -22,7 +22,7 @@
 // by default and no guardian rung is built here — a follow-up commit adds it once the founder
 // confirms the default and the guardianship link (0008). This fn ships L2 + L3 only.
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.110.0';
-import { digestBody, breakthroughCopy, platformCopy, LATE_ACTION_LABEL, closingSummary, summaryRoute } from './logic.ts';
+import { digestBody, breakthroughCopy, platformCopy, LATE_ACTION_LABEL, closingSummary, summaryRoute, lateRoute, digestRoute } from './logic.ts';
 import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
 import { pushLiveActivity, loadLiveCard, loadTeamBoard } from '../_shared/rollcall-live-send.ts';
 import { rollCallPushData, teamFields, type TeamBoard } from '../_shared/rollcall-live.ts';
@@ -319,9 +319,7 @@ Deno.serve(async (req: Request) => {
         ...(pc.subtitle ? { subtitle: pc.subtitle } : {}),
         body: pc.body,
         data: {
-          // A wake-up opens its team board (roll call rebuilt, 2026-09-23); roll-call/<id> still
-          // works on older pushes (the proto hands it over before painting).
-          route: isRollCall ? `rollcall-board/${r.instance_id}` : `roll-call/${r.instance_id}`, code,
+          route: lateRoute(r.type, r.instance_id), code,
           action_label: code ? LATE_ACTION_LABEL : null, from_coach: false,
           // Android: turns the card red and switches its chronometer from counting down to
           // counting up past the deadline. See modules/rollcall-live.
@@ -385,9 +383,9 @@ Deno.serve(async (req: Request) => {
         // the instance id — so until now the one deep link this whole escalation existed to deliver
         // landed a coach nowhere. `coach_code` rides alongside so the lock-screen actions can spend
         // it without a session (roll-call-coach).
-        // A wake-up's digest opens its team board (roll call rebuilt, 2026-09-23); a plain
-        // commitment keeps the coach's commitments board.
-        data: { route: wakeInsts.has(instId) ? `rollcall-board/${instId}` : `coach-commitments/${instId}`, coach_code: coachCode },
+        // digestRoute: a wake-up's digest opens the board on the misses, the same route as its
+        // bell row and the closing summary; a plain commitment keeps the commitments board.
+        data: { route: digestRoute(wakeInsts.has(instId), instId), coach_code: coachCode },
         // Only offer the buttons when a code was actually minted — a category with no credential
         // behind it would draw "Nudge them" and then do nothing when pressed.
         categoryId: coachCode ? COACH_DIGEST_CATEGORY : undefined,

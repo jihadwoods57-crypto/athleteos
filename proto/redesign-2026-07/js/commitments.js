@@ -869,7 +869,6 @@ export function commitmentReminders(rows, todayISO) {
         instance_id: r.instance_id,
         // The door the notification opens (notify-plan.js): a wake-up opens its team board.
         type: r.type || null,
-        occurs_on: r.occurs_on,
         title: (r.title && String(r.title).trim()) || TYPE_LABEL[r.type] || 'Commitment',
         body: r.respond_by_min != null
           ? `Respond by ${fmtMin(r.respond_by_min)}.`

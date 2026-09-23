@@ -149,7 +149,8 @@ test('every old roll call entry lands on the rebuilt screens', async () => {
   assert.match(cc, /data-go="rollcall-week\/\$\{esc\(NEXT\.commitmentId\)\}"/, 'the next roll call card changes a morning in the week strip');
   // The athlete doors.
   const plan = code('notify-plan.js');
-  assert.match(plan, /c\.type === 'morning_roll_call' \? `rollcall-board\/\$\{instanceId\}`/, 'a wake-up reminder opens the board on a cold launch');
+  assert.match(plan, /!ROLLCALL_OFF && c\.type === 'morning_roll_call' \? `rollcall-board\/\$\{instanceId\}`/,
+    'a wake-up reminder opens the board on a cold launch, and never while the roll call is off');
   const handoff = code('wakeup-handoff.js');
   assert.match(handoff, /data-go="rollcall-board\/\$\{esc\(receipt\.instanceId\)\}"/);
   const acct = code('screens', 'accountability.js');

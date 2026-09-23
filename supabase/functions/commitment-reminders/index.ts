@@ -18,7 +18,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { signRollCallCode } from '../_shared/rollcall-code.ts';
 import { rollCallCategoryId, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL } from '../_shared/rollcall-category.ts';
-import { composeReminderPush, codeDeadlineMs, platformCopy, isInitialPush, cardPlanAtRung, clockIn, type ReminderRow } from './logic.ts';
+import { composeReminderPush, codeDeadlineMs, platformCopy, isInitialPush, cardPlanAtRung, clockIn, reminderRoute, type ReminderRow } from './logic.ts';
 import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
 import { pushLiveActivity, loadLiveCard, loadTeamBoard, windowCodesFor, ackUrlFor } from '../_shared/rollcall-live-send.ts';
 import { rollCallPushData, teamFields } from '../_shared/rollcall-live.ts';
@@ -289,9 +289,7 @@ Deno.serve(async (req: Request) => {
       // The tap lands on the commitment itself, not Home — the last inch of the loop. `code` lets
       // a lock-screen action button ack without opening the app; empty when the secret isn't set.
       data: {
-        // A wake-up opens its team board (roll call rebuilt, 2026-09-23); every other commitment
-        // its detail. Older pushes' roll-call/<id> is handed over by the proto before it paints.
-        route: d.type === 'morning_roll_call' ? `rollcall-board/${d.instance_id}` : `roll-call/${d.instance_id}`,
+        route: reminderRoute(d.type, d.instance_id),
         code, action_label: d.action_label, from_coach: c.fromCoach,
         // Read on Android by RollCallPresentationDelegate (modules/rollcall-live) to turn this into
         // an alarm-grade notification: a countdown the OS ticks to `rc_deadline`, the alarm

@@ -151,3 +151,16 @@ test('isRollcall lives in the pure module and matches the setup screen’s arriv
   assert.equal(isRollcall({ type: 'practice', location_id: 'l', escalation: { rollcall: true } }), true);
   assert.equal(isRollcall({ type: 'practice', location_id: 'l', escalation: {} }), false, 'a composer practice is not claimed');
 });
+
+test('a local wake-up reminder opens the board; any other commitment its detail', async () => {
+  const { planNotifications } = await import('./notify-plan.js');
+  const { commitmentReminders } = await import('./commitments.js');
+  const rows = [
+    { instance_id: 'w1', type: 'morning_roll_call', occurs_on: today, status: 'pending', starts_min: 600, respond_by_min: 605, reminder_offsets_min: [5] },
+    { instance_id: 'p1', type: 'practice', occurs_on: today, status: 'pending', starts_min: 900, reminder_offsets_min: [15] },
+  ];
+  const plan = planNotifications({ nowMin: 60, dateISO: today, commitments: commitmentReminders(rows, today) });
+  const route = (id) => (plan.find((n) => String(n.id).startsWith(`vc:${id}:`)) || {}).route;
+  assert.equal(route('w1'), 'rollcall-board/w1');
+  assert.equal(route('p1'), 'roll-call/p1');
+});

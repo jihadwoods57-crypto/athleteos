@@ -11,6 +11,7 @@ import { PROTO_VERSION } from './protoVersion';
 import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
 import { authenticateBiometric } from '../lib/auth/biometrics';
 import { parseInviteCode } from '../lib/inviteLink';
+import { rollCallRouteFromUrl } from '../lib/rollCallLink';
 import { runRollCallAck, drainAckQueue, ensureRollCallCategories, rememberRollCallLabel, registerCoachDigestCategory, runCoachAction, drainCoachQueue, registerRollCallBackgroundTask, ensureLiveActivityTokens, drainLiveActivityTaps, takeBoardRoute } from '../lib/notify/rollcall';
 import { routeNotificationResponse } from '../core/rollcall';
 import { installForegroundNotificationHandler } from '../lib/notify/foreground';
@@ -222,6 +223,21 @@ export function ProtoApp() {
       .then((resp) => handleResponse(resp))
       .catch(() => undefined);
     const sub = Notifications.addNotificationResponseReceivedListener((resp) => handleResponse(resp));
+    return () => sub.remove();
+  }, [deliverRoute]);
+
+  // The lock-screen widget's body tap (onstandard://roll-call/<id>, OnStandardWidget.swift) opens
+  // that morning's team board. Cold start via getInitialURL, warm via the url event; deliverRoute
+  // holds it until the WebView has loaded. Any other URL maps to null and is left to the invite
+  // handler above.
+  React.useEffect(() => {
+    Linking.getInitialURL()
+      .then((url) => { const r = rollCallRouteFromUrl(url); if (r) deliverRoute(r); })
+      .catch(() => undefined);
+    const sub = Linking.addEventListener('url', ({ url }) => {
+      const r = rollCallRouteFromUrl(url);
+      if (r) deliverRoute(r);
+    });
     return () => sub.remove();
   }, [deliverRoute]);
 

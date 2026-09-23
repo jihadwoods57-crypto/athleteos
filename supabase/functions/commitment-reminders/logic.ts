@@ -168,3 +168,10 @@ export function cardPlanAtRung(row: ReminderRow, cardOpened: boolean): { phase: 
   if (!isInitialPush(row)) return { phase: 'reminder', allowStart: false };
   return { phase: 'initial', allowStart: !cardOpened };
 }
+
+/** The reminder push's tap target: a wake-up opens its team board (roll call rebuilt,
+ *  2026-09-23); every other commitment its detail. Older pushes' roll-call/<id> is handed over by
+ *  the proto before it paints. */
+export function reminderRoute(type: string | null | undefined, instanceId: string): string {
+  return type === 'morning_roll_call' ? `rollcall-board/${instanceId}` : `roll-call/${instanceId}`;
+}

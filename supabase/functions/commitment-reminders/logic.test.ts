@@ -158,3 +158,13 @@ describe('cardPlanAtRung: who may START a card at a rung', () => {
     expect(cardPlanAtRung(reminder, false)).toEqual({ phase: 'reminder', allowStart: false });
   });
 });
+
+import { reminderRoute } from './logic';
+
+describe('reminderRoute (roll call rebuilt, 2026-09-23)', () => {
+  test('a wake-up reminder opens its team board; a plain commitment keeps its detail', () => {
+    expect(reminderRoute('morning_roll_call', 'i1')).toBe('rollcall-board/i1');
+    expect(reminderRoute('study_hall', 'i1')).toBe('roll-call/i1');
+    expect(reminderRoute(undefined, 'i1')).toBe('roll-call/i1');
+  });
+});

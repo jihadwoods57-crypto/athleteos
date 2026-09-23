@@ -52,12 +52,14 @@ function wakeupSection(rows, loading) {
     <h2 class="eyebrow">Roll call <span class="opt">${esc(line)}</span></h2>
     <section class="card rows">
       ${h.slice(0, 30).map((x) => {
+        // A row with no instance id has nowhere to go: no data-go at all, never data-go="".
+        const go = athleteRollcallRoute({ ...x, type: 'morning_roll_call' }, today);
         const [cls, label] = VERDICT_PILL[x.verdict] || ['muted', x.verdict];
         const sub = x.verdict === VERDICT.PENDING ? `Answer by ${x.due}`
           : x.at ? `${x.at}${x.verdict === VERDICT.LATE && x.lateMin ? ` · ${x.lateMin} min late` : ''}`
           : x.verdict === VERDICT.MISSED ? `No answer by ${x.due}` : '';
         return `
-        <div class="lrow wk-hist" data-go="${esc(athleteRollcallRoute({ ...x, type: 'morning_roll_call' }, today))}">
+        <div class="lrow wk-hist"${go ? ` data-go="${esc(go)}"` : ''}>
           <div class="lm"><div class="lt">${esc(dayLabel(x.occurs_on, today))}</div><div class="ls">${esc(sub)}</div></div>
           <span class="status-pill ${cls}">${esc(label)}</span>
         </div>`;

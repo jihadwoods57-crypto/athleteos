@@ -129,3 +129,18 @@ export function closingSummary(board: SummaryBoard): { title: string; body: stri
 export function summaryRoute(instanceId: string): string {
   return `rollcall-board/${instanceId}/missed`;
 }
+
+/** The late (breakthrough) push's tap target for an athlete: a wake-up opens its team board (roll
+ *  call rebuilt, 2026-09-23); every other commitment keeps its detail screen. Older pushes'
+ *  roll-call/<id> still works: the proto hands it over before it paints. */
+export function lateRoute(type: string | null | undefined, instanceId: string): string {
+  return type === 'morning_roll_call' ? `rollcall-board/${instanceId}` : `roll-call/${instanceId}`;
+}
+
+/** The coach digest push's tap target. The digest writes the same bell kind as the closing
+ *  summary (`commitment_escalation:<id>`, which notif-feed.js opens on /missed), so a wake-up's
+ *  digest opens the same place: the board on the misses. A plain commitment keeps the coach's
+ *  commitments board. */
+export function digestRoute(isWake: boolean, instanceId: string): string {
+  return isWake ? summaryRoute(instanceId) : `coach-commitments/${instanceId}`;
+}
