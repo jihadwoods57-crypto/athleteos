@@ -49,7 +49,9 @@ test('the composer reaches meal-chat — a screen that names the AI must be able
 });
 
 test('the athlete sees that a reply is coming — a typing row exists', () => {
-  assert.match(SRC, /tdots/, 'a question with no visible acknowledgement reads as a dropped message');
+  // The row itself is shared now (chat-view.js typingRowHtml, placed by chat-live.js syncLive).
+  assert.match(SRC, /setAiWorking\(NC, on/, 'a question with no visible acknowledgement reads as a dropped message');
+  assert.match(SRC, /syncLive\(threadEl, NC/, 'the typing row is placed after every paint');
   assert.match(SRC, /setTyping/, 'the typing state has to be toggled, not merely declared');
 });
 

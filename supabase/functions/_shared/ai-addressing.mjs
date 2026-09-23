@@ -84,8 +84,44 @@ const NUTRITION_WORDS = [
   'portion', 'serving', 'shake', 'supplement', 'creatine', 'nutrition', 'diet', 'weight',
   'bulk', 'cut', 'cutting', 'deficit', 'surplus', 'gram', 'grams', 'oz', 'ounces', 'plate',
   'score', 'target', 'goal', 'remaining', 'left over', 'leftover', 'pregame', 'postgame',
-  'recovery meal', 'fuel', 'fueling', 'fuelling',
+  'recovery meal', 'fuel', 'fueling', 'fuelling', 'drink', 'drinks', 'drinking', 'label',
 ];
+
+/* THE 12:44 INCIDENT (2026-09-22). An athlete posted a photo of a protein shake with "I'm also
+   drinking this" under the AI's meal read, with their coach in the room, and the AI said nothing.
+   It is a statement, not a question, and it names nobody, so every rule below fell through to
+   silence. But it is the most AI-shaped message a meal thread gets: the athlete is telling the
+   nutritionist what else went into THIS meal, so it can be counted.
+
+   "About this meal" is the load-bearing part. "I had eggs and toast" answering a coach's "what did
+   you have for breakfast?" is the other half of THEIR exchange. What makes a message an addition
+   to this plate is an additive word (also, too, forgot) or a pointer at the thing in the photo
+   (this, that), together with eating or drinking. Food nouns widen "had" just enough to catch "I
+   also had a roll" without catching "I had practice too". */
+const FOOD_WORDS = NUTRITION_WORDS.concat([
+  'roll', 'rolls', 'bread', 'toast', 'bagel', 'rice', 'pasta', 'milk', 'chocolate milk', 'juice',
+  'soda', 'coffee', 'tea', 'gatorade', 'powerade', 'smoothie', 'bar', 'protein bar', 'yogurt',
+  'fruit', 'apple', 'banana', 'orange', 'chips', 'fries', 'cookie', 'cookies', 'dessert', 'side',
+  'salad', 'egg', 'eggs', 'cheese', 'chicken', 'beef', 'steak', 'fish', 'sandwich', 'wrap',
+  'burger', 'pizza', 'oatmeal', 'cereal', 'peanut butter', 'nuts', 'granola', 'bottle', 'can',
+]);
+const EAT_VERB = /\b(eat|eats|eating|ate|drink|drinks|drinking|drank|sip|sips|sipping|sipped|chug|chugged|chugging)\b/;
+const HAD_VERB = /\b(had|having|grabbed)\b/;
+const ADDITIVE = /\b(also|too|as well|plus|with it|with this|with that|on the side)\b/;
+const LEFT_OUT = /\b(forgot|forgot to (log|add)|left out|left off|didn't (log|add|include)|did not (log|add|include)|missed)\b/;
+const DEICTIC = /\b(this|that|these|those)\b/;
+const FUTURE = /\b(i'll|ill|i will|gonna|going to|next time|tomorrow|later)\b/;
+
+/** Is the athlete telling the room something ELSE went into this meal? Takes normalised text. */
+export function addsFoodToThisMeal(low) {
+  const t = String(low || '');
+  if (!t || FUTURE.test(t)) return false;
+  const food = FOOD_WORDS.some((w) => hasWord(t, w));
+  if (LEFT_OUT.test(t)) return food || DEICTIC.test(t);
+  if (!ADDITIVE.test(t) && !DEICTIC.test(t)) return false;
+  if (EAT_VERB.test(t)) return true;
+  return HAD_VERB.test(t) && (food || DEICTIC.test(t));
+}
 
 /* Nutrition talk that is dangerous enough to be worth breaking silence for, unprompted. Kept SMALL
    and specific on purpose: a false positive here is the AI barging into a private conversation,
@@ -174,16 +210,30 @@ export function shouldAiRespond(message, context) {
   const msg = message || {};
   const ctx = context || {};
   const participants = Array.isArray(ctx.participants) ? ctx.participants : [];
-  const history = Array.isArray(ctx.history) ? ctx.history : [];
+  let history = Array.isArray(ctx.history) ? ctx.history : [];
   const text = String(msg.text == null ? '' : msg.text);
   const low = norm(text);
   const flat = bare(text);
+  const photo = msg.photo === true;
+  const fromAthlete = norm(msg.senderRole) === 'athlete';
+
+  /* THE MESSAGE IS NOT ITS OWN HISTORY (2026-09-22). The meal thread refreshes before it decides,
+     so the row it is deciding about was already the last line of `history`. Every adjacency rule
+     then saw "the athlete spoke last" instead of "the AI spoke last", and a question aimed straight
+     at the AI's read fell through to silence. The echo is dropped here, on both halves of the
+     mirror, whatever the caller sent. */
+  const tail = history.length ? history[history.length - 1] : null;
+  if (tail && (msg.id
+    ? tail.id != null && String(tail.id) === String(msg.id)
+    : tail.senderId && msg.senderId && String(tail.senderId) === String(msg.senderId) && norm(tail.text) === low)) {
+    history = history.slice(0, -1);
+  }
 
   const NOBODY = recipient('unknown', null, 'none');
 
   // The AI never answers itself, and never answers a system/receipt row.
   if (isAiRole(msg.senderRole)) return verdict(false, recipient('ai', { role: 'ai' }, 'self'), 1, 'the AI does not reply to itself');
-  if (!low) return verdict(false, NOBODY, 1, 'empty message');
+  if (!low && !photo) return verdict(false, NOBODY, 1, 'empty message');
 
   /* ---------------- 0. danger outranks every addressing rule ----------------
      An athlete saying "gonna stop eating till weigh-ins" to their COACH is still an athlete about
@@ -266,7 +316,18 @@ export function shouldAiRespond(message, context) {
     return verdict(false, recipient('unknown', null, 'named'), 0.5, 'names both a person and the AI: ambiguous, staying out');
   }
 
+  /* ---------------- 3b. the athlete showing or telling the nutritionist what they ate ----------------
+     Above adjacency on purpose (2026-09-22). A photo the athlete posts on their own meal thread
+     is food for the read unless they pointed it at a person, and the rules above have already
+     sent every message that names or @mentions a person to that person. A caption does not
+     change that: "I'm also drinking this" under a shake is the clearest ask this thread gets. */
+  if (fromAthlete && photo) {
+    return verdict(true, recipient('ai', aiParticipant, 'semantic'), 0.85, 'the athlete posted a photo on their own meal thread');
+  }
   if (isAck) return verdict(false, recipient('human', null, 'adjacency'), 0.9, 'an acknowledgement, not a question');
+  if (fromAthlete && addsFoodToThisMeal(low)) {
+    return verdict(true, recipient('ai', aiParticipant, 'semantic'), 0.8, 'the athlete added food or drink to this meal');
+  }
 
   /* ---------------- 4. conversational adjacency ---------------- */
   const prev = lastHumanOrAi(history);
@@ -315,7 +376,7 @@ export function shouldAiRespond(message, context) {
 function lastHumanOrAi(history) {
   for (let i = history.length - 1; i >= 0; i--) {
     const h = history[i];
-    if (!h || !h.text) continue;
+    if (!h || (!h.text && h.photo !== true)) continue;
     if (h.system === true) continue;
     return h;
   }

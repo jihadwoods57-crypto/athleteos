@@ -58,9 +58,14 @@ export function gateVerdict(body, context, modes) {
   const thread = context && Array.isArray(context.thread) ? context.thread : [];
   if (!isStructured(body, thread)) return null;
   const speaker = body.speaker;
-  const text = (body.question != null && String(body.question)) || speaker.text || '';
+  // A wordless photo reaches this function with a stand-in question ("I sent a photo..."), so the
+  // speaker's OWN text is what was actually said when the client says it sent a photo.
+  const photo = speaker.photo === true || (typeof body.photoPath === 'string' && !!body.photoPath.trim());
+  const text = photo && typeof speaker.text === 'string'
+    ? speaker.text
+    : (body.question != null && String(body.question)) || speaker.text || '';
   return shouldAiRespond(
-    { ...speaker, text },
+    { ...speaker, text, photo },
     {
       participants: Array.isArray(body.participants) && body.participants.length
         ? body.participants

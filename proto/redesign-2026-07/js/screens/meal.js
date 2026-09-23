@@ -25,7 +25,6 @@ import { scrollThreadToEnd, focusComposer } from '../keyboard.js';
 import { recentRows, warmRecent as warmRecentShared } from '../recent-meals.js';
 import { foodMemory, warmFoodMemory } from '../food-memory-data.js';
 import { remainingToday } from '../food-memory.js';
-import { wireReadMore } from '../thread-readmore.js';
 import { decideAiTurn } from '../ai-thread.js';
 import {
   layoutThread, visibleThread, MUTED_HIDDEN_NOTE,
@@ -34,9 +33,15 @@ import {
   memoryOfferOf, memoryOfferChips,
   mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
-  isCorrectionReceipt, correctionRowsOf,
+  isCorrectionReceipt, receiptCardHtml, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta,
+  personText, workingLabel,
 } from '../chat-view.js';
 import { wireChatTimes } from '../chat-times.js';
+import {
+  beginSend, endSend, takeFailed, setAiWorking, aiWorkingOf,
+  setReply, replyOf, clearReply, paintReplyChip, noteArrivals, syncLive, syncJump,
+  bindLive, wireThreadTaps,
+} from '../chat-live.js';
 
 /* The meal score chip's ring, drawn as the brand dial (docs/brand/LOGO.md): a 300° gauge with
    a 60° gap at 6 o'clock and the signature --ring-a/b/c sweep — the same silhouette as the day
@@ -85,9 +90,6 @@ async function warmRecent(rolesMod, uid) {
   const rows = await warmRecentShared(rolesMod, uid);
   if (rows && rows !== before && location.hash.startsWith('#meal-')) window.__render && window.__render();
 }
-/* "Read more" expansions the athlete has opened this session — keyed on each bubble's own text
-   head so they survive every thread repaint (and a navigate-away-and-back). */
-const expandedBubbles = new Set();
 
 // Thread cache (deep audit 2026-08-19). The router remounts this screen on every render, and
 // each mount awaited a full comment fetch and tore down + rebuilt the realtime channel — a
@@ -1749,21 +1751,9 @@ export const thread = {
     const participants = PARTICIPANTS.uid === RT.userId ? PARTICIPANTS.rows : [];
     const dayKey = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
 
-    // The AI is composing something — the plate is being read, or a question is being answered.
-    // A live indicator instead of a static "thinking" card, because that is what every other
-    // conversation this athlete has ever had looks like while someone types.
-    let aiTyping = false;
-    // The message the athlete JUST sent, by id, for the beat its bubble rises out of the composer
-    // (screens.css .msg.in). On a timer, not a paint: the typing row repaints the thread within
-    // that beat, and a class that lived one paint cut the motion short every time.
-    let JUST_SENT = null;
-    let JUST_SENT_T = null;
-    const typingRow = () => `
-        <div class="msg ai typing" id="ai-typing">
-          <div class="av">${icon('sparkle', 15)}</div>
-          <div class="stack"><div class="who">AI Nutritionist is typing<span class="sr-only">, a reply is on its way</span></div>
-          <div class="bubble tdots"><span></span><span></span><span></span></div></div>
-        </div>`;
+    // The AI is composing something: the plate is being read, or a question is being answered.
+    // The flag lives in chat-live.js, keyed to this meal, so a repaint (or a re-mount) cannot
+    // drop it and any screen showing this thread draws the same typing row (typingRowHtml).
 
     /* THE RECOMPUTE RECEIPT (2026-09-07).
        A chat correction rewrote protein, calories and the meal score in a card that is almost
@@ -1910,7 +1900,7 @@ export const thread = {
     const suggestItems = () => { const fm = foodMemory(RT.userId); return fm ? fm.items : []; };
     const bubbleText = (c) => {
       const sug = mealSuggestOf(c);
-      if (!sug) return c.role === 'ai' ? richText(c.text, esc) : esc(c.text);
+      if (!sug) return c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc);
       return mealSuggestHtml(sug, fillMealSuggestion(sug, suggestItems(), suggestRemaining()), esc);
     };
 
@@ -1935,7 +1925,7 @@ export const thread = {
       const Noun = S.coach.noun.charAt(0).toUpperCase() + S.coach.noun.slice(1);
       if (csEl && coachSeen) csEl.textContent = `${Noun} replied`;
       const tail = [];
-      if (!msgs.length && !aiTyping) tail.push('No replies yet. Ask below and the AI Nutritionist answers from your plan.');
+      if (!msgs.length && !aiWorkingOf(M.mealId)) tail.push('No replies yet. Ask below and the AI Nutritionist answers from your plan.');
       if (S.coach.hasCoach && !coachSeen && !dayReviewed && !daySeen) tail.push(`Your ${S.coach.noun} hasn't opened this yet.`);
 
       // The pending / clarifying / failed rows are DERIVED, because they describe a read that has
@@ -1968,6 +1958,11 @@ export const thread = {
       const shown = visible.slice(-PREVIEW_MSGS);
       const hiddenCount = visible.length - shown.length;
       const lastMsg = visible.length ? visible[visible.length - 1] : null;
+      // New since the last paint: their entrance (fresh) and, when the reader is scrolled back,
+      // the jump pill's count (added). chat-live.js keeps this per meal across re-mounts.
+      const { fresh, added } = noteArrivals(M.mealId, visible, RT.userId);
+      const rxAt = reactionAnchor(visible);
+      const nameOfRow = (x) => (x.role === 'athlete' && (!x.author_id || x.author_id === RT.userId) ? 'You' : authorName(x, participants, RT.userId, S.coach.noun));
       const rows = layoutThread(shown, { muted: RT.mutedUsers, fmtTime: fmtMsgTime, fmtDay: dayKey, fmtDayLabel: dayLabelOf }).map((item) => {
         if (item.type === 'time') return timeSepHtml(item, esc);
         const c = item.comment;
@@ -1976,21 +1971,7 @@ export const thread = {
            files a second receipt instead of overwriting the first. Historical ones land on their
            final values with no count-up: the animation belongs to the change as it happens, not
            to a record of it being re-read. */
-        const receiptRows = correctionRowsOf(c);
-        if (receiptRows.length) {
-          return `
-        <div class="msg ai last" data-receipt="${esc(String(c.id || ''))}">
-          <div class="av">${icon('sparkle', 15)}</div>
-          <div class="corr-card in landed" role="status">
-            <div class="corr-head">${icon('check', 14)}<span>Updated</span></div>
-            ${receiptRows.map((r) => `
-              <div class="corr-row${r.score ? ' corr-score' : ''}">
-                <span class="ck">${esc(r.label)}</span>
-                <span class="cv"><i class="was">${esc(String(r.from) + r.unit)}</i>${icon('arrowRight', 12)}<b class="${esc(r.band)}">${esc(String(r.to) + r.unit)}</b></span>
-              </div>`).join('')}
-          </div>
-        </div>`;
-        }
+        if (isCorrectionReceipt(c)) return receiptCardHtml(c, esc, { fresh: fresh.has(String(c.id)) });
         const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
         const who = authorName(c, participants, RT.userId, S.coach.noun);
         const update = isAnalysisUpdate(c);
@@ -1998,11 +1979,13 @@ export const thread = {
         // From `visible`, like every other anchor: a quote stem must not paint a muted
         // person's words under a bubble the filter kept. No stem is the honest render.
         const quoted = update ? quotedFor(c, visible) : null;
+        // A reply someone composed (swipe or hold > Reply): the quote of what it answers.
+        const rq = quoted ? '' : replyQuoteHtml(replyQuote(c, visible, RT.mutedUsers, nameOfRow), esc);
         // Reactions belong to the whole thread (0049 keys them to the meal, not to a message), so
         // they sit on the LAST bubble in it — the one the eye lands on. Putting them on the last
         // message of every run repeated the same pill down the page as if four people had each
         // reacted separately.
-        const rx = c === lastMsg ? reactionGroups(comments) : [];
+        const rx = c === rxAt ? reactionGroups(comments) : [];
         // An attached photo renders ABOVE the text, and the text is suppressed when it is only the
         // NOT-NULL stand-in — a bubble reading "Sent a photo" under the photo it is describing is
         // noise. The src is filled in after paint (signed URLs are async); until then the element
@@ -2012,13 +1995,13 @@ export const thread = {
         // The face rides the LAST bubble of a run, the name the first (chat-view.js msgRowClass;
         // `last` carries the tail). `in` is the one row the athlete just sent, rising from the box.
         const cls = msgRowClass({ mine, role: c.role, firstOfRun: item.firstOfRun, lastOfRun: item.lastOfRun, hasRx: rx.length > 0, photoOnly })
-          + (JUST_SENT && c.id === JUST_SENT ? ' in' : '');
+          + (fresh.has(String(c.id)) ? ' in' : '');
         return `
-        <div class="${cls}">
+        <div class="${cls}" data-cid="${esc(String(c.id || ''))}">
           ${!mine && item.lastOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
           <div class="stack">
             ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
-            ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
+            ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : rq}
             ${/* The "Updated analysis" badge is gone (founder 2026-08-05: robotic) — a correction
                   reply is just the AI's next message, like a person texting back. The quote stem
                   above already shows WHAT it answers. The escalation badge stays: "this reached
@@ -2086,26 +2069,38 @@ export const thread = {
       const strandedRxHtml = strandedRx.length
         ? `<div class="rx-strip">${strandedRx.map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('')}</div>`
         : '';
-      threadEl.innerHTML = coachPin + openingLead + earlierBtn + rows + strandedRxHtml + openingTail + (aiTyping ? typingRow() : '') + corrReceipt()
+      threadEl.innerHTML = coachPin + openingLead + earlierBtn + rows + strandedRxHtml + openingTail + corrReceipt()
         + (seen ? `<div class="seen">${seen}</div>` : '')
         + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
       hydrateAvatars(threadEl);   // 0206: message monograms upgrade to real faces
-      // READ MORE (founder 2026-08-05): a long AI message clamps to its first four lines with a
-      // quiet expander — the core coaching stands alone; history/hedges are there for whoever
-      // wants them. The implementation moved to thread-readmore.js so the Nutrition chat, the
-      // coach's view and the trust thread get the same control: they render the same opener,
-      // which is composed on the promise that a client clamps it.
-      wireReadMore(threadEl, expandedBubbles);
+      // FULL MESSAGES, ALWAYS (founder 2026-09-22). The Read more clamp is gone from every
+      // renderer: the AI's read is long on purpose (2026-09-07 ruling) and a message you have to
+      // open is a message half-sent. Line length is held by the bubble's own measure (screens.css).
+      // The outbox bubble and the typing row, placed after the paint that just wiped them.
+      placeLive();
       // `.thread` is a flex column, not a scroller — this line used to set scrollTop on an element
       // that has never had any, so a repaint moved nothing. The screen's scroller is #viewport.
       // Unforced, so the 15s poll can only re-pin a reader who was already at the end of the
       // conversation; someone scrolled up reading the breakdown stays where they put themselves.
       scrollThreadToEnd(threadEl);
+      syncJump(threadEl, M.mealId, { dock: root.querySelector('#meal-disc .chat-dock'), added });
       void hydrateThreadPhotos(threadEl, roles);
       playCorrReceipt(threadEl);
     };
+    // The live rows (chat-live.js): the bubble being sent and the AI at work. Re-placed after
+    // every paint and on every change of that state, never by a re-render (it would rebuild the
+    // box someone may be typing in).
+    const placeLive = () => {
+      const el = root.querySelector('#meal-thread');
+      if (!el) return;
+      const sending = syncLive(el, M.mealId, { esc, imgSrc: safeImg });
+      scrollThreadToEnd(el, { force: sending });
+    };
 
-    const setTyping = (on) => { aiTyping = !!on; paint(); };
+    // The AI-at-work hook, labelled from the thread: a photo nobody has answered yet means the
+    // model is reading a picture, and it says so rather than showing three dots for ten seconds.
+    // `label` overrides the derived one: a turn carrying a photo says what the AI is doing.
+    const setTyping = (on, label = '') => setAiWorking(M.mealId, on, { label: on ? (label || workingLabel(visibleThread(threadMessages(comments), RT.mutedUsers))) : '' });
     let lastFetchFp = cacheHit ? THREAD_CACHE.fp : null;   // fingerprint of the last painted fetch (see refresh below)
     // opts.probe: only the idle poll tick passes this (see scheduleTick below). Every other
     // caller — initial mount, send, reaction toggle, retry, the realtime doorbell — wants the
@@ -2139,7 +2134,9 @@ export const thread = {
       // re-mounted refresh a no-op, so this cannot loop.
       let proApplied = false;
       for (const c of Array.isArray(comments) ? comments : []) {
-        if (c && c.meta && c.meta.t === 'pro_correction') {
+        // 'ai_addition' (2026-09-22): food the AI added from this athlete's own photo or words
+        // at their coach's request. Same engine, same once-per-id marker (state.js).
+        if (c && c.meta && (c.meta.t === 'pro_correction' || c.meta.t === 'ai_addition')) {
           if (act.applyProCorrection(M.slot, c)) proApplied = true;
         }
       }
@@ -2369,6 +2366,10 @@ export const thread = {
     // with the service role, so the client cannot make the model look at anything the athlete did
     // not actually attach to this thread.
     const askAI = async (text, photoPath = null, turn = null) => {
+      // THE AI IS WORKING, visibly, from the moment it is asked (2026-09-22). This used to wait on
+      // two fetches first, so the athlete stared at a quiet thread for a beat and could not tell
+      // a turn was coming at all.
+      setTyping(true, photoPath ? 'Reading the photo' : '');
       try {
         const recent = await roles.fetchRecentMeals(RT.userId, roles.daysAgoISO(7)).catch(() => []);
         // Saved usual meals, so the AI can name what THEY eat and the suggest_meal bubble has
@@ -2404,7 +2405,6 @@ export const thread = {
           thread: turn ? turn.thread : threadMessages(comments).slice(-20).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
           usualMeals: suggestItems(),
         });
-        setTyping(true);
         const { data, error } = await window.sb.functions.invoke('meal-chat', {
           body: {
             mealId: M.mealId,
@@ -2544,41 +2544,36 @@ export const thread = {
       root, attachId: 'meal-attach', pendingId: 'meal-attach-pending', safeImg, onNote: (m) => setNote(m),
     });
 
-    const submit = async () => {
-      const typed = (input.value || '').trim();
-      const pendingPhoto = attach.get();
-      // A photo alone is a complete message — post-0173 it sends with genuinely empty text, and
-      // postChatMessage falls back to the legacy stand-in if this database still carries 0046's
-      // original length floor.
-      if ((!typed && !pendingPhoto) || busy) return;
-      // The 3-message wall is gone (0157): this is a conversation now, and the database backstop
-      // sits far past anything a person would type. Nothing to warn about up front.
-      busy = true; setNote('');
-      input.value = '';
-      if (pendingPhoto) setNote('Uploading photo…');
+    /* ONE SEND IS ONE INTENT (2026-09-22). The lock, the outbox bubble and the duplicate window
+       live in chat-live.js, keyed to the meal, because this mount is re-run on every render and
+       a `busy` flag in it was forgotten by the next one. The bubble shows the moment Send is
+       tapped ("Sending…"), the box clears, and a send that never lands stays on screen as "Not
+       delivered" with a retry instead of vanishing. */
+    const deliver = async (item) => {
+      const typed = item.text;
+      const pendingPhoto = item.photo;
       // Upload happens BEFORE the row is written: a comment whose meta points at an object that
       // failed to upload would render a permanently broken image. On upload failure nothing is
-      // posted at all, rather than silently dropping the picture from a message about it.
+      // posted at all, and the bubble stays with its picture for the retry.
       const res = await postChatMessage(roles, {
         mealId: M.mealId, athleteId: RT.userId, authorId: RT.userId, role: 'athlete',
-        text: typed, photo: pendingPhoto,
+        text: typed, photo: pendingPhoto, replyTo: item.replyTo || null,
       });
+      endSend(M.mealId, item.lid, { ok: res.ok });
       const photoPath = res.photoPath;
-      if (res.ok) {
-        attach.clear();
-        setNote('');
-        // The seconds right after sending are when the athlete is actually watching for a reply.
-        startBurst();
-      } else {
-        // Give the text back — re-submitting IS the retry — and don't reach the AI for a question
-        // that never landed. The photo stays held so it is not lost with it.
-        input.value = typed;
-        setNote(res.error === 'filtered' ? FILTERED_NOTE : res.error === 'upload'
-          ? "Couldn't upload that photo. Try again, or remove it and send."
-          : "Couldn't send. Try again.");
-        busy = false;
+      if (!res.ok) {
+        if (res.error === 'filtered') {
+          // A retry would be refused the same way: take the bubble back and hand the words back.
+          takeFailed(M.mealId, item.lid);
+          const box = root.querySelector('#meal-msg');
+          if (box && !box.value) box.value = typed;
+          setNote(FILTERED_NOTE);
+        } else if (res.error === 'upload') setNote("Couldn't upload that photo. Tap the message to try again.");
         return;
       }
+      setNote('');
+      // The seconds right after sending are when the athlete is actually watching for a reply.
+      startBurst();
       // The athlete asked a question in the shared conversation — action-class for the coach
       // (spec: a direct athlete question is "action needed"). Best-effort, after the post landed.
       if (S.coach.hasCoach) {
@@ -2596,17 +2591,6 @@ export const thread = {
         });
       }
       await refresh();
-      // The row that just landed rises out of the box, as the phone's does.
-      {
-        const own = threadMessages(comments).filter((c) => c && c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId));
-        const sent = own.length ? own[own.length - 1] : null;
-        if (sent && sent.id) {
-          JUST_SENT = sent.id;
-          clearTimeout(JUST_SENT_T);
-          JUST_SENT_T = setTimeout(() => { JUST_SENT = null; }, 700);
-          paint();
-        }
-      }
       // Forced: the athlete just sent this and is watching for it to land. Every other repaint
       // leaves a reader where they are; this one always shows them their own message.
       scrollThreadToEnd(root, { force: true });
@@ -2624,11 +2608,58 @@ export const thread = {
         self: { id: RT.userId, name: S.athlete.first || 'Athlete', role: 'athlete' },
         athleteName: S.athlete.first || 'Athlete',
         fallbackNoun: S.coach.noun,
+        // THE 12:44 INCIDENT (2026-09-22): a photo WITH a caption ("I'm also drinking this") was
+        // judged on its words alone and stayed silent. The photo is part of the message.
+        photo: !!photoPath,
       });
       const wordlessPhoto = !typed && !!photoPath;
-      if (wordlessPhoto || turn.decision.shouldRespond) await askAI(typed, photoPath, turn);
-      busy = false;
+      if (wordlessPhoto || turn.decision.shouldRespond) {
+        busy = true;
+        await askAI(typed, photoPath, turn);
+        busy = false;
+      }
     };
+    const submit = async () => {
+      const box = root.querySelector('#meal-msg') || input;
+      const typed = ((box && box.value) || '').trim();
+      const pendingPhoto = attach.get();
+      // A photo alone is a complete message — post-0173 it sends with genuinely empty text, and
+      // postChatMessage falls back to the legacy stand-in if this database still carries 0046's
+      // original length floor.
+      if (!typed && !pendingPhoto) return;
+      const claim = beginSend(M.mealId, { text: typed, photo: pendingPhoto, replyTo: replyOf(M.mealId) });
+      if (!claim.ok) {
+        // In flight: the tap is the same intent as the one already on its way. A duplicate: the
+        // same words landed a moment ago; say so and leave them in the box to edit or keep.
+        if (claim.reason === 'duplicate') setNote('You just sent that.');
+        return;
+      }
+      setNote('');
+      if (box) box.value = '';
+      attach.clear();
+      clearReply(M.mealId);
+      paintReplyChip(root.querySelector('#meal-disc .chat-dock'), M.mealId, esc);
+      await deliver(claim.item);
+    };
+    // Retry a bubble that did not land: the same words, photo and reply, as a fresh send.
+    const retryItem = async (item) => {
+      const claim = beginSend(M.mealId, { text: item.text, photo: item.photo, replyTo: item.replyTo });
+      if (claim.ok) await deliver(claim.item);
+    };
+    bindLive(M.mealId, { sync: placeLive, onRetry: retryItem });
+    placeLive();
+    const startReply = (row) => {
+      const id = row && row.getAttribute('data-cid');
+      const c = threadMessages(comments).find((x) => x && String(x.id) === id);
+      if (!c) return;
+      const mineRow = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
+      const who = mineRow ? 'You' : authorName(c, participants, RT.userId, S.coach.noun);
+      setReply(M.mealId, replyTargetMeta(c, who));
+      paintReplyChip(root.querySelector('#meal-disc .chat-dock'), M.mealId, esc);
+      focusComposer(root.querySelector('#meal-msg'));
+    };
+    paintReplyChip(root.querySelector('#meal-disc .chat-dock'), M.mealId, esc);
+    wireThreadTaps({ root, scope: '#meal-thread', key: () => M.mealId });
     if (send) send.addEventListener('click', submit);
     // !isComposing: Enter inside an IME composition is choosing a character, not sending —
     // same guard nutrition-chat has; without it a CJK keyboard ships half a word.
@@ -2641,10 +2672,12 @@ export const thread = {
     // on each render; wireTapback is re-entrant, so this re-mount swaps the callbacks rather than
     // stacking listeners. The picker itself lives on <body>, out of the render's way.
     // Drag the conversation left to see when each message was sent.
-    wireChatTimes({ root, scope: '#meal-thread' });
+    // Drag it right, on one message, to reply to that message.
+    wireChatTimes({ root, scope: '#meal-thread', onReply: startReply });
     if (M.mealId) wireTapback({
       root,
       scope: '#meal-thread',
+      onReply: startReply,
       emoji: REACTION_EMOJI,
       mine: () => new Set((Array.isArray(comments) ? comments : [])
         .filter((c) => c && c.kind === 'reaction' && c.author_id === RT.userId)

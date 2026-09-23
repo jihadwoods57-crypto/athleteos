@@ -27,6 +27,9 @@ const EDGE = 28;
 const AXIS_PX = 8;
 /** How far the thread may slide. Wide enough for "12:34 PM" plus breathing room. */
 const MAX_PX = 68;
+/** A rightward drag on one message past this is a reply (Messages' own swipe-to-reply). */
+const REPLY_PX = 56;
+const REPLY_MAX = 84;
 
 const WIRED = new WeakMap();
 
@@ -34,13 +37,15 @@ const WIRED = new WeakMap();
  * @param {object}  o
  * @param {Element} o.root   the persistent screen root
  * @param {string}  o.scope  selector for the thread element (unique to the screen)
+ * @param {Function} [o.onReply] (rowEl) => void, called when one message is swiped right past
+ *                   REPLY_PX. Absent, a rightward drag is left to the page as before.
  * @returns {Function} detach
  */
-export function wireChatTimes({ root, scope = '.thread' } = {}) {
+export function wireChatTimes({ root, scope = '.thread', onReply = null } = {}) {
   if (!root || typeof document === 'undefined') return () => {};
   const prior = WIRED.get(root);
-  if (prior) { prior.scope = scope; return prior.detach; }
-  const live = { scope, detach: () => {} };
+  if (prior) { prior.scope = scope; prior.onReply = onReply; return prior.detach; }
+  const live = { scope, onReply, detach: () => {} };
   WIRED.set(root, live);
 
   let g = null;   // { thread, x0, y0, axis, dx }
@@ -68,7 +73,19 @@ export function wireChatTimes({ root, scope = '.thread' } = {}) {
     const vp = thread.closest('.viewport');
     const left = vp ? vp.getBoundingClientRect().left : 0;
     if (ev.clientX - left <= EDGE) return;
-    g = { thread, x0: ev.clientX, y0: ev.clientY, axis: null, dx: 0 };
+    // SWIPE TO REPLY (2026-09-22): the other horizontal direction, on one message. Only a real
+    // row (data-cid) can be answered; a typing row, a pending bubble or a meal card cannot.
+    const row = t.closest('.msg[data-cid]');
+    g = { thread, x0: ev.clientX, y0: ev.clientY, axis: null, dx: 0, row: row && thread.contains(row) ? row : null };
+  };
+  const settleRow = (row) => {
+    if (!row) return;
+    row.classList.add('sw-settle');
+    row.style.setProperty('--sw', '0px');
+    row.style.setProperty('--sw-a', '0');
+    const done = () => { row.classList.remove('sw-settle', 'sw-armed'); row.removeEventListener('transitionend', done); };
+    row.addEventListener('transitionend', done);
+    setTimeout(done, 320);
   };
 
   const onMove = (ev) => {
@@ -77,10 +94,22 @@ export function wireChatTimes({ root, scope = '.thread' } = {}) {
     const dy = ev.clientY - g.y0;
     if (!g.axis) {
       if (Math.abs(dx) < AXIS_PX && Math.abs(dy) < AXIS_PX) return;
-      // Decided once. A rightward start is not a reveal (there is nothing on the left).
-      g.axis = Math.abs(dx) > Math.abs(dy) && dx < 0 ? 'x' : 'y';
+      // Decided once. Leftward is the clock reveal; rightward, on a message, is a reply.
+      const horiz = Math.abs(dx) > Math.abs(dy);
+      g.axis = horiz && dx < 0 ? 'x' : horiz && dx > 0 && g.row && typeof live.onReply === 'function' ? 'r' : 'y';
       if (g.axis === 'y') { g = null; return; }
-      g.thread.classList.remove('rv-settle');
+      if (g.axis === 'x') g.thread.classList.remove('rv-settle');
+      else g.row.classList.remove('sw-settle');
+    }
+    if (g.axis === 'r') {
+      const raw = Math.max(0, dx);
+      const shown = Math.min(REPLY_MAX, raw < REPLY_PX ? raw : REPLY_PX + (raw - REPLY_PX) * 0.3);
+      g.dx = shown;
+      g.row.style.setProperty('--sw', `${Math.round(shown)}px`);
+      g.row.style.setProperty('--sw-a', String(Math.min(1, shown / REPLY_PX)));
+      g.row.classList.toggle('sw-armed', shown >= REPLY_PX);
+      if (ev.cancelable) ev.preventDefault();
+      return;
     }
     // Rubber-band past the stop rather than hard-stopping at it.
     const raw = Math.min(0, dx);
@@ -94,10 +123,15 @@ export function wireChatTimes({ root, scope = '.thread' } = {}) {
 
   const onUp = () => {
     if (!g) return;
-    const thread = g.thread;
-    const was = g.axis === 'x';
+    const { thread, row, axis, dx } = g;
     g = null;
-    if (was) settle(thread);
+    if (axis === 'x') settle(thread);
+    if (axis === 'r') {
+      settleRow(row);
+      if (dx >= REPLY_PX && typeof live.onReply === 'function') {
+        try { live.onReply(row); } catch { /* the reply is a nicety; the thread is unharmed */ }
+      }
+    }
   };
 
   // Passive:false on move so a decided horizontal drag can stop the page from also scrolling.

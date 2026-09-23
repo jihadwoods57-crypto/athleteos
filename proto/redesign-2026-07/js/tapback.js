@@ -67,7 +67,7 @@ function liftBubble(bubble) {
 /** The text a bubble would put on the clipboard: its words, not its chrome (badges, chips). */
 function bubbleText(bubble) {
   const c = bubble.cloneNode(true);
-  for (const n of c.querySelectorAll('.esc, .upd, .fq-chips, .mo-ask, .rm-btn, .rxo, img, .sr-only')) n.remove();
+  for (const n of c.querySelectorAll('.esc, .upd, .fq-chips, .mo-ask, .rxo, img, .sr-only')) n.remove();
   return String(c.textContent || '').replace(/\s+/g, ' ').trim();
 }
 
@@ -99,19 +99,20 @@ const WIRED = new WeakMap();
  * @param {string[]} o.emoji    the reaction set, in order
  * @param {Function} o.mine     () => Set<string> of emoji this user has already sent
  * @param {Function} o.onReact  async (emoji) => void — post/remove; toggling is the caller's job
+ * @param {Function} [o.onReply] (rowEl) => void. Present, the menu offers Reply on any row carrying data-cid.
  * @returns {Function} detach
  */
-export function wireTapback({ root, scope = '.thread', emoji, mine, onReact }) {
+export function wireTapback({ root, scope = '.thread', emoji, mine, onReact, onReply = null }) {
   if (!root || typeof document === 'undefined') return () => {};
   const set = Array.isArray(emoji) ? emoji : [];
   if (!set.length) return () => {};
 
   const prior = WIRED.get(root);
   if (prior) {
-    prior.cfg = { scope, emoji: set, mine, onReact };
+    prior.cfg = { scope, emoji: set, mine, onReact, onReply };
     return prior.detach;
   }
-  const live = { cfg: { scope, emoji: set, mine, onReact }, detach: () => {} };
+  const live = { cfg: { scope, emoji: set, mine, onReact, onReply }, detach: () => {} };
   WIRED.set(root, live);
 
   let timer = null;
@@ -129,7 +130,7 @@ export function wireTapback({ root, scope = '.thread', emoji, mine, onReact }) {
     // overlay-guard.js; this caller only excludes its own.
     if (overlayOpen('.tapback')) return;
     closeTapback();
-    const { emoji: emojiNow, mine: mineNow, onReact: reactNow } = live.cfg;
+    const { emoji: emojiNow, mine: mineNow, onReact: reactNow, onReply: replyNow } = live.cfg;
     const already = (() => { try { return mineNow ? mineNow() : new Set(); } catch { return new Set(); } })();
     const el = document.createElement('div');
     el.className = 'tapback';
@@ -158,19 +159,32 @@ export function wireTapback({ root, scope = '.thread', emoji, mine, onReact }) {
     const lift = liftBubble(bubble);
     document.body.appendChild(lift);
     document.body.appendChild(el);
-    // The menu: Copy, when there are words to copy. A photo-only bubble gets no menu.
+    // The menu, in Messages' order: Reply (any message that is a real row, photos included),
+    // then Copy when there are words to copy.
     const words = bubbleText(bubble);
+    const row = bubble.closest('.msg');
+    const canReply = typeof replyNow === 'function' && !!(row && row.getAttribute('data-cid'));
     let menu = null;
-    if (words) {
+    if (words || canReply) {
       menu = document.createElement('div');
       menu.className = 'tb-menu';
       menu.setAttribute('role', 'menu');
-      const copy = document.createElement('button');
-      copy.type = 'button';
-      copy.setAttribute('role', 'menuitem');
-      copy.setAttribute('data-tb-copy', '1');
-      copy.innerHTML = `<span>Copy</span>${icon('clipboard', 17)}`;
-      menu.appendChild(copy);
+      if (canReply) {
+        const rp = document.createElement('button');
+        rp.type = 'button';
+        rp.setAttribute('role', 'menuitem');
+        rp.setAttribute('data-tb-reply', '1');
+        rp.innerHTML = `<span>Reply</span>${icon('back', 17)}`;
+        menu.appendChild(rp);
+      }
+      if (words) {
+        const copy = document.createElement('button');
+        copy.type = 'button';
+        copy.setAttribute('role', 'menuitem');
+        copy.setAttribute('data-tb-copy', '1');
+        copy.innerHTML = `<span>Copy</span>${icon('clipboard', 17)}`;
+        menu.appendChild(copy);
+      }
       document.body.appendChild(menu);
     }
 
@@ -226,6 +240,14 @@ export function wireTapback({ root, scope = '.thread', emoji, mine, onReact }) {
       if (reactNow) await reactNow(pick);
     };
     const onMenu = async (ev) => {
+      const rp = ev.target && ev.target.closest ? ev.target.closest('[data-tb-reply]') : null;
+      if (rp) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        closeTapback();
+        try { replyNow(row); } catch { /* a reply is a nicety; the thread is unharmed */ }
+        return;
+      }
       const btn = ev.target && ev.target.closest ? ev.target.closest('[data-tb-copy]') : null;
       if (!btn) return;
       ev.preventDefault();

@@ -2536,7 +2536,8 @@ export const act = {
     const sb = window.sb;
     const mealId = r.meta.mealId;
     if (!opts.fromPro && sb && RT.userId && mealId) {
-      const marker = `[Athlete correction] ${r.summary}`;
+      // An addition the coach asked the AI for is not the athlete correcting themselves.
+      const marker = `${opts.fromAi ? '[Added at coach request]' : '[Athlete correction]'} ${r.summary}`;
       const note = `${r.meta.note ? r.meta.note + ' · ' : ''}${marker}`.slice(0, 500);
       const fields = {
         protein: r.meta.protein || 0, carbs: r.meta.carbs || 0, fat: r.meta.fat || 0,
@@ -2575,11 +2576,11 @@ export const act = {
        message: it outlives all three, the coach reads it in their copy, and a second correction
        adds a second receipt rather than erasing the first. Fire-and-forget and last, so a failed
        write can never undo a correction that has already applied. */
-    void this._postCorrectionReceipt(r);
+    void this._postCorrectionReceipt(r, opts.additionId || null);
     // A correction that moved the numbers meaningfully is worth a coach look — once per meal.
     // (Not for a pro-sourced one: the professional made the correction; notifying them of
     // their own change would be a circular ping.)
-    if (!opts.fromPro && this._coachConnected() && r.kcalDelta >= 120 && !r.meta.correctionNotified) {
+    if (!opts.fromPro && !opts.fromAi && this._coachConnected() && r.kcalDelta >= 120 && !r.meta.correctionNotified) {
       DAY.slotMacros[slot] = { ...r.meta, correctionNotified: true };
       pushDay(RT.userId);
       void notifyMyCoach({
@@ -2599,7 +2600,33 @@ export const act = {
      an unmatched correction is still marked consumed so it can never retry forever. */
   applyProCorrection(slot, comment) {
     try {
-      if (!comment || !comment.id || comment.role !== 'coach') return false;
+      if (!comment || !comment.id) return false;
+      /* THE COACH-REQUESTED ADDITION (2026-09-22). meal-chat's add_from_athlete writes an 'ai' row
+         (only the service role can) carrying an add-foods payload grounded in THIS athlete's own
+         photo or words, at their coach's request. Nobody has touched the meals row yet, so unlike
+         a pro correction this one mirrors it (fromAi, not fromPro) and files the numeric receipt;
+         it skips the AI re-read and the coach ping (the coach asked for it). Same once-per-id
+         marker as below, so a repaint can never add the shake twice. */
+      if (comment.role === 'ai' && comment.meta && comment.meta.t === 'ai_addition') {
+        const meta = DAY.slotMacros && DAY.slotMacros[slot];
+        if (!meta || !DAY.meals[slot]) return false;
+        const done = Array.isArray(meta.proApplied) ? meta.proApplied : [];
+        if (done.includes(comment.id)) return false;
+        const c = comment.meta.c || {};
+        const cur0 = DAY.slotMacros[slot];
+        cur0.proApplied = [...done, comment.id].slice(-12);
+        if (c.kind === 'add-foods' && Array.isArray(c.foods) && c.foods.length) {
+          // Every food carries this row's id (addId), so a plate that already holds it (the
+          // coach's device wrote it into the meals row first) is left alone: meal-intel's
+          // add-foods skips an addId already on the plate. additionId lets the receipt dedupe.
+          const foods = c.foods.map((f) => ({ ...f, addId: String(comment.id) }));
+          void this.correctMeal(slot, { kind: 'add-foods', foods, said: c.said, minutesLate: meta.minutesLate || 0 }, { skipAiUpdate: true, fromAi: true, additionId: String(comment.id) });
+        }
+        pushDay(RT.userId);
+        save();
+        return true;
+      }
+      if (comment.role !== 'coach') return false;
       if (!comment.meta || comment.meta.t !== 'pro_correction') return false;
       const meta = DAY.slotMacros && DAY.slotMacros[slot];
       if (!meta || !DAY.meals[slot]) return false;
@@ -2623,6 +2650,35 @@ export const act = {
       save();
       return applied;
     } catch { return false; }
+  },
+  /* THE DAY CATCHES UP (2026-09-22). A coach-requested addition lands in the meals row from the
+     coach's device at once, but the athlete's DAY (slotMacros, and so the day score) only moves on
+     this device. It used to move only when the athlete opened that meal's screen; now every
+     hydrate and every return to the foreground looks for ai_addition rows on today's meals and
+     applies each one exactly once (applyProCorrection's proApplied marker, plus the addId rule in
+     meal-intel so a plate that already holds the item is never given it twice). Best-effort and
+     silent: a failure here is a day that catches up on the next beat. */
+  async catchUpAiAdditions() {
+    try {
+      const sb = window.sb;
+      if (!sb || !RT.userId || (RT.authRole && RT.authRole !== 'athlete')) return 0;
+      const bySlot = {};
+      for (const slot of Object.keys(DAY.slotMacros || {})) {
+        const m = DAY.slotMacros[slot];
+        if (m && m.mealId && DAY.meals && DAY.meals[slot]) bySlot[m.mealId] = slot;
+      }
+      const ids = Object.keys(bySlot);
+      if (!ids.length) return 0;
+      const { data, error } = await sb.from('meal_comments')
+        .select('id, role, meta, meal_id, created_at')
+        .in('meal_id', ids).eq('role', 'ai').eq('meta->>t', 'ai_addition')
+        .order('created_at', { ascending: true }).limit(20);
+      if (error || !Array.isArray(data)) return 0;
+      let n = 0;
+      for (const c of data) if (c && bySlot[c.meal_id] && this.applyProCorrection(bySlot[c.meal_id], c)) n++;
+      if (n && window.__render) window.__render();
+      return n;
+    } catch { return 0; }
   },
   /** Ask the AI to re-read the plate out loud after the athlete corrected it.
    *
@@ -2656,7 +2712,7 @@ export const act = {
       // Score last: the macros are the cause, the score is the consequence.
       .sort((x, y) => (x.score ? 1 : 0) - (y.score ? 1 : 0));
   },
-  async _postCorrectionReceipt(r) {
+  async _postCorrectionReceipt(r, additionId = null) {
     try {
       const sb = window.sb;
       const mealId = r && r.meta && r.meta.mealId;
@@ -2666,7 +2722,9 @@ export const act = {
         kcal: r.meta.kcal, quality: r.meta.quality,
       });
       if (!rows.length) return;   // nothing moved: there is no receipt to file
-      await sb.functions.invoke('meal-chat', { body: { mealId, correctionReceipt: rows } });
+      // additionId: this correction was a coach-requested addition. meal-chat adds the attribution
+      // line and files at most one receipt per addition, whichever device reaches it first.
+      await sb.functions.invoke('meal-chat', { body: { mealId, correctionReceipt: rows, ...(additionId ? { additionId } : {}) } });
       window.__render && window.__render();
     } catch { /* the correction already applied; a missing receipt must never undo it */ }
   },
@@ -4207,6 +4265,7 @@ export const act = {
       }
     }
     await loadDay(RT.userId); syncRtFromDay(); this.syncNotifications();
+    void this.catchUpAiAdditions();
   },
   // User-driven recovery from the Plan offline card (data-act="retryProfile") — re-attempts the
   // same hydrate _loadProfileIntoRt already does at boot/signIn; the router awaits this then
@@ -4230,6 +4289,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
       void act.drainMealOutbox();
       void act.drainSyncQueue();
       act.healDaySync();
+      void act.catchUpAiAdditions();
     }
     // Re-stamp the daypart on resume. A phone put down at 4pm and picked up at 9pm would otherwise
     // greet you with "Good evening" over an afternoon canvas, which is exactly the disagreement

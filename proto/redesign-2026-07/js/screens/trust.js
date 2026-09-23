@@ -13,8 +13,15 @@ import { wireTapback } from '../tapback.js';
 import { mealReadHtml, wireReadControls } from './meal.js';
 import { layoutThread, MUTED_HIDDEN_NOTE, authorName, initialsFor, isAnalysisUpdate, isEscalated, quotedFor,
   dayLabelOf, participantList, participantSummary, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
-  correctionRowsOf,
+  isCorrectionReceipt, receiptCardHtml, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta, personText,
+  visibleThread, workingLabel,
 } from '../chat-view.js';
+import { wireChatTimes } from '../chat-times.js';
+import {
+  beginSend, endSend, takeFailed, setAiWorking,
+  setReply, replyOf, clearReply, paintReplyChip, noteArrivals, syncLive, syncJump,
+  bindLive, wireThreadTaps,
+} from '../chat-live.js';
 import { openMembersSheet } from '../members-sheet.js';
 import { decideAiTurn } from '../ai-thread.js';
 import { hydrateAvatars } from '../avatar.js';
@@ -34,8 +41,7 @@ const mvClock = (iso) => {
 const mvDay = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
 import { composer } from '../components.js';
 import { openImageViewer } from '../image-viewer.js';
-import { wireReadMore } from '../thread-readmore.js';
-import { focusComposer } from '../keyboard.js';
+import { focusComposer, scrollThreadToEnd } from '../keyboard.js';
 
 /* ---------- Trust Pass detail: the earned camera-free reward, rules visible (0196) ----------
    Two active shapes (credits / window) plus a not-earned state with real progress. The old decay
@@ -320,9 +326,6 @@ export const history = {
    which can land long before the history cache is warm — without this the athlete taps a message
    about their dinner and gets "Couldn't open this meal". */
 let DIRECT = { id: null, row: null };
-// Long AI bubbles the athlete has expanded, keyed on each bubble's own text head. Module scope so
-// an expansion survives this screen's repaints (see thread-readmore.js).
-const EXPANDED_BUBBLES = new Set();
 /* Warm the history cache from a screen that did not come through History. The day bars on a past
    plate need that day's OTHER rows, and a deep link from a push lands here with the cache cold —
    pastDayTotalsThrough returns null rather than guess, so without this the bars simply never
@@ -366,7 +369,7 @@ function mountThread(root, mealId, meal) {
   let participants = [];
   const paint = () => {
     const msgs = threadMessages(rows);
-    if (!msgs.length) { threadEl.innerHTML = '<div class="msg-status">No messages on this meal yet.</div>'; return; }
+    if (!msgs.length) { threadEl.innerHTML = '<div class="msg-status">No messages on this meal yet.</div>'; placeLive(); return; }
     // `muted` here too: this is the fourth layoutThread caller, and it renders the SAME
     // meal_comments rows as the live thread — a mute that held there and lapsed here would
     // resurface the blocked person on the screen a follow-up notification lands on (1.2).
@@ -382,45 +385,34 @@ function mountThread(root, mealId, meal) {
     // correction reply paint a muted person's words inside its stem — the block failing an inch
     // under the bubble it hid. No quote at all is the honest render of a hidden source.
     const visible = msgItems.map((i) => i.comment);
+    const { fresh, added } = noteArrivals(mealId, visible, RT.userId);
+    const rxAt = reactionAnchor(visible);
     threadEl.innerHTML = items.map((item) => {
       if (item.type === 'time') return timeSepHtml(item, esc);
       const c = item.comment;
       /* A filed correction receipt renders as the card, not as a bubble — the same record the
          athlete sees in their own thread (chat-view isCorrectionReceipt). */
-      const receiptRows = correctionRowsOf(c);
-      if (receiptRows.length) {
-        return `
-      <div class="msg ai last">
-        <div class="av">${icon('sparkle', 15)}</div>
-        <div class="corr-card in landed" role="status">
-          <div class="corr-head">${icon('check', 14)}<span>Updated</span></div>
-          ${receiptRows.map((r) => `
-            <div class="corr-row${r.score ? ' corr-score' : ''}">
-              <span class="ck">${esc(r.label)}</span>
-              <span class="cv"><i class="was">${esc(String(r.from) + r.unit)}</i>${icon('arrowRight', 12)}<b class="${esc(r.band)}">${esc(String(r.to) + r.unit)}</b></span>
-            </div>`).join('')}
-        </div>
-      </div>`;
-      }
+      if (isCorrectionReceipt(c)) return receiptCardHtml(c, esc, { fresh: fresh.has(String(c.id)) });
       const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
       const who = authorName(c, participants, RT.userId, S.coach.noun);
       const update = isAnalysisUpdate(c);
       const escalated = isEscalated(c);
       const quoted = update ? quotedFor(c, visible) : null;
+      const rq = quoted ? '' : replyQuoteHtml(replyQuote(c, visible, RT.mutedUsers, (x) => (x.role === 'athlete' && (!x.author_id || x.author_id === RT.userId) ? 'You' : authorName(x, participants, RT.userId, S.coach.noun))), esc);
       const photo = attachedPhoto(c);
       const photoOnly = isPhotoOnly(c);
-      const rx = c === lastMsg ? reactionGroups(rows) : [];
+      const rx = c === rxAt ? reactionGroups(rows) : [];
       // The face rides the LAST bubble of a run, the name the first (chat-view.js msgRowClass;
       // `last` carries the tail).
       return `
-        <div class="${msgRowClass({ mine, role: c.role, firstOfRun: item.firstOfRun, lastOfRun: item.lastOfRun, hasRx: rx.length > 0, photoOnly })}">
+        <div class="${msgRowClass({ mine, role: c.role, firstOfRun: item.firstOfRun, lastOfRun: item.lastOfRun, hasRx: rx.length > 0, photoOnly })}${fresh.has(String(c.id)) ? ' in' : ''}" data-cid="${esc(String(c.id || ''))}">
           ${!mine && item.lastOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
           <div class="stack">
             ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
-            ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
+            ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : rq}
             ${/* No "Updated analysis" badge on correction replies (founder: robotic; the live
                   thread already dropped it) — the quote stem above says what it answers. */''}
-            <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : esc(String(c.text || ''))}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+            <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
             ${deliveredHtml({ mine, isLast: c === lastMsg })}
           </div>
           ${msgTimeHtml(c, mvClock, esc)}
@@ -430,9 +422,14 @@ function mountThread(root, mealId, meal) {
     // module, so the helper is handed the one function it needs.
     void hydrateThreadPhotos(threadEl, { signedMealPhotoUrl, signedMealPhotoUrls });
     hydrateAvatars(threadEl);   // 0206: message monograms upgrade to real faces, as on the meal thread
-    // The same Read more the meal thread has. This screen renders the identical AI opener, which
-    // meal-opener.ts composes assuming a client clamp exists.
-    wireReadMore(threadEl, EXPANDED_BUBBLES);
+    // Full messages, always (founder 2026-09-22): no Read more here or anywhere.
+    placeLive();
+    syncJump(threadEl, mealId, { dock: root.querySelector('#meal-disc .chat-dock'), added });
+  };
+  const placeLive = () => {
+    if (!threadEl.isConnected) return;
+    const sending = syncLive(threadEl, mealId, { esc, imgSrc: safeImg });
+    if (sending) scrollThreadToEnd(threadEl, { force: true });
   };
 
   // Tap an attached photo to open it full-screen. Delegated: every repaint replaces the <img>.
@@ -480,9 +477,12 @@ function mountThread(root, mealId, meal) {
   // yesterday's dinner must be visible (and answerable) HERE, not only on the live thread.
   // wireTapback is re-entrant; '#mv-thread' scopes it away from the other two renderers.
   let rxBusy = false;
+  // startReply is defined with the composer below; the tapback reads it at press time.
+  const tapReply = { fn: null };
   wireTapback({
     root,
     scope: '#mv-thread',
+    onReply: (row) => { if (tapReply.fn) tapReply.fn(row); },
     emoji: REACTION_EMOJI,
     mine: () => new Set((rows || [])
       .filter((c) => c && c.kind === 'reaction' && c.author_id === RT.userId)
@@ -508,27 +508,27 @@ function mountThread(root, mealId, meal) {
     onNote: (m) => { if (note) note.textContent = m || ''; },
   });
 
-  let busy = false;
-  const submit = async () => {
-    const text = (input && input.value.trim()) || '';
-    const pendingPhoto = attach.get();
-    if ((!text && !pendingPhoto) || busy) return;
-    busy = true;
-    if (note) note.textContent = pendingPhoto ? 'Uploading photo…' : '';
+  /* ONE SEND IS ONE INTENT (2026-09-22): the lock, the outbox bubble and the duplicate window
+     live in chat-live.js, keyed to this meal, so the message shows the moment Send is tapped and
+     one that never lands stays as "Not delivered" with a retry. */
+  const deliver = async (item) => {
+    const text = item.text;
     const res = await postChatMessage({ postMealComment, uploadChatPhoto }, {
       mealId, athleteId: meal.athlete_id || RT.userId, authorId: RT.userId, role: 'athlete',
-      text, photo: pendingPhoto,
+      text, photo: item.photo, replyTo: item.replyTo || null,
     });
+    endSend(mealId, item.lid, { ok: res.ok });
     if (!res.ok) {
-      busy = false;
-      if (note) note.textContent = res.error === 'filtered' ? FILTERED_NOTE : res.error === 'upload'
-        ? "Couldn't upload that photo. Try again, or remove it and send."
-        : "Couldn't send that. Try again when you're back online.";
+      if (res.error === 'filtered') {
+        takeFailed(mealId, item.lid);
+        if (input && !input.value) input.value = text;
+        if (note) note.textContent = FILTERED_NOTE;
+      } else if (note) {
+        note.textContent = res.error === 'upload' ? "Couldn't upload that photo. Tap the message to try again." : '';
+      }
       return;
     }
-    attach.clear();
     if (note) note.textContent = '';
-    if (input) input.value = '';
     /* THE COACH HEARS IT. This composer is the third renderer of the same conversation (the live
        meal thread and the nutrition chat are the other two), and it was the only one that posted
        and told nobody — an athlete answering their coach on YESTERDAY's plate wrote into a room
@@ -543,7 +543,10 @@ function mountThread(root, mealId, meal) {
         route: `coach-meal/${mealId}`,
       });
     }
-    if (!text) { busy = false; return; } // a photo alone is a complete message — nothing to ask the AI
+    await refresh();
+    // A photo, captioned or not, is part of the message the gate judges (2026-09-22): the athlete
+    // showing the room what they ate is the nutritionist's to read.
+    const photoPath = res.photoPath || null;
     /* The same addressing gate the live thread uses. A past plate's thread is still a room with
        a coach in it, and "thanks coach" three days later is no more the AI's to answer than it
        was on the day. */
@@ -554,19 +557,55 @@ function mountThread(root, mealId, meal) {
       self: { id: RT.userId, name: S.athlete.first || 'Athlete', role: 'athlete' },
       athleteName: S.athlete.first || 'Athlete',
       fallbackNoun: S.coach.noun,
+      photo: !!photoPath,
     });
-    if (!turn.decision.shouldRespond) { busy = false; return; }
+    if (!turn.decision.shouldRespond) return;
+    // The AI at work, shown in the thread for as long as it is (chat-live.js hook).
+    setAiWorking(mealId, true, { label: photoPath ? 'Reading the photo' : workingLabel(visibleThread(threadMessages(rows), RT.mutedUsers)) });
     try {
-      await window.sb.functions.invoke('meal-chat', { body: { mealId, question: text, speaker: turn.outgoing, addressing: turn.decision, participants: turn.participants, context: {
+      await window.sb.functions.invoke('meal-chat', { body: { mealId, question: text || 'I sent a photo. What do you make of it?', ...(photoPath ? { photoPath } : {}), speaker: turn.outgoing, addressing: turn.decision, participants: turn.participants, context: {
         meal: { name: meal.name || meal.type, slot: meal.type, quality: meal.quality,
                 macros: { protein: meal.protein, carbs: meal.carbs, fat: meal.fat, cals: meal.kcal }, note: meal.note },
         plan: { goal: RT.primaryGoal || null, allergies: RT.allergies },
         thread: turn.thread,
       } } });
+      setAiWorking(mealId, false);
       await refresh();
-    } catch { if (note) note.textContent = 'Sent. The reply will appear when the connection is back.'; }
-    busy = false;
+    } catch { setAiWorking(mealId, false); if (note) note.textContent = 'Sent. The reply will appear when the connection is back.'; }
   };
+  const submit = async () => {
+    const text = (input && input.value.trim()) || '';
+    const pendingPhoto = attach.get();
+    if (!text && !pendingPhoto) return;
+    const claim = beginSend(mealId, { text, photo: pendingPhoto, replyTo: replyOf(mealId) });
+    if (!claim.ok) { if (claim.reason === 'duplicate' && note) note.textContent = 'You just sent that.'; return; }
+    if (note) note.textContent = '';
+    if (input) input.value = '';
+    attach.clear();
+    clearReply(mealId);
+    paintReplyChip(root.querySelector('#meal-disc .chat-dock'), mealId, esc);
+    await deliver(claim.item);
+  };
+  const retryItem = async (item) => {
+    const claim = beginSend(mealId, { text: item.text, photo: item.photo, replyTo: item.replyTo });
+    if (claim.ok) await deliver(claim.item);
+  };
+  bindLive(mealId, { sync: placeLive, onRetry: retryItem });
+  paintReplyChip(root.querySelector('#meal-disc .chat-dock'), mealId, esc);
+  wireThreadTaps({ root, scope: '#mv-thread', key: mealId });
+  const startReply = (row) => {
+    const id = row && row.getAttribute('data-cid');
+    const c = threadMessages(rows).find((x) => x && String(x.id) === id);
+    if (!c) return;
+    const mineRow = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
+    const who = mineRow ? 'You' : authorName(c, participants, RT.userId, S.coach.noun);
+    setReply(mealId, replyTargetMeta(c, who));
+    paintReplyChip(root.querySelector('#meal-disc .chat-dock'), mealId, esc);
+    focusComposer(input);
+  };
+  // Drag left for the clock; one message right to reply (as the live meal thread).
+  wireChatTimes({ root, scope: '#mv-thread', onReply: startReply });
+  tapReply.fn = startReply;
   if (send) send.addEventListener('click', submit);
   // !isComposing: Enter inside an IME composition is choosing a character, not sending.
   if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); void submit(); } });

@@ -465,7 +465,7 @@ if (ALL) {
 // Positional args are name filters. Skip anything that is a flag or a flag's value, then split
 // on commas so `qc-capture.mjs home,meal` matches both rather than looking for one literal
 // "home,meal" screen.
-const flagValues = new Set(['themes', 'widths', 'out', 'scroll-to', 'port', 'shard'].map((f) => flag(f, null)).filter(Boolean));
+const flagValues = new Set(['themes', 'widths', 'out', 'scroll-to', 'port', 'shard', 'scroll-by'].map((f) => flag(f, null)).filter(Boolean));
 const nameFilter = argv
   .filter((a) => !a.startsWith('--') && !flagValues.has(a))
   .flatMap((a) => a.split(',').map((s) => s.trim()).filter(Boolean));
@@ -477,6 +477,13 @@ if (SHARD) { const [si, sn] = SHARD.split('/').map(Number); TARGETS = TARGETS.fi
 
 const SCROLL_TO = flag('scroll-to', null);
 const FULL = has('full');
+// --touch: emulate a touchscreen, so `(pointer: coarse) and (hover: none)` matches and a 700px+
+// width renders as the iPad does (phone-native frame, no desktop bezel) instead of the phone
+// drawn inside a bezel. Without it every 820 shot is the desktop preview, not an iPad.
+const TOUCH = has('touch');
+// --scroll-by N: scroll .viewport N px before the shot (implies a viewport-sized shot, not
+// --full), for the states that only exist mid-scroll: a sticky header with content under it.
+const SCROLL_BY = Number(flag('scroll-by', 0)) || 0;
 const b = await launch({ port: Number(flag('port', 9341)), scale: 2 });
 const report = [];
 try {
@@ -485,7 +492,9 @@ try {
       const dir = join(OUT_DIR, `${theme}-${width}`);
       if (!AUDIT_ONLY) await mkdir(dir, { recursive: true });
       for (const s of TARGETS) {
-        const page = await b.newPage({ width, height: 844 });
+        const baseH = TOUCH && width >= 700 ? 1180 : 844;
+        const page = await b.newPage({ width, height: baseH });
+        if (TOUCH) await page.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
         const errors = [];
         b.on((msg) => {
           if (msg.sessionId !== page.sessionId) return;
@@ -527,6 +536,7 @@ try {
             await evalJs(page, SCROLL_TO
               ? `(() => { const el = document.querySelector(${JSON.stringify(SCROLL_TO)}); if (el) el.scrollIntoView({ block: 'start' }); else window.scrollTo(0,0); return 1; })()`
               : `(() => { window.scrollTo(0,0); return 1; })()`);
+            if (SCROLL_BY) await evalJs(page, `(() => { const v = document.querySelector('.viewport'); if (v) { v.style.scrollBehavior = 'auto'; v.scrollTop = ${SCROLL_BY}; v.dispatchEvent(new Event('scroll')); } return 1; })()`);
             await sleep(220);
           })(), 45000, s.name);
 
@@ -541,10 +551,13 @@ try {
             // --full frames the whole screen, not one viewport. The page never scrolls; .viewport
             // does (app.css), so the window is grown until .viewport's content fits, then shot.
             // Capped so a runaway list cannot make a 40MB PNG. The tab bar lands at the bottom.
-            const extra = FULL ? await evalJs(page, `(() => { const v = document.querySelector('.viewport');
+            // Not with --touch at a tablet width: Chromium's capture of a touch-emulated 820px page
+            // grown past ~4000px never returns (measured 2026-09-22; the page itself stays live).
+            // Those runs take viewport shots; frame a section with --scroll-to / --scroll-by.
+            const extra = FULL && !SCROLL_BY && !(TOUCH && width >= 700) ? await evalJs(page, `(() => { const v = document.querySelector('.viewport');
               return v ? Math.max(0, v.scrollHeight - v.clientHeight) : 0; })()`) : 0;
             if (extra > 0) {
-              const tall = Math.min(6000, 844 + extra);
+              const tall = Math.min(6000, baseH + extra);
               await page.send('Emulation.setDeviceMetricsOverride', { width, height: tall, deviceScaleFactor: 2, mobile: true, screenWidth: width, screenHeight: tall });
               await sleep(350);
             }

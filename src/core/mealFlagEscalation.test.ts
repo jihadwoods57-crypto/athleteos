@@ -49,7 +49,11 @@ describe('the tool contract', () => {
     // The escape hatch is offered on the athlete's QUESTION path and nowhere else. The condition
     // gained correctionUpdate (2026-07-28) and coachAsk (2026-08-06) for the same reason
     // coachSupport was there: those turns have nothing in them to escalate.
-    expect(SRC).toMatch(/tool_choice:\s*coachSupport \|\| coachAsk \|\| correctionUpdate\s*\?\s*\{ type: 'tool', name: 'reply' \}\s*:\s*\{ type: 'any' \}/);
+    // 2026-09-22: a coachAsk turn whose thread grounds a coach-requested addition may choose
+    // between reply and add_from_athlete, so it gets { type: 'any' } FIRST, over the COACH tool set
+    // (coachTools, pinned below to never carry FLAG_TOOL). Every other coach/update turn is still
+    // forced to reply, and the athlete question path still gets { type: 'any' } over athleteTools.
+    expect(SRC).toMatch(/tool_choice:\s*coachAsk && grounds\.length \? \{ type: 'any' \}\s*:\s*coachSupport \|\| coachAsk \|\| correctionUpdate\s*\?\s*\{ type: 'tool', name: 'reply' \}\s*:\s*\{ type: 'any' \}/);
   });
 
   it('only the athlete question path can escalate to a human', () => {
@@ -57,7 +61,14 @@ describe('the tool contract', () => {
     // correction the athlete just made, has nothing to escalate; offering the hatch there would
     // let the AI decline to reinforce its own coach, or decline to restate numbers the app has
     // already computed.
-    expect(SRC).toMatch(/coachSupport \|\| coachAsk \|\| correctionUpdate \? replyTools : athleteTools/);
+    // 2026-09-22: coachAsk now takes its own set (coachTools: reply, plus add_from_athlete when the
+    // athlete's own message grounds it). The guarantee is unchanged: athleteTools, the ONLY set
+    // holding FLAG_TOOL, is reached by the athlete question path alone, and coachTools never
+    // holds FLAG_TOOL.
+    expect(SRC).toMatch(/tools: coachAsk \? coachTools : coachSupport \|\| correctionUpdate \? replyTools : athleteTools/);
+    const coachTools = SRC.slice(SRC.indexOf('const coachTools = '), SRC.indexOf(';', SRC.indexOf('const coachTools = ')));
+    expect(coachTools).toMatch(/REPLY_TOOL/);
+    expect(coachTools).not.toMatch(/FLAG_TOOL/);
   });
 
   it('the correction tool exists and the model is told to use it instead of arguing', () => {

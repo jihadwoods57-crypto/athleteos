@@ -39,6 +39,12 @@ import { athleteContextLine } from '../_shared/athlete-context.ts';
 import { gateVerdict } from './addressing-gate.mjs';
 import { loadVoiceForAthlete } from '../_shared/coach-voice-load.ts';
 import { SUGGEST_MEAL_TOOL, parseSuggestMeal, suggestRowText, suggestRowMeta } from './suggest.mjs';
+// WHAT THE AI CAN SEE IN THE THREAD (2026-09-22): recent photos read out of meal_comments by this
+// function, the label-basis food shape, and the grounding rule for a coach-requested addition.
+import {
+  pickThreadPhotos, additionGrounds, validateCoachAddition, sanitizeFoods, additionReceiptText,
+  photoPreamble, threadTranscript, firstName, requesterLabel, additionNote, receiptRowsForStyle,
+} from './thread-photos.mjs';
 // Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
 // refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
 import { sendExpoPush } from '../_shared/expo-push.mjs';
@@ -136,6 +142,56 @@ const REPLY_TOOL = {
  * from its own curated food reference and only falls back to the model's estimate when the
  * reference has no entry. Numbers still never come from prose.
  */
+/* ONE FOOD ADDED TO THIS MEAL, as the model reports it. Shared by the athlete's `missed` list and
+   the coach-requested addition below so the two can never read a label differently.
+
+   LABEL READING (2026-09-22). A Nutrition Facts panel is not an estimate. The shake in the 12:44
+   incident printed 42g protein and 230 kcal, and the curated reference would have priced "a
+   protein shake" at whatever a generic one is. With basis "label" the figures are the PRINTED
+   per-serving numbers and servings is how many were consumed; the app multiplies and marks the
+   food as read evidence, which its own reference never overrides. A figure the model cannot read
+   goes in unreadable, never in the number fields. */
+const MISSED_FOOD_ITEM = {
+  type: 'object',
+  properties: {
+    name: { type: 'string', description: 'The food in plain words, e.g. "dinner roll", "whole milk", "white rice". For a packaged product whose label you can see, its product name, e.g. "Fairlife Core Power chocolate shake".' },
+    quantity: { type: 'string', description: 'How much, in kitchen units ("1 cup", "2 rolls", "12 oz", "1 bottle"). Omit when one serving is the honest read.' },
+    basis: { type: 'string', enum: ['label', 'estimate'], description: '"label" ONLY when you are reading the figures off a Nutrition Facts panel or packaging you can actually see in an image. Otherwise "estimate" (or omit).' },
+    servings: { type: 'number', description: 'With basis "label": how many label servings were consumed (a whole single-serve bottle is 1; half a 2-serving bag is 1). Omit otherwise.' },
+    protein: { type: 'integer', description: 'With basis "label": grams of protein PER SERVING exactly as printed. Otherwise a fallback estimate for this quantity; the app prefers its own reference.' },
+    kcal: { type: 'integer', description: 'With basis "label": calories per serving exactly as printed. Otherwise a fallback estimate.' },
+    carbs: { type: 'integer', description: 'With basis "label": total carbohydrate grams per serving as printed. Otherwise a fallback estimate.' },
+    fat: { type: 'integer', description: 'With basis "label": total fat grams per serving as printed. Otherwise a fallback estimate.' },
+    unreadable: {
+      type: 'array', items: { type: 'string', enum: ['protein', 'kcal', 'carbs', 'fat'] },
+      description: 'With basis "label": every figure you could NOT read clearly (glare, blur, cut off). Leave those number fields empty; never guess a label figure. Your message must name exactly these and ask only for them.',
+    },
+  },
+  required: ['name'],
+} as const;
+
+/* THE COACH-REQUESTED ADDITION (lead decision 2026-09-22). "Make sure that gets added in" about a
+   shake the ATHLETE posted is a request the AI can now carry out, but only one kind: the evidence
+   must be the athlete's own message or photo in this thread, named by id from a list this function
+   built out of meal_comments itself. The enum is the whole safety rule: the model cannot cite a
+   message that is not there, and a coach cannot have food put on an athlete's plate on their own
+   word. Offered only when that list is non-empty. */
+function coachAddTool(groundIds: string[]) {
+  return {
+    name: 'add_from_athlete',
+    description: "The coach asked you to add to THIS meal a food or drink the ATHLETE showed or described in this thread (their photo, or their own words like \"I also had a roll\"). Call this to add it: the app counts it toward the athlete's numbers and meal score and posts a receipt saying it came from the athlete's message at the coach's request. Only for something the athlete posted; never for food the coach describes on their own.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        sourceMessageId: { type: 'string', enum: groundIds, description: "The id of the athlete's own message (from the list you were given) that shows or names the food." },
+        foods: { type: 'array', items: MISSED_FOOD_ITEM, description: 'Each food or drink to add, one entry per food.' },
+        ack: { type: 'string', description: "One short sentence TO THE COACH saying what you added and from what, e.g. \"Done, added the Core Power from Jihad's photo, read off the label.\" Use the athlete's first name, never he or she. If a label figure was unreadable, say which one and that you will ask the athlete for it. No em dashes." },
+      },
+      required: ['sourceMessageId', 'foods', 'ack'],
+    },
+  };
+}
+
 const CORRECTION_TOOL = {
   name: 'apply_correction',
   description: 'The athlete stated a factual correction about a specific item in THIS logged meal: a wrong product variant, a macro that contradicts what their packaging prints, a wrong PORTION ("that was two cups, not one"), or an ingredient the photo could not see ("it had egg and cheese on both"). Call this INSTEAD of arguing, hedging, or telling them to update the log or tell their coach — the app applies the correction, recalculates every number and the meal score, and updates every surface automatically.',
@@ -195,16 +251,7 @@ const CORRECTION_TOOL = {
       missed: {
         type: 'array',
         description: 'WHOLE FOODS eaten as part of THIS meal that the read does not contain at all: a side left out of the photo, a drink beside the plate, a second plate someone sent a picture of afterwards ("I also had a roll", "forgot the milk", a photo of the rice that was not in the first shot). One entry per food. The app prices each from its own reference and it counts toward the meal score. Use this, not `add`, for a separate food; use `add` only for an ingredient inside an existing item. Never for food from a different meal.',
-        items: {
-          type: 'object',
-          properties: {
-            name: { type: 'string', description: 'The food in plain words, e.g. "dinner roll", "whole milk", "white rice".' },
-            quantity: { type: 'string', description: 'How much, in kitchen units ("1 cup", "2 rolls", "12 oz"). Omit when one serving is the honest read.' },
-            protein: { type: 'integer', description: 'Fallback estimate for this quantity; the app prefers its own reference.' },
-            kcal: { type: 'integer' }, carbs: { type: 'integer' }, fat: { type: 'integer' },
-          },
-          required: ['name'],
-        },
+        items: MISSED_FOOD_ITEM,
       },
       ack: { type: 'string', description: 'One to two conversational sentences to the athlete: own the miss plainly and without defensiveness ("Good catch, that is the 42g bottle"; "Two cups, got it") and say their numbers and score are updating now. Never tell them to update anything themselves or to notify their coach. Do NOT state new meal totals or new per-item macros; they are recomputed after this. No em dashes.' },
     },
@@ -258,10 +305,11 @@ Rules that bind you:
 const COACH_ASK_SYSTEM = `You are the OnStandard AI Nutritionist. A COACH or TRAINER reviewing one of their athlete's meals is asking YOU a question.
 Rules that bind you:
 1. Use ONLY the provided context (this meal, targets, the thread). Never invent, recompute, or adjust any number; you may repeat numbers exactly as given.
-2. Answer the coach directly and practically, like a staff nutritionist they trust. The athlete can read this thread too — refer to the athlete in the third person and stay respectful about them.
+2. Answer the coach directly and practically, like a staff nutritionist they trust, and talk TO the coach: "Done, it's in" or "Yes, that covers it", never a memo about the athlete. The athlete can read this thread too, so stay respectful about them. Call the athlete by their first name when you are given it, otherwise "the athlete" or "they". Never guess a pronoun: no he, him, she or her.
+2b. You can see every image you are sent: they are photos from this meal's thread. Never say you cannot see an image, that you only have the logged data, or that you lack details you can read in a picture. Never tell the coach to have the athlete log something manually or check the log: when the add_from_athlete tool is available and the coach wants something the athlete posted counted, you add it yourself. A Nutrition Facts panel is read exactly as printed, never replaced with a typical value.
 3. When the context names the athlete's sport, position, level, bodyweight or day type, coach for it, and name their position with the EXACT word you were given. A neighbouring position is a wrong position; never infer one from bodyweight or from the plate.
 4. When asked for a recommendation, give a clear one grounded in what is actually in the context. If the context cannot support a firm answer, say so plainly and name the one thing you would check.
-5. 100 words maximum. No em dashes. No markdown headers.
+5. 70 words maximum, and shorter when the answer is short. No em dashes. No markdown headers.
 6. Never give medical, injury, weight-cutting, or disordered-eating guidance — those belong with qualified humans.`;
 
 const SYSTEM = `You are the OnStandard AI Nutritionist inside an athlete's meal thread.
@@ -349,7 +397,20 @@ Rules that bind you:
    line and a fallback sentence only; you never pick the meals yourself and never invent a food.
    Use it ONLY when they ask what to eat or how to hit a target, never unprompted, never as an
    aside to a different question, and never when the question is really a correction, a medical
-   matter, or a food fact.`;
+   matter, or a food fact.
+16. YOU CAN SEE THE PHOTOS IN THIS THREAD. Any image you are sent is a photo from this meal's
+   thread, and you read it. Never say you cannot see an image, that you only have the logged
+   data, or that they should log something manually: when a food or drink in a photo belongs to
+   this meal, you add it with apply_correction yourself.
+17. A LABEL IS READ, NOT ESTIMATED. When a photo shows a Nutrition Facts panel, the printed
+   figures are the truth: report them exactly as printed, per serving, with basis "label" and the
+   servings they had. Never swap in a typical value for that kind of product. If one figure is
+   blurred or cut off, add what you can read, mark that figure unreadable, and ask for exactly
+   that one number, nothing else. The figures go in the tool; your message only repeats one when
+   the plan style allows numbers at all.
+18. TALK TO THE PERSON IN FRONT OF YOU. You are answering the athlete, so speak to them as
+   "you", by first name when it helps. When you mention someone else in the thread, use their
+   name or role; never guess a pronoun for anyone.`;
 
 /**
  * The escape hatch. An AI nutritionist that answers "should I cut 8lb this week" or "my knee hurts
@@ -483,7 +544,16 @@ Deno.serve(async (req) => {
        spend; it exists purely because 0046's insert policy (rightly) forbids a client from
        writing an 'ai' row, and a receipt authored by the athlete would read as the athlete
        claiming their own numbers changed. */
-    const receiptRows = correctionReceiptRows(body?.correctionReceipt);
+    /* THE COACH-REQUESTED ADDITION'S RECEIPT (2026-09-22). Either device may file the numeric
+       receipt for an ai_addition row: the COACH's, the moment it wrote the meals row (so the coach
+       sees the numbers move at once), or the ATHLETE's, when its day catches up. `additionId`
+       names the ai_addition row; the server reads the attribution line off that row and files
+       at most ONE receipt per addition, whichever device gets there first. */
+    const uuidish = (v: unknown) => (typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v) ? v : null);
+    const coachReceiptIn = body?.additionReceipt && typeof body.additionReceipt === 'object' ? body.additionReceipt : null;
+    const additionId = uuidish(coachReceiptIn ? coachReceiptIn.additionId : body?.additionId);
+    const receiptRows = correctionReceiptRows(coachReceiptIn ? (additionId ? coachReceiptIn.rows : null) : body?.correctionReceipt);
+    const coachReceipt = !!(coachReceiptIn && additionId && receiptRows);
     // Capability flag (2026-08-06): "I know how to apply a structured correction returned by
     // apply_correction". Only a client that can actually recompute + resync every surface gets
     // the tool offered — an older build keeps today's reply-only contract (with the never-argue
@@ -504,7 +574,10 @@ Deno.serve(async (req) => {
     // caller cannot point the model at an arbitrary image, and cannot inflate the request body.
     const photoPathRaw = typeof body?.photoPath === 'string' ? body.photoPath.trim() : '';
     if (!mealId || (!receiptRows && !context) || (!draftMode && !correctionUpdate && !receiptRows && !question)) return bad(400, 'bad_request', cors);
-    if (JSON.stringify(context).length > CONTEXT_MAX) return bad(400, 'bad_request', cors);
+    // `?? null`: a receipt request carries no context, and JSON.stringify(undefined) is undefined,
+    // whose .length THREW into the outer catch. Every correction receipt came back 503 and was
+    // never written (found 2026-09-22; the receipt path swallows its own failure by design).
+    if (JSON.stringify(context ?? null).length > CONTEXT_MAX) return bad(400, 'bad_request', cors);
 
     // WHO IS EATING (founder 2026-09-13). The meal READ has known the athlete's sport, position,
     // level, bodyweight and day type since 2026-09-02; the thread that follows it knew none of
@@ -530,7 +603,8 @@ Deno.serve(async (req) => {
     // Coach modes (coachSupport + coachAsk + draft): the RLS-scoped select above succeeding for a
     // NON-owner proves can_view (linked coach/staff), so a coach must NOT own the meal. Athlete
     // mode: owner.
-    const coachMode = coachSupport || coachAsk || draftMode;
+    // A coach filing an addition's receipt is a coach mode too: the caller must NOT own the meal.
+    const coachMode = coachSupport || coachAsk || draftMode || coachReceipt;
     if (coachMode ? mealRow.athlete_id === callerId : mealRow.athlete_id !== callerId) return bad(403, 'unauthorized', cors);
 
     const service = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
@@ -540,11 +614,39 @@ Deno.serve(async (req) => {
        let a day of honest corrections lock the athlete out of their own nutritionist. The
        ownership check above (mealRow.athlete_id === callerId for the athlete path) has already
        run, so only the meal's own athlete can file one. */
+    if (coachReceiptIn && !coachReceipt) return bad(400, 'bad_request', cors);
     if (receiptRows) {
-      const text = correctionReceiptText(receiptRows);
+      let rows = receiptRows;
+      let note: string | null = null;
+      if (additionId) {
+        // The addition must be a real ai_addition row on THIS meal, and a coach may only file the
+        // receipt for one they asked for themselves.
+        const { data: add } = await service.from('meal_comments').select('id, role, meta')
+          .eq('id', additionId).eq('meal_id', mealId).maybeSingle();
+        const am = (add?.meta ?? {}) as Record<string, unknown>;
+        const asker = (am.requestedBy ?? {}) as Record<string, unknown>;
+        if (!add || add.role !== 'ai' || am.t !== 'ai_addition' || (coachReceipt && asker.id !== callerId)) {
+          return bad(403, 'unauthorized', cors);
+        }
+        // One receipt per addition. The second device to arrive is a no-op, not a second card.
+        const { data: dup } = await service.from('meal_comments').select('id')
+          .eq('meal_id', mealId).eq('role', 'ai').eq('meta->>t', 'correction_receipt')
+          .eq('meta->>additionId', additionId).limit(1);
+        if (Array.isArray(dup) && dup.length) {
+          return new Response(JSON.stringify({ ok: true, duplicate: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+        }
+        note = additionNote(am);
+        // The COACH's device does not know the athlete's plan style; this function does. An
+        // Intuitive athlete's receipt carries the meal score and nothing else.
+        const style = (await loadPlanStyleForAthlete(service, mealRow.athlete_id))?.style ?? null;
+        rows = receiptRowsForStyle(rows, style) as ReceiptRow[];
+        if (!rows.length) return new Response(JSON.stringify({ ok: true, empty: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
+      const text = correctionReceiptText(rows);
       const row = {
         meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai',
-        text, kind: 'message', meta: { t: 'correction_receipt', rows: receiptRows },
+        text, kind: 'message',
+        meta: { t: 'correction_receipt', rows, ...(note ? { note, additionId } : {}) },
       };
       const { error: recErr } = await service.from('meal_comments').insert(row);
       if (recErr) {
@@ -708,38 +810,80 @@ Deno.serve(async (req) => {
        first path segment being a uid, so this check mirrors the same boundary server-side rather
        than trusting the caller: a coach can read the athlete's folder through can_view(), but
        neither party can point this at somebody else's. */
-    let photoB64: string | null = null;
     // The COACH may attach too (2026-09-02): "is this the portion you meant?" with a picture is
     // the mirror of the athlete's "here's what I ate", and the AI answering the coach without
     // seeing it was answering half the question. A coach's attachment lives under the COACH's
     // own folder (storage RLS keys the path on the uploader), so the boundary is the caller's
     // uid on that path, never the athlete's.
-    if (photoPathRaw && !coachSupport && !correctionUpdate && !draftMode) {
-      const okShape = /^[0-9a-f-]{36}\/chat\/[A-Za-z0-9._-]{1,64}$/i.test(photoPathRaw)
-        && photoPathRaw.startsWith(`${coachAsk ? callerId : mealRow.athlete_id}/`);
-      if (okShape) {
-        try {
-          const dl = await service.storage.from('meal-photos').download(photoPathRaw);
-          if (dl.data) {
-            const buf = new Uint8Array(await dl.data.arrayBuffer());
-            // Guard the model call, not the bucket: the client encodes to ~1000px/q0.82 (a few
-            // hundred KB), so anything past 6MB is not a chat attachment and is dropped rather
-            // than turned into an enormous, expensive request.
-            if (buf.length && buf.length <= 6_000_000) {
-              let bin = '';
-              for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
-              photoB64 = btoa(bin);
-            }
-          }
-        } catch { /* unreadable attachment: answer the words, never fail the whole turn */ }
-      }
+    //
+    // THE THREAD'S PHOTOS, NOT JUST THIS MESSAGE'S (2026-09-22). The coach's "make sure that gets
+    // added in" carried no image, so the model never saw the shake the athlete had posted 45
+    // minutes earlier, and said so, twice. Every conversational turn now reads THIS meal's recent
+    // photos out of meal_comments itself: at most two, newest first, only ones no earlier turn has
+    // already turned into numbers, only from the athlete's folder or the caller's own, 6MB each.
+    // The rows come from the database, so the client can post a picture but never name one.
+    const seesThread = !coachSupport && !correctionUpdate && !draftMode;
+    let threadRows: Array<Record<string, unknown>> = [];
+    if (seesThread) {
+      try {
+        const { data: tr } = await service.from('meal_comments')
+          .select('id, role, author_id, text, kind, meta, created_at')
+          .eq('meal_id', mealId).order('created_at', { ascending: false }).limit(40);
+        threadRows = (tr ?? []) as Array<Record<string, unknown>>;
+      } catch { /* no thread: the turn still answers, it just sees only what it was sent */ }
     }
+    const photoPicks = seesThread
+      ? pickThreadPhotos(threadRows, { athleteId: mealRow.athlete_id, callerId, current: photoPathRaw })
+      : [];
+    const photos: Array<{ key: string; b64: string; pick: (typeof photoPicks)[number] }> = [];
+    for (const pick of photoPicks) {
+      try {
+        const dl = await service.storage.from('meal-photos').download(pick.key);
+        if (!dl.data) continue;
+        const buf = new Uint8Array(await dl.data.arrayBuffer());
+        // Guard the model call, not the bucket: the client encodes to ~1000px/q0.82 (a few
+        // hundred KB), so anything past 6MB is not a chat attachment and is dropped rather
+        // than turned into an enormous, expensive request.
+        if (!buf.length || buf.length > 6_000_000) continue;
+        let bin = '';
+        for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+        photos.push({ key: pick.key, b64: btoa(bin), pick });
+      } catch { /* unreadable attachment: answer the words, never fail the whole turn */ }
+    }
+    const photoB64 = photos.length ? photos[0].b64 : null;
+    const photoKeys = photos.map((p) => p.key);
+
+    // WHO IS IN THE ROOM, BY NAME (2026-09-22). The coach turn answered "I don't have details on
+    // what HE is drinking": a pronoun guessed from nothing, about an athlete it could have named.
+    // First names come from profiles, read with the service role for exactly the people in this
+    // thread; the model is told to use them and never to guess a pronoun.
+    const byId: Record<string, string> = {};
+    try {
+      const ids = [...new Set([mealRow.athlete_id, callerId, ...threadRows.map((r) => r.author_id)]
+        .filter((v): v is string => typeof v === 'string' && !!v))].slice(0, 12);
+      const { data: ppl } = await service.from('profiles').select('id, full_name').in('id', ids);
+      for (const p of (ppl ?? []) as Array<{ id: string; full_name: string | null }>) byId[p.id] = String(p.full_name ?? '');
+    } catch { /* names are an enhancement: the prompt falls back to "the athlete" */ }
+    const athleteFirst = firstName(byId[mealRow.athlete_id]);
+    const askerNoun = typeof body?.askerNoun === 'string' ? body.askerNoun : 'coach';
+    const requester = coachAsk ? requesterLabel(byId[callerId], askerNoun) : '';
+    const nameLine = athleteFirst
+      ? `\n\nThe athlete's first name is ${athleteFirst}. Call them ${athleteFirst} (or "they"); never he or she.`
+      : '\n\nYou do not know the athlete\'s name: say "the athlete" or "they", never he or she.';
+    const imagesLine = photos.length
+      ? `\n\n${photoPreamble(photos.map((p) => p.pick), { athleteId: mealRow.athlete_id, athleteFirst, callerId, callerLabel: coachAsk ? requester : athleteFirst })}`
+      : '';
+
+    // What could ground a COACH-requested addition: the athlete's own photo or words in this
+    // thread, never the coach's. Offered only to a coach client that can say it asked (the
+    // capability contract every other tool here already follows).
+    const grounds = coachAsk && body?.canDirectAdd === true ? additionGrounds(threadRows, mealRow.athlete_id) : [];
 
     // THE DOLLAR CEILING (0152): the caps above count CALLS, this counts MONEY. Fail-closed.
     // A turn carrying an image is a VISION call and costs several times a text one, so it is
     // estimated as such — charging it at the text rate would let attachments walk the daily
-    // ceiling past its actual limit.
-    const spendChat = await checkSpend(photoB64 ? EST_USD.vision : EST_USD.text);
+    // ceiling past its actual limit. Two images are two vision estimates.
+    const spendChat = await checkSpend(photos.length ? EST_USD.vision * photos.length : EST_USD.text);
     if (!spendChat.allowed) {
       console.log(JSON.stringify({ evt: 'ai_spend_block', fn: 'meal-chat', reason: spendChat.reason }));
       return bad(429, 'capacity', cors);
@@ -763,8 +907,17 @@ Deno.serve(async (req) => {
       FLAG_TOOL,
     ] as unknown as Anthropic.Tool[];
     // The user turn, named once because the style-correction retry below has to replay it exactly.
+    // The thread as the database holds it, with names, ids and which line carries which image.
+    // The coach's client sends six anonymous {role, text} lines; this is what a person scrolling
+    // the thread actually sees.
+    const coachThread = coachAsk && threadRows.length
+      ? `\n\nThe thread so far, oldest first:\n${threadTranscript(threadRows, { byId, athleteId: mealRow.athlete_id }, photos.map((p) => p.pick))}`
+      : '';
+    const groundsLine = grounds.length
+      ? `\n\nMessages from ${athleteFirst || 'the athlete'} that you may add food from with add_from_athlete (id, then what they sent):\n${grounds.map((g) => `- ${g.id}: ${g.photoKey ? '[photo] ' : ''}${g.text ? `"${g.text.replace(/["<>]/g, '').slice(0, 160)}"` : '(no words)'}`).join('\n')}`
+      : '';
     const userTurn = coachAsk
-      ? `${ctxBlock}\n\nThe COACH reviewing this athlete's meal just asked you directly: "${question}"\n\nAnswer THE COACH in 100 words or less, using ONLY figures and foods already present in the context. Give a clear practical answer or recommendation; refer to the athlete in the third person. If the context cannot support a firm answer, say so and name the one thing you would check.${photoB64 ? ' The coach ATTACHED THE IMAGE ABOVE to their question: read it and answer about it. It has not been analyzed and carries no macros, so any figure you give for it is an eyeballed estimate and must be said to be one. If it shows food from this meal that the logged read does not list, say so plainly so the athlete can confirm it in the thread and have it counted.' : ''}`
+      ? `${ctxBlock}${nameLine}${coachThread}${imagesLine}${groundsLine}\n\n${requester || 'The coach'} just asked you directly: "${question}"\n\nAnswer ${requester || 'the coach'} directly, in their terms, in 70 words or less: you are talking TO the coach, not writing a report about the athlete. Use ONLY figures and foods present in the context, the thread, or an image you can see.${photos.length ? ' You CAN see the image(s) above: they are photos from this thread. Read them; never say you cannot see an image.' : ''}${grounds.length ? ` If the coach is asking you to add, count or log something ${athleteFirst || 'the athlete'} showed or described in one of the listed messages, call add_from_athlete: do not tell anyone to log it themselves. If it is a Nutrition Facts panel, read the printed figures exactly (basis "label"); if a figure is unreadable, list it as unreadable and say you will ask ${athleteFirst || 'the athlete'} for just that one.` : ' If the coach asks you to add something, you can only add food the athlete showed or described in this thread themselves, and there is nothing like that here: say so in one sentence and suggest the athlete send a photo or tell you what it was.'} If the context cannot support a firm answer, say so and name the one thing you would check.`
       : coachSupport
       ? `${ctxBlock}\n\nThe COACH just said this on the athlete's meal: "${question}"\n\nIn 60 words or less, speaking to the athlete, back the coach's point using ONLY figures already in the context. Do not add new requirements, do not soften the coach, do not contradict them. If the context has nothing relevant, one steady sentence reinforcing the coach is enough.`
       : correctionUpdate
@@ -772,28 +925,39 @@ Deno.serve(async (req) => {
         // The job is to acknowledge the fix and re-read the plate with it, conversationally — not
         // to apologise, and not to re-litigate what the photo showed.
         ? `${ctxBlock}\n\nThe athlete just corrected your read of this meal. The numbers above are the CORRECTED ones. In 50 words or less, reply like a coach texting back — open by thanking them for the correction in a short natural clause ("Thanks for correcting the oil, that changes things a bit."), then give the ONE thing the update means for their next meal. Two or three sentences, conversational, no headings, no lists. Do not apologise, do not explain the mistake, do not re-list the numbers.`
-        : `${ctxBlock}\n\nAthlete's question: ${question}${photoB64 ? `
+        : `${ctxBlock}${nameLine}${imagesLine}\n\nWhat ${athleteFirst || 'the athlete'} just said to you: ${question}${photos.length ? `
 
-The athlete ATTACHED THE IMAGE ABOVE to this message. It has not been analyzed and nothing in the
-context above describes it. Read it yourself. FIRST decide what it is:
-- Food from THIS meal that the read does not list (a side, a drink, a second plate they forgot):
-  call apply_correction and put each such food in \`missed\` with a kitchen-units quantity, so it
-  counts toward their numbers and score. Do not describe its macros in prose instead.
+The image(s) above are photos from this meal's thread. They have not been analyzed and nothing in
+the context describes them. You CAN see them: read them yourself and never say you cannot see an
+image. FIRST decide what each one is:
+- Food or drink from THIS meal that the read does not list (a side, a drink, a second plate they
+  forgot): call apply_correction and put each such food in the missed list, so it counts toward
+  their numbers and score. Do not describe its macros in prose instead, and never tell them to log
+  it themselves.
+- A Nutrition Facts panel or printed packaging: read it EXACTLY. Put the food in the missed list (or
+  correct the logged item it belongs to) with basis "label", the PRINTED per-serving protein,
+  calories, carbs and fat, and servings set to how much they consumed. The printed figures are the
+  truth; never swap in a typical value for that kind of product. If a figure is blurred, cut off or
+  in glare, list it under unreadable, leave it empty, and in your message name that one figure and
+  ask them for just that.
 - Evidence that a LOGGED item is a different food or a different amount than the read says:
   call apply_correction with newName (perBasis "estimate") or quantity for that item.
-- A nutrition label: call apply_correction with the printed macros for that item.
 - Anything else (a menu, a question about a food they have not eaten, a portion they are asking
   about): answer what they asked. Say plainly that you are eyeballing the picture, keep any figure
   clearly an estimate, and leave every number about the LOGGED meal exactly as given.` : ''}`;
 
-    // An image rides as its own content block ahead of the text. Only ever populated on the
-    // athlete question path (see the resolve step above).
-    const userContent = photoB64
+    // Images ride as their own content blocks ahead of the text, in the order the preamble names
+    // them. Text-only turns (and the style retry below) never carry one.
+    const userContent = photos.length
       ? [
-        { type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: photoB64 } },
+        ...photos.map((p) => ({ type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/jpeg' as const, data: p.b64 } })),
         { type: 'text' as const, text: userTurn },
       ]
       : userTurn;
+    // The coach may carry out an addition only when the thread grounds it (see coachAddTool).
+    const coachTools = (grounds.length
+      ? [REPLY_TOOL, coachAddTool(grounds.map((g) => g.id))]
+      : [REPLY_TOOL]) as unknown as Anthropic.Tool[];
 
     // The base identity depends on who is asking: a coach's direct question gets the
     // coach-facing system; everything else keeps the athlete-thread system.
@@ -809,8 +973,9 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
       // Only the athlete's own QUESTION path can escalate to a human — a coach's point being
       // reinforced, a coach's direct question, and a correction being acknowledged have nothing
       // in them to escalate (the coach IS the human).
-      tools: coachSupport || coachAsk || correctionUpdate ? replyTools : athleteTools,
-      tool_choice: coachSupport || coachAsk || correctionUpdate ? { type: 'tool', name: 'reply' } : { type: 'any' },
+      tools: coachAsk ? coachTools : coachSupport || correctionUpdate ? replyTools : athleteTools,
+      tool_choice: coachAsk && grounds.length ? { type: 'any' }
+        : coachSupport || coachAsk || correctionUpdate ? { type: 'tool', name: 'reply' } : { type: 'any' },
       messages: [{ role: 'user', content: userContent }],
     });
     // phase marks the vision turns so the cost views can separate them: an attachment turn is
@@ -827,8 +992,56 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
         kind?: unknown; value?: unknown;
         more?: unknown; missed?: unknown;
         protein_gap_g?: unknown; kcal_gap?: unknown; framing?: unknown; fallback?: unknown;
+        sourceMessageId?: unknown; foods?: unknown;
       };
     } | undefined;
+
+    // ── ADD FROM THE ATHLETE, AT THE COACH'S REQUEST (lead decision 2026-09-22) ──
+    // The coach asked; the athlete's own message is the evidence; the athlete's device does the
+    // arithmetic. This row is the unforgeable record of all three: it names whose photo or words
+    // and at whose request, and carries the add-foods payload (meta.c) that the athlete's app
+    // applies through the same deterministic engine as every other correction, exactly once per
+    // row id (state.js applyProCorrection). The photo it came from is marked applied so no later
+    // turn adds it twice.
+    if (tool?.name === 'add_from_athlete') {
+      const ok = validateCoachAddition(tool.input, grounds);
+      if (!ok) {
+        // Refused: the model cited nothing the athlete posted. Say what is true, to the coach.
+        const refusal = styleSafe(`I can only add food ${athleteFirst || 'the athlete'} showed or described in this thread, and I could not match this to one of their messages. If ${athleteFirst || 'they'} sends a photo or tells me what it was, I will count it.`);
+        await service.from('meal_comments').insert({ meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai', kind: 'message', text: refusal });
+        await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: 'coach_add', userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0r, ok: true, outcome: 'coach_add_refused' });
+        return new Response(JSON.stringify({ reply: refusal, refused: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
+      const fromPhoto = !!ok.source.photoKey;
+      const receipt = additionReceiptText({ athleteFirst, requester, foods: ok.foods, fromPhoto });
+      const ack = styleSafe(String(tool.input?.ack ?? '').replace(/—/g, ',').trim().slice(0, 300));
+      // The label figure the model could not read is asked for in the same breath, of the athlete.
+      const missing = [...new Set(ok.foods.flatMap((f: unknown) => (f as { unreadable?: string[] }).unreadable ?? []))];
+      const ask = missing.length
+        ? ` ${athleteFirst || 'Athlete'}, I couldn't read the ${missing.map((m) => (m === 'kcal' ? 'calories' : m)).join(' or ')} on that label. What does it say?`
+        : '';
+      const text = `${ack ? `${ack} ` : ''}${receipt}${ask}`.slice(0, 1000);
+      const meta = {
+        t: 'ai_addition',
+        c: { kind: 'add-foods', foods: ok.foods, said: ok.source.text || undefined },
+        source: { messageId: ok.source.id, photo: fromPhoto, athleteFirst: athleteFirst || null },
+        requestedBy: { id: callerId, name: requester || null },
+        photos: ok.source.photoKey ? [ok.source.photoKey] : [],
+      };
+      const row = { meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai', text };
+      const { data: addRow, error: addErr } = await service.from('meal_comments')
+        .insert({ ...row, kind: 'message', meta }).select('id').maybeSingle();
+      // Without meta there is no payload to apply, so there is no addition id to hand back either:
+      // the sentence still lands, and nothing claims the numbers moved.
+      if (addErr) await service.from('meal_comments').insert({ ...row, kind: 'message' });
+      await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: 'coach_add', userId: callerId, model: msg.model ?? MODEL, ...usageFrom(msg.usage), latencyMs: Date.now() - t0r, ok: true, outcome: 'coach_add_returned' });
+      // The coach's device applies this AT ONCE (coach.js): it prices the same foods through the
+      // same engine, writes the meals row through pro_correct_meal, and files the receipt.
+      const addition = !addErr && addRow?.id
+        ? { id: String(addRow.id), foods: ok.foods, said: ok.source.text || null, sourceMessageId: ok.source.id }
+        : null;
+      return new Response(JSON.stringify({ reply: text, addition }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
 
     // ── SUGGEST MEAL: the athlete asked what to eat. The model frames; the client picks. ──
     // The row carries framing + fallback as plain text (complete for any renderer) and the meta
@@ -940,22 +1153,9 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
         .filter((f) => changed(f) && f.item.toLowerCase() !== item.toLowerCase());
       // Whole foods the read never had. Priced client-side from the curated reference; the
       // model's numbers ride along only as a fallback, exactly like `add`.
-      const missed = (Array.isArray(tool.input?.missed) ? tool.input.missed : [])
-        .slice(0, 6)
-        .map((raw) => {
-          const a = (raw ?? {}) as Record<string, unknown>;
-          const name = str(a.name, 60);
-          if (!name) return null;
-          return {
-            name,
-            quantity: str(a.quantity, 40) || null,
-            per: {
-              protein: gnum(a.protein, 300), kcal: gnum(a.kcal, 2000),
-              carbs: gnum(a.carbs, 500), fat: gnum(a.fat, 300),
-            },
-          };
-        })
-        .filter(Boolean);
+      // A label read rides as basis 'label' + servings + per-serving figures, and an unreadable
+      // figure as a name, never a number (sanitizeFood, shared with the coach path).
+      const missed = sanitizeFoods(tool.input?.missed);
       // Ingredients the athlete says were in the item. The model's macro numbers ride along ONLY
       // as a fallback for foods our reference does not carry — the client prefers priceAddedFood
       // every time, so a hallucinated 60g-protein egg loses to the curated entry.
@@ -988,12 +1188,22 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
       // numbers had not moved and never would, which is worse than no answer: it teaches them the
       // correction loop works when it did not. When there is nothing to apply, the AI says what is
       // actually true and asks for the one thing that would let it act.
+      // A label figure the model could not read is asked for by name, and only that one. The
+      // rest of the label still counts now; the model was told to say this too, and this line is
+      // the floor for when it did not.
+      const unreadable = [...new Set(missed.flatMap((f: unknown) => (f as { unreadable?: string[] }).unreadable ?? []))]
+        .map((m) => (m === 'kcal' ? 'calories' : m));
+      const askLine = unreadable.length && !unreadable.every((u) => ack.toLowerCase().includes(u))
+        ? ` I couldn't read the ${unreadable.join(' or ')} on the label. What does it say?`
+        : '';
       const text = hasChange
-        ? ack
+        ? `${ack}${askLine}`
         : "I want to get that into your numbers, but I didn't catch enough to change them. Tell me what to fix, like the protein on the label or what else was in it, and I'll put it straight in.";
       const ackRow = { meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai', text };
+      // `photos`: the images this turn looked at are now in the numbers, so no later turn is shown
+      // them again as something still to add (thread-photos.mjs appliedPhotoKeys).
       const { error: ackErr } = await service.from('meal_comments')
-        .insert({ ...ackRow, kind: 'message', meta: hasChange ? { t: 'analysis_update' } : undefined });
+        .insert({ ...ackRow, kind: 'message', meta: hasChange ? { t: 'analysis_update', ...(photoKeys.length ? { photos: photoKeys } : {}) } : undefined });
       if (ackErr) await service.from('meal_comments').insert({ ...ackRow, kind: 'message' });
 
       await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: 'correction_tool', userId: callerId, model: msg.model ?? MODEL, latencyMs: 0, ok: true, outcome: hasChange ? 'correction_returned' : 'ack_only' });

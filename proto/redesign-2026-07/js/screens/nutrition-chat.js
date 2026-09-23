@@ -23,7 +23,7 @@
 import { S, RT, act, mealDetail, athleteContextForAnalysis } from '../state.js';
 import { MEAL_KEYS } from '../day.js';
 import { icon } from '../icons.js';
-import { backHead, esc, composer, aiDisclaimer } from '../components.js';
+import { backHead, esc, safeImg, composer, aiDisclaimer } from '../components.js';
 import { decideAiTurn } from '../ai-thread.js';
 import { threadMessages, reactionGroups, REACTION_EMOJI, contextForChat } from '../meal-intel.js';
 import { foodMemory, warmFoodMemory } from '../food-memory-data.js';
@@ -36,17 +36,23 @@ import {
   memoryOfferOf, memoryOfferChips,
   mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
-  correctionRowsOf,
+  isCorrectionReceipt, receiptCardHtml, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta,
+  personText, workingLabel,
 } from '../chat-view.js';
 import { wireChatTimes } from '../chat-times.js';
-import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos } from '../chat-attach.js';
+import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos, postChatMessage } from '../chat-attach.js';
+import {
+  beginSend, endSend, takeFailed, setAiWorking,
+  setReply, replyOf, clearReply, paintReplyChip, noteArrivals, syncLive, syncJump,
+  bindLive, wireThreadTaps,
+} from '../chat-live.js';
+import { FILTERED_NOTE } from '../content-filter.js';
 import { hydrateAvatars } from '../avatar.js';
 import { wireTapback } from '../tapback.js';
 import { openImageViewer } from '../image-viewer.js';
 import { openMembersSheet } from '../members-sheet.js';
 import { cachedMealPhoto, warmMealPhotos } from '../photo-store.js';
 import { scrollThreadToEnd, focusComposer } from '../keyboard.js';
-import { wireReadMore } from '../thread-readmore.js';
 
 /** How far back the stream reaches on open. A season is long; a fortnight is what a person
  *  actually scrolls, and "Load earlier" walks back from there. */
@@ -61,7 +67,7 @@ let STATE = { uid: null, comments: [], meals: [], participants: [], oldestISO: n
 /* MEMORY OFFERS (2026-09-02). Which pending facts still need the athlete's yes or no. `pending`
    is null until the fetch lands (unknown, so an offer row shows its chips) and a Set of ids
    after; `answered` is what they tapped THIS session, so the chips vanish on the very next paint
-   instead of waiting for a refetch. Module scope for the same reason EXPANDED_BUBBLES is. */
+   instead of waiting for a refetch. Module scope, so it survives every repaint. */
 let PENDING_IDS = null;
 const ANSWERED_FACTS = new Set();
 
@@ -94,9 +100,9 @@ function foodsFor(meal) {
   }).filter((d) => d && d.name);
 }
 
-/* Long AI bubbles the athlete has opened, keyed on each bubble's own text head. MODULE scope, so
-   an expansion survives every repaint — and this screen repaints on every poll tick. */
-const EXPANDED_BUBBLES = new Set();
+/* The live-state key for this screen (chat-live.js): one conversation across every meal, so one
+   outbox, one reply and one typing row, whichever plate a message is aimed at. */
+const NC = 'nutrition-chat';
 
 /* WHICH PLATE THE COMPOSER IS ANSWERING.
  *
@@ -114,12 +120,6 @@ const EXPANDED_BUBBLES = new Set();
  */
 let REPLY_TO = null;
 
-/* The message the athlete JUST sent, by id, for the one beat its bubble rises out of the
-   composer (screens.css .msg.in). Cleared on a timer rather than on the next paint: paint()
-   runs again the instant the typing row lands, and a class that lived only one paint cut the
-   motion short every time. */
-let JUST_SENT = null;
-let JUST_SENT_T = null;
 
 const fmtTime = (iso) => {
   if (!iso) return '';
@@ -240,9 +240,6 @@ export default {
     const threadEl = root.querySelector('#nc-thread');
     const noteEl = root.querySelector('#nc-note');
     let busy = false;
-    // LIVE: the AI is composing. The same indicator the meal thread has, for the same reason —
-    // the reply is written server-side, so without it the athlete's question just sits there.
-    let aiTyping = false;
     const setNote = (t, retry) => { if (noteEl) noteEl.innerHTML = t ? `<div class="mt-retry"${retry ? ' id="nc-retry-ai"' : ''}>${esc(t)}</div>` : ''; };
 
     // render() runs before any data exists, so the header would otherwise be stuck reading
@@ -275,8 +272,12 @@ export default {
       const meal = picked || latest;
       if (!meal) { el.hidden = true; el.innerHTML = ''; return; }
       el.hidden = false;
+      // The plate is one tap away: its name opens it (today's on the live meal page, an older
+      // one on its past-meal view), so "which meal is this about" is never a scroll hunt.
+      const slotNow = todaySlotFor(meal.id);
+      const go = slotNow ? `meal-thread/${slotNow}` : `meal-view/${meal.id}`;
       el.innerHTML = `<span class="nct-label">Replying about</span>
-        <span class="nct-meal">${esc(mealLabel(meal))}</span>
+        <button type="button" class="nct-meal" data-go="${esc(go)}" aria-label="${esc(`Open ${mealLabel(meal)}`)}">${esc(mealLabel(meal))}</button>
         ${picked && latest && picked.id !== latest.id
           ? `<button type="button" class="nct-clear" id="nc-target-clear">Latest instead</button>`
           : `<span class="nct-hint">Tap a meal above to switch</span>`}`;
@@ -289,7 +290,10 @@ export default {
         threadEl.innerHTML = `<div class="msg-status">Couldn't load your conversation. Your logs are safe either way. <span class="link" id="nc-retry" role="button">Try again</span></div>`;
         return;
       }
-      const msgs = threadMessages(STATE.comments);
+      // Chronological, whatever order the page arrived in: quote stems, the Delivered tag and the
+      // arrival count all read "the message before" and "the newest" off this list.
+      const at = (c) => { const t = Date.parse((c && c.created_at) || ''); return Number.isFinite(t) ? t : 0; };
+      const msgs = threadMessages(STATE.comments).slice().sort((a, b) => at(a) - at(b));
       if (!msgs.length && !STATE.meals.length) {
         // Empty because there IS nothing, or empty because the meals fetch died? Opposite
         // messages — one invites a first log, the other must not pretend the logs are gone.
@@ -300,6 +304,7 @@ export default {
         return;
       }
       const { items } = stitchNutritionChat({ meals: STATE.meals, comments: msgs });
+      { const a = noteArrivals(NC, visibleThread(msgs, RT.mutedUsers), RT.userId); FRESH = a.fresh; ARRIVED += a.added; }
       // Lay each meal's messages out on their own, so a run and a time separator never straddle
       // a divider — a "9:07 AM" floating above yesterday's photo card reads as a bug.
       const html = [];
@@ -319,8 +324,9 @@ export default {
         else run.push(item.comment);
       }
       flushRun();
-      if (aiTyping) html.push(typingRow());
       threadEl.innerHTML = html.join('');
+      // The outbox bubble and the AI at work (chat-live.js), after the paint that wiped them.
+      const sending = syncLive(threadEl, NC, { esc, imgSrc: safeImg });
       hydrateAvatars(threadEl);   // 0206: message monograms upgrade to real faces, as on the meal thread
       // `.thread` is a flex column and has never had a scrollTop — the screen's scroller is
       // #viewport, so the old line here moved nothing. Unforced: "Load earlier" must not fling the
@@ -334,14 +340,13 @@ export default {
         const head = root.querySelector('.nc-head');
         if (vp && head) vp.scrollTop -= head.getBoundingClientRect().height + 8;
       }
-      else scrollThreadToEnd(threadEl);
+      else scrollThreadToEnd(threadEl, { force: sending });
       paintHeader();
       paintTarget();
-      // A long opener clamps to four lines with a Read more, exactly as it does on the meal
-      // thread. composeOpenerText is WRITTEN against this control (see meal-opener.ts): it packs
-      // history, timing and its uncertainty line after the core on the promise that the client
-      // clamps them. Without it this screen rendered the full 1000 characters as one wall.
-      wireReadMore(threadEl, EXPANDED_BUBBLES);
+      // FULL MESSAGES, ALWAYS (founder 2026-09-22): no Read more on any renderer. The read is
+      // long on purpose; the bubble's measure keeps it readable (screens.css .msg .stack).
+      syncJump(threadEl, NC, { dock: root.querySelector('.chat-dock'), added: ARRIVED, always: true });
+      ARRIVED = 0;
       // Attached message photos resolve after paint (signed URLs are async), same as the meal
       // thread. Safe on every repaint.
       void hydrateThreadPhotos(threadEl, roles);
@@ -349,14 +354,15 @@ export default {
       warmMealPhotos(STATE.meals.map((m) => m.photo_path).filter(Boolean));
     };
 
-    // LIVE: the same typing row the meal thread paints, so a question visibly reaches someone.
-    const typingRow = () => `
-      <div class="msg ai typing" id="nc-ai-typing">
-        <div class="av">${icon('sparkle', 15)}</div>
-        <div class="stack"><div class="who">AI Nutritionist is typing<span class="sr-only">, a reply is on its way</span></div>
-        <div class="bubble tdots"><span></span><span></span><span></span></div></div>
-      </div>`;
-    const setTyping = (on) => { aiTyping = !!on; paint(); };
+    // LIVE: the AI at work, through the shared hook (chat-live.js setAiWorking), labelled from
+    // the thread so a photo read says so.
+    const setTyping = (on) => setAiWorking(NC, on, {
+      label: on ? workingLabel(visibleThread(threadMessages(STATE.comments), RT.mutedUsers)) : '',
+    });
+    // Arrivals: counted once per paint across every meal segment, for the entrances and the
+    // jump pill's unread count.
+    let FRESH = new Set();
+    let ARRIVED = 0;
 
     // `visAll` arrives from paint() (computed once per repaint, not once per meal segment):
     // the post-mute-filter view of the whole window, for the Delivered anchor and quote stems.
@@ -369,37 +375,25 @@ export default {
       // state), or the segment is a divider over silence that reads as a broken screen.
       if (list.length && !vis.length) return `<div class="msg-status">${MUTED_HIDDEN_NOTE}</div>`;
       const lastMsg = vis.length ? vis[vis.length - 1] : null;
+      const rxAt = reactionAnchor(vis);
       const newest = visAll.length ? visAll[visAll.length - 1] : null;
       return layoutThread(list, { muted: RT.mutedUsers, fmtTime, fmtDay: dayKey, fmtDayLabel: dayLabelOf }).map((item) => {
         if (item.type === 'time') return timeSepHtml(item, esc);
         const c = item.comment;
         /* A filed correction receipt renders as the card, not as a bubble — the same record the
            athlete sees in their own thread (chat-view isCorrectionReceipt). */
-        const receiptRows = correctionRowsOf(c);
-        if (receiptRows.length) {
-          return `
-        <div class="msg ai last">
-          <div class="av">${icon('sparkle', 15)}</div>
-          <div class="corr-card in landed" role="status">
-            <div class="corr-head">${icon('check', 14)}<span>Updated</span></div>
-            ${receiptRows.map((r) => `
-              <div class="corr-row${r.score ? ' corr-score' : ''}">
-                <span class="ck">${esc(r.label)}</span>
-                <span class="cv"><i class="was">${esc(String(r.from) + r.unit)}</i>${icon('arrowRight', 12)}<b class="${esc(r.band)}">${esc(String(r.to) + r.unit)}</b></span>
-              </div>`).join('')}
-          </div>
-        </div>`;
-        }
+        if (isCorrectionReceipt(c)) return receiptCardHtml(c, esc, { fresh: FRESH.has(String(c.id)) });
         const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
         const who = authorName(c, participants, RT.userId, S.coach.noun);
         const update = isAnalysisUpdate(c);
         const escalated = isEscalated(c);
         // From the filtered list: a quote stem must not resurface a muted author's words.
         const quoted = update ? quotedFor(c, visAll) : null;
+        const rq = quoted ? '' : replyQuoteHtml(replyQuote(c, visAll, RT.mutedUsers, (x) => (x.role === 'athlete' && (!x.author_id || x.author_id === RT.userId) ? 'You' : authorName(x, participants, RT.userId, S.coach.noun))), esc);
         // Reactions are meal-level rows (0049); as on the meal thread they sit on the run's
         // LAST bubble, the one the eye lands on. STATE.comments still holds the reaction rows
         // that threadMessages filters out of the display.
-        const rx = c === lastMsg && c.meal_id
+        const rx = c === rxAt && c.meal_id
           ? reactionGroups((STATE.comments || []).filter((x) => x && x.meal_id === c.meal_id))
           : [];
         // Attached photo above the text; the stand-in caption is suppressed under its own image.
@@ -408,13 +402,13 @@ export default {
         // The face rides the LAST bubble of a run, the name the first: the phone's layout, and
         // chat-view.js msgRowClass's contract (`last` carries the tail).
         const cls = msgRowClass({ mine, role: c.role, firstOfRun: item.firstOfRun, lastOfRun: item.lastOfRun, hasRx: rx.length > 0, photoOnly })
-          + (JUST_SENT && c.id === JUST_SENT ? ' in' : '');
+          + (FRESH.has(String(c.id)) ? ' in' : '');
         return `
-      <div class="${cls}"${c.meal_id ? ` data-meal-id="${esc(c.meal_id)}"` : ''}>
+      <div class="${cls}" data-cid="${esc(String(c.id || ''))}"${c.meal_id ? ` data-meal-id="${esc(c.meal_id)}"` : ''}>
         ${!mine && item.lastOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
         <div class="stack">
           ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
-          ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
+          ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : rq}
           ${''/* No "Updated analysis" badge (founder: robotic). The quote stem above already
                shows what a correction reply answers. The escalation badge stays: "this reached
                your coach" is a fact worth labeling, exactly as the meal thread labels it. */}
@@ -449,7 +443,7 @@ export default {
     const suggestItems = () => { const fm = foodMemory(RT.userId); return fm ? fm.items : []; };
     const bubbleText = (c) => {
       const sug = mealSuggestOf(c);
-      if (!sug) return c.role === 'ai' ? richText(c.text, esc) : esc(c.text);
+      if (!sug) return c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc);
       return mealSuggestHtml(sug, fillMealSuggestion(sug, suggestItems(), suggestRemaining()), esc);
     };
 
@@ -556,11 +550,29 @@ export default {
     };
     threadEl.addEventListener('pointerdown', trackPress, true);
     threadEl.addEventListener('contextmenu', trackPress, true);
-    // Drag the conversation left to see when each message was sent.
-    wireChatTimes({ root, scope: '#nc-thread' });
+    // A reply answers one message, and a message belongs to a plate: replying also aims the
+    // composer at that message's meal, so the answer lands in the same meal's thread.
+    const startReply = (row) => {
+      const id = row && row.getAttribute('data-cid');
+      const c = threadMessages(STATE.comments).find((x) => x && String(x.id) === id);
+      if (!c) return;
+      const mineRow = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
+      const who = mineRow ? 'You' : authorName(c, STATE.participants, RT.userId, S.coach.noun);
+      setReply(NC, replyTargetMeta(c, who));
+      if (c.meal_id && mealById(STATE.meals, c.meal_id)) {
+        const latest = latestMeal(STATE.meals);
+        REPLY_TO = latest && latest.id === c.meal_id ? null : c.meal_id;
+        paintTarget();
+      }
+      paintReplyChip(root.querySelector('.chat-dock'), NC, esc);
+      focusComposer(root.querySelector('#nc-msg'));
+    };
+    // Drag the conversation left to see when each message was sent; one message right to reply.
+    wireChatTimes({ root, scope: '#nc-thread', onReply: startReply });
     wireTapback({
       root,
       scope: '#nc-thread',
+      onReply: startReply,
       emoji: REACTION_EMOJI,
       mine: () => new Set((STATE.comments || [])
         .filter((x) => x && x.kind === 'reaction' && x.author_id === RT.userId && (!rxMealId || x.meal_id === rxMealId))
@@ -590,6 +602,8 @@ export default {
       if (!mealId) return;
       lastAsk = { text, mealId, turn };
       const meal = mealById(STATE.meals, mealId);
+      // Visible from the moment it is asked, not after two fetches (2026-09-22).
+      setTyping(true);
       try {
         // Saved usual meals, so the AI can name what THEY eat and a suggest_meal bubble has
         // something to fill from. Cached a minute; a cold miss just means an empty list.
@@ -622,7 +636,6 @@ export default {
           thread: turn ? turn.thread : threadMessages(STATE.comments).slice(-20).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
           usualMeals: suggestItems(),
         });
-        setTyping(true);
         const c = typeof window !== 'undefined' ? window.sb : null;
         if (!c || !c.functions) { setTyping(false); return; }
         // Structured corrections only for TODAY's plates: correctMeal rewrites the day record,
@@ -757,22 +770,26 @@ export default {
     // as a message about nothing — but which meal is now stated, not guessed.
     const input = root.querySelector('#nc-msg');
     const send = root.querySelector('#nc-send');
-    const submit = async () => {
-      const text = (input.value || '').trim();
-      if (!text || busy) return;
-      const target = REPLY_TO ? mealById(STATE.meals, REPLY_TO) : latestMeal(STATE.meals);
-      if (!target) {
-        // Only claim "no meals" when we actually KNOW there are none.
-        setNote(STATE.mealsError
-          ? "Couldn't check your recent meals. Give it a moment and try again."
-          : 'Log a meal first. A message belongs to a plate.');
+    const dockEl = () => root.querySelector('.chat-dock');
+    /* ONE SEND IS ONE INTENT (2026-09-22): lock, outbox bubble and duplicate window in
+       chat-live.js, so the bubble shows the instant Send is tapped and a failed one stays as
+       "Not delivered" with a retry. The post goes through postChatMessage, the same door the
+       other three composers use, which also brings this one the content filter it never had. */
+    const deliver = async (item, target) => {
+      const res = await postChatMessage(roles, {
+        mealId: target.id, athleteId: RT.userId, authorId: RT.userId, role: 'athlete',
+        text: item.text, replyTo: item.replyTo || null,
+      });
+      endSend(NC, item.lid, { ok: res.ok });
+      if (!res.ok) {
+        if (res.error === 'filtered') {
+          takeFailed(NC, item.lid);
+          if (input && !input.value) input.value = item.text;
+          setNote(FILTERED_NOTE);
+        }
         return;
       }
-      busy = true; setNote('');
-      input.value = '';
-      const posted = await roles.postMealComment(target.id, RT.userId, RT.userId, 'athlete', text);
-      busy = false;
-      if (!posted) { setNote("Couldn't send that. Check your connection and try again."); input.value = text; return; }
+      const text = item.text;
       // THE COACH HEARS IT (founder 2026-09-15). This composer posted and told nobody; the meal
       // thread's own composer already did. Same call, same kind, after the row landed.
       act.notifyCoachEvent({
@@ -782,15 +799,6 @@ export default {
         route: `coach-meal/${target.id}`,
       });
       await load();
-      // The row that just landed rises out of the box, as the phone's does.
-      const ownRows = threadMessages(STATE.comments).filter((c) => c && c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId));
-      const sent = ownRows.length ? ownRows[ownRows.length - 1] : null;
-      if (sent && sent.id) {
-        JUST_SENT = sent.id;
-        clearTimeout(JUST_SENT_T);
-        JUST_SENT_T = setTimeout(() => { JUST_SENT = null; }, 700);
-        paint();
-      }
       // Forced: they just sent it and are watching for it to land.
       scrollThreadToEnd(root, { force: true });
       /* And now the room answers — IF the room was talking to it. The unconditional askAI here
@@ -807,6 +815,43 @@ export default {
       startBurst();
       void askAI(text, target.id, turn);
     };
+    const submit = async () => {
+      const text = (input.value || '').trim();
+      if (!text) return;
+      const target = REPLY_TO ? mealById(STATE.meals, REPLY_TO) : latestMeal(STATE.meals);
+      if (!target) {
+        // Only claim "no meals" when we actually KNOW there are none.
+        setNote(STATE.mealsError
+          ? "Couldn't check your recent meals. Give it a moment and try again."
+          : 'Log a meal first. A message belongs to a plate.');
+        return;
+      }
+      const claim = beginSend(NC, { text, replyTo: replyOf(NC) });
+      if (!claim.ok) { if (claim.reason === 'duplicate') setNote('You just sent that.'); return; }
+      claim.item.mealId = target.id;
+      setNote('');
+      input.value = '';
+      clearReply(NC);
+      paintReplyChip(dockEl(), NC, esc);
+      await deliver(claim.item, target);
+    };
+    const retryItem = async (item) => {
+      const target = mealById(STATE.meals, item.mealId) || latestMeal(STATE.meals);
+      if (!target) return;
+      const claim = beginSend(NC, { text: item.text, replyTo: item.replyTo });
+      if (!claim.ok) return;
+      claim.item.mealId = target.id;
+      await deliver(claim.item, target);
+    };
+    const placeLive = () => {
+      if (!threadEl || !threadEl.isConnected) return;
+      const sending = syncLive(threadEl, NC, { esc, imgSrc: safeImg });
+      scrollThreadToEnd(threadEl, { force: sending });
+    };
+    bindLive(NC, { sync: placeLive, onRetry: retryItem });
+    placeLive();
+    paintReplyChip(dockEl(), NC, esc);
+    wireThreadTaps({ root, scope: '#nc-thread', key: NC });
     if (send) send.addEventListener('click', submit);
     // isComposing: Enter inside an IME composition (CJK keyboards) is choosing a character,
     // not sending — firing submit there ships half a word.

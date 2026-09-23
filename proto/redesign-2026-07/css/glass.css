@@ -159,16 +159,23 @@ body.kb-open .tabbar { transform: translateY(calc(100% + 60px)); }
 .back-head.stuck .ht { font-size: var(--t-lg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .back-head.stuck .hs { display: none; }
 .back-head.stuck { padding-bottom: var(--s2); }
+/* NOTHING SHOWS ABOVE THE HEADER (founder's iPad screenshot, 2026-09-22: "Correct the read"
+   legible over the coach's header). Stuck at top 0, the header rests BELOW the viewport's
+   padding-top strip, and content scrolled through that strip in the clear. The glass now reaches
+   up through the strip (--vp-top, app.css), and the strip itself is the canvas, opaque: glass
+   belongs under the header's own row, not over a band of loose text above it. The fill is the
+   strong one too, so a stuck header reads as a bar with something frosted under it, not as a
+   window onto the paragraph it is covering. */
 .back-head::before {
-  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
-  background: var(--glass-fill-strong);
+  content: ''; position: absolute; inset: calc(-1 * var(--vp-top, 0px)) 0 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(var(--bg-grad-top, var(--bg)) 0 var(--vp-top, 0px), var(--glass-fill-strong) var(--vp-top, 0px));
   border-bottom: 1px solid var(--glass-rim-soft);
   opacity: 0;
   transition: opacity var(--dur-2) var(--ease-out);
 }
 @supports (backdrop-filter: blur(4px)) or (-webkit-backdrop-filter: blur(4px)) {
   .back-head::before {
-    background: var(--glass-fill);
+    background: linear-gradient(var(--bg-grad-top, var(--bg)) 0 var(--vp-top, 0px), var(--glass-fill-strong) var(--vp-top, 0px));
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
     backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   }

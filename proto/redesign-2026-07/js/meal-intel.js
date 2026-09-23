@@ -41,6 +41,10 @@ export function normalizeDetected(detected) {
     // amount. Conflating the two is what let a portion correction bypass grounding entirely.
     if (d && d.portionEdited) out.portionEdited = true;
     if (d && d.userAdded) out.userAdded = true;
+    // Which coach-requested addition put this item here (the ai_addition row id, 2026-09-22). It
+    // rides the meals row the coach's device writes, so a device that later rebuilds its copy from
+    // that row can see the addition is already on the plate and never adds it twice.
+    if (d && typeof d.addId === 'string' && d.addId.trim()) out.addId = clean(d.addId).slice(0, 64);
     // Provenance (Core Power fix 2026-08-06): where this ITEM's numbers came from, and which
     // exact product it is. 'label' = read off its packaging in the photo; 'database' = resolved
     // from the product cache. These survive normalization because everything downstream —
@@ -1626,9 +1630,16 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
      reported back unpriced when there is neither. Totals re-derive, the score recomputes
      through the same engine, and every surface reads the plate as it was actually eaten. */
   if (kind === 'add-foods') {
-    const list = (Array.isArray(foods) ? foods : []).filter((f) => f && clean(f.name).trim()).slice(0, 6);
-    if (!list.length) return null;
     const rich = Array.isArray(src.detectedRich) ? src.detectedRich.map((d) => ({ ...d })) : [];
+    /* ONE ADDITION, ONE DRINK (2026-09-22). A coach-requested addition is applied on TWO devices:
+       the coach's, at once, into the meals row; the athlete's, into their day. Each food carries
+       the ai_addition row id, and a plate that already holds an item with that id already has it,
+       whichever device put it there. Nothing left to add is null: nothing happened. */
+    const onPlate = new Set(rich.map((d) => d && d.addId).filter(Boolean));
+    const list = (Array.isArray(foods) ? foods : [])
+      .filter((f) => f && clean(f.name).trim() && !(f.addId && onPlate.has(String(f.addId))))
+      .slice(0, 6);
+    if (!list.length) return null;
     const hadItems = rich.length > 0 && rich.every((d) => d && d.per && typeof d.per === 'object');
     const applied = [];
     const unpriced = [];
@@ -1644,9 +1655,29 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
       const fq = f.quantity == null ? '' : clean(f.quantity).trim().slice(0, 40);
       let pr = priceAddedFood(nm, fq);
       let basis = 'database';
-      if (!pr && f.per && typeof f.per === 'object' && ['protein', 'kcal', 'carbs', 'fat'].some((k) => f.per[k] != null)) {
+      if (!pr && f.basis !== 'label' && f.per && typeof f.per === 'object' && ['protein', 'kcal', 'carbs', 'fat'].some((k) => f.per[k] != null)) {
         pr = { protein: g(f.per.protein), carbs: g(f.per.carbs), fat: g(f.per.fat), kcal: g(f.per.kcal) };
         basis = 'estimate';
+      }
+      /* A LABEL THE AI READ OFF A PHOTO (2026-09-22). The 12:44 shake printed 42g protein and 230
+         kcal on its Nutrition Facts panel; a generic "protein shake" in the reference is not that
+         bottle. With basis 'label' the figures are PRINTED PER-SERVING values and `servings` is how
+         many were had, so the stated figures are per x servings, and they beat the reference the
+         same way the athlete's own words do (withStated). A figure the model could not read never
+         arrives as a number (meal-chat drops it), so the reference or Atwater fills only that one,
+         and the thread asks for it by name. */
+      if (f.basis === 'label' && f.per && typeof f.per === 'object') {
+        const sv = Number(f.servings);
+        const mult = isFinite(sv) && sv > 0 && sv <= 10 ? sv : 1;
+        const printed = {};
+        for (const k of ['protein', 'carbs', 'fat', 'kcal']) {
+          const v = Number(f.per[k]);
+          if (f.per[k] != null && isFinite(v) && v >= 0) printed[k] = v * mult;
+        }
+        if (Object.keys(printed).length) {
+          pr = withStated(pr || { protein: 0, carbs: 0, fat: 0, kcal: 0 }, printed);
+          basis = 'label';
+        }
       }
       /* THE ATHLETE'S OWN FIGURE WINS. Over the curated reference, and over the model's guess:
          they read the bottle. Applied last so it overrides whichever of the two priced it, and
@@ -1665,6 +1696,7 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
       for (const k of ['protein', 'carbs', 'fat', 'kcal']) addTot[k] += Number(pr[k]) || 0;
       const row = { name: nm, confidence: basis === 'estimate' ? 'medium' : 'high', per: pr, basis, userAdded: true, edited: true };
       if (fq) row.quantity = fq;
+      if (f.addId) row.addId = String(f.addId).slice(0, 64);
       rich.push(row);
       applied.push({ name: nm, quantity: fq || undefined, per: pr, basis });
     }

@@ -29,7 +29,7 @@ test('meal thread: preview, reactions, Delivered, receipt, quote and the coach p
   assert.match(m, /const lastMsg = visible\.length \? visible\[visible\.length - 1\] : null;/, 'the anchor is the last VISIBLE message');
   assert.doesNotMatch(m, /lastMsg = msgs\.length \? msgs\[msgs\.length - 1\]/, 'the pre-filter anchor that vanished reactions is gone');
   // Both usage sites of the anchor, so re-keying one inline cannot slip past the pin above.
-  assert.match(m, /const rx = c === lastMsg \? reactionGroups\(comments\) : \[\];/, 'the reaction pill rides the anchor');
+  assert.match(m, /const rx = c === rxAt \? reactionGroups\(comments\) : \[\];/, 'the reaction pill rides the anchor');
   assert.match(m, /\$\{deliveredHtml\(\{ mine, isLast: c === lastMsg \}\)\}/, 'the Delivered tag rides the anchor');
   assert.match(m, /const quoted = update \? quotedFor\(c, visible\) : null;/, 'a quote stem cannot resurface muted words');
   assert.match(m, /const lastCoach = \[\.\.\.visible\]\.reverse\(\)/, 'the pin cannot resurface a muted coach');
@@ -44,7 +44,7 @@ test("coach's meal view: same anchors, and all-muted is named, not blank and not
   assert.match(c, /const visible = visibleThread\(msgs, RT\.mutedUsers\);/);
   assert.match(c, /const lastMsg = visible\.length \? visible\[visible\.length - 1\] : null;/);
   assert.doesNotMatch(c, /lastMsg = msgs\.length \? msgs\[msgs\.length - 1\]/);
-  assert.match(c, /const bubbleRx = c === lastMsg \? rx : \[\];/, 'the reaction pill rides the anchor');
+  assert.match(c, /const bubbleRx = c === rxAt \? rx : \[\];/, 'the reaction pill rides the anchor');
   assert.match(c, /\$\{deliveredHtml\(\{ mine, isLast: c === lastMsg \}\)\}/, 'the Delivered tag rides the anchor');
   assert.match(c, /const quoted = update \? quotedFor\(c, visible\) : null;/, 'a quote stem cannot resurface muted words');
   assert.match(c, /\$\{!visible\.length \? `/, 'the empty branch keys on what is painted');
@@ -62,7 +62,7 @@ test('nutrition chat: run anchors follow the filter, and an all-muted meal says 
   assert.doesNotMatch(n, /lastMsg = list\.length \? list\[list\.length - 1\]/, 'the pre-filter run anchor is gone');
   assert.match(n, /const newest = visAll\.length \? visAll\[visAll\.length - 1\] : null;/, 'Delivered keys to the newest VISIBLE message');
   assert.doesNotMatch(n, /allMsgs/, 'no pre-filter window survives in renderRun to re-key an anchor to');
-  assert.match(n, /const rx = c === lastMsg && c\.meal_id/, 'the reaction pill rides the run anchor');
+  assert.match(n, /const rx = c === rxAt && c\.meal_id/, 'the reaction pill rides the run anchor');
   assert.match(n, /\$\{deliveredHtml\(\{ mine, isLast: c === newest \}\)\}/, 'the Delivered tag rides the window anchor');
   assert.match(n, /const quoted = update \? quotedFor\(c, visAll\) : null;/, 'a quote stem cannot resurface muted words');
   assert.match(n, /const visAll = visibleThread\(msgs, RT\.mutedUsers\);\n\s*let run = \[\];/, 'filtered once per repaint, not once per meal');

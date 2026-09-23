@@ -18,6 +18,7 @@
 import { initialsOf } from './initials.js';
 import { weekdayLongDate } from './fmt-date.js';
 import { rankForRemaining } from './food-memory.js';
+import { icon } from './icons.js';
 
 /** Messages closer together than this belong to the same moment — no clock between them. */
 export const GROUP_GAP_MS = 10 * 60 * 1000;
@@ -195,7 +196,7 @@ export function isEscalated(comment) {
    The AI heard a lasting fact ("I'm lactose intolerant") and wrote it as a PENDING memory fact.
    meal-chat marks the reply row meta { t: 'memory_offer', factId, kind, value, ask } so the two
    athlete-facing renderers can draw a Yes / No under the bubble. The chips are built here, once,
-   because the last time a bubble affordance lived in one renderer only (read-more) it took six
+   because the last time a bubble affordance lived in one renderer only (the old clamp) it took six
    weeks to notice the other three never had it. Only `role: 'ai'` rows count: clients can write
    meta on their own rows, and an athlete must not be able to forge an offer about themselves. */
 export function isMemoryOffer(comment) {
@@ -361,6 +362,15 @@ export function correctionRowsOf(comment) {
   }).filter((r) => r && r.label);
 }
 
+/** The bubble a meal's reactions ride: the last painted message that IS a bubble. A receipt is
+ *  drawn as a card with no bubble to carry the pill, so anchoring on it (a receipt is often the
+ *  newest row) made every reaction on the meal vanish. */
+export function reactionAnchor(visible) {
+  const list = Array.isArray(visible) ? visible : [];
+  for (let i = list.length - 1; i >= 0; i--) if (list[i] && !isCorrectionReceipt(list[i])) return list[i];
+  return null;
+}
+
 /** The sentence a receipt carries as its `text` — what the thread shows anywhere the card is not
  *  drawn (an older client, the season-long thread, a notification preview). Kept honest and short:
  *  it states the same moves the card animates. */
@@ -372,7 +382,7 @@ export function correctionReceiptText(rows) {
 
 /* ---------------- The row, as Messages draws it (2026-09-14) ----------------
    Four renderers paint the same bubble, and every courtesy that lived in one of them alone took
-   weeks to reach the others (read-more, memory chips). These helpers are the shared shape of a
+   weeks to reach the others (the clamp, memory chips). These helpers are the shared shape of a
    row: its classes, its separator, and its receipt. Markup is the renderer's; the RULES are here. */
 
 /** The class list for a message row.
@@ -426,10 +436,186 @@ export function richText(text, esc) {
   s = s.replace(/\*\*([^*\n]+?)\*\*/g, '<b>$1</b>');
   s = s.replace(/__([^_\n]+?)__/g, '<u>$1</u>');
   s = s.replace(/==([^=\n]+?)==/g, '<em class="hl">$1</em>');
-  return s.replace(/\r?\n/g, '<br>');
+  return linkify(s).replace(/\r?\n/g, '<br>');
+}
+
+/* LINKS (2026-09-22). A pasted https link in any bubble is a link, as Messages makes it. Works
+   on ALREADY-ESCAPED text, so the href can only ever carry what esc() let through, and only
+   https: router.js hands https anchors to the system browser (openUrl), which is the one path
+   that cannot strand the WebView. Trailing sentence punctuation stays outside the link. */
+const URL_RE = /\bhttps:\/\/[^\s<>"']+/g;
+export function linkify(escaped) {
+  return String(escaped == null ? '' : escaped).replace(URL_RE, (m) => {
+    const tail = (m.match(/[.,!?;:)]+$/) || [''])[0];
+    const url = tail ? m.slice(0, -tail.length) : m;
+    if (url.length < 12) return m;
+    return `<a class="blink" href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>${tail}`;
+  });
+}
+
+/** A person's bubble: escaped, newlines kept, links live. No marks: only the AI's rows are
+ *  parsed for emphasis, so a person's asterisks stay asterisks. */
+export function personText(text, esc) {
+  return linkify(esc(String(text == null ? '' : text))).replace(/\r?\n/g, '<br>');
 }
 
 /** The text of an AI row with its marks stripped: for previews, notifications, clipboard. */
 export function plainText(text) {
   return String(text == null ? '' : text).replace(/\*\*([^*\n]+?)\*\*/g, '$1').replace(/__([^_\n]+?)__/g, '$1').replace(/==([^=\n]+?)==/g, '$1');
+}
+
+/* ---------------- Replies (2026-09-22) ----------------
+   Swipe a message right, or hold it and pick Reply, and your next message carries a quote of
+   it, as Messages does. meal_comments has no reply column, so the pointer rides `meta.replyTo`
+   on the sender's OWN row (0157: clients may write meta on their own rows; nothing server-side
+   reads this key). Written by a client, so nothing here trusts it: every field is clamped, the
+   id must look like an id, and the quote is re-read from the LIVE message when it is on screen,
+   so what is quoted is what was said, not what a client claimed was said. */
+
+const cleanId = (v) => { const x = String(v == null ? '' : v).slice(0, 64); return /^[A-Za-z0-9_-]+$/.test(x) ? x : ''; };
+const metaOf = (c) => {
+  let m = c && c.meta;
+  if (typeof m === 'string') { try { m = JSON.parse(m); } catch { return null; } }
+  return m && typeof m === 'object' ? m : null;
+};
+const photoOf = (c) => { const m = metaOf(c); return !!(m && typeof m.photo === 'string' && m.photo); };
+const excerpt = (t) => {
+  const s = plainText(String(t || '')).replace(/\s+/g, ' ').trim();
+  return s === 'Sent a photo' ? '' : s.slice(0, 140);
+};
+
+/** The reply pointer a row carries, bounded, or null. */
+export function replyRefOf(comment) {
+  const m = metaOf(comment);
+  const r = m && m.replyTo;
+  if (!r || typeof r !== 'object') return null;
+  const id = cleanId(r.id);
+  if (!id) return null;
+  return {
+    id,
+    aid: cleanId(r.aid) || null,
+    who: String(r.who || '').replace(/[<>]/g, '').slice(0, 40),
+    text: String(r.text || '').slice(0, 160),
+    photo: r.photo === true,
+  };
+}
+
+/** What a new message stores about the one it answers: who, a short plain excerpt, and whether
+ *  it was a photo. `who` is the name the replier SAW on screen. */
+export function replyTargetMeta(comment, who) {
+  if (!comment) return null;
+  const id = cleanId(comment.id);
+  if (!id) return null;
+  const out = { id, who: String(who || '').slice(0, 40), text: excerpt(comment.text) };
+  const aid = cleanId(comment.author_id);
+  if (aid) out.aid = aid;
+  if (photoOf(comment)) out.photo = true;
+  return out;
+}
+
+/** The quote to draw above a reply, or null. `visible` is the painted (mute-filtered) list, so a
+ *  reply to a muted person never resurfaces their words; an original outside the loaded window
+ *  falls back to the stored excerpt, unless its stored author is muted. */
+export function replyQuote(comment, visible, muted = null, nameOf = null) {
+  const ref = replyRefOf(comment);
+  if (!ref) return null;
+  const hit = (Array.isArray(visible) ? visible : []).find((c) => c && String(c.id) === ref.id);
+  // The name is the READER's name for that person (the replier stored theirs: a coach's "Marcus"
+  // is the athlete's own "You"), so a live original is named by the caller's own rule.
+  if (hit) {
+    const who = typeof nameOf === 'function' ? String(nameOf(hit) || ref.who) : ref.who;
+    return { id: ref.id, who, text: excerpt(hit.text), photo: photoOf(hit), live: true };
+  }
+  const hide = muted && (muted instanceof Set ? muted : new Set(Array.isArray(muted) ? muted.map(String) : []));
+  if (ref.aid && hide && hide.has(ref.aid)) return null;
+  return { id: ref.id, who: ref.who, text: ref.text, photo: ref.photo, live: false };
+}
+
+/** The quote as markup: the stem and a chip, and the chip is a button that scrolls to the
+ *  original (chat-live.js wires `[data-jump]`). */
+export function replyQuoteHtml(q, esc) {
+  if (!q) return '';
+  const body = q.text || (q.photo ? 'Photo' : '');
+  if (!body) return '';
+  const who = q.who ? `<b>${esc(q.who)}</b> ` : '';
+  return `<button type="button" class="quote rq" data-jump="${esc(q.id)}" aria-label="${esc(`Reply to ${q.who || 'a message'}: ${body}. Show the original`)}"><span class="stem"></span><span class="qtext">${who}${esc(body)}</span></button>`;
+}
+
+/* ---------------- Receipts, one card for every renderer ----------------
+   An action the AI took (a food added, a macro changed, the score moved) lands as a compact card
+   IN the conversation, not as a sentence about one. Four renderers drew this card from four
+   copies of the same markup; this is the one copy. `meta.note` (optional, written server-side)
+   is the one line that says why, e.g. "Added from Jihad's photo at Coach Brooks' request". */
+export function receiptNoteOf(comment) {
+  if (!isCorrectionReceipt(comment)) return '';
+  return String(comment.meta.note || '').replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 140);
+}
+
+export function receiptCardHtml(comment, esc, { fresh = false } = {}) {
+  const rows = correctionRowsOf(comment);
+  if (!rows.length) return '';
+  const note = receiptNoteOf(comment);
+  const id = esc(String(comment.id || ''));
+  return `
+        <div class="msg ai last rcpt${fresh ? ' in' : ''}" data-cid="${id}" data-receipt="${id}">
+          <div class="av">${icon('sparkle', 15)}</div>
+          <div class="corr-card in landed" role="status">
+            <div class="corr-head">${icon('check', 14)}<span>Updated</span></div>
+            ${note ? `<div class="corr-note">${esc(note)}</div>` : ''}
+            ${rows.map((r) => `
+              <div class="corr-row${r.score ? ' corr-score' : ''}">
+                <span class="ck">${esc(r.label)}</span>
+                <span class="cv"><i class="was">${esc(String(r.from) + r.unit)}</i>${icon('arrowRight', 12)}<b class="${esc(r.band)}">${esc(String(r.to) + r.unit)}</b></span>
+              </div>`).join('')}
+          </div>
+        </div>`;
+}
+
+/* ---------------- The AI at work ----------------
+   One typing row for every renderer. With no label it is the three dots, as Messages draws a
+   person typing. With a label it says what the AI is actually doing ("Reading the photo"),
+   because a photo read takes long enough that three dots start to look like nothing. */
+export function typingRowHtml(esc, { label = '' } = {}) {
+  const say = String(label || '').slice(0, 40);
+  return `
+        <div class="msg ai last typing live-row" id="ai-typing">
+          <div class="av">${icon('sparkle', 15)}</div>
+          <div class="stack"><div class="who">AI Nutritionist is ${say ? esc(say.toLowerCase()) : 'typing'}<span class="sr-only">, a reply is on its way</span></div>
+          <div class="bubble tdots${say ? ' tlabel' : ''}"><span></span><span></span><span></span>${say ? `<em>${esc(say)}…</em>` : ''}</div></div>
+        </div>`;
+}
+
+/** What the AI is doing, read off the thread: a photo someone sent that no AI row has answered
+ *  yet means the model is looking at a picture. `msgs` is chronological. */
+export function workingLabel(msgs) {
+  const list = (Array.isArray(msgs) ? msgs : []).filter(Boolean);
+  for (let i = list.length - 1; i >= 0 && i >= list.length - 4; i--) {
+    const c = list[i];
+    if (c.role === 'ai') return '';
+    if (photoOf(c)) return 'Reading the photo';
+  }
+  return '';
+}
+
+/* ---------------- The outbox, drawn ----------------
+   A message you sent appears the instant you send it, as Messages shows it, with "Sending…"
+   under it until the row is confirmed, and "Not delivered" with a retry if it never is. The
+   state lives in chat-live.js; this is the bubble. `imgSrc` is the caller's safeImg. */
+export function pendingRowHtml(item, esc, imgSrc, { fresh = false } = {}) {
+  if (!item) return '';
+  const failed = item.state === 'failed';
+  const text = String(item.text || '');
+  const photo = item.photo && item.photo.dataUrl && imgSrc ? imgSrc(item.photo.dataUrl) : '';
+  const photoOnly = !!photo && !text;
+  const q = item.replyTo ? replyQuoteHtml(item.replyTo, esc) : '';
+  return `
+        <div class="msg athlete last pend live-row${photoOnly ? ' photo' : ''}${failed ? ' failed' : ''}${fresh ? ' in' : ''}" data-lid="${esc(item.lid)}">
+          <div class="stack">
+            ${q}
+            <div class="bubble">${photo ? `<img class="bimg" src="${photo}" alt="Photo you are sending" />` : ''}${text ? personText(text, esc) : ''}</div>
+            ${failed
+              ? `<button type="button" class="dlv out-retry" data-out-retry="${esc(item.lid)}">${icon('alert', 13)} Not delivered. Tap to try again</button>`
+              : '<div class="dlv" role="status">Sending…</div>'}
+          </div>
+        </div>`;
 }

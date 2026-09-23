@@ -424,3 +424,20 @@ records what the CSS now says.
   `.viewport`'s content; `--port` + `--shard i/n` run captures in parallel; `pre` on a shot sets
   device state after the seed. The stub's `commitment_board` matches migration 0216 (one
   instance, nested rows).
+
+## Amendments · 2026-09-22 the live thread
+
+- **Messages render in full.** `thread-readmore.js` is retired; no renderer clamps a bubble. A
+  long read stays readable through its measure: `.msg .stack` caps at `min(82%, 560px)`.
+- **One send is one intent.** `js/chat-live.js` owns the send lock, the outbox bubble
+  ("Sending…", then "Not delivered" with a retry) and a 45s duplicate window, keyed by thread,
+  not by mount. All four composers and the coach's sparkle go through it.
+- **The AI at work is one hook:** `setAiWorking(threadKey, on, { label })`. Every renderer draws
+  the same typing row (`typingRowHtml`); a label ("Reading the photo") follows the dots.
+- **Replies.** Swipe one message right, or hold it and pick Reply. The pointer rides
+  `meta.replyTo` on the sender's own row; the quote above the reply is a button to the original.
+- **Receipts are one card** (`receiptCardHtml`), with an optional reason line (`meta.note`).
+- **The sticky header's glass reaches up through the viewport's top padding** (`--vp-top`), so
+  nothing scrolled is legible above it.
+- **`qc-capture.mjs --touch`** renders a 700px+ width as the iPad does; `--scroll-by N` shoots
+  mid-scroll.

@@ -54,6 +54,9 @@ export function describeMessage(comment, opts) {
     text: String(c.text == null ? '' : c.text).slice(0, 300),
     at: c.created_at || null,
     system: SYSTEM_META.indexOf(String(meta.t || '')) !== -1,
+    // A picture rode on this row. The flag, never the storage key: meal-chat reads the thread's
+    // photos out of meal_comments itself, so the transcript never becomes a way to name an image.
+    photo: !!meta.photo,
     // No composer writes a per-message reply target yet, so this is null in practice today. It is
     // in the contract because the addressing decision ranks it ABOVE every guess, so the day a
     // reply affordance ships, the decision gets better with no change to the gate.
@@ -94,7 +97,9 @@ function senderRole(comment, opts) {
  */
 export function buildAiThread(comments, opts, limit) {
   const rows = (Array.isArray(comments) ? comments : [])
-    .filter((c) => c && NOT_SPEECH.indexOf(String(c.kind || '')) === -1 && c.text);
+    // A photo with no caption IS a message (2026-09-22): dropping it hid the one line that said
+    // the athlete had shown the room something.
+    .filter((c) => c && NOT_SPEECH.indexOf(String(c.kind || '')) === -1 && (c.text || metaOf(c).photo));
   const n = typeof limit === 'number' && limit > 0 ? limit : 20;
   return rows.slice(-n).map((c) => describeMessage(c, opts));
 }
@@ -113,6 +118,9 @@ export function describeOutgoing(text, sender) {
     text: String(text == null ? '' : text),
     at: null,
     system: false,
+    // The message carries a picture. Part of the addressing decision: an athlete's photo on their
+    // own meal thread is for the nutritionist unless it names a person (ai-addressing.js 3b).
+    photo: s.photo === true,
     replyToMessageId: s.replyToMessageId || null,
     replyToSender: s.replyToSender || null,
     mentions: mentionsIn(text),
@@ -173,7 +181,7 @@ export function decideAiTurn(opts) {
     athleteName: o.athleteName,
   };
   const thread = buildAiThread(o.comments, buildOpts, o.limit);
-  const outgoing = describeOutgoing(o.text, o.self || { role: 'athlete' });
+  const outgoing = describeOutgoing(o.text, { ...(o.self || { role: 'athlete' }), photo: o.photo === true });
   const decision = shouldAiRespond(outgoing, { participants: people, history: thread, aiName: o.aiName });
   return { decision, thread, outgoing, participants: people };
 }

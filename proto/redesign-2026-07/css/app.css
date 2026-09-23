@@ -167,7 +167,11 @@ body {
      float above the bottom edge, its height, the FAB's overhang, and a breath of air. The old
      `--nav-h + 62px` here was the pre-capsule bar's math and had to be re-derived by anyone who
      needed the same clearance elsewhere (coach-roster's sticky bulk bar did, and disagreed). */
-  padding: var(--s1) var(--pad-screen) var(--tab-clear);
+  padding: var(--vp-top) var(--pad-screen) var(--tab-clear);
+  /* --vp-top is the padding-top as a value other rules can read: the sticky header's glass
+     reaches up through exactly this strip (glass.css), because a sticky offset counts from the
+     content edge and the strip above it is where scrolled content used to show (iPad, 09-22). */
+  --vp-top: var(--s1);
   /* The sticky bar's breath above the tab bar. Only the breath: see .action-bar below. */
   --bar-lift: var(--s2);
   scroll-behavior: smooth;
@@ -949,7 +953,7 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); --bar-lift: 0px;
    in the block at the top of the file with the rest of phone-native mode. */
 @media (max-width: 520px), ((pointer: coarse) and (hover: none)) {
   .statusbar { display: none; }
-  .viewport { padding-top: max(14px, env(safe-area-inset-top)); }
+  .viewport { --vp-top: max(14px, env(safe-area-inset-top)); padding-top: var(--vp-top); }
   .tabbar { padding-bottom: max(22px, env(safe-area-inset-bottom)); }
 }
 

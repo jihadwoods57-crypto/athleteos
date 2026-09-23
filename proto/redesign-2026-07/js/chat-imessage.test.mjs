@@ -82,11 +82,16 @@ test('every thread renderer builds its rows from the shared helpers', () => {
   }
 });
 
-test('the athlete surfaces animate the just-sent row and wire the time-reveal drag', () => {
-  for (const f of ['screens/nutrition-chat.js', 'screens/meal.js']) {
+test('every renderer plays arrivals, wires the drag with swipe-to-reply, and offers Reply on hold', () => {
+  // 2026-09-22: the just-sent rise moved to the outbox bubble (chat-live.js), and a row that
+  // ARRIVES (someone else's, or a receipt) plays the same entrance once, keyed by noteArrivals.
+  for (const f of ['screens/nutrition-chat.js', 'screens/meal.js', 'screens/coach.js', 'screens/trust.js']) {
     const s = src(f);
-    assert.match(s, /JUST_SENT && c\.id === JUST_SENT \? ' in' : ''/, `${f}: the sent row rises`);
-    assert.match(s, /wireChatTimes\(\{ root, scope: '#[\w-]+' \}\)/, `${f}: drag-to-reveal is wired with a unique scope`);
+    assert.match(s, /noteArrivals\(/, `${f}: arrivals are tracked`);
+    assert.match(s, /\.has\(String\(c\.id\)\) \? ' in' : ''/, `${f}: a fresh row rises`);
+    assert.match(s, /wireChatTimes\(\{ root, scope: '#[\w-]+', onReply: startReply \}\)/, `${f}: drag-to-reveal and swipe-to-reply share one wiring with a unique scope`);
+    assert.match(s, /onReply: /, `${f}: the hold menu offers Reply`);
+    assert.match(s, /data-cid="\$\{esc\(String\(c\.id \|\| ''\)\)\}"/, `${f}: rows carry their id for replies and jumps`);
   }
 });
 

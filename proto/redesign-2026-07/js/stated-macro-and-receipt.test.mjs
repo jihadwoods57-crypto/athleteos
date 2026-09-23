@@ -167,7 +167,8 @@ test('the receipt carries a true sentence for anything that cannot draw the card
 test('the receipt is posted, and the ephemeral card stands down once it lands', () => {
   const state = read('state.js');
   const meal = read('screens', 'meal.js');
-  assert.match(state, /_postCorrectionReceipt\(r\);/, 'every applied correction files one');
+  // 2026-09-22: the call also names the coach-requested addition it came from, when there is one.
+  assert.match(state, /_postCorrectionReceipt\(r, opts\.additionId \|\| null\);/, 'every applied correction files one');
   assert.match(state, /correctionReceipt: rows/, 'written service-side as an unforgeable ai row');
   assert.match(state, /if \(!rows\.length\) return;/, 'nothing moved, nothing filed');
   assert.match(meal, /if \(\(comments \|\| \[\]\)\.some\(isCorrectionReceipt\)\) return '';/,
@@ -177,8 +178,10 @@ test('the receipt is posted, and the ephemeral card stands down once it lands', 
 test('every thread renderer draws a filed receipt', () => {
   for (const f of [['screens', 'meal.js'], ['screens', 'coach.js'], ['screens', 'trust.js'], ['screens', 'nutrition-chat.js']]) {
     const src = read(...f);
-    assert.match(src, /const receiptRows = correctionRowsOf\(c\);/, `${f.join('/')} renders the card`);
-    assert.match(src, /correctionRowsOf,/, `${f.join('/')} imports it`);
+    // ONE card for all four (chat-view.js receiptCardHtml, 2026-09-22): four copies of the same
+    // markup was exactly how a courtesy reached one renderer and not the others.
+    assert.match(src, /if \(isCorrectionReceipt\(c\)\) return receiptCardHtml\(c, esc/, `${f.join('/')} renders the card`);
+    assert.match(src, /receiptCardHtml,/, `${f.join('/')} imports it`);
   }
 });
 
@@ -191,7 +194,9 @@ test('the athletes own words reach the reducer from both chat surfaces', () => {
 test('the edge function bounds the receipt and spends nothing to file it', () => {
   const fn = readFileSync(join(HERE, '..', '..', '..', 'supabase/functions/meal-chat/index.ts'), 'utf8');
   assert.match(fn, /function correctionReceiptRows\(raw: unknown\): ReceiptRow\[\] \| null/);
-  assert.match(fn, /meta: \{ t: 'correction_receipt', rows: receiptRows \}/);
+  // 2026-09-22: the rows may be trimmed to the athlete's plan style for a coach-requested
+  // addition, which also carries its attribution note and id.
+  assert.match(fn, /meta: \{ t: 'correction_receipt', rows, \.\.\.\(note \? \{ note, additionId \} : \{\}\) \}/);
   assert.match(fn, /role: 'ai',/);
   // Before the daily AI cap and before any model call: a day of honest corrections must not be
   // able to lock the athlete out of their own nutritionist.

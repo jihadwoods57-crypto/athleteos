@@ -17,9 +17,16 @@ import { mealReadHtml, wireReadControls } from './meal.js';
 import { pastMealDetail } from './trust.js';
 import { layoutThread, visibleThread, MUTED_HIDDEN_NOTE, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor,
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
-  correctionRowsOf,
+  isCorrectionReceipt, receiptCardHtml, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta, personText, workingLabel,
   participantList,
 } from '../chat-view.js';
+import { wireChatTimes } from '../chat-times.js';
+import { focusComposer, scrollThreadToEnd } from '../keyboard.js';
+import {
+  beginSend, endSend, takeFailed, justSent, noteSent, isSending, setAiWorking,
+  setReply, replyOf, clearReply, paintReplyChip, noteArrivals, syncLive, syncJump,
+  bindLive, wireThreadTaps,
+} from '../chat-live.js';
 import { openImageViewer } from '../image-viewer.js';
 import { overlayOpen } from '../overlay-guard.js';
 import { wireTapback } from '../tapback.js';
@@ -43,7 +50,6 @@ import { initialsOf } from '../initials.js';
 import { SPORT_POSITIONS } from './profile.js';
 import { VC, loadBoard } from '../commitment-data.js';
 import { hydrateAvatars } from '../avatar.js';
-import { wireReadMore } from '../thread-readmore.js';
 
 /* The Recovery Standard on a roster row: a verdict in three characters, never an athlete's sleep
    duration. Purple is recovery (DESIGN.md: one meaning per hue) and carries the two states worth a
@@ -3214,10 +3220,12 @@ function mealById(mealId) {
    coach taps one to PREFILL the composer, edits, and sends manually — the AI never auto-sends.
    Module state keyed by mealId so switching meals never shows a stale draft for the wrong one. */
 let DRAFTS = { mealId: null, items: [], loading: false, error: null };
-// Which long AI bubbles the coach has expanded, keyed on each bubble's own text head. MODULE
-// scope on purpose: this screen repaints constantly, and a mount-scoped Set would re-collapse
-// every read the coach just opened.
-const EXPANDED_BUBBLES = new Set();
+// New rows by someone else since the last paint (chat-live.js noteArrivals), carried from
+// render() to mount() for the jump pill's unread count.
+let CM_ADDED = 0;
+// Roots whose delegated photo-tap listener is already on. mount() re-runs on every render and
+// the root persists, so an unguarded addEventListener stacked one more listener per repaint.
+const CM_WIRED = new WeakSet();
 const STANCE_LABEL = { supportive: 'Supportive', direct: 'Direct', context: 'Ask for context', followup: 'Set a follow-up' };
 /* Is the ⋯ menu open? Module state, not DOM state, because __render() rebuilds #view wholesale —
    and "Let AI draft a reply" re-renders TWICE (once to show "Drafting…", once with the chips)
@@ -3404,6 +3412,9 @@ export const coachMeal = {
       // layoutThread never painted.
       const visible = visibleThread(msgs, RT.mutedUsers);
       const lastMsg = visible.length ? visible[visible.length - 1] : null;
+      const { fresh, added } = noteArrivals(mealId, visible, RT.userId);
+      const rxAt = reactionAnchor(visible);
+      CM_ADDED += added;
       return `
       ${/* The id is load-bearing: the tapback listeners live on the persistent screen root, so the
             gesture is scoped by selector rather than by which element it was attached to. A bare
@@ -3421,21 +3432,7 @@ export const coachMeal = {
           const c = item.comment;
           /* A filed correction receipt renders as the card, not as a bubble — the same record the
              athlete sees in their own thread (chat-view isCorrectionReceipt). */
-          const receiptRows = correctionRowsOf(c);
-          if (receiptRows.length) {
-            return `
-          <div class="msg ai last">
-            <div class="av">${icon('sparkle', 15)}</div>
-            <div class="corr-card in landed" role="status">
-              <div class="corr-head">${icon('check', 14)}<span>Updated</span></div>
-              ${receiptRows.map((r) => `
-                <div class="corr-row${r.score ? ' corr-score' : ''}">
-                  <span class="ck">${esc(r.label)}</span>
-                  <span class="cv"><i class="was">${esc(String(r.from) + r.unit)}</i>${icon('arrowRight', 12)}<b class="${esc(r.band)}">${esc(String(r.to) + r.unit)}</b></span>
-                </div>`).join('')}
-            </div>
-          </div>`;
-          }
+          if (isCorrectionReceipt(c)) return receiptCardHtml(c, esc, { fresh: fresh.has(String(c.id)) });
           // "athlete" styling is reserved for the OTHER side of the conversation; on the coach's
           // screen the coach's own words are the ones that should sit on the right. An 'ai' row is
           // NEVER "mine" even when author_id is this coach — author_id records who TRIGGERED the
@@ -3447,22 +3444,23 @@ export const coachMeal = {
           const escalated = isEscalated(c);
           // From `visible`: the quote stem must not resurface a muted author's words.
           const quoted = update ? quotedFor(c, visible) : null;
+          const rq = quoted ? '' : replyQuoteHtml(replyQuote(c, visible, RT.mutedUsers, (x) => (x.author_id === RT.userId && x.role !== 'ai' ? 'You' : authorName(x, MC.participants || [], RT.userId))), esc);
           const photo = attachedPhoto(c);
           const photoOnly = isPhotoOnly(c);
-          const bubbleRx = c === lastMsg ? rx : [];
+          const bubbleRx = c === rxAt ? rx : [];
           // The face rides the LAST bubble of a run, the name the first (chat-view.js
           // msgRowClass; `last` carries the tail).
           return `
-          <div class="${msgRowClass({ mine, role: c.role, firstOfRun: item.firstOfRun, lastOfRun: item.lastOfRun, hasRx: bubbleRx.length > 0, photoOnly })}">
+          <div class="${msgRowClass({ mine, role: c.role, firstOfRun: item.firstOfRun, lastOfRun: item.lastOfRun, hasRx: bubbleRx.length > 0, photoOnly })}${fresh.has(String(c.id)) ? ' in' : ''}" data-cid="${esc(String(c.id || ''))}">
             ${/* Real faces where they exist (meal.js's own pattern): the monogram stays as the
                   fallback span, and hydrateAvatars upgrades it after paint. Never on 'ai'. */''}
             ${!mine && item.lastOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
             <div class="stack">
               ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
-              ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : ''}
+              ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : rq}
               ${/* The "Updated analysis" badge is gone (founder ruling: robotic; the athlete
                     thread already dropped it). The quote above still marks what changed. */''}
-              <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : esc(c.text)}${bubbleRx.length ? `<span class="rxo">${bubbleRx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+              <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc)}${bubbleRx.length ? `<span class="rxo">${bubbleRx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
               ${deliveredHtml({ mine, isLast: c === lastMsg })}
             </div>
             ${msgTimeHtml(c, msgClock, esc)}
@@ -3654,16 +3652,17 @@ export const coachMeal = {
     // exactly when a repaint has just wiped the resolved src attributes, so this belongs here.
     void hydrateThreadPhotos(root, roles);
     hydrateAvatars(root);   // message monograms upgrade to real faces (0206), same as meal.js
-    // Same clamp the athlete gets. The opener is composed on the promise that a client clamps it
-    // (meal-opener.ts), and a coach scanning a roster is the LAST person who should be handed a
-    // thousand characters of nutrition prose in one block.
-    wireReadMore(root, EXPANDED_BUBBLES);
-    // Tap an attached photo to open it full-screen. Delegated because repaints replace the <img>.
-    root.addEventListener('click', (ev) => {
-      const im = ev.target && ev.target.closest ? ev.target.closest('img.bimg') : null;
-      if (!im || !im.src) return;
-      openImageViewer(im.src, 'Photo attached to this message', im);
-    });
+    // Full messages, always (founder 2026-09-22): the Read more clamp is gone from every thread.
+    // Tap an attached photo to open it full-screen. Delegated because repaints replace the <img>;
+    // once per root, because this mount runs on every render and the root does not change.
+    if (!CM_WIRED.has(root)) {
+      CM_WIRED.add(root);
+      root.addEventListener('click', (ev) => {
+        const im = ev.target && ev.target.closest ? ev.target.closest('#cm-thread img.bimg') : null;
+        if (!im || !im.src) return;
+        openImageViewer(im.src, 'Photo attached to this message', im);
+      });
+    }
 
     // Same attach plumbing the athlete thread uses, shared from chat-attach.js rather than copied.
     // A coach showing an athlete what a portion should look like is the mirror of the athlete
@@ -3672,32 +3671,50 @@ export const coachMeal = {
       root, attachId: 'cm-attach', pendingId: 'cm-attach-pending', safeImg,
       onNote: (m) => { if (cmNote) cmNote.textContent = m; },
     });
-    const submit = async () => {
-      const text = (input.value || '').trim();
-      const pendingPhoto = cmAttach.get();
-      if (!text && !pendingPhoto) return;
+    const cmDock = () => root.querySelector('#meal-disc .chat-dock');
+    const cmThread = () => root.querySelector('#cm-thread');
+    // The live rows (chat-live.js): the bubble being sent and the AI at work, placed by DOM so
+    // the coach's half-typed next comment is never rebuilt out from under them.
+    const placeLive = () => {
+      const el = cmThread();
+      if (!el) return;
+      const sending = syncLive(el, sub, { esc, imgSrc: safeImg });
+      if (sending) scrollThreadToEnd(el, { force: true });
+    };
+    const resolveAthlete = () => {
       const meal = mealById(sub);
-      const athleteId = meal ? meal.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
-      if (!athleteId) return;
-      if (cmNote) cmNote.textContent = pendingPhoto ? 'Uploading photo…' : '';
+      return meal ? meal.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
+    };
+    /* ONE SEND IS ONE INTENT (2026-09-22). This composer had no lock at all, and the input only
+       cleared once the post came back, so a slow send looked like no send and was tapped again:
+       "The nutrition facts is in the picture" landed twice, 15 seconds apart. Now the bubble
+       shows the instant Send is tapped, the box clears, a second tap while it is in flight is the
+       same tap, and the same words inside the duplicate window are recognised as already sent. */
+    const deliver = async (item, { ask = false } = {}) => {
+      const athleteId = resolveAthlete();
+      const meal = mealById(sub);
+      if (!athleteId) { endSend(sub, item.lid, { ok: false }); return null; }
       // Storage RLS keys the path on the UPLOADER's own uid, so a coach's attachment lands under
       // their folder — and the athlete reads it through the same can_view() arm in reverse.
       const res = await postChatMessage(roles, {
-        mealId: sub, athleteId, authorId: RT.userId, role: 'coach', text, photo: pendingPhoto,
+        mealId: sub, athleteId, authorId: RT.userId, role: 'coach', text: item.text, photo: item.photo,
+        replyTo: item.replyTo || null,
       });
+      endSend(sub, item.lid, { ok: res.ok });
+      const noteEl = root.querySelector('#cm-note');
       if (!res.ok) {
-        // Post failed: keep the typed text so it isn't lost, tell the coach, let them retry. The
-        // old code cleared the input BEFORE the await — a failed send silently ate the comment.
-        if (cmNote) {
-          cmNote.textContent = res.error === 'filtered' ? FILTERED_NOTE : res.error === 'upload'
-            ? "Couldn't upload that photo. Try again, or remove it and send."
-            : "Couldn't send. Try again.";
+        if (res.error === 'filtered') {
+          takeFailed(sub, item.lid);
+          const box = root.querySelector('#cm-input');
+          if (box && !box.value) box.value = item.text;
+          if (noteEl) { noteEl.style.color = 'var(--red-bright)'; noteEl.textContent = FILTERED_NOTE; }
+        } else if (noteEl && res.error === 'upload') {
+          noteEl.style.color = 'var(--red-bright)';
+          noteEl.textContent = "Couldn't upload that photo. Tap the message to try again.";
         }
-        return;
+        return null;
       }
-      if (cmNote) cmNote.textContent = '';
-      input.value = '';
-      cmAttach.clear();
+      const text = item.text;
       // kind 'coach_comment' (not 'nudge'): the nudge dedupe used to eat the second comment
       // inside two minutes, and the athlete's bell tagged a comment "urgent". ref deep-links
       // the bell row and the push to this meal's thread.
@@ -3714,57 +3731,109 @@ export const coachMeal = {
       // be 'meal:'+sub (the exact convention the categorizer keys on). No-ops on a practice book
       // (team-owned table, see logBookIntervention) — the message itself still landed above.
       logBookIntervention({ athleteId, kind: 'message', reasonKey: 'meal:' + sub }).catch(() => {});
-      await loadMealComments(sub, true);
+      if (!ask) await loadMealComments(sub, true);
+      return res;
     };
+    const takeComposer = () => {
+      const box = root.querySelector('#cm-input');
+      const text = ((box && box.value) || '').trim();
+      return { box, text, photo: cmAttach.get() };
+    };
+    const clearComposer = (box) => {
+      if (box) box.value = '';
+      cmAttach.clear();
+      clearReply(sub);
+      paintReplyChip(cmDock(), sub, esc);
+      const noteEl = root.querySelector('#cm-note');
+      if (noteEl) noteEl.textContent = '';
+    };
+    const submit = async () => {
+      const { box, text, photo } = takeComposer();
+      if (!text && !photo) return;
+      if (!resolveAthlete()) return;
+      const claim = beginSend(sub, { text, photo, replyTo: replyOf(sub) });
+      if (!claim.ok) {
+        if (claim.reason === 'duplicate' && cmNote) { cmNote.style.color = 'var(--text-3)'; cmNote.textContent = 'You just sent that.'; }
+        return;
+      }
+      clearComposer(box);
+      await deliver(claim.item);
+    };
+    const retryItem = async (item) => {
+      const claim = beginSend(sub, { text: item.text, photo: item.photo, replyTo: item.replyTo });
+      if (claim.ok) await deliver(claim.item);
+    };
+    bindLive(sub, { sync: placeLive, onRetry: retryItem });
+    placeLive();
+    paintReplyChip(cmDock(), sub, esc);
+    syncJump(cmThread(), sub, { dock: cmDock(), added: CM_ADDED });
+    CM_ADDED = 0;
+    wireThreadTaps({ root, scope: '#cm-thread', key: () => sub });
     if (send) send.addEventListener('click', submit);
     // !isComposing: Enter inside an IME composition is choosing a character, not sending.
     if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) submit(); });
     // ASK THE AI NUTRITIONIST (founder, 2026-08-06): explicit, and it ALWAYS answers — unlike the
     // retired auto-support path there is no topic filter and no once-per-meal cap. The typed
     // question posts to the thread as the coach's own message first, then meal-chat's coachAsk
-    // mode answers the COACH; the reply lands as the unforgeable 'ai' row. The thread refetch is
-    // deliberately deferred until the answer settles, so the "Asking…" status survives (a refetch
-    // repaints the screen and would wipe it mid-wait).
+    // mode answers the COACH; the reply lands as the unforgeable 'ai' row. While it works, the
+    // thread shows the AI at work (chat-live.js setAiWorking), not a status line under the box.
     const aiBtn = root.querySelector('#cm-ai');
     if (aiBtn) aiBtn.addEventListener('click', async () => {
-      const text = (input && input.value || '').trim();
-      const note = (msg, neutral) => { if (cmNote) { cmNote.style.color = neutral ? 'var(--text-3)' : 'var(--red-bright)'; cmNote.textContent = msg; } };
+      const { box, text, photo: pendingPhoto } = takeComposer();
+      const note = (msg, neutral) => { const el = root.querySelector('#cm-note'); if (el) { el.style.color = neutral ? 'var(--text-3)' : 'var(--red-bright)'; el.textContent = msg; } };
       if (!text) { note('Type your question first, then tap the sparkle.', true); return; }
       const meal0 = mealById(sub);
-      const athleteId0 = meal0 ? meal0.athlete_id : (MC && MC.comments[0] && MC.comments[0].athlete_id);
-      if (!athleteId0) return;
-      aiBtn.disabled = true;
-      // A picture attached to the question goes with it (2026-09-02): it posts to the thread
-      // as the coach's message and meal-chat reads it from storage, so the AI answers about
-      // what the coach is actually pointing at.
-      const pendingPhoto = cmAttach.get();
-      note(pendingPhoto ? 'Uploading photo…' : 'Asking the AI Nutritionist…', true);
-      const res = await postChatMessage(roles, { mealId: sub, athleteId: athleteId0, authorId: RT.userId, role: 'coach', text, photo: pendingPhoto });
-      if (!res.ok) {
-        aiBtn.disabled = false;
-        note(res.error === 'filtered' ? FILTERED_NOTE : res.error === 'upload' ? "Couldn't upload that photo. Try again, or remove it and send." : "Couldn't send. Try again.");
-        return;
+      if (!resolveAthlete()) return;
+      if (isSending(sub)) return;
+      /* ONE INTENT, NOT TWO ROWS (2026-09-22). A coach who just SENT these words and then taps
+         the sparkle to get the AI to look is asking about the message already in the thread.
+         It is not posted a second time; the AI is simply asked. */
+      let photoPath = null;
+      if (!(justSent(sub, text) && !pendingPhoto)) {
+        const claim = beginSend(sub, { text, photo: pendingPhoto, replyTo: replyOf(sub) });
+        if (!claim.ok) return;
+        clearComposer(box);
+        const res = await deliver(claim.item, { ask: true });
+        if (!res) return;
+        photoPath = res.photoPath || null;
+      } else {
+        clearComposer(box);
+        noteSent(sub, text);
       }
-      if (input) input.value = '';
-      cmAttach.clear();
-      note('Asking the AI Nutritionist…', true);
+      aiBtn.disabled = true;
+      const res = { photoPath };
+      setAiWorking(sub, true, { label: res.photoPath ? 'Reading the photo' : workingLabel(threadMessages(MC && MC.comments)) });
       let failMsg = '';
       try {
         const { data, error } = await window.sb.functions.invoke('meal-chat', {
-          body: { mealId: sub, coachAsk: true, question: text, context: coachAskContext(meal0), ...athleteContextForMeal(meal0), ...(res.photoPath ? { photoPath: res.photoPath } : {}) },
+          // canDirectAdd (2026-09-22): "make sure that gets added in" can be carried out, grounded
+          // server-side in the ATHLETE's own photo or words; askerNoun names the asker in the receipt.
+          body: { mealId: sub, coachAsk: true, question: text, context: coachAskContext(meal0), ...athleteContextForMeal(meal0), ...(res.photoPath ? { photoPath: res.photoPath } : {}), canDirectAdd: true, askerNoun: RT.authRole === 'trainer' ? 'trainer' : 'coach' },
         });
         if (error || !data || !data.reply) throw new Error('no-reply');
+        // The AI added something the athlete posted: put it in the numbers NOW (see below).
+        if (data.addition && data.addition.id) await applyAdditionHere(data.addition);
       } catch {
         failMsg = "The AI couldn't answer right now. Your question was still posted to the thread.";
       }
-      aiBtn.disabled = false;
+      setAiWorking(sub, false);
+      const btnNow = root.querySelector('#cm-ai');
+      if (btnNow) btnNow.disabled = false;
       await loadMealComments(sub, true);
-      if (failMsg) {
-        // The refetch repainted the screen, so the old note element is gone — re-query it.
-        const el = root.querySelector('#cm-note');
-        if (el) { el.style.color = 'var(--red-bright)'; el.textContent = failMsg; }
-      }
+      if (failMsg) note(failMsg);
     });
+    // Drag the thread left for the clock; one message right to reply to it.
+    const startReply = (row) => {
+      const id = row && row.getAttribute('data-cid');
+      const c = threadMessages(MC && MC.comments).find((x) => x && String(x.id) === id);
+      if (!c) return;
+      const mineRow = c.author_id === RT.userId && c.role !== 'ai';
+      const who = mineRow ? 'You' : authorName(c, MC.participants || [], RT.userId);
+      setReply(sub, replyTargetMeta(c, who));
+      paintReplyChip(cmDock(), sub, esc);
+      focusComposer(root.querySelector('#cm-input'));
+    };
+    wireChatTimes({ root, scope: '#cm-thread', onReply: startReply });
     // Mark resolved (Slice D): logs kind:'handled' so this meal moves to the Resolved category in
     // the coach inbox. Idempotent — a second tap just re-logs (harmless) since the button already
     // reads "Resolved ✓" once it succeeds.
@@ -3864,6 +3933,46 @@ export const coachMeal = {
       loadMealComments(sub, true);
       window.__render();
     };
+    /* A COACH-REQUESTED ADDITION SHOWS UP AT ONCE (lead decision 2026-09-22). meal-chat's
+       add_from_athlete wrote the ai_addition row; the athlete's device would apply it to their day
+       on its next sync, but the coach is looking at this meal NOW. So this device prices the same
+       foods through the same engine the correction panel uses, writes the meals row through
+       pro_correct_meal, and files the numeric receipt (meal-chat adds the attribution line and
+       keeps it to one per addition). Every food carries the addition's id, which rides the row's
+       detected list: the athlete's device sees it already on the plate and never adds it twice.
+       A coach without write access simply falls back to the athlete's sync. Never throws. */
+    const applyAdditionHere = async (add) => {
+      try {
+        const row = MEAL.id === sub && MEAL.row ? MEAL.row : null;
+        if (!row || !add || !Array.isArray(add.foods) || !add.foods.length) return;
+        const foods = add.foods.map((f) => ({ ...f, addId: String(add.id) }));
+        const r = applyMealCorrection(metaFromRow(row), { kind: 'add-foods', foods, said: add.said || undefined, minutesLate: row.minutes_late || 0 });
+        if (!r || r.nothingPriced || !r.moved) return;
+        const keep = (src, val) => (src == null ? null : val);
+        // A macro the read never had stays absent (persistPro's rule), EXCEPT when the addition
+        // itself brought one: then the row gains exactly what was added.
+        const addTo = (k) => (row[k] == null ? (Number(r.meta[k]) > 0 ? r.meta[k] : null) : r.meta[k]);
+        const fields = {
+          protein: addTo('protein'), carbs: addTo('carbs'), fat: addTo('fat'), kcal: addTo('kcal'),
+          fiber: keep(row.fiber, r.meta.fiber || 0), quality: r.meta.quality != null ? r.meta.quality : null,
+          detected: r.meta.detectedRich,
+        };
+        const res = await roles.proCorrectMeal(sub, fields, r.summary);
+        if (!res.ok) return;
+        const before = { protein: row.protein, carbs: row.carbs, fat: row.fat, kcal: row.kcal, quality: row.quality };
+        MEAL.row = { ...row, ...fields, quality: fields.quality != null ? fields.quality : row.quality };
+        const band = (q) => (q == null ? '' : ((qualityBand(Math.round(+q)) || {}).cls || ''));
+        const rows = [
+          ['Protein', before.protein, fields.protein, 'g'], ['Carbs', before.carbs, fields.carbs, 'g'],
+          ['Fat', before.fat, fields.fat, 'g'], ['Calories', before.kcal, fields.kcal, ''],
+          ['Meal score', before.quality, fields.quality, ''],
+        ].filter(([, a, b]) => a != null && b != null && Math.round(+a) !== Math.round(+b))
+          .map(([label, a, b, unit]) => ({ label, unit, from: Math.round(+a), to: Math.round(+b), score: label === 'Meal score', band: label === 'Meal score' ? band(b) : '' }));
+        // meal-chat trims these to what the athlete's plan style may show (Intuitive: score only).
+        if (rows.length) await window.sb.functions.invoke('meal-chat', { body: { mealId: sub, additionReceipt: { additionId: String(add.id), rows } } });
+        window.__render();
+      } catch { /* the addition row stands; the athlete's device applies it on its next sync */ }
+    };
     const correctLink = root.querySelector('#cm-correct');
     if (correctLink) correctLink.addEventListener('click', () => {
       if (FIX_BUSY) return;
@@ -3906,6 +4015,7 @@ export const coachMeal = {
     wireTapback({
       root,
       scope: '#cm-thread',
+      onReply: startReply,
       emoji: REACTION_EMOJI,
       mine: () => new Set((Array.isArray(MC && MC.comments) ? MC.comments : [])
         .filter((c) => c && c.kind === 'reaction' && c.author_id === RT.userId)

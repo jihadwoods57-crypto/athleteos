@@ -199,6 +199,30 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
       id: 'mc-5', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-coach',
       role: 'coach', kind: 'reaction', created_at: tAt(13, 26), text: '💪',
     },
+    /* THE 2026-09-22 SHAPE: a photo in the thread, a coach replying to it with a quote, and the
+       AI adding it with a receipt that says why. Without these no capture contained a photo
+       message, a quoted reply or a receipt's reason line, so none of them had ever been
+       reviewed in a contact sheet. The photo path maps to a shipped plate (mealAsset). */
+    {
+      id: 'mc-6', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-athlete',
+      role: 'athlete', kind: 'message', created_at: tAt(13, 40),
+      meta: { photo: 'seed-athlete/chat/lunch.jpg' }, text: "I'm also drinking this",
+    },
+    {
+      id: 'mc-7', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-coach',
+      role: 'coach', kind: 'message', created_at: tAt(13, 42),
+      meta: { replyTo: { id: 'mc-6', aid: 'seed-athlete', who: 'Marcus', text: "I'm also drinking this", photo: true } },
+      text: 'Make sure that gets added in',
+    },
+    {
+      id: 'mc-8', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-coach',
+      role: 'ai', kind: 'message', created_at: tAt(13, 42),
+      meta: { t: 'correction_receipt', note: 'Added from the photo of the label, at the coach’s request.', rows: [
+        { label: 'Protein', from: 78, to: 120, unit: 'g' },
+        { label: 'Calories', from: 980, to: 1210, unit: '' },
+      ] },
+      text: 'Updated: Protein 78g to 120g, Calories 980 to 1210.',
+    },
   ];
 
   const TABLES = {

@@ -90,7 +90,7 @@ export function isPhotoOnly(comment) {
  * database at either level, with no feature flag.
  */
 export async function postChatMessage(rolesMod, {
-  mealId, athleteId, authorId, role, text = '', photo = null,
+  mealId, athleteId, authorId, role, text = '', photo = null, replyTo = null,
 }) {
   // Guideline 1.2 filter, BEFORE the photo upload: a message that will not be posted must not
   // leave its attachment behind in storage.
@@ -100,7 +100,12 @@ export async function postChatMessage(rolesMod, {
     photoPath = await rolesMod.uploadChatPhoto(authorId, photo.base64);
     if (!photoPath) return { ok: false, photoPath: null, error: 'upload' };
   }
-  const meta = photoPath ? { photo: photoPath } : null;
+  // A reply's pointer rides the same meta (chat-view.js replyRefOf reads it back, bounded).
+  const meta = (photoPath || replyTo) ? { ...(photoPath ? { photo: photoPath } : {}), ...(replyTo ? { replyTo } : {}) } : null;
+  // The picture is already on this device: hand its bytes to the thread's cache under the new
+  // key, so the real row paints the same image the outbox bubble showed instead of a blank that
+  // waits on a signed URL.
+  if (photoPath && photo && photo.dataUrl) primeThreadPhoto(photoPath, photo.dataUrl);
   const typed = String(text || '').trim();
   const ok = await rolesMod.postMealComment(mealId, athleteId, authorId, role, typed, 'message', meta);
   if (ok) return { ok: true, photoPath, error: null };
@@ -120,6 +125,11 @@ export async function postChatMessage(rolesMod, {
 const CHAT_PHOTO_URLS = new Map(); // path -> { url, at }
 const CHAT_PHOTO_TTL = 45 * 60 * 1000;
 
+/** Seed the signed-URL cache with a picture this device already holds (a just-sent attachment). */
+export function primeThreadPhoto(path, url) {
+  if (path && url) CHAT_PHOTO_URLS.set(path, { url, at: Date.now() });
+}
+
 /** Markup for an attached photo inside a bubble. The src is filled in by hydrateThreadPhotos()
  *  after paint (signed URLs are async); until then it is a sized placeholder, so the thread does
  *  not reflow when images land. Shared by all THREE thread renderers — meal.js, coach.js and
@@ -127,7 +137,9 @@ const CHAT_PHOTO_TTL = 45 * 60 * 1000;
  *  codebase keeps rediscovering. */
 export function bubblePhotoHtml(path, escFn) {
   if (!path) return '';
-  return `<img class="bimg" data-photo="${escFn(path)}" alt="Photo attached to this message" loading="lazy" decoding="async" />`;
+  const hit = CHAT_PHOTO_URLS.get(path);
+  const src = hit && hit.url && Date.now() - hit.at < CHAT_PHOTO_TTL && /^(https:|data:image\/)/.test(hit.url) ? ` src="${escFn(hit.url)}"` : '';
+  return `<img class="bimg" data-photo="${escFn(path)}"${src} alt="Photo attached to this message" loading="lazy" decoding="async" />`;
 }
 
 /** Resolve every pending attachment inside a painted thread. Safe to call on every repaint. */
@@ -184,10 +196,14 @@ export function wireComposerAttach({ root, attachId, pendingId, safeImg, onNote 
     const drop = pending.querySelector('[data-attach-drop]');
     if (drop) drop.addEventListener('click', () => { clear(); });
   };
+  // `.has-photo` on the composer: a held picture is something to send, so the dock's
+  // hide-send-until-there-is-text rule must not hide Send from a photo with no caption.
+  const mark = () => { const c = btn && btn.closest('.composer'); if (c) c.classList.toggle('has-photo', !!held); };
   const clear = () => {
     held = null;
     if (file) file.value = '';
     if (btn) btn.classList.remove('on');
+    mark();
     paint();
   };
 
@@ -200,6 +216,7 @@ export function wireComposerAttach({ root, attachId, pendingId, safeImg, onNote 
       try {
         held = await encodeImageFile(f);
         btn.classList.add('on');
+        mark();
         paint();
       } catch {
         held = null;
