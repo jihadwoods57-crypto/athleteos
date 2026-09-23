@@ -35,7 +35,7 @@
   <div class="brand">On<b>Standard</b></div>
   <h1>Privacy Policy</h1>
   <div class="meta">
-    <strong>Effective date:</strong> July 14, 2026<br />
+    <strong>Effective date:</strong> September 23, 2026<br />
     <strong>Operator:</strong> Jihad Woods, doing business as OnStandard (contact: <a href="mailto:support@onstandard.app">support@onstandard.app</a>)<br />
     <strong>Contact:</strong> <a href="mailto:support@onstandard.app">support@onstandard.app</a>
   </div>
@@ -67,7 +67,7 @@
     starting weight, and weight goals; hydration; weekly check-in answers; and performance records (PRs) you log.</li>
     <li><strong>Relationships and links:</strong> the coaches, trainers, nutritionists, and guardians you link to;
     team/join codes; and, for staff accounts, the athletes on your roster or client book.</li>
-    <li><strong>Messages</strong> you send to linked people through the app.</li>
+    <li><strong>Messages</strong> you send to linked people through the app, including text you dictate (see §3b).</li>
     <li><strong>Authentication data:</strong> your sign-in is handled by our authentication provider; we store your
     account identifier and email. We never store your password in the app.</li>
     <li><strong>Payment and subscription data (paid accounts only):</strong> for a coach, trainer, or organization
@@ -85,28 +85,66 @@
     <li><strong>Apple Health (iPhone, optional, read-only):</strong> if you choose to connect Apple Health, the app
     reads last night's sleep, heart rate variability, resting heart rate, steps, walking and running distance, and
     workouts, with your permission, so your recovery check-in has real context. <strong>We never write to Apple
-    Health.</strong> Health data is used only to show you and your linked coach the check-in context you already see; it
+    Health.</strong> If your coach sets an activity standard (for example a step or exercise-minute goal), your
+    <strong>activity totals</strong> for that standard (steps, distance, exercise minutes, active energy, workouts) are
+    shared with that coach so they can see your progress toward it; the rest stays with you.
+    Health data is used only to show you and your linked coach the check-in context you already see; it
     is never used for advertising or marketing, never sold, never shared with third parties, never used to make
     eligibility or insurance decisions, and is not stored in iCloud. You can disconnect at any time in the app
     (Preferences &rsaquo; Health) or in the iOS Health app, and we stop reading immediately.</li>
-    <li><strong>Location: none.</strong> The app does not request or use your location on any platform.</li>
+    <li><strong>Location:</strong> only for a roll call your coach gave a place, and only if you allow it. See §3a.</li>
     <li><strong>We do NOT collect</strong> advertising identifiers, cross-app tracking data, or analytics from
     third-party advertising/tracking SDKs, and we never use location for advertising or to track you across apps or
     sites. The app contains no third-party analytics, advertising, attribution, or crash-tracking SDKs.</li>
   </ul>
 
-  <h2>4. Meal-photo and label analysis by a third-party AI (Anthropic / Claude)</h2>
-  <p>When AI meal analysis is configured, a photo you take of a meal or a Nutrition Facts label is sent to our AI
-  provider, <strong>Anthropic (the Claude API)</strong>, to identify foods and estimate or transcribe nutrition
-  information. This is the only path by which a photo or meal data leaves your device to a third party.</p>
+  <h2>3a. Location check-in (roll call)</h2>
+  <p>A coach can give a roll call a place (a weight room, a practice field). For that roll call only, OnStandard can
+  confirm that you got there.</p>
   <ul>
-    <li>The photo is sent only when (a) AI analysis is configured and (b) a consent gate passes. The gate
-    <strong>fails closed</strong>: an athlete without consent, an athlete who has paused sharing, and a minor whose
-    guardian is not verified never have a photo sent off the device.</li>
+    <li><strong>What is read, and when.</strong> Your phone takes <strong>one location reading</strong> when you tap
+    "I'm here", or, if you chose walk-in check-in, when you walk into the place. Only during that roll call's
+    check-in window. Outside a window nothing is read.</li>
+    <li><strong>What is kept.</strong> The reading goes to our server once, which compares it with the coach's place
+    and keeps only the verdict, <strong>Arrived or Not arrived</strong>, and how far away you were. The coordinate itself
+    is <strong>discarded</strong>.</li>
+    <li><strong>Who sees it.</strong> Your coach and your team see Arrived or Not arrived on the roll call board. Only you
+    see how far away you were. Nobody sees where you are.</li>
+    <li><strong>Walk-in check-in (optional).</strong> With "Always" permission, the phone watches one circular region
+    around the place during the window (iOS region monitoring) and removes it when the window closes. There is no
+    continuous tracking and no background location mode.</li>
+    <li><strong>Minors.</strong> For an athlete under 18, location check-in stays off until a parent or guardian
+    approves it.</li>
+    <li><strong>Switching it off.</strong> Turn off walk-in check-in in the app (Profile &rsaquo; Location check-in) or
+    in your phone's Settings. Declining location never costs you anything else: your coach can mark you in.</li>
+  </ul>
+
+  <h2>3b. Microphone and speech</h2>
+  <ul>
+    <li>If you tap the microphone in a message box, the app asks for the microphone and speech recognition then,
+    not before. Your speech is turned into text by <strong>Apple's speech recognition</strong>, on your device where the
+    iPhone supports it and otherwise by Apple's speech service, under Apple's terms.</li>
+    <li>The text appears in the message box for you to edit. <strong>Nothing is sent until you tap Send, and no audio
+    is stored</strong> by OnStandard or sent to our servers.</li>
+  </ul>
+
+  <h2>4. Meal analysis by a third-party AI (Anthropic / Claude), with your permission</h2>
+  <p>OnStandard's AI Nutritionist is provided by <strong>Anthropic (the Claude API)</strong>. <strong>Before any of your data
+  is sent to it, the app asks you</strong>, in a screen that names Anthropic and lists what is sent, with Continue and
+  Not now. Your answer is recorded on your account, and our server refuses to send your data to the AI without it.
+  You can change it at any time in the app (Profile &rsaquo; Privacy &amp; visibility &rsaquo; AI).</p>
+  <ul>
+    <li><strong>What is sent, when AI is on:</strong> the meal and Nutrition Facts label photos you take, what you write
+    in a meal conversation, and the facts the AI coaches from: your goal, weight goal, position, allergies, and your
+    coach's standard. For a coach, trainer or dietitian, the questions they ask the AI about an athlete's meal; an
+    athlete's own data is sent only if that athlete has said yes too.</li>
+    <li><strong>If you choose Not now:</strong> everything else keeps working. A meal photo still counts as proof, you
+    can log numbers yourself, and the AI stays quiet. Scheduled AI features (the daily follow-up, the coach's summary)
+    skip you.</li>
+    <li>The consent gate <strong>fails closed</strong>: no answer means no AI, and a minor whose guardian is not
+    verified never has data sent off the device.</li>
     <li>The Anthropic API key is held only on our server; it is never in the app.</li>
     <li>We use the AI to provide the nutrition feature. <strong>We do not use your photos for advertising.</strong></li>
-    <li>Two in-app text features may send already-computed text and numbers (no photos) to Anthropic purely to
-    reword them in a coach voice; the app re-verifies the numbers and never lets the AI change them.</li>
   </ul>
   <p>Under Anthropic’s commercial API terms, data we submit (including meal photos) is not used to train Anthropic’s models, and API inputs and outputs are retained only for a limited period for trust-and-safety monitoring before deletion.</p>
 
@@ -127,14 +165,20 @@
   <ul>
     <li><strong>You</strong> can always see and export your own data.</li>
     <li><strong>People you link</strong> can see the athlete data you have consented to share — e.g. your daily
-    score, compliance, and weight trend.</li>
+    score, compliance, and weight trend, and, for an activity standard your coach sets, your activity totals.</li>
+    <li><strong>Teammates</strong> see your roll call answers on the team's roll call board (your name, when you
+    answered, your place in line, and Arrived or Not arrived when the roll call has a place). Your score appears on
+    the Squad board only if you opt in. Teammates never see your meals, photos, weight, check-ins or location.</li>
+    <li><strong>Blocking.</strong> You can block anyone in a conversation. Their messages are hidden from you and
+    their notifications stop; they are not told.</li>
     <li><strong>Consent is required and revocable.</strong> Real athlete data is only collected and shared after
     consent is recorded. You can <strong>pause all sharing</strong> at any time from the Profile screen, which
     immediately stops data leaving the device, and you can remove a linked viewer's access.</li>
     <li><strong>Service providers (subprocessors):</strong> our hosting/database/storage and authentication
     provider (<strong>Supabase</strong>), our email provider (<strong>Resend</strong>) for account emails,
     <strong>Anthropic</strong> for the AI analysis in §4, <strong>Stripe</strong> for payment processing on paid
-    plans, and <strong>Expo</strong> for delivering the push notifications you enable. Each operates under contract
+    plans, <strong>RevenueCat</strong> for in-app subscription status (plan, status and renewal date only; Apple
+    handles payment), and <strong>Expo</strong> for delivering the push notifications you enable. Each operates under contract
     and may process data only to provide its service to us.</li>
     <li><strong>Legal disclosure:</strong> we may disclose data if required by law or to protect users (especially
     minors).</li>

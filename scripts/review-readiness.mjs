@@ -77,8 +77,11 @@ await guard('version 1.0 has a VALID build attached', HARD, async () => {
   const a = rd.data?.attributes || {};
   check('review notes carry a demo account and stay under 4000 chars', a.demoAccountRequired === true && !!a.demoAccountName && (a.notes || '').length <= 4000,
     `demo ${a.demoAccountName || 'NONE'}, notes ${(a.notes || '').length} chars`);
-  // The notes may RETRACT the geofence ('that feature no longer exists'); they must not still CLAIM it.
-  check('review notes do not still claim a location feature', !/Background mode "?location"?|LOCATION, "ALWAYS"|exists solely for that geofence/i.test(a.notes || ''), 'no always-location or background-location claim');
+  // Location is BACK (roll call rebuilt, 2026-09-23) and the notes must say where and how: region
+  // monitoring for the optional walk-in check-in, never a background location mode (G-L2, G-P6).
+  check('review notes explain the location feature (region monitoring, no background mode)',
+    /region monitoring/i.test(a.notes || '') && !/Background mode "?location"? (is|remains) (on|used)|exists solely for that geofence|requests no location permission/i.test(a.notes || ''),
+    /region monitoring/i.test(a.notes || '') ? 'region monitoring named' : 'notes do not name region monitoring');
   const loc = await asc(`/v1/appStoreVersions/${v.id}/appStoreVersionLocalizations`);
   const d = loc.data?.[0]?.attributes || {};
   check('description links Terms of Use and Privacy Policy (3.1.2 metadata rule)', /onstandard\.app\/terms/.test(d.description || '') && /onstandard\.app\/privacy/.test(d.description || ''),
@@ -160,6 +163,12 @@ await guard('policy pages', HARD, async () => {
   const priv = await fetch('https://onstandard.app/privacy');
   const pt = await priv.text();
   check('privacy policy is live and names Apple Health (5.1.3)', priv.ok && /Apple Health/.test(pt) && !/arrival verification/i.test(pt), `${priv.status}, Apple Health ${/Apple Health/.test(pt) ? 'present' : 'MISSING'}, stale location paragraph ${/arrival verification/i.test(pt) ? 'PRESENT' : 'gone'}`);
+  // The truths the binary now needs the policy to state (G-L4, G-P6). Checked on the LIVE page and
+  // on the repo's copy, so a correct page that has not been deployed yet says exactly that.
+  const truths = policyTruths(pt);
+  check('live privacy policy states location, mic/speech, AI consent, RevenueCat and activity sharing (5.1.1, 5.1.2)', truths.ok, truths.detail);
+  const local = policyTruths(readFileSync(join(ROOT, 'web/landing/privacy.html'), 'utf8'));
+  check('repo privacy policy (web/landing) carries the same truths', local.ok, local.detail);
   const terms = await fetch('https://onstandard.app/terms');
   const tt = await terms.text();
   check('terms are live and carry the objectionable-content clause (1.2)', terms.ok && /objectionable/i.test(tt), `${terms.status}`);
@@ -185,16 +194,37 @@ await guard('EAS production environment carries every public variable the build 
 await guard('app config', HARD, async () => {
   const cfg = JSON.parse(readFileSync(join(ROOT, 'app.json'), 'utf8')).expo;
   const plist = cfg.ios?.infoPlist || {};
-  check('no location purpose strings or background mode (2.5.4)', !Object.keys(plist).some((k) => /Location/.test(k)) && !(plist.UIBackgroundModes || []).includes('location'), 'clean');
+  // Roll call's place check is back (2026-09-23): exactly the three iOS location strings, each
+  // specific, and NO `location` background mode (walk-in check-in is region monitoring, 2.5.4).
+  const LOC_KEYS = ['NSLocationWhenInUseUsageDescription', 'NSLocationAlwaysAndWhenInUseUsageDescription', 'NSLocationAlwaysUsageDescription'];
+  const locKeys = Object.keys(plist).filter((k) => /Location/.test(k)).sort();
+  check('exactly the three location purpose strings, each filled in, and no location background mode (2.5.4, 5.1.1)',
+    JSON.stringify(locKeys) === JSON.stringify([...LOC_KEYS].sort()) && LOC_KEYS.every((k) => String(plist[k] || '').length > 20)
+      && !(plist.UIBackgroundModes || []).includes('location'),
+    `${locKeys.join(', ') || 'none'}; background modes ${(plist.UIBackgroundModes || []).join(', ') || 'none'}`);
   const perms = cfg.android?.permissions || [];
-  // RECORD_AUDIO is expected since 2026-09-23 (dictation; added by the expo-speech-recognition
-  // plugin, not listed here), so only location is still checked in this list.
-  check('no leftover location permissions', !perms.some((p) => /LOCATION/.test(p)), perms.length ? perms.map((p) => p.replace('android.permission.', '')).join(', ') : 'none', SOFT);
+  check('no Android background location permission', !perms.some((p) => /ACCESS_BACKGROUND_LOCATION/.test(p)), perms.length ? perms.map((p) => p.replace('android.permission.', '')).join(', ') : 'none', SOFT);
   const mic = String(plist.NSMicrophoneUsageDescription || '');
   check('microphone purpose string is the real one (5.1.1)', !!mic && !/PRODUCT_NAME/.test(mic) && /tap the mic in a chat/i.test(mic), mic ? 'dictation' : 'missing');
   check('camera priming button says Continue (5.1.1(iv))', /data-act="primeCamera"[^>]*>Continue</.test(readFileSync(join(ROOT, 'proto/redesign-2026-07/js/screens/camera.js'), 'utf8')), 'camera.js');
   check('assets/proto.zip is committed (the OTA ships it)', existsSync(join(ROOT, 'assets/proto.zip')), 'present');
 });
+
+/** What the privacy policy must say for this build (review pass 2026-09-23, G-L4). Pure. */
+function policyTruths(html) {
+  const t = String(html || '');
+  const need = {
+    'location section': /Location check-in/i.test(t) && /Arrived or Not arrived/.test(t) && /discarded/i.test(t) && /region monitoring/i.test(t),
+    'no "Location: none"': !/Location: none/i.test(t),
+    'microphone + speech': /Microphone and speech/i.test(t) && /speech recognition/i.test(t),
+    'AI consent': /Anthropic/.test(t) && /Before any of your data\s+is sent/i.test(t),
+    'RevenueCat subprocessor': /RevenueCat/.test(t) && /subprocessors/i.test(t),
+    'activity totals to the coach': /activity totals/i.test(t),
+    'teammates see roll call': /roll call board/i.test(t),
+  };
+  const missing = Object.keys(need).filter((k) => !need[k]);
+  return { ok: missing.length === 0, detail: missing.length ? `missing: ${missing.join(', ')}` : 'all present' };
+}
 
 // ---- verdict ----
 const w = Math.max(...rows.map((r) => r.name.length));
