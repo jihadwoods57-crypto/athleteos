@@ -21,8 +21,8 @@ import { icon } from '../icons.js';
 import { esc, copyText } from '../components.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, simChip, mirrorCard, countStat,
-  phoneCard, testimonial, planCard, PLANS, chatSim, structureStep, commitContinue,
-  operatorPlanTitle, operatorPlanSub, operatorPlanCards,
+  phoneCard, PLANS, chatSim, structureStep, commitContinue,
+  operatorPlanTitle, operatorPlanSub, operatorPlanCards, operatorStartLabel,
   adultDobSteps,
 } from '../ob2.js';
 import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
@@ -411,22 +411,6 @@ const steps = [
 
   /* ==================== ch4 · Start ==================== */
   {
-    id: 'proof', ch: 4, cta: 'Continue',
-    title: () => 'What it looks like for a trainer.',
-    sub: () => 'Illustrative, not actual customers yet.',
-    body: () => `
-      ${/* Launch placeholders — the founder swaps these for real customers before go-live. */''}
-      ${testimonial({
-        quote: 'I used to spend Sunday night texting check-ins. Now I open the queue, approve the drafts, and it’s done before my coffee is.',
-        name: 'Danielle', role: 'Online coach · 22 clients', initials: 'D',
-        stat: '4 hrs', statKey: 'won back weekly',
-      })}
-      ${testimonial({
-        quote: 'A client went quiet in week two. The queue flagged it, I sent one note, and she’s still with me. I would never have caught that over text.',
-        name: 'Marcus', role: 'Strength trainer · in-person', initials: 'M',
-      })}`,
-  },
-  {
     id: 'account', ch: 4, noFoot: true,
     title: () => 'Create your account.',
     sub: () => 'Your practice, client code, and queue live on it.',
@@ -490,11 +474,11 @@ const steps = [
   {
     id: 'plans', ch: 4, noFoot: true,
     title: () => operatorPlanTitle('Pick your plan.'),
-    sub: () => operatorPlanSub('Start free today: billing turns on at launch, and nothing charges until then.'),
+    sub: () => operatorPlanSub('Start free today. Nothing charges until you choose a plan and confirm it.'),
     body: (o) => `
       ${operatorPlanCards(PLANS.pro, (p) => (o.plan ? o.plan === p.id : p.id === PLANS.pro[0].id))}
       <div class="ob-foot" style="margin-top:18px">
-        <button class="btn primary" id="obt-start" data-go="trainer">Start free, no card today</button>
+        <button class="btn primary" id="obt-start" data-go="trainer">${operatorStartLabel()}</button>
         <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px">Invite your first client from your dashboard.</div>
       </div>`,
     mount(root, ctx) {

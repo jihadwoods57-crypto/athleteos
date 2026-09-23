@@ -99,7 +99,10 @@ export const PLAN_CATALOG: PricedPlan[] = [
   // Annual is no longer a percentage on this rail (see the `annual` field above): $199.99 and
   // $249.99 are App Store price points, picked because no round figure exists on Apple's ladder.
   { id: 'individual', name: 'Individual', audience: 'individual', rail: 'iap', monthly: 19.99, annual: 199.99, trialDays: 14,
-    blurb: 'Your score, AI meal analysis and streaks, your full history and trends, unlimited supporters, and the recruiting card a coach can open.' },
+    // What paying ADDS, never a free feature relabelled (2026-09-23, proto pricing.js MEMBERSHIP_ADDS):
+    // the score, meal analysis, history and recruiting card are free; the monthly report's written
+    // read is the gated part (MONTHLY_REQUIRES_PLAN=1 on production).
+    blurb: 'For one athlete: the written monthly report, on top of everything that is already free.' },
   // THE STORE'S PRICE POINT BINDS (2026-09-18). Individual Plus annual was 126 and Family annual
   // 156. Neither exists as an App Store price point: Apple's ladder runs ... 124.99, 125.99,
   // 126.99 ... and ... 154.99, 155.99, 156.99, with no round 126 or 156 (84 does exist, which is
@@ -133,7 +136,7 @@ export const PLAN_CATALOG: PricedPlan[] = [
   // Individuals are $39.98/mo, Family is $24.99, so the household that picks the family option
   // saves $14.99 a month. It has been re-opened twice by moving one price and not the other.
   { id: 'family', name: 'Family', audience: 'individual', rail: 'iap', monthly: 24.99, annual: 249.99, trialDays: 14, seatLimit: 4,
-    blurb: 'One household, up to 4 athletes, one bill. Parents see each athlete’s score and week.' },
+    blurb: 'One household, up to 4 athletes, one bill. Each athlete gets the written monthly report.' },
   // Cost sweep 2026-07-04: Solo/Professional were repriced up (69->99, 124.99->179) and the extra-seat
   // add-on 3->10. The old numbers sat at/below the per-seat AI-cost floor once a trainer's roster was
   // genuinely engaged, so a MORE successful trainer earned us LESS margin. New floor: ~$4/seat of budget

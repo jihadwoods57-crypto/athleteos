@@ -167,6 +167,83 @@ export async function purchaseConsumer(productId: string, appUserId: string): Pr
   }
 }
 
+/** One product as the paywall prints it. Store strings only: the proto never formats a price the
+ *  store did not hand it (App Review pass 2026-09-23, G-R7: hard-coded USD in 175 storefronts). */
+export type ConsumerQuote = {
+  priceString: string;
+  price: number;
+  currencyCode: string;
+  pricePerMonthString: string | null;
+  /** The FREE intro period, when the product has one. A paid intro price is not a trial. */
+  trial: { count: number; unit: string } | null;
+  /** true / false when the store answered; null when it could not say. */
+  trialEligible: boolean | null;
+};
+
+export type OfferingsResult =
+  | { ok: true; products: Record<string, ConsumerQuote> }
+  | { ok: false; reason: 'unavailable' | 'error'; message?: string };
+
+/** RevenueCat's INTRO_ELIGIBILITY_STATUS: 1 = INELIGIBLE, 2 = ELIGIBLE (0 and 3 mean "cannot say"). */
+function eligibilityOf(status: unknown): boolean | null {
+  const s = Number(status);
+  if (s === 2) return true;
+  if (s === 1) return false;
+  return null;
+}
+
+/**
+ * The localized price, intro trial and trial eligibility of every consumer product the store
+ * serves, keyed by product id. Read from the offerings (every offering, not only `current`, the
+ * same pools purchaseConsumer buys from) so the paywall prints what Apple's sheet will charge.
+ *
+ * Eligibility is asked separately (checkTrialOrIntroductoryPriceEligibility) and its failure is
+ * NOT a failure of the whole call: prices without eligibility are still the right prices, and the
+ * paywall treats an unknown eligibility as "no trial line".
+ */
+export async function getConsumerOfferings(appUserId: string): Promise<OfferingsResult> {
+  if (!isIapAvailable || !Purchases) return { ok: false, reason: 'unavailable' };
+  await configureIap(appUserId);
+  if (configuredFor === null) return { ok: false, reason: 'error', message: 'Could not reach the store.' };
+  try {
+    const offerings = await Purchases.getOfferings();
+    const pools = [offerings.current, ...Object.values(offerings.all ?? {})];
+    const products: Record<string, ConsumerQuote> = {};
+    for (const offering of pools) {
+      for (const pkg of offering?.availablePackages ?? []) {
+        const p = pkg?.product;
+        // Google Play names a subscription "productId:basePlanId"; the proto keys by the product
+        // id alone (review Minor 4), or Android would never match and always print the catalog.
+        const id = String(p?.identifier || '').split(':')[0];
+        if (!p || !id || products[id]) continue;
+        if (typeof p.priceString !== 'string' || !p.priceString) continue;
+        const intro = p.introPrice;
+        const trial = intro && Number(intro.price) === 0 && Number(intro.periodNumberOfUnits) > 0
+          ? { count: Number(intro.periodNumberOfUnits), unit: String(intro.periodUnit || '') }
+          : null;
+        products[id] = {
+          priceString: p.priceString,
+          price: Number(p.price),
+          currencyCode: String(p.currencyCode || ''),
+          pricePerMonthString: typeof p.pricePerMonthString === 'string' ? p.pricePerMonthString : null,
+          trial,
+          trialEligible: null,
+        };
+      }
+    }
+    const ids = Object.keys(products).filter((id) => products[id].trial);
+    if (ids.length) {
+      try {
+        const elig = await Purchases.checkTrialOrIntroductoryPriceEligibility(ids);
+        for (const id of ids) products[id].trialEligible = eligibilityOf(elig?.[id]?.status);
+      } catch { /* prices stand; eligibility stays unknown, so no trial line is printed */ }
+    }
+    return { ok: true, products };
+  } catch (e) {
+    return { ok: false, reason: 'error', message: readError(e).message };
+  }
+}
+
 /**
  * Restore a prior purchase (App Store / Play "Restore" — required by Apple, Guideline 3.1.1).
  * Re-triggers the RevenueCat webhook so the server row is rebuilt.

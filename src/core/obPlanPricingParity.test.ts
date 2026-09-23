@@ -29,16 +29,16 @@ const { PLANS } = require('../../proto/redesign-2026-07/js/ob2.js');
 // suite exists to close, one file over.
 const { CONSUMER_PLANS } = require('../../proto/redesign-2026-07/js/pricing.js');
 
-/* THE FACTS EACH CONSUMER PLAN MUST STATE, on every screen that describes it. Individual Plus was
-   retired on 2026-09-21 and its selling points (full history, unlimited supporters, the recruiting
-   card) moved onto Individual, because has_premium_access() never read tier and every paid athlete
-   always had them. Deleting a plan is easy; deleting a plan and silently dropping the three things
-   it advertised is how a paywall stops describing what it sells. Both descriptions of a plan must
-   carry these. */
+/* THE FACTS EACH CONSUMER PLAN MUST STATE. Since 2026-09-23 a plan states what paying ADDS, which
+   is the written monthly report (MONTHLY_REQUIRES_PLAN is the one consumer gate set on production;
+   the score, history and recruiting card are free). The paywall catalog and src/core/pricing.ts
+   must both carry these. Onboarding no longer describes consumer plans at all. */
 const CONSUMER_FACTS: Record<string, string[]> = {
-  individual: ['history', 'supporters', 'recruiting card'],
-  family: ['4 athletes', 'one bill'],
+  individual: ['monthly report'],
+  family: ['4 athletes', 'one bill', 'monthly report'],
 };
+/* Free features a consumer plan must NOT sell: they are not behind any gate. */
+const FREE_FEATURES = /daily score|meal analysis|full history|recruiting card|supporters/i;
 
 type OfferedPlan = { variant: string; id: string; price: string; name: string; sub: string; tag?: string; custom?: boolean };
 
@@ -125,10 +125,13 @@ describe('ob2 PLANS ↔ pricing.ts PLAN_CATALOG', () => {
     expect(offered).toEqual(orgIds);
   });
 
-  test('the consumer list offers the whole IAP catalog (Family included)', () => {
-    const iapIds = PLAN_CATALOG.filter((p) => p.rail === 'iap').map((p) => p.id).sort();
-    const offered = (PLANS.individual as Array<{ id: string }>).map((p) => p.id).sort();
-    expect(offered).toEqual(iapIds);
+  /* ONE PLAN PICKER (App Review pass 2026-09-23, A-R1 / A Repetition 3). The athlete onboarding
+     printed its own consumer ladder next to a button that opened no store. Consumer plans are
+     sold on the paywall only; onboarding carries no consumer list to drift. */
+  test('onboarding offers no consumer plan: the paywall is the one consumer picker', () => {
+    expect((PLANS as Record<string, unknown>).individual).toBeUndefined();
+    const iapIds = new Set(PLAN_CATALOG.filter((p) => p.rail === 'iap').map((p) => p.id));
+    expect(offeredPlans().filter((p) => iapIds.has(p.id))).toEqual([]);
   });
 
   /* INDIVIDUAL PLUS IS RETIRED (2026-09-21). The consumer-list test above already fails if ob2
@@ -164,12 +167,13 @@ describe('ob2 PLANS ↔ pricing.ts PLAN_CATALOG', () => {
     expect(mismatches).toEqual([]);
   });
 
-  test('both descriptions of a consumer plan state the same facts', () => {
-    const obSub = new Map((PLANS.individual as Array<Record<string, string>>).map((p) => [p.id, String(p.sub || '')]));
+  test('both descriptions of a consumer plan state what paying adds, and sell nothing free', () => {
+    const coreBlurb = new Map(PLAN_CATALOG.filter((p) => p.rail === 'iap').map((p) => [p.id, String(p.blurb || '')]));
     const pwBlurb = new Map((CONSUMER_PLANS as Array<Record<string, string>>).map((p) => [p.id, String(p.blurb || '')]));
     const misses: string[] = [];
     for (const [id, facts] of Object.entries(CONSUMER_FACTS)) {
-      for (const [where, text] of [['onboarding', obSub.get(id)], ['paywall', pwBlurb.get(id)]] as const) {
+      for (const [where, text] of [['pricing.ts', coreBlurb.get(id)], ['paywall', pwBlurb.get(id)]] as const) {
+        if (text && FREE_FEATURES.test(text)) misses.push(`${where}:${id} sells a free feature: "${text}"`);
         if (text === undefined) { misses.push(`${where} never describes ${id}`); continue; }
         for (const f of facts) {
           if (!text.toLowerCase().includes(f.toLowerCase())) misses.push(`${where}:${id} never states "${f}"`);
@@ -180,10 +184,9 @@ describe('ob2 PLANS ↔ pricing.ts PLAN_CATALOG', () => {
   });
 
   test('consumer annual prices and per-month effective rates match the catalog', () => {
-    for (const p of PLANS.individual as Array<Record<string, string>>) {
+    for (const p of CONSUMER_PLANS as Array<{ id: string; annual: number }>) {
       const plan = PLAN_CATALOG.find((c) => c.id === p.id)!;
-      expect(p.annual).toBe(formatPrice(plan.annual));
-      expect(p.annualPer).toBe(formatPrice(Math.round((plan.annual / 12) * 100) / 100));
+      expect(p.annual).toBe(plan.annual);
     }
   });
 });

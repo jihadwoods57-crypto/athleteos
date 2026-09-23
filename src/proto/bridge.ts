@@ -18,7 +18,7 @@ import type WebView from 'react-native-webview';
 import { isAppleAuthAvailable, requestAppleIdentityToken } from '../lib/auth/apple';
 import { isGoogleAuthAvailable, requestGoogleIdToken } from '../lib/auth/google';
 import { biometricsUsable } from '../lib/auth/biometrics';
-import { isIapAvailable, purchaseConsumer, restoreConsumer } from '../lib/iap';
+import { isIapAvailable, purchaseConsumer, restoreConsumer, getConsumerOfferings } from '../lib/iap';
 import {
   isHealthAvailable, healthConnected, connectHealth, readRecoverySample,
   readActivity, observeActivity, type HealthScope,
@@ -66,6 +66,7 @@ export type BridgeMessage =
   | { type: 'PUSH_TOKEN'; id: number }
   | { type: 'OPEN_URL'; url?: string }
   | { type: 'IAP_AVAILABLE'; id: number }
+  | { type: 'IAP_OFFERINGS'; id: number; appUserId?: string }
   | { type: 'IAP_PURCHASE'; id: number; productId?: string; appUserId?: string }
   | { type: 'IAP_RESTORE'; id: number; appUserId?: string }
   | { type: 'HEALTH_AVAILABLE'; id: number }
@@ -314,6 +315,17 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
       // react-native-purchases + creates store products (src/lib/iap). The proto uses this
       // to keep the paywall honest — plan cards read "Available at launch", never a dead CTA.
       resolve(ref, msg.id, isIapAvailable);
+      return true;
+    case 'IAP_OFFERINGS':
+      // The store's localized prices, free intro period and this account's trial eligibility, so
+      // the paywall prints what Apple's sheet will charge (App Review pass 2026-09-23, G-R7). An
+      // answer of { ok:false } is normal on a build without the store; the proto then falls back
+      // to its catalog, which is exactly what it printed before this call existed.
+      try {
+        resolve(ref, msg.id, await getConsumerOfferings(String(msg.appUserId ?? '')));
+      } catch (e) {
+        resolve(ref, msg.id, { ok: false, reason: 'error', message: String((e as Error)?.message ?? e) });
+      }
       return true;
     case 'IAP_PURCHASE':
       // Present the store purchase sheet for a consumer product. On success RevenueCat's
@@ -583,6 +595,7 @@ export const BRIDGE_SHIM = `
     review: { request: function(){ return call('REVIEW_REQUEST', {}); } },
     iap: {
       available: function(){ return call('IAP_AVAILABLE', {}); },
+      offerings: function(appUserId){ return call('IAP_OFFERINGS', { appUserId: String(appUserId||'') }); },
       purchase: function(productId, appUserId){ return call('IAP_PURCHASE', { productId: String(productId||''), appUserId: String(appUserId||'') }); },
       restore: function(appUserId){ return call('IAP_RESTORE', { appUserId: String(appUserId||'') }); }
     },

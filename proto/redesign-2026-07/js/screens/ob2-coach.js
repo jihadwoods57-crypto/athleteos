@@ -21,8 +21,9 @@ import { icon } from '../icons.js';
 import { esc, copyText } from '../components.js';
 import {
   defineFlow, saveProgressStep, ob, capture, gateCta, meter, countStat, mirrorCard, simChip,
-  chatSim, notifCard, phoneCard, testimonial, planCard, choiceGrid, chipRow, PLANS, structureStep, commitContinue,
-  operatorPlanTitle, operatorPlanSub, operatorPlanCards,
+  chatSim, notifCard, phoneCard, choiceGrid, chipRow, PLANS, structureStep, commitContinue,
+  operatorPlanTitle, operatorPlanSub, operatorPlanCards, operatorStartLabel, OPERATOR_WEB_FINE,
+  teamCreateFailedBody, wireTeamCreateRetry,
   adultDobSteps,
 } from '../ob2.js';
 import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
@@ -428,15 +429,6 @@ const steps = [
 
   /* ================= ch4 — START ================= */
   {
-    id: 'proof', ch: 4, cta: 'Continue',
-    title: () => 'What it looks like in a program.',
-    sub: () => 'Illustrative, not actual customers yet.',
-    body: () => `
-      <!-- Launch placeholders: the founder swaps these for real customer quotes before release. -->
-      ${testimonial({ quote: 'Spring ball, logging held at 84%. I stopped asking “did you eat” and started coaching.', name: 'Coach D.', role: 'HS football, 47 athletes', initials: 'CD', stat: '84%', statKey: 'team log rate' })}
-      ${testimonial({ quote: 'The board caught two guys drifting in week one, before the scale did. That used to take a month.', name: 'Coach R.', role: 'College track, 31 athletes', initials: 'CR', stat: 'wk 1', statKey: 'first catch' })}`,
-  },
-  {
     id: 'staff-or-create', ch: 4, cta: 'Continue',
     title: (o) => (o.coachMode === 'join' ? 'Join a staff.' : 'Build the team.'),
     sub: (o) => (o.coachMode === 'join'
@@ -543,8 +535,8 @@ const steps = [
       return `
       <div class="standard-set">
         <div class="halo"><div class="core" style="background:linear-gradient(155deg,var(--blue),var(--blue-deep))">${icon('users', 34)}</div></div>
-        <div class="ob-title" style="margin-top:22px">Your team code.</div>
-        <div class="ob-sub" style="padding:0 8px">Send it to the group chat. Athletes enter it once and their work starts counting toward your board.</div>
+        <div class="ob-title" style="margin-top:22px">${code ? 'Your team code.' : 'One step left.'}</div>
+        <div class="ob-sub" style="padding:0 8px">${code ? 'Send it to the group chat. Athletes enter it once and their work starts counting toward your board.' : 'Your team needs to be created before there is a code to share.'}</div>
         <div style="height:22px"></div>
         ${code ? `<div class="code-boxes fit">${code.split('').map((ch) => `<div class="cb filled" style="border-color:var(--amber-border);background:rgba(var(--amber-rgb),0.08)">${esc(ch)}</div>`).join('')}</div>
         <div style="height:12px"></div>
@@ -564,11 +556,11 @@ const steps = [
            automatically on your next sign-in" and send the coach to Profile → Team code; neither
            was true, and the dashboard then claimed a mint was in progress forever. Say what
            actually happened and point at the button that actually fixes it. */
-        `<div class="sidebox"><div class="req-icon b s38">${icon('clipboard', 17)}</div>
-          <div><div class="tt">We couldn’t create your team</div><div class="ts">Your account is set up. The team isn’t. Pick a plan, then your dashboard has a <b>Create team</b> button waiting.</div></div></div>`}
+        teamCreateFailedBody('obk')}
       </div>`;
     },
     mount(root) {
+      wireTeamCreateRetry(root, 'obk');
       // Legacy coach-ob step-8 wiring, replicated: copy the REAL code + customize it
       // right here (set_my_team_code, 0026).
       const $ = (s) => root.querySelector(s);
@@ -621,9 +613,9 @@ const steps = [
     sub: () => operatorPlanSub('Start free. Decide when the team’s on the board.'),
     body: (o) => `
       ${operatorPlanCards(PLANS.org, (p) => (o.plan ? o.plan === p.id : p.id === 'org_starter'),
-        '<div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px;line-height:1.5">No card today. You’ll confirm before anything ever charges.</div>')}
+        `<div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px;line-height:1.5">${OPERATOR_WEB_FINE}</div>`)}
       <div class="ob-foot" style="margin-top:auto">
-        <button class="btn primary" id="obk-start" data-go="coach-home">Start free, no card today</button>
+        <button class="btn primary" id="obk-start" data-go="coach-home">${operatorStartLabel()}</button>
         <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px">Your rooms are next.</div>
       </div>`,
     mount(root) {

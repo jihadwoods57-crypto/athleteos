@@ -14,7 +14,7 @@
  * the trial (server sends trial_period_days), the duplicate-subscription guard (server 409s and
  * this screen routes to the portal). The client states intent and renders answers.
  */
-import { canOpenExternalCheckout, storeNotice } from '../store-policy.js';
+import { canOpenExternalCheckout, storeNotice, TEAM_PLANS_NOT_SOLD, teamPlanShows } from '../store-policy.js';
 import { RT, act, roleNav } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, alertMsg, statusMsg, esc } from '../components.js';
@@ -83,18 +83,20 @@ export const planUpgrade = {
     // line, and the line is cleared once read so it never haunts a later, voluntary visit.
     const wall = RT.planWall ? `<div class="sidebox pw-pre warn">
       <div class="req-icon a s38">${icon('lock', 17)}</div>
-      <div><div class="tt">That needs a plan</div><div class="ts">Your free preview has ended. Your roster is still yours to read; ${esc(RT.planWall)} needs ${canOpenExternalCheckout() ? 'one of the plans below' : 'a plan, which is set up from your account on the web'}.</div></div>
+      <div><div class="tt">That needs a plan</div><div class="ts">Your free preview has ended. Your roster is still yours to read; ${esc(RT.planWall)} needs ${canOpenExternalCheckout() ? 'one of the plans below' : 'a plan'}.</div></div>
     </div>` : '';
     RT.planWall = null;
     return `<div id="pu-root">${canOpenExternalCheckout()
       ? backHead('Choose a plan', '', 'settings')
-      : backHead('Your plan', 'Managed from your account on the web', 'settings')}
+      : backHead('Your plan', '', 'settings')}
     ${wall}
     ${founding}
     ${/* The iOS build sells nothing through Stripe (store-policy.js, Guideline 3.1.1): no cards
           to tap, no prices for a purchase that cannot be made here, no "billed by Stripe" copy.
-          The wall above still tells an expired coach what needs a plan; this tells them where. */''}
-    ${!canOpenExternalCheckout() ? storeNotice('Team and practice plans are set up from your account on the web, not inside the app.', 'Your roster, activity and inbox stay readable here either way.') : `
+          The wall above still tells an expired coach what needs a plan. Since 2026-09-23 this
+          says only that team plans are not sold here and names NO place they are (3.1.3(c)):
+          "set up from your account on the web" was a pointer to another way to buy. */''}
+    ${!canOpenExternalCheckout() ? storeNotice(TEAM_PLANS_NOT_SOLD, `${teamPlanShows('here')} Your roster, activity and inbox stay readable either way.`) : `
     <h2 class="eyebrow" style="margin-top:16px">${picked && plans.some((p) => p.id === picked) ? 'Your pick from onboarding' : 'Plans'}</h2>
     <div style="display:flex;flex-direction:column;gap:10px">
       ${plans.map((p) => {

@@ -18,7 +18,8 @@ import { esc } from './components.js';
 import { track, EVENTS } from './analytics.js';
 import { STRUCTURE_ANSWERS } from './plan-style.js';
 import { dobFromParts, ageOn } from './ob-helpers.js';
-import { canOpenExternalCheckout, storeNotice } from './store-policy.js';
+import { canOpenExternalCheckout, storeNotice, TEAM_PLANS_NOT_SOLD, teamPlanShows } from './store-policy.js';
+import { MEMBERSHIP_ADDS, FREE_KEEPS } from './pricing.js';
 
 export const CHAPTERS = ['Discover', 'See it', 'Your plan', 'Commit', 'Start'];
 
@@ -427,25 +428,89 @@ export function paywallVariant(role) {
    and "Start free" is read as a purchase path for subscriptions Apple does not sell, so on iOS the
    step keeps its one true promise — start free — and drops the ladder, the tags and every price. */
 export const operatorPlanTitle = (web) => (canOpenExternalCheckout() ? web : 'Start free.');
-export const operatorPlanSub = (web) => (canOpenExternalCheckout() ? web : 'Everything you set up here is yours. Team and practice plans are set up from your account on the web, not inside the app.');
+/* iOS: a fact, no place (store-policy.js TEAM_PLANS_NOT_SOLD, the 2026-09-23 ruling). "Set up from
+   your account on the web" pointed at another purchasing mechanism, which 3.1.1 forbids. The
+   not-sold sentence is in the notice card below, once. */
+export const operatorPlanSub = (web) => (canOpenExternalCheckout() ? web : 'Everything you set up here is yours.');
 export function operatorPlanCards(list, isOn, fine = '') {
-  if (!canOpenExternalCheckout()) return storeNotice('Team and practice plans are set up from your account on the web, not inside the app.', 'Nothing to pay here.');
+  if (!canOpenExternalCheckout()) return storeNotice(TEAM_PLANS_NOT_SOLD, teamPlanShows('in Plan & billing'));
   return `<div class="ob2-plans" data-obkey="plan">
         ${list.map((p) => planCard({ ...p, on: isOn(p) })).join('')}
       </div>${fine}`;
 }
+/* The operator plan step's button. On the web a plan is picked here and confirmed later in
+   Stripe, so "no card today" is true. On iOS nothing is picked and no card is ever asked for,
+   so the button says only what it does. */
+export const operatorStartLabel = () => (canOpenExternalCheckout() ? 'Start free, no card today' : 'Start free');
+/* The web fine print under the operator plan cards: nothing charges until the plan is confirmed
+   in Stripe's checkout. Replaces "billing turns on at launch", a coming-soon line (2.1). */
+export const OPERATOR_WEB_FINE = 'No card today. Nothing charges until you choose a plan and confirm it.';
+
+/* THE CONSUMER START STEP (App Review pass 2026-09-23, A-R1, A-M2, A Repetition 3).
+   The athlete and client flows ended on a second plan picker: Individual and Family with prices,
+   a "14-DAY FREE TRIAL" tag, "Save 30%" (the real figure is 17%) and "Cancel anytime in the App
+   Store before it renews", above a "Start free, no card today" button that opened no store. No
+   trial started, nothing would ever renew, and the screen carried none of the Terms, Privacy or
+   Restore that an auto-renewing offer needs. That is a 3.1.1 / 3.1.2 rejection on its own.
+   The cleaner flow is the one that promises nothing: the athlete starts on the free tier, which
+   is real, and learns in one sentence what membership would add. Selling happens on ONE screen,
+   #paywall, which has the store sheet, the legal links and Restore. No price, no trial and no
+   renewal sentence is printed here, on any platform. */
+export function consumerStartBody({ codeRoute, ctaId, note = '' }) {
+  return `
+      ${mirrorCard('check', esc(FREE_KEEPS))}
+      ${mirrorCard('clipboard', `${esc(MEMBERSHIP_ADDS)} It’s in Profile, under Plan &amp; billing, whenever you want it.`)}
+      <div class="ob2-vgap"></div>
+      <div class="ob-foot ob-foot-push">
+        <button id="${esc(ctaId)}" class="btn primary">Start free</button>
+        ${codeRoute ? `<div class="ob-textlink" role="button" data-go="${esc(codeRoute)}">I have a code</div>` : ''}
+        ${note ? `<div class="ob2-scan-note">${esc(note)}</div>` : ''}
+      </div>`;
+}
+export const CONSUMER_START_TITLE = 'You start free.';
+
+/* WHEN create_team FAILS DURING SIGN-UP (App Review pass 2026-09-23, C-B7). The coach and
+   dietitian code steps said "Pick a plan, then your dashboard has a Create team button waiting."
+   Team creation does not depend on a plan (create_team checks none), and on iOS no plan can be
+   picked, so the sentence was a dead end twice over. It now offers the two things that work:
+   try again right here, or open the dashboard, whose no-team state IS the Create team form
+   (coach-home.js, the 'minting' branch). */
+export function teamCreateFailedBody(prefix) {
+  const p = esc(prefix);
+  return `<div class="sidebox"><div class="req-icon b s38">${icon('clipboard', 17)}</div>
+    <div><div class="tt">We couldn’t create your team</div>
+    <div class="ts">Your account is set up. The team isn’t yet. Try again here, or open your dashboard and use its <b>Create team</b> button.</div></div></div>
+    <div class="ob2-vgap"></div>
+    <div class="ob2-btn-pair">
+      <button class="btn primary sm" id="${p}-team-retry">Try again</button>
+      <button class="btn ghost sm" data-go="coach-home">Open your dashboard</button>
+    </div>
+    <div class="ob2-code-status" id="${p}-team-status" role="status"></div>`;
+}
+export function wireTeamCreateRetry(root, prefix) {
+  const btn = root.querySelector(`#${prefix}-team-retry`);
+  const status = root.querySelector(`#${prefix}-team-status`);
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    if (btn.disabled) return;
+    const o = ob();
+    // The sign-up path falls back to 'My Team' (state.js persistCoachOnboarding), and this screen
+    // has no name field, so the retry must too (review Minor 7).
+    const name = ((o.coach || {}).teamName || o.teamName || '').trim() || 'My Team';
+    btn.disabled = true;
+    if (status) status.textContent = 'Creating your team…';
+    const r = await act.createTeamNow(name);
+    btn.disabled = false;
+    if (r && r.ok) { window.__render(); return; }
+    if (status) status.textContent = (r && r.error) || 'Couldn’t create your team. Try again.';
+  });
+}
 
 export const PLANS = {
-  /* TWO CONSUMER PLANS, NOT THREE (2026-09-21 founder ruling). Individual Plus is retired: it
-     charged $5 more for the recruiting card and the portable record, and has_premium_access()
-     never read tier, so every paid athlete already had both. Its facts moved into the Individual
-     subtitle below, which is the same sentence pricing.js states in its blurb. */
-  individual: [
-    { id: 'individual', name: 'Individual', monthly: '$19.99', annual: '$199.99', annualPer: '$16.67', save: 'Save $40', tag: '14-day free trial',
-      sub: 'Daily Score, AI meal analysis and streaks, your full history and trends, unlimited supporters, and the recruiting card a coach can open.' },
-    { id: 'family', name: 'Family', monthly: '$24.99', annual: '$249.99', annualPer: '$20.83', save: 'Save $50',
-      sub: 'One household, up to 4 athletes, one bill. Parents see each athlete’s score and week.' },
-  ],
+  /* NO CONSUMER LIST HERE (2026-09-23). Individual and Family are sold on ONE screen, the #paywall,
+     from pricing.js CONSUMER_PLANS with the store's own prices; onboarding no longer prints them
+     (consumerStartBody above). A second copy of the consumer ladder is how "Save 30%" sat next to
+     a paywall saying 17%. */
   /* Names are CANONICAL (pricing.ts .name), never audience flavours. "Pro Solo" / "Nutrition Pro" /
      "Team Starter" / "Program" / "Practice" all named the same plans differently, so the plan a
      trainer picked in onboarding rendered under another name on the Plan & billing screen in the
