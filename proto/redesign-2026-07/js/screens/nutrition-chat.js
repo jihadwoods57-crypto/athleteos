@@ -194,6 +194,11 @@ function dividerHtml(meal, selectedId) {
 
 export default {
   nav: 'athlete',
+  // The conversation owns the bottom of the screen, the same as the meal thread (meal.js
+  // `thread.hideTabs`). With the tab capsule up, the sticky dock parked ~140px above the edge
+  // and the bubbles scrolled visibly between the composer and the tab bar (audit 2026-09-22).
+  // Back is the header chevron.
+  hideTabs: true,
 
   render() {
     // The room is not named until the participants land. It used to render the facepile from an

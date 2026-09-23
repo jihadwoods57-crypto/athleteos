@@ -145,10 +145,9 @@
    `.ev-x` (the email-verify banner's 22px dismiss), `.cm-rm` (the 30px commitment remove) and
    `.std-chip` (44 tall but as narrow as its label) joined 2026-09-05. `.cp-name` (the coach
    profile's 26px tap-to-rename name row) joined 2026-09-15.
-   The meal-read restyle's header controls joined 2026-09-15 evening: `.lm-why` (the 28px info
-   mark riding the photo hero — its expanded band overlaps the hero, which is itself the
-   View-photo target; the band favours the smaller control, the stated trade-off) and the
-   16px-tall `.lm-more` (View daily targets). Not `.lm-conf`: the founder's same-evening
+   The meal-read restyle's header controls joined 2026-09-15 evening: the 16px-tall `.lm-more`
+   (View daily targets). `.lm-why`, the 28px info mark on the photo hero, left 2026-09-22: the
+   88px dial itself is now that button. Not `.lm-conf`: the founder's same-evening
    declutter made the provenance line a plain <span> statement on every path, and a dead
    element must not grow a hit area it cannot honour. */
 :where(
@@ -157,7 +156,7 @@
   .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button, .id-act,
   .composer button.send, .composer .ai-ask, .composer .attach,
   .ev-x, .cm-rm, .std-chip, .cp-name,
-  .lm-why, .lm-more
+  .lm-more
 ) {
   position: relative;
 }
@@ -167,7 +166,7 @@
   .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button, .id-act,
   .composer button.send, .composer .ai-ask, .composer .attach,
   .ev-x, .cm-rm, .std-chip, .cp-name,
-  .lm-why, .lm-more
+  .lm-more
 )::after {
   content: '';
   position: absolute;

@@ -420,19 +420,29 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
       }
       return [rollCall(TODAY, null), lift(TODAY, null, null)];
     },
-    commitment_board: () => ATHLETES.map((a, i) => ({
-      instance_id: 'b-' + i, athlete_id: a.id, athlete_name: a.name, occurs_on: TODAY,
-      type: 'morning_roll_call', title: '5 AM Club', respond_by_min: 315,
-      timezone: 'America/New_York',
+    // The real RPC (migration 0216) returns ONE row per roll-call INSTANCE, with every athlete's
+    // response nested in its rows array. This stub used to return one instance per athlete, which drew a
+    // separate "5 AM Club" card for every person on every operator Home capture.
+    commitment_board: () => [{
+      instance_id: 'b-0', occurs_on: TODAY,
+      type: 'morning_roll_call', title: '5 AM Club', respond_by_min: 315, starts_min: 300,
+      timezone: 'America/New_York', coach_name: 'Coach Brooks', audience_kind: 'team',
       // Without starts_at the board's status line printed "On standard until . Closes ." in
       // every capture: deadlineOf/closesAtOf derive from it.
-      starts_at: TODAY + 'T09:15:00Z', respond_by_at: TODAY + 'T09:15:00Z',
+      starts_at: TODAY + 'T09:00:00Z', respond_by_at: TODAY + 'T09:15:00Z',
+      closes_at: TODAY + 'T09:45:00Z', instance_status: 'scheduled',
+      reachable: ATHLETES.length,
       // A real spread: most up, one excused, one that genuinely could not be verified.
-      status: i < 3 ? 'acknowledged' : i === 3 ? 'excused' : i === 4 ? 'unverified' : 'pending',
-      acknowledged_at: i < 3 ? TODAY + 'T09:0' + (i + 1) + ':00Z' : null,
-      excused_reason: i === 3 ? 'Cleared by trainer' : null,
-      unverified_reason: i === 4 ? 'Phone off overnight' : null,
-    })),
+      rows: ATHLETES.map((a, i) => ({
+        response_id: 'r-' + i, athlete_id: a.id, name: a.name,
+        status: i < 3 ? 'acknowledged' : i === 3 ? 'excused' : i === 4 ? 'unverified' : 'pending',
+        verdict: i < 3 ? 'on_standard' : i === 3 ? 'excused' : i === 4 ? 'unverified' : 'missed',
+        acknowledged_at: i < 3 ? TODAY + 'T09:0' + (i + 1) + ':00Z' : null,
+        excused_reason: i === 3 ? 'Cleared by trainer' : null,
+        unverified_reason: i === 4 ? 'Phone off overnight' : null,
+        can_push: true,
+      })),
+    }],
   };
 
   // ---- chainable PostgREST-ish query builder ----

@@ -132,7 +132,7 @@ const steps = [
     ),
   },
   {
-    id: 'answer', ch: 0, cta: 'Show me',
+    id: 'answer', ch: 0, cta: 'Continue',
     body: () => hero(
       'The OnStandard answer',
       `Every plate photographed. <span class="accent">Every plate read.</span>`,
@@ -140,7 +140,7 @@ const steps = [
     ),
   },
   {
-    id: 'name', ch: 0, cta: 'Next',
+    id: 'name', ch: 0, cta: 'Continue',
     title: () => 'You, the professional.',
     sub: () => 'Athletes and staff see this name on every review you sign.',
     body: (o) => `
@@ -167,7 +167,7 @@ const steps = [
   },
   ...adultDobSteps({ R: 'obd', next: 'door', who: 'Dietitian' }),
   {
-    id: 'door', ch: 0, cta: 'Next',
+    id: 'door', ch: 0, cta: 'Continue',
     title: () => 'Your seat.',
     sub: () => 'Run your own team board, or take the seat a head coach invited you to.',
     body: (o) => {
@@ -208,7 +208,7 @@ const steps = [
     },
   },
   {
-    id: 'program', ch: 0, cta: 'Next',
+    id: 'program', ch: 0, cta: 'Continue',
     when: (o) => !isStaffJoin(o),
     title: () => 'Your team.',
     sub: () => 'The roster you cover. It goes on the join code your athletes use.',
@@ -232,13 +232,13 @@ const steps = [
     },
   },
   {
-    id: 'roster', ch: 0, cta: 'Next',
+    id: 'roster', ch: 0, cta: 'Continue',
     title: () => 'How many athletes do you cover?',
     sub: () => 'Everyone whose fueling you answer for.',
     body: () => chipRow('rosterCount', ROSTER_BANDS.map((b) => ({ v: b.v, t: b.t }))),
   },
   {
-    id: 'slip', ch: 0, cta: 'Next',
+    id: 'slip', ch: 0, cta: 'Continue',
     title: () => 'Where does fueling slip first?',
     sub: () => 'Your queue learns to watch it hardest.',
     body: () => choiceGrid('dietSlip', [
@@ -252,7 +252,7 @@ const steps = [
 
   /* ================= ch1 · See it ================= */
   {
-    id: 'aha', ch: 1, cta: 'See the queue',
+    id: 'aha', ch: 1, cta: 'Continue',
     title: () => 'Your reading load, in plates.',
     body: (o) => {
       const mid = (bandOf(o) || { mid: 75 }).mid;
@@ -265,7 +265,7 @@ const steps = [
     },
   },
   {
-    id: 'queue', ch: 1, cta: 'Next',
+    id: 'queue', ch: 1, cta: 'Continue',
     title: () => 'Your Monday starts with the flags.',
     sub: () => 'Flags first, unopened next. The rest is already read.',
     body: () => `
@@ -280,7 +280,7 @@ const steps = [
     },
   },
   {
-    id: 'correct', ch: 1, cta: 'Next',
+    id: 'correct', ch: 1, cta: 'Continue',
     title: () => 'Your correction is the record.',
     sub: () => 'The AI reads the plate. You make the call. Try it.',
     body: () => `
@@ -317,7 +317,7 @@ const steps = [
 
   /* ================= ch2 · Your plan ================= */
   {
-    id: 'plan', ch: 2, cta: 'Next',
+    id: 'plan', ch: 2, cta: 'Continue',
     title: () => 'Built from your answers.',
     body: (o) => {
       const band = bandOf(o);
@@ -329,7 +329,7 @@ const steps = [
     },
   },
   {
-    id: 'standard', ch: 2, cta: 'Next',
+    id: 'standard', ch: 2, cta: 'Continue',
     /* A staff joiner doesn't set the team's standard -- the head coach's book owns it. */
     when: (o) => !isStaffJoin(o),
     title: () => 'Your team’s fueling standard.',
@@ -353,7 +353,7 @@ const steps = [
         : `Every athlete on your roster gets <b>${esc(std)}</b>, every plate gets a first read within a minute, and nothing reaches an athlete’s record without a professional behind it.`;
       return `
       <div class="ob2-gap-verdict">${verdict}</div>
-      <div class="ob-foot">
+      <div class="ob-foot ob-foot-push">
         ${committed ? commitContinue() : commitButton(false)}
       </div>`;
     },

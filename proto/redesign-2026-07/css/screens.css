@@ -86,6 +86,8 @@
    the app's own ground while the stage supplies its own — which is the contrast that makes the
    media read as media. */
 .cam { position: relative; height: 100%; display: flex; flex-direction: column; }
+/* Camera priming shares the full-bleed camera route, so it brings the screen gutter itself. */
+.ob.cam-prime { padding: var(--s8) var(--pad-screen) calc(var(--s4) + env(safe-area-inset-bottom, 0px)); box-sizing: border-box; }
 /* Real <button>s, not click-handled <div>s. The shutter, Gallery and Search are the three
    most-used controls in the app and had no role, no tab stop and no focus ring between them.
    The reset lives here because the app carries no global button reset. */
@@ -430,7 +432,7 @@
    on the NUMBER below, never the arc (blue→teal on score surfaces; green is status-only). */
 .scorechip .sc-ring { position: absolute; inset: 0; }
 .scorechip .v { font-family: var(--font-display); font-size: var(--t-xl); font-weight: 900; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; color: var(--green-bright); line-height: 1; }
-.scorechip .k { font-size: 8.5px; font-weight: 800; letter-spacing: 0.08em; color: var(--text-2); text-transform: uppercase; margin-top:2px; }
+.scorechip .k { font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.08em; color: var(--text-2); text-transform: uppercase; margin-top:2px; }
 /* The chip's own perfect-plate bloom lived here until 2026-09-10, when the celebration moved to
    the full-screen moment (perfect-moment.js, .pmoment in flows.css). The chip keeps its ordinary
    green 100; the band beneath it still reads "Perfect plate", which is the information. */
@@ -1010,12 +1012,35 @@
           backdrop-filter: blur(var(--glass-blur, 22px)) saturate(var(--glass-sat, 1.6));
 }
 .chat-dock .composer { margin-top: 0; }
+/* FLUSH TO THE GLASS (2026-09-22). bottom:0 parks the dock at the top of the viewport's bottom
+   padding, so on a tab-less screen (.notabs: 24px + the home-indicator inset) the conversation
+   scrolled visibly through that strip, under the composer. The dock now sits that padding lower,
+   flush with the screen edge, and carries the inset inside itself so the composer still clears
+   the home indicator. Two states, because the padding is two values: at rest (.notabs, app.css:
+   24px, written here as --s6, + the inset)
+   and with the keyboard up (body.kb-open: --s3, and the keyboard covers the inset).
+   A dock that is the LAST thing on the screen (the full chat) also gives that padding back with
+   a negative margin, or at the end of the scroll it rests a padding-height above the edge with
+   an empty strip of canvas under it. The meal page's dock is followed by its Back row, so only
+   the sticky offset applies there. Operator screens keep their tab bar and are untouched. */
+.viewport.notabs .chat-dock {
+  bottom: calc(-1 * var(--s6) - env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(var(--s2h) + env(safe-area-inset-bottom, 0px));
+}
+.viewport.notabs > .view > .chat-dock:last-child { margin-bottom: calc(-1 * var(--s6) - env(safe-area-inset-bottom, 0px)); }
+body.kb-open .viewport.notabs .chat-dock { bottom: calc(-1 * var(--s3)); padding-bottom: var(--s2h); }
+body.kb-open .viewport.notabs > .view > .chat-dock:last-child { margin-bottom: calc(-1 * var(--s3)); }
+/* With the keyboard up the meal page's Back row is gone (.meal-foot, display:none below), so its
+   dock is the last thing on the page too and gives the padding back the same way. */
+body.kb-open .viewport.notabs .disc > .disc-dock:last-child { margin-bottom: calc(-1 * var(--s3)); }
 /* The "replying about" strip is one quiet line in the dock, not a card: label, plate, and the
    way out. The tap-a-meal hint goes; the cards above are visibly buttons. */
 .chat-dock .nc-target { margin: 0 0 var(--s2); padding: var(--s1) var(--s2h); flex-wrap: nowrap; background: none; border: 0; border-radius: 0; }
 .chat-dock .nc-target .nct-hint { display: none; }
 .chat-dock .nc-target .nct-label { letter-spacing: 0.04em; }
 .chat-dock .nc-target .nct-meal { font-weight: 700; flex: 1; }
+/* The plate's name wraps to a second line rather than being cut mid-word ("· Tod…"). */
+.chat-dock .nc-target .nct-meal { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
 .chat-dock .nc-target .nct-clear { min-height: 28px; padding: 2px var(--s2); }
 /* Messages hides send until there is something to send; a dock with no attach control has no
    photo-only case, so send can vanish honestly here. It keeps its space so the pill never jumps. */
@@ -1025,9 +1050,12 @@
   /* min-width:0 — a flex item's default min-width is its content size, so on a 375px frame the
      coach's 3-button composer pushed Send off-screen (deep audit 2026-08-19). */
   flex: 1; min-width: 0; display: flex; align-items: flex-end; gap:var(--s1);
-  min-height: 40px; box-sizing: border-box; padding:var(--s1) var(--s1) var(--s1) var(--s3h);
-  /* --r-card (22): at the pill's 40px rest height anything past 20 is already a full round, and
-     22 is the step a grown pill's first 44px keeps round too. Off-scale 21 did the same job. */
+  /* 44, not 40 (2026-09-22): the pill IS the target (keyboard.js focuses the box from anywhere in
+     it), and at 40/42 every composer (meal thread, full chat, plan ask, food search, the coach's
+     bar) sat under the 44px floor. */
+  min-height: 44px; box-sizing: border-box; padding:var(--s1) var(--s1) var(--s1) var(--s3h);
+  /* --r-card (22): at the pill's 44px rest height that is exactly a full round. Off-scale 21 did
+     the same job at 40. */
   border-radius: var(--r-card); border: 1px solid var(--hairline); background: var(--surface-1);
   transition: border-color var(--dur-1) var(--ease-out);
 }
@@ -1119,7 +1147,9 @@
 
 /* ----- Weight ----- */
 .weight-display { text-align: center; padding:22px 0 var(--s2); }
-.weight-display .wv { font-size: 76px; font-weight: 800; letter-spacing: -0.05em; line-height: 1; }
+/* --t-hero (52px), down from a raw 76px (2026-09-22): the weight never touches the score, and it
+   was the largest number in the app after the score ring itself. */
+.weight-display .wv { font-size: var(--t-hero); font-weight: 800; letter-spacing: -0.04em; line-height: 1; }
 /* The value is a real decimal input (tap to type) styled as the display it replaced. Width in ch
    so five characters (183.4) fit without the input claiming the whole row. */
 input.wv {
@@ -1172,11 +1202,24 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   background: linear-gradient(180deg, var(--blue), var(--blue-deep)); opacity: 0.45;
 }
 /* Three bands, and the bottom one is NOT red. A week of red bars reads as panic rather than
-   information (the same rule the roster already follows); off-standard days stay calm blue. */
+   information (the same rule the roster already follows); off-standard days stay calm and
+   neutral (blue until 2026-09-22, when blue became the Locked In tier's bar; see below). */
 .wb.b-close .bar { background: linear-gradient(180deg, var(--amber), var(--amber-deep)); opacity: 0.85; }
-.wb.b-on .bar { background: linear-gradient(180deg, var(--green), var(--green-deep)); opacity: 1; box-shadow: 0 0 14px rgba(var(--green-rgb), 0.28); }
+.wb.b-on .bar { background: linear-gradient(180deg, var(--green), var(--green-deep)); opacity: 1; }
+/* TIER colours (lead ruling 2026-09-22: a score shown as a bar wears its tier, the same four
+   colours as Home's chip). The t-* class comes from the builder (js/week-bars.js) and, when
+   present, wins over the band class: 90+ green, 80-89 blue, 60-79 amber. Below 60 stays NEUTRAL,
+   not red (the documented ruling above: a week of red bars reads as panic), and no longer blue,
+   which is the Locked In colour. The green glow went: decoration, not information. */
+.wb.b-off .bar, .wb.t-r .bar { background: var(--text-3); opacity: 0.5; }
+.wb.t-g .bar { background: linear-gradient(180deg, var(--green), var(--green-deep)); opacity: 1; }
+.wb.t-b .bar { background: linear-gradient(180deg, var(--blue), var(--blue-deep)); opacity: 1; }
+.wb.t-a .bar { background: linear-gradient(180deg, var(--amber), var(--amber-deep)); opacity: 0.85; }
 @keyframes xf-grow-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 .wb .d { font-size: var(--t-micro); font-weight: 700; color: var(--text-3); text-align: center; }
+/* The scoring-cutover divider. Moved verbatim from an inline style when the chart's markup moved
+   to js/week-bars.js (2026-09-22); same values, no visual change. */
+.wb-cutover { align-self: stretch; width: 2px; border-radius: 1px; background: var(--text-3); opacity: .4; }
 /* Category trend rows on Progress. This family replaces `.consist` / `.cons-row`, which had six
    rules and no markup anywhere in the app — while `.cat-trend` (the class Progress has actually
    rendered since it was written) had NONE, so the whole Category trends section came out as
@@ -1201,6 +1244,21 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .bigstat .d { font-size: var(--t-base); font-weight: 700; color: var(--text-2); }
 .bigstat .d.up { color: var(--green-bright); }
 .bigstat .d.down { color: var(--red); }
+/* A SCORE numeral on a stat line (Progress's week average and baseline, the monthly average)
+   wears the score face, like Home's ring (DESIGN.md: Archivo is reserved for scores), and its
+   tier colour (lead ruling 2026-09-22). Plain .bigstat stays for non-scores: a plan name, a
+   weight. */
+.bigstat.score .n { font-family: var(--font-display); font-size: var(--t-3xl); font-weight: 900; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1; }
+/* Tier ink: a score number in its tier's colour, the TIERS ladder in score-band.js (g OnStandard,
+   b Locked In, a Building, r Off Standard). `none` = nothing scored yet. */
+.tier-ink.g { color: var(--green-bright); }
+.tier-ink.b { color: var(--blue-bright); }
+.tier-ink.a { color: var(--amber-bright); }
+.tier-ink.r { color: var(--red-bright); }
+.tier-ink.none { color: var(--text-3); }
+.pg-base-h { margin: 0 0 var(--s2h); }
+.pg-base-act { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--hairline-soft); }
+.pg-base-act .pg-sub { margin-top: 0; }
 /* The one actionable sentence, as the FOOTER of the card holding the trend that produced it.
    It used to be a standalone green-gradient box under its own eyebrow, which put a third green
    on a screen that already has green day bars and a green week delta, and made the sentence a
@@ -1341,13 +1399,19 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .ne-t { font-size: var(--t-lg); font-weight: 800; letter-spacing: var(--title-tight); }
 .ne-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:var(--s2); line-height: 1.5; max-width: 34ch; margin-left:auto; margin-right:auto; }
 
+/* Plan > Today > What's left: a met protein target reads as done (green is "done"), not "0g". */
+.macro.met .mv { display: flex; justify-content: center; align-items: center; min-height: 1.25em; color: var(--green-bright); }
+
 /* ----- Plan tabs (underline style) ----- */
 /* Four tabs at gap:22px overflow a 390px screen by ~6px, so "Memory" touched the right edge with
    no padding and no signal there was more. Scroll it, mask the cut, and tighten the gap on the
    narrowest phones rather than letting the last label clip. */
 .ptabs { display: flex; gap:22px; border-bottom: 1px solid var(--hairline); padding:0 2px; margin-top:var(--s1h);
   overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
-  scroll-snap-type: x proximity;
+  scroll-snap-type: x proximity; }
+/* The right-edge fade only when there IS more to the right (plan.js sets .over). Always-on, it
+   dimmed the last letters of "Food Memory" on a phone where the whole strip fits (2026-09-22). */
+.ptabs.over {
   -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), transparent 100%);
   mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 18px), transparent 100%); }
 .ptabs::-webkit-scrollbar { display: none; }
@@ -1374,7 +1438,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    viewport on a 402px phone. Trimming the gap and the per-tab side padding, neither of which was
    doing visible work, lands the whole strip inside the fold on the common sizes; genuinely narrow
    phones still scroll it, with the fade and the active-tab auto-scroll in plan.js. */
-.ptabs { gap: clamp(12px, 4vw, 22px); }
+/* 2026-09-22: at 390 the four labels measure 307px against a 350px strip, and the 4vw gap
+   (15.6px) still overflowed it by 8px, so "Food Memory" landed cut off under the fade on the
+   most common phone. 3vw with a 10px floor lands 346px: the whole strip inside the fold at 390
+   and up; 375 and below still scroll it, behind the fade. */
+.ptabs { gap: clamp(10px, 3vw, 22px); }
 .ptabs { position: relative; }
 .ptabs .pt { padding:var(--s3h) 2px var(--s4); min-height: 44px; box-sizing: border-box; display: flex; align-items: center; font-size: var(--t-base); font-weight: 700; color: var(--text-3); cursor: pointer; position: relative; }
 .ptabs .pt.on { color: var(--text); }
@@ -1504,7 +1572,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 
 /* ---- onboarding v2: back nav + segmented progress (replaces dots) ---- */
 .ob-nav{display:flex;align-items:center;gap:var(--s3);padding:2px 0 var(--s4)}
-.ob-back{width:44px;height:44px;min-width:44px;border-radius:var(--r-card-sm);background:var(--surface-2);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-2)}
+/* A real <button> since 2026-09-22 (it was a div with data-go: no role, no keyboard focus). The
+   border/padding/font reset only matters for the button form; the legacy div copies ignore it. */
+.ob-back{width:44px;height:44px;min-width:44px;border-radius:var(--r-card-sm);background:var(--surface-2);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-2);border:0;padding:0;font:inherit}
 .ob-back svg{transform:rotate(180deg)}
 .ob-prog{flex:1;display:flex;gap:var(--s1h)}
 .ob-prog i{flex:1;height:4px;border-radius:var(--r-micro);background:var(--surface-2)}
@@ -1587,6 +1657,13 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    two digits the glyph sat ON the arc and the progress knob landed on the second digit. The
    centre now sizes itself from the ring (--t-score, app.css), which is why it fits. */
 .xhero .xh-under{display:flex;flex-direction:column;align-items:center;gap:var(--s2);text-align:center;max-width:100%}
+/* Tucked into the ring's open mouth (2026-09-22). The 270° arc's lowest pixel sits 29px above the
+   bottom of its 280px box, so the first line under the ring was starting in empty space. -24px
+   lands it 5px clear of the arc caps (measured in the harness) and hands those pixels to the NOW
+   card, whose button was sitting under the FAB on morning/midday. */
+.xhero > .xh-under{margin-top:calc(-1 * var(--s6))}
+/* The in-progress row: the neutral chip and the count on ONE line, not stacked. */
+.xhero .xh-prog{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:var(--s2)}
 .xhero .xh-k{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3)}
 .xhero .xrow{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}
 .xhero .xh-line{font-size:var(--t-sm);font-weight:600;color:var(--text-2);font-variant-numeric:tabular-nums;letter-spacing:-.005em}
@@ -1626,7 +1703,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 @keyframes xh-float{0%{opacity:0;transform:translateY(9px)}18%{opacity:1;transform:translateY(0)}72%{opacity:1}100%{opacity:0;transform:translateY(-9px)}}
 /* formula: the same four parts the breakdown screen shows, as one stacked /100 bar.
    Segment growth runs on the ring's own clock so the score visibly assembles. */
-.xhero .xh-formula{margin-top:var(--s3h);width:100%}
+.xhero .xh-formula{margin-top:var(--s2);width:100%}
 .xf-bar{display:flex;gap:var(--s1);height:8px;border-radius:var(--r-micro);background:var(--surface-3);overflow:hidden}
 .xf-bar i{height:100%;border-radius:var(--r-micro);transform-origin:left;animation:xf-grow var(--dur-ring) var(--ease-out)}
 @keyframes xf-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
@@ -1689,6 +1766,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    labeled numbers). One card anatomy for every type; the next card peeks at the screen
    edge so the swipe is discoverable. ---- */
 .res-rail{display:flex;gap:var(--s3);overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;margin:0 calc(-1 * var(--pad-screen));padding:2px var(--pad-screen) var(--s2);scrollbar-width:none}
+/* scroll-padding: snap-align:start snaps to the scrollport EDGE, not the padding, so any rail
+   long enough to scroll (the past-day rails) parked its first card flush on the screen edge
+   while today's shorter rail sat on the gutter. */
+.res-rail{scroll-padding-inline:var(--pad-screen)}
 .res-rail::-webkit-scrollbar{display:none}
 .res-card{flex:0 0 158px;scroll-snap-align:start;display:flex;flex-direction:column;background:var(--surface-1);border: 1px solid transparent;border-radius:var(--r-card-sm);overflow:hidden;cursor:pointer;transition:transform var(--dur-1) var(--ease-out); box-shadow: var(--sh-card);}
 .res-card:active{transform:scale(var(--press-btn))}
@@ -1696,7 +1777,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    rail sit flush at the bottom instead of leaving dead space under one card. */
 .res-media{flex:1;min-height:84px;background-size:cover;background-position:center}
 .res-media.icon{display:grid;place-items:center;position:relative}
-.res-nophoto{position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:8.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3)}
+.res-nophoto{position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:var(--t-micro);font-weight:700;color:var(--text-3)}
 .res-media.icon svg{width:30px;height:30px}
 /* 14px sides left 130px of a 158px card for the title, and "Recovery Check-In" measures 131 —
    so the one card in the rail that names the nightly check-in was the one card that ellipsised
@@ -1716,7 +1797,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    below were also shortened (home.js) so nothing has to truncate in practice — at 6px of gap the
    worst real pair, STATUS + "Submitted", lands at 130 of 132. */
 .res-m{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s1h);margin-top:var(--s2);padding-top:var(--s2);border-top:1px solid var(--hairline-soft)}
-.res-m .k{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* Sentence case (2026-09-22): a tracked uppercase micro-label on every card read as a spec
+   sheet; the word is a quiet caption to the number, not a heading. */
+.res-m .k{font-size:var(--t-xs);font-weight:700;color:var(--text-3);white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .res-m .v{font-size:var(--t-md);font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;flex:none;white-space:nowrap}
 .res-m .v small{font-size:var(--t-eyebrow);font-weight:700;color:var(--text-3)}
 .res-m .v.g{color:var(--green-bright)} .res-m .v.a{color:var(--amber-bright)}
@@ -1753,9 +1836,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* Trust Pass shield + quick popup (replaces the full-width trust card on Home —
    Home stays score + next action). Popup anchors to the header. */
 .apphead{position:relative}
-.iconbtn.tp-btn{background:var(--purple-surface);border-color:var(--purple-border);color:var(--purple-bright)}
+/* Blue, not purple (2026-09-22): purple means recovery only, and the Trust Pass screen itself
+   wears blue. */
+.iconbtn.tp-btn{background:var(--blue-surface);border-color:var(--blue-border);color:var(--blue-bright)}
 .tp-pop{position:absolute;top:calc(100% - 8px);right:0;z-index:60;width:min(300px,84vw);background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:var(--s3h) var(--s3h);box-shadow:0 18px 44px rgba(0,0,0,0.55);text-align:left;cursor:default}
-.tp-pop .tp-h{display:flex;align-items:center;gap:var(--s2);font-size:var(--t-sm);font-weight:700;color:var(--purple-bright)}
+.tp-pop .tp-h{display:flex;align-items:center;gap:var(--s2);font-size:var(--t-sm);font-weight:700;color:var(--blue-bright)}
 .tp-pop .tp-h b{color:var(--text);font-weight:800}
 .tp-pop .tp-n{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.5;margin-top:var(--s1h)}
 .tp-pop .tp-link{display:flex;align-items:center;justify-content:space-between;margin-top:var(--s3);padding-top:var(--s2h);border-top:1px solid var(--hairline-soft);font-size:var(--t-sm);font-weight:800;color:var(--blue-bright);cursor:pointer;min-height:24px}
@@ -1771,7 +1856,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .xnow.p{--now-rgb:var(--purple-rgb);--now-ink:var(--purple-bright);--now-a:var(--purple);--now-b:var(--purple-deep)}
 .xnow.b{--now-rgb:var(--blue-rgb);--now-ink:var(--blue-bright);--now-a:var(--blue);--now-b:var(--blue-deep)}
 .xnow.c{--now-rgb:var(--cyan-rgb);--now-ink:var(--cyan-bright);--now-a:var(--cyan);--now-b:var(--cyan-deep)}
-.xnow.red{background:linear-gradient(160deg,rgba(var(--red-rgb), 0.16),rgba(var(--red-rgb), 0.05) 55%),var(--surface-1);border-color:var(--red-border)}
+.xnow.red{--now-rgb:var(--red-rgb);--now-ink:var(--red);background:linear-gradient(160deg,rgba(var(--red-rgb), 0.16),rgba(var(--red-rgb), 0.05) 55%),var(--surface-1);border-color:var(--red-border)}
 .xnow .xlab{display:flex;justify-content:space-between;align-items:center}
 .xnow .xl{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:.16em;color:var(--now-ink)}
 .xnow.red .xl{color:var(--red)}
@@ -1780,7 +1865,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    already says, so it is the element that gives up the width. It also used to be hardcoded
    `.xico.gold` in the markup, which left an amber tile marooned on a blue or green card once the
    state hue was switched on. It reads --now-rgb like everything else on the card now.
-   Scoped: .xico elsewhere is untouched. */
+   Scoped: .xico elsewhere is untouched.
+   The markup kept emitting `xico ${n.color}` until 2026-09-22, and `.xico.gold` below has the
+   same specificity and comes later, so it won: an amber tile on every green/purple card. nowCard
+   no longer emits a colour class, and .xnow.red sets its own --now-* so a missed day stays red. */
 .xnow .xico{width:40px;height:40px;background:rgba(var(--now-rgb), 0.13);color:var(--now-ink);border:1px solid rgba(var(--now-rgb), 0.26)}
 .xnow .xt{font-size:var(--t-xl);font-weight:800;letter-spacing:var(--title-tight)}
 .xnow .xwhy{font-size:var(--t-sm);color:var(--text-2);line-height:1.45;margin-top:2px}
@@ -1883,6 +1971,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* ---- action hub ---- */
 .hub-head{display:flex;align-items:center;justify-content:space-between;margin:2px 2px var(--s2)}
 .hub-head .a{font-size:var(--t-md);font-weight:800;letter-spacing:-.01em}
+/* The router focuses this title on arrival (tabindex -1) so a screen reader lands inside the
+   sheet. It is not a control, so it draws no ring; the sheet itself is the visible context. */
+.hub-head .a:focus{outline:none}
 .hub-head .b{font-size:var(--t-xs);font-weight:800;color:var(--text-2);font-variant-numeric:tabular-nums}
 .hub-head .b em{font-style:normal;color:var(--green-bright)}
 .hub-hero{display:flex;align-items:center;gap:var(--s3);background:linear-gradient(140deg,rgba(var(--amber-rgb), 0.18),rgba(var(--amber-rgb), 0.05)),var(--surface-2);border:1px solid var(--amber-border);border-radius:var(--r-card-sm);padding:var(--s3h) var(--s3h);margin:var(--s3) 0;cursor:pointer}
@@ -1894,6 +1985,15 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .hub-hero.p{background:linear-gradient(140deg,rgba(var(--purple-rgb), 0.18),rgba(var(--purple-rgb), 0.05)),var(--surface-2);border-color:var(--purple-border)}
 .hub-hero.b{background:linear-gradient(140deg,rgba(var(--blue-rgb), 0.18),rgba(var(--blue-rgb), 0.05)),var(--surface-2);border-color:var(--blue-border)}
 .hub-hero.c{background:linear-gradient(140deg,rgba(var(--cyan-rgb), 0.18),rgba(var(--cyan-rgb), 0.05)),var(--surface-2);border-color:var(--cyan-border)}
+/* The hub hero's tile follows the hero's hue, the same rule as the NOW card's (.xnow .xico). It
+   used to take exec.js's tile colour (`xico gold`), which put an amber tile on a purple card. */
+.hub-hero{--hub-rgb:var(--amber-rgb);--hub-ink:var(--amber-bright)}
+.hub-hero.red{--hub-rgb:var(--red-rgb);--hub-ink:var(--red)}
+.hub-hero.g{--hub-rgb:var(--green-rgb);--hub-ink:var(--green-bright)}
+.hub-hero.p{--hub-rgb:var(--purple-rgb);--hub-ink:var(--purple-bright)}
+.hub-hero.b{--hub-rgb:var(--blue-rgb);--hub-ink:var(--blue-bright)}
+.hub-hero.c{--hub-rgb:var(--cyan-rgb);--hub-ink:var(--cyan-bright)}
+.hub-hero .xico{width:44px;height:44px;background:rgba(var(--hub-rgb), 0.13);color:var(--hub-ink);border:1px solid rgba(var(--hub-rgb), 0.26)}
 .hub-hero .ht{flex:1}
 .hub-hero .ht .a{font-size:var(--t-md);font-weight:800;letter-spacing:-.015em}
 .hub-hero .ht .b{font-size:var(--t-xs);color:var(--text-2);margin-top:2px;font-variant-numeric:tabular-nums}
@@ -1902,7 +2002,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .fab-dot.gold{background:var(--amber-bright)}
 .fab-dot.red{background:var(--red)}
 .hub-celeb{text-align:center;padding:var(--s2h) var(--s1h) var(--s1)}
-.hub-celeb .n{font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight)}
+/* The day's score, so it wears the score face (DESIGN.md: Archivo is reserved for scores). */
+.hub-celeb .n{font-family:var(--font-display);font-size:var(--t-3xl);font-weight:900;letter-spacing:-0.02em;font-variant-numeric:tabular-nums}
 
 /* ---- meal thread page ---- */
 /* Compact logged confirmation (2026-07-16): green = compliance only. Left-aligned,
@@ -2097,6 +2198,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .est-note .link{color:var(--blue-bright);font-weight:700;cursor:pointer}
 .ai-note{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s2);line-height:1.45}
 .chat-dock .ai-note{margin:0 0 var(--s1h);text-align:center}
+/* In the dock the disclaimer is one quiet line of fine print, not the AI-analysis card: .ai-note
+   is also the name of that blue gradient card (above, ~line 482), and the dock inherited its
+   fill, border and padding, so the composer carried a card inside the glass (audit 2026-09-22). */
+.chat-dock .ai-note{display:block;padding:0;background:none;border:0;border-radius:0}
 /* "Wrong meal?" — the slot/delete correction row (impeccable critique 2026-09-16). It sits at the
    bottom of the already-collapsed breakdown, separated by a hairline rather than made into a card:
    nesting a card inside the breakdown card is the nested-card shape DESIGN.md bans, and this is a
@@ -2295,6 +2400,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .cmt-choice .t{font-size:var(--t-base);font-weight:800}
 .cmt-choice .s{font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:2px;line-height:1.4}
 .cmt-main{flex:1;min-width:0}
+/* The helper lines inside the two commitment cards. A bare .ts has no rule of its own (it is
+   styled per container: .sidebox .ts, .trust .ts), so these rendered at body size. */
+.cmt-card .ts{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.45}
 .cmt-pts{font-size:var(--t-base);font-weight:800;white-space:nowrap;color:var(--text-3)}
 .cmt-pts.g{color:var(--green-bright)}
 .cmt-pts.a{color:var(--amber-bright)}
@@ -2334,12 +2442,17 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .pw-toggle{display:flex;gap:var(--s1h);background:var(--surface-2);border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:var(--s1);margin:2px 0 var(--s3h)}
 .pw-seg{flex:1;display:flex;align-items:center;justify-content:center;gap:var(--s1h);height:40px;border:none;background:transparent;border-radius:var(--r-chip);font-size:var(--t-base);font-weight:800;color:var(--text-2);cursor:pointer}
 .pw-seg.on{background:var(--surface-1);color:var(--text);box-shadow:var(--sh-thumb)}
-/* Ink must flip with the theme: --green-bright is light in dark theme and DEEP in light theme,
-   so a fixed near-black ink measured 3.77:1 on the light build. --ink-on-accent flips. */
-.pw-save{font-size:var(--t-micro);font-weight:800;letter-spacing:0.02em;color:var(--ink-on-accent);background:var(--green-bright);border-radius:var(--r-pill);padding:2px var(--s2)}
+/* The saving is a fact about the price, so it is a blue status pill (2026-09-22). It was a solid
+   green chip, and green means done / on standard in this app, not "cheaper". Sized down to sit
+   inside the 40px segment. */
+.pw-seg .pw-save{font-size:var(--t-micro);padding:2px var(--s2)}
 .pw-plans{display:flex;flex-direction:column;gap:var(--s2h);margin-bottom:var(--s3h)}
 .pw-plan{background:var(--surface-1);border:1.5px solid var(--hairline);border-radius:var(--r-card-sm);padding:var(--s3h);cursor:pointer;transition:border-color .12s,box-shadow .12s}
-.pw-plan.on{border-color:var(--green-bright);box-shadow:0 0 0 1px var(--green-bright), var(--sh-green)}
+/* Selected = the action accent, drawn, not glowing (2026-09-22). It wore a green border and a
+   green bloom, and green means done / on standard; a plan the athlete is choosing is neither. */
+.pw-plan.on{border-color:var(--blue-bright);box-shadow:0 0 0 1px var(--blue-bright)}
+.pw-buy-wrap{margin-top:var(--s1)}
+.pw-buy-wrap .btn:disabled{opacity:.6}
 .pw-plan-top{display:flex;align-items:baseline;justify-content:space-between;gap:var(--s2h)}
 .pw-plan-name{font-size:var(--t-md);font-weight:800;letter-spacing:-0.01em}
 .pw-plan-price{white-space:nowrap}
@@ -2389,6 +2502,13 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 
 /* Inline failure line under a submit control (activity standards manual entry / dispute). */
 .cs-err{color:var(--red-bright);min-height:0;margin-top:var(--s2)}
+/* Manual entry (2026-09-22): open when the watch is not counting, a disclosure while it is. */
+.cs-manual-h{margin-bottom:var(--s2)}
+.cs-manual-p{margin-bottom:var(--s2h)}
+.cs-manual-btn{margin-top:var(--s2h)}
+/* Same disclosure as "How this is counted" above it (.xcollapse), so the two read as one kind. */
+.cs-manual summary{display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+.cs-manual-body{margin-top:var(--s2h)}
 
 /* A .pl-row that navigates is a control; it doesn't need every call site to say so inline. */
 .pl-row[data-go]{cursor:pointer}
@@ -2422,6 +2542,25 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .bigstat .u{font-size:var(--t-base);font-weight:700;color:var(--text-2);margin-left:calc(var(--s1) - var(--s2h))}
 
 /* ----- Streak week calendar (spec §14.3) ----- */
+/* ---- The record figure (2026-09-22): ONE treatment for the non-score record numbers, the
+   streak, the roll-call %, the Trust Pass count. Each screen used to invent its own: a raw 52px
+   numeral with an amber flame in a centred card, a --t-hero "98%" in a centred card, a 17px line
+   in a card. None of these is the daily score, so none of them wears Archivo (reserved for the
+   score) and none of them gets the big-number-in-a-card hero (PRODUCT.md anti-reference). They
+   sit on the canvas, left-aligned under the header like the first line of a ledger: the figure,
+   its unit, what it counts, and at most one line of status. ---- */
+.rfig{padding:var(--s1) var(--s1) var(--s2)}
+.rfig-n{display:flex;align-items:baseline;gap:var(--s2);font-size:var(--t-3xl);font-weight:800;letter-spacing:var(--num-tight);line-height:1.05;font-variant-numeric:tabular-nums;color:var(--text)}
+.rfig-n svg{align-self:center;color:var(--text-2);flex:none}
+.rfig-u{font-size:var(--t-md);font-weight:700;letter-spacing:0;color:var(--text-2)}
+.rfig-k{font-size:var(--t-sm);font-weight:700;color:var(--text-2);margin-top:var(--s1)}
+.rfig-s{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.5;margin-top:var(--s2)}
+.rfig-s.g{color:var(--green-bright)} .rfig-s.a{color:var(--amber-bright)}
+.rfig .xsegs{margin-top:var(--s2h)}
+.rfig-row{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-top:var(--s2)}
+/* Trust Pass: the coach's note on the grant, quoted. */
+.tp-quote .q{font-size:var(--t-base);font-weight:600;font-style:italic;color:var(--text-2);line-height:1.5}
+.tp-quote .by{font-size:var(--t-eyebrow);font-weight:800;letter-spacing:var(--track-eyebrow);text-transform:uppercase;color:var(--text-3);margin-top:var(--s1h)}
 .stk-week{display:flex;gap:var(--s2);margin-top:var(--s1)}
 .stk-day{flex:1;display:flex;flex-direction:column;align-items:center;gap:var(--s1h);padding:var(--s2h) 0;border-radius:var(--r-card-sm);background:var(--surface-2);border:1px solid var(--hairline-soft)}
 .stk-day .d{font-size:var(--t-micro);font-weight:800;color:var(--text-3);letter-spacing:.04em}
@@ -2431,7 +2570,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .stk-day.miss .s{color:var(--text-3)}
 .stk-day.today{border-color:var(--blue-border);box-shadow:0 0 0 1.5px var(--blue-border)}
 .stk-day.future{opacity:.45}
-.stk-day .g{font-size:8.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--amber-bright)}
+.stk-day .g{font-size:var(--t-micro);font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--amber-bright)}
 
 /* ----- Activity History cards (spec §15) ----- */
 .hist-card{display:flex;align-items:center;gap:var(--s3);padding:var(--s2h) var(--s1);border-bottom:1px solid var(--hairline-soft);cursor:pointer}
@@ -2441,7 +2580,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    everywhere else in the app (DESIGN.md: at risk, off pace, injury), so an on-time, on-standard
    meal opened the history with an alert-coloured tile for the crime of having no thumbnail. */
 .hist-thumb.icon{display:grid;place-items:center;background:var(--surface-2);color:var(--text-2);position:relative}
-.ht-nophoto{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-size:7px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);white-space:nowrap;display:none}
+.ht-nophoto{position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-size:var(--t-micro);font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);white-space:nowrap;display:none}
 .hist-main{flex:1;min-width:0}
 /* Two lines: a one-line clamp cut "Chicken, rice & edamame bowl" mid-word, and the meal name is
    the only thing distinguishing one row from the next in a list of them. */
@@ -2471,6 +2610,19 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .pv-row:last-child .pv-detail{border-bottom:none}
 .pv-line{font-size:var(--t-sm);font-weight:600;color:var(--text-2);line-height:1.5;padding:var(--s1) 0}
 .pv-line b{display:block;font-size:var(--t-micro);font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3)}
+.pv-page-card{margin-top:var(--s3)}
+.pv-defaults{margin-top:var(--s3h)}
+.pv-note{font-size:var(--t-xs);font-weight:600;color:var(--text-3);min-height:16px;margin-top:var(--s2);padding:0 2px}
+.pv-note.ok{color:var(--green-bright)}
+.pv-note.bad{color:var(--red-bright)}
+/* Settings / Privacy tails: the air the dropped Done buttons used to hold. */
+.set-tail{height:var(--s4)}
+.set-seg{margin-bottom:var(--s1)}
+/* The urgency pill carries a lock glyph beside its word. */
+.status-pill.ns-lv{display:inline-flex;align-items:center;gap:var(--s1)}
+/* A destructive row's icon reads red with its label. `.lrow .lic` sets the tile ink, so the
+   modifier has to match its specificity (the old .pf-lic-* / .ac-danger singles never won). */
+.lrow .lic.lic-danger{color:var(--red-bright)}
 
 /* ----- Restrictions custom-entry rows (spec §18.5) + unmistakable selected chips (§18.2) ----- */
 .rx-add{display:flex;gap:var(--s2);margin-top:var(--s2);align-items:center}
@@ -2842,6 +2994,16 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    selection, which is exactly the job the product register reserves it for. */
 .nc-div.sel { border-color: var(--blue-border, var(--hairline)); background: var(--blue-surface); }
 .nc-div.sel .nc-meta b { color: var(--blue-bright); }
+/* A RUN of plates with no messages between them (a quiet stretch of the season) reads as one
+   grouped list, not a stack of separate cards that fills a screen before the first word of the
+   conversation (audit 2026-09-22). Each is still its own button. */
+.nc-div:not(.earlier):has(+ .nc-div:not(.earlier)) { border-bottom-left-radius: 0; border-bottom-right-radius: 0; margin-bottom: 0; }
+/* The thread is a flex column with a --s2h gap: a follower pulls up through it, plus the 1px
+   shared hairline, so the run joins into one surface. */
+.nc-div:not(.earlier) + .nc-div:not(.earlier) { border-top-left-radius: 0; border-top-right-radius: 0; margin-top: calc(-1 * var(--s2h) - 1px); }
+.nc-div:not(.earlier):has(+ .nc-div:not(.earlier)),
+.nc-div:not(.earlier) + .nc-div:not(.earlier) { padding-top: var(--s2); padding-bottom: var(--s2); }
+.nc-div.sel { position: relative; z-index: 1; }
 
 /* WHICH PLATE AM I ANSWERING. Always on when there is a meal to name, not only after the athlete
    picks one: the default target is a fact about where the message lands, and an unstated default
@@ -2944,7 +3106,8 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .disc { position: relative; margin-top: var(--s4); }
 .disc-head { display: flex; align-items: center; gap: var(--s2); margin: 0 0 var(--s2h); }
 .facepile.disc-fp, .disc-fp {
-  flex: 1; min-width: 0; margin: 0; padding: var(--s1) 0; background: none; border: 0; border-radius: var(--r-card-sm);
+  /* --s1h, not --s1 (2026-09-22): the members door is a button, and at 4px it measured 42 tall. */
+  flex: 1; min-width: 0; margin: 0; padding: var(--s1h) 0; background: none; border: 0; border-radius: var(--r-card-sm);
   display: flex; align-items: center; gap: var(--s2h);
 }
 .disc-fp .fpav { width: 32px; height: 32px; }
@@ -3038,9 +3201,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 
 /* ===== The coach's group ring (2026-09-15): the athlete's hero, fed the group score ===== */
 .xhero.co-hero { margin: var(--s2) 0 var(--s2); }
-.xhero.co-hero .co-hero-bar { width: 100%; max-width: 300px; margin-top: var(--s3); }
-.xhero.co-hero .co-hero-legend { margin-top: var(--s2h); justify-content: center; }
-.xhero.co-hero .co-hero-note { border-top: 1px solid var(--hairline-soft); margin-top: var(--s3); padding-top: var(--s3); font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.6; text-align: center; max-width: 340px; }
+/* The bar + legend left the tappable ring (2026-09-22): the legend counts are buttons now. */
+.co-hero-stand { display: flex; flex-direction: column; align-items: center; margin-bottom: var(--s2); }
+.co-hero-stand .co-hero-bar { width: 100%; max-width: 300px; margin-top: var(--s1); }
+.co-hero-stand .co-hero-legend { margin-top: var(--s3); gap: var(--s2); justify-content: center; }
+.co-hero-stand .co-hero-note { border-top: 1px solid var(--hairline-soft); margin-top: var(--s3); padding-top: var(--s3); font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.6; text-align: center; max-width: 340px; }
 
 /* ===== The photo control (avatar-upload.js), shared by every person with a face ===== */
 .big-av { border-radius: 50%; background: linear-gradient(150deg, var(--blue), var(--blue-deep)); display: grid; place-items: center; font-weight: 800; color: var(--ink-on-accent); flex: none; }
@@ -3061,12 +3226,18 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .pf-hero .pf-meta.meta-add { color: var(--blue-bright); cursor: pointer; }
 .pf-hero .id-err { min-height: 0; }
 .pf-hero .id-act { margin-top: var(--s1h); min-height: 24px; display: inline-flex; align-items: center; appearance: none; background: none; border: 0; padding: 0; font-family: var(--font); font-size: var(--t-sm); font-weight: 700; color: var(--blue-bright); cursor: pointer; }
-/* Three facts they earned. Buttons, because each one opens the screen that explains it. */
-.pf-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s2); width: 100%; }
-.pf-stat { appearance: none; -webkit-appearance: none; border: 1px solid var(--hairline); background: var(--surface-1); border-radius: var(--r-card-sm); padding: var(--s2h) var(--s2); min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-family: var(--font); color: var(--text); cursor: pointer; }
+/* Three facts they earned. Buttons, because each one opens the screen that explains it.
+   ONE strip split by hairlines (2026-09-22), not three boxed tiles: every metric in its own
+   rounded rectangle was the dashboard template, and the three read as unrelated cards. */
+.pf-stats { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; border-block: 1px solid var(--hairline-soft); }
+.pf-stat { appearance: none; -webkit-appearance: none; border: 0; background: none; padding: var(--s2h) var(--s2); min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-family: var(--font); color: var(--text); cursor: pointer; }
+.pf-stat + .pf-stat { border-left: 1px solid var(--hairline-soft); }
+.pf-stat:active { background: var(--surface-1); }
 .pf-stat b { font-size: var(--t-lg); font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: var(--num-tight); }
-.pf-stat b.g { color: var(--green-bright); } .pf-stat b.a { color: var(--amber-bright); } .pf-stat b.r { color: var(--red-bright); }
-.pf-stat small { font-size: var(--t-micro); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+.pf-stat b.g { color: var(--green-bright); } .pf-stat b.b { color: var(--blue-bright); } .pf-stat b.a { color: var(--amber-bright); } .pf-stat b.r { color: var(--red-bright); }
+.pf-stat b.muted { color: var(--text-3); }
+.pf-stat b.pf-stat-word { font-size: var(--t-sm); }
+.pf-stat small { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); }
 .pf-stat:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
 .pf-edit { width: auto; padding: 0 var(--s4); height: 40px; }
 .pf-trust { cursor: pointer; margin-top: var(--s2); }
@@ -3075,10 +3246,6 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .pf-connect .pf-connect-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top: var(--s1); line-height: 1.5; }
 .pf-connect .pf-connect-b { width: auto; padding: 0 var(--s5); margin-top: var(--s3); }
 .pf-coach-av { background: linear-gradient(150deg, var(--blue), var(--blue-deep)); color: var(--ink-on-accent); font-weight: 800; font-size: var(--t-base); }
-.pf-lic-green { background: var(--green-surface); color: var(--green-bright); }
-.pf-lic-blue { color: var(--blue-bright); }
-.pf-lic-red { background: var(--red-surface); color: var(--red); }
-.pf-lic-red-ink { color: var(--red); }
 .pf-red { color: var(--red); }
 .pf-hidden { display: none; }
 /* The day receipt wears the viewer's face when we know it. */
@@ -3094,7 +3261,19 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .ac-form .ac-note.bad { color: var(--red-bright); }
 .ac-form .btn { margin-top: var(--s2); }
 .ac-form .ac-foot { margin-top: var(--s2h); }
-.ac-danger { color: var(--red); }
+/* Change password / Change email as two rows that open in place (2026-09-22). */
+.ac-sec summary { list-style: none; }
+.ac-sec summary::-webkit-details-marker { display: none; }
+.ac-chev { display: flex; color: var(--text-3); transition: transform var(--dur-1) var(--ease-out); }
+.ac-sec[open] .ac-chev { transform: rotate(90deg); }
+.ac-sec > .ac-form { padding: var(--s1) 2px var(--s4); border-bottom: 1px solid var(--hairline-soft); }
+.ac-sec:last-child > .ac-form { border-bottom: none; }
+.ac-sec:last-child:not([open]) > summary { border-bottom: none; }
+/* Verified Profile's discipline section (2026-09-22). */
+.vd-lead { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.5; margin: 0 2px var(--s3); }
+.vd-switch-card { margin-top: var(--s3h); }
+/* .ts only styles inside a .sidebox; in a card it rendered as body-size text in full ink. */
+.vd-note { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.5; margin-top: var(--s2h); }
 .ac-tail { height: var(--s2h); }
 
 /* ---- the pill means ONE thing ----
@@ -3564,6 +3743,12 @@ body.kb-open .meal-foot { display: none; }
 .lm-status .lm-slot{color:var(--green-bright);font-weight:800}
 .lm-status .lm-dot{color:var(--text-3)}
 .lm-status .late{color:var(--amber-bright)}
+/* A past plate's line carries that day's score, in its tier colour (score-band ladder). */
+.lm-status .lm-dayscore{font-weight:800;font-variant-numeric:tabular-nums}
+.lm-status .lm-dayscore.g{color:var(--green-bright)}
+.lm-status .lm-dayscore.b{color:var(--blue-bright)}
+.lm-status .lm-dayscore.a{color:var(--amber-bright)}
+.lm-status .lm-dayscore.r{color:var(--red-bright)}
 .lm-status .lm-ck.pop{animation:popIn 600ms var(--ease-out) both}
 @media (prefers-reduced-motion: reduce){.lm-status .lm-ck.pop{animation:none}}
 .lm-dup{font-size:var(--t-sm);font-weight:700;color:var(--amber-bright);margin:0 0 var(--s3);line-height:1.4}
@@ -3575,23 +3760,30 @@ body.kb-open .meal-foot { display: none; }
 .lm-hero .lm-prov{position:absolute;left:var(--s3h);top:var(--s3h)}
 /* Over a photograph on either theme, so the provenance pill keeps the dark scrim the View pill wears. */
 .lm-hero .lm-prov .status-pill{background:rgba(5,8,15,0.55);color:#fff;border-color:transparent}
-.lm-hero .lm-view{position:absolute;left:var(--s3h);bottom:var(--s3h);display:inline-flex;align-items:center;gap:var(--s1h);padding:var(--s2) var(--s3);border-radius:var(--r-pill);background:rgba(5,8,15,0.55);color:#fff;font-size:var(--t-sm);font-weight:700;pointer-events:none}
+.lm-hero .lm-view{position:absolute;left:var(--s3h);bottom:var(--s3h)}
+/* The photo scrim: "View photo" and the meal's band word ride the photograph on the same dark
+   ground, which does not flip with the theme because the ground is a photograph (the
+   .cc-badges / .mq-badge rule: the ground decides the ink). */
+.lm-hero .lm-view,.lm-hero .lm-band{display:inline-flex;align-items:center;gap:var(--s1h);padding:var(--s2) var(--s3);border-radius:var(--r-pill);background:rgba(5,8,15,0.55);color:#fff;font-size:var(--t-sm);font-weight:700;pointer-events:none}
 .lm-hero.ph-nophoto .lm-view,.lm-hero.ph-nophoto .ph-grad{display:none}
 /* 88px, down from 96 (founder 2026-09-16: "make the score that's on the picture slightly
-   smaller"). ONE size knob: the numeral and the band word are DERIVED from the dial at the ratios
-   the design already had (34 of 96, 11 of 96), the way the ring's own numeral rides --score-fit.
-   So the next size change is one number, and nothing inside can drift out of proportion with the
-   dial around it — 82 was tried first and the longest band word ("Strong meal") broke the ring. */
-.lm-hero .scorechip.big{--lm-dial:88px;position:absolute;right:var(--s3h);bottom:var(--s3h);width:var(--lm-dial);height:var(--lm-dial)}
+   smaller"). ONE size knob: the numeral is DERIVED from the dial, the way the ring's own numeral
+   rides --score-fit, so the next size change is one number.
+   The band word LEFT the ring 2026-09-22: at any dial size a band word ("Strong meal", "Perfect
+   plate", "Needs work") is as wide as the ring's inner chord, so its corners sat on the arc. It
+   rides above the dial on the photo scrim (.lm-band) and the ring holds the numeral alone, which
+   is why the numeral grew from 0.354 to 0.40 of the dial. */
+.lm-hero .lm-score{position:absolute;right:var(--s3h);bottom:var(--s3h);display:flex;flex-direction:column;align-items:center;gap:var(--s2)}
+/* A no-photo hero is 128px tall: the word sits beside the dial there, not over it. */
+.lm-hero.ph-nophoto .lm-score{flex-direction:row}
+.lm-hero .scorechip.big{--lm-dial:88px;width:var(--lm-dial);height:var(--lm-dial)}
 .lm-hero .scorechip.big .sc-ring{width:100%;height:100%}
-.lm-hero .scorechip.big .v{font-size:calc(var(--lm-dial) * 0.354)}
-/* The band word rides the same knob. Left at a fixed 11px it broke straight through the ring on
-   the longest label ("Strong meal") the moment the dial came down to 82 — the word is part of the
-   dial, so it shrinks with it. 0.115 is the 11-of-96 proportion the label already had. */
-.lm-hero .scorechip.big .k{font-size:calc(var(--lm-dial) * 0.115);text-transform:none;letter-spacing:0;font-weight:700;color:var(--text-2);margin-top:1px}
-/* The info mark: a small round button tucked at the chip's corner; opens the "why" row. */
-.lm-hero .lm-why{position:absolute;right:var(--s2);bottom:var(--s2);width:28px;height:28px;border-radius:50%;border:1px solid var(--hairline);background:var(--surface-1);color:var(--text-2);display:grid;place-items:center;cursor:pointer;padding:0;box-shadow:var(--sh-card);-webkit-tap-highlight-color:transparent}
-.lm-hero .lm-why:active{transform:scale(var(--press-tap))}
+.lm-hero .scorechip.big .v{font-size:calc(var(--lm-dial) * 0.40)}
+/* The dial is the door to "Why did this meal score N?" when that drawer exists (a <button>);
+   an 88px target in place of the 28px info mark that used to cover the arc. */
+.lm-hero button.scorechip{padding:0;margin:0;font:inherit;color:inherit;cursor:pointer;-webkit-appearance:none;appearance:none;-webkit-tap-highlight-color:transparent;transition:transform var(--dur-1) var(--ease-out)}
+.lm-hero button.scorechip:active{transform:scale(var(--press-tap))}
+.lm-hero button.scorechip:focus-visible{outline:2px solid var(--blue-bright);outline-offset:3px;border-radius:50%}
 /* Sections: a heading, then content. Space does the separating. */
 .lm-sec{margin-top:var(--s6)}
 /* The heading never shrinks and the right-hand control wraps under it when the line is tight
@@ -3633,6 +3825,10 @@ body.kb-open .meal-foot { display: none; }
 .nut-tiles .nt-v i{font-style:normal;font-size:var(--t-sm);font-weight:700;color:var(--text-3)}
 .nut-tiles .nt-k{font-size:var(--t-xs);font-weight:600;color:var(--text-2)}
 .lm-nut .est-note{margin-top:var(--s2h)}
+/* Intuitive's plate: the detected foods as plain rows on the page, no card around them. */
+.lm-plate-rows .food-row:last-child{border-bottom:0}
+.lm-plate .est-note{margin-top:var(--s2h)}
+.est-note .est-k{color:var(--text-2)}
 /* Today after this meal: label, a thick track, the figures right, the remainder under them. */
 .tb-row{display:grid;grid-template-columns:72px 1fr auto;align-items:center;gap:var(--s3);padding:var(--s2h) 0}
 .tb-row + .tb-row{border-top:1px solid var(--hairline-soft)}
@@ -3668,6 +3864,8 @@ body.kb-open .meal-foot { display: none; }
 .lm-rt small{font-size:var(--t-sm);font-weight:600;color:var(--text-3);margin-left:auto;white-space:nowrap}
 .lm-rows .rub-body,.lm-rows .bd-body{padding:0 var(--s4) var(--s3h)}
 .lm-rows .bd-body > .card{margin-top:0}
+.lm-rows .bd-foods{margin-bottom:var(--s2)}
+.lm-rows .bd-foods .food-row:last-child{border-bottom:0}
 
 /* ---------------------------------------------------------------- the in-app alarm face (js/wake-face.js)
    The wake-up when the athlete is already on the phone. One overlay, one button. Blue is the calm
@@ -3776,3 +3974,58 @@ body.kb-open .meal-foot { display: none; }
 .sl-std-v.none { font-size: var(--t-lg); color: var(--text-2); letter-spacing: var(--title-tight); }
 .sl-std-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.5;
   margin-top: var(--s1h); max-width: 46ch; }
+
+/* ============================================================
+   Food search (#food-search), 2026-09-22 audit
+   ============================================================
+   Search, results, the plate straight under them, then the other ways in; the Log control rides
+   the sticky .action-bar and counts ITEMS. These replace the screen's inline styles. */
+.fs-results { padding: var(--s1) var(--s4); margin-top: var(--s3); }
+/* A food on the plate wears its count where the + was: blue, the selection accent. */
+.lrow .lic.fs-in {
+  background: var(--blue-surface); color: var(--blue-bright); border: 1px solid var(--blue-border);
+  font-size: var(--t-base); font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.fs-empty { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); }
+.fs-item {
+  display: flex; align-items: center; gap: var(--s2h); padding: var(--s2) 0;
+  border-bottom: 1px solid var(--hairline-soft);
+}
+.fs-item:last-child { border-bottom: 0; }
+.fs-item-n { flex: 1; min-width: 0; font-size: var(--t-base); font-weight: 700; }
+.fs-item-n small { color: var(--text-3); font-weight: 600; }
+.fs-item-q { width: 26px; text-align: center; font-size: var(--t-base); font-weight: 800; font-variant-numeric: tabular-nums; }
+.fs-totals { margin-top: var(--s3); }
+.fs-totals[hidden] { display: none; }
+.fs-nomatch { padding: var(--s3h) var(--s1); font-size: var(--t-sm); font-weight: 600; color: var(--text-3); line-height: 1.5; }
+.fs-nomatch .fs-to-cam { width: auto; padding: 0 var(--s4); margin-top: var(--s2h); display: flex; align-items: center; gap: var(--s1h); }
+
+/* Plan style picker (#plan-style): the Selected / Preferred / Current pill beside a style's name. */
+.ps-opt-pill { margin-left: var(--s1h); }
+
+/* ============================================================
+   Meal analysis (#meal-analysis), 2026-09-22: the pre-log check in the logged meal's family
+   ============================================================
+   Status line under the title (.lm-status), the photo hero with the same dial (.lm-hero,
+   mealDialHtml), then sections that space does the separating for (.lm-sec / .lm-h). */
+.ma-status { padding-bottom: var(--s3); }
+.ma-status .ontime { color: var(--text-2); }
+.photo-hero.ma-hero { height: 260px; border: none; }
+.ma-edit {
+  position: relative; margin-left: auto; padding: 0; border: 0; background: none; cursor: pointer;
+  font-family: var(--font); font-size: var(--t-sm); font-weight: 700; color: var(--blue-bright);
+  -webkit-appearance: none; appearance: none;
+}
+.ma-edit::after { content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 100%; height: 100%; min-width: 44px; min-height: 44px; }
+.ma-foods { padding: var(--s1) var(--s4); }
+.food-row.fr-add[hidden] { display: none; }
+/* The closed add row is the last food-row in the card, so :last-of-type never reaches the last food. */
+.ma-foods .food-row:has(+ .food-row.fr-add[hidden]) { border-bottom: none; }
+.ma-edited { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); padding: var(--s1) 0 var(--s2); }
+.ma-restrict { margin-top: var(--s6); }
+/* The AI's read is prose in the flow, attributed, not a bordered blue card. */
+.ma-read .ma-who { display: flex; align-items: center; gap: var(--s1h); font-size: var(--t-sm); font-weight: 700; color: var(--blue-bright); }
+.ma-read p { margin: var(--s2) 0 0; font-size: var(--t-md); font-weight: 600; line-height: 1.5; color: var(--text); }
+/* What logging does: a quiet fact above the actions, not a status-green box. */
+.ma-counts { margin: var(--s5) 0 0; font-size: var(--t-sm); font-weight: 600; line-height: 1.45; color: var(--text-2); }
+.ma-actions { margin-top: var(--s4); padding-bottom: var(--s2h); }

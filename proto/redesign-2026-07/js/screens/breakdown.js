@@ -119,7 +119,7 @@ export default {
     <div class="day-done">
       <div class="req-icon g" style="width:44px;height:44px">${icon('check', 21)}</div>
       <div><div class="tt">Every point that was on the table is in.</div>
-      <div class="ts">${S.score} of 100. ${S.score >= ON_STANDARD ? 'This is what OnStandard looks like.' : 'Every requirement is in; meal quality is what lifts it toward the standard.'}</div></div>
+      <div class="ts">${S.score} of 100. ${S.score >= ON_STANDARD ? 'It is final when the day locks at midnight.' : 'Every requirement is in; meal quality is what lifts it toward the standard.'}</div></div>
     </div>`}
     <div style="height:8px"></div>
     ${S.score != null ? `<button class="btn ghost sm" id="bd-share" style="width:100%">${icon('share', 17)} Share today's score</button>

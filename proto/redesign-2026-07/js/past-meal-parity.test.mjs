@@ -30,7 +30,10 @@ test('the past-meal screen renders the same four blocks through the same functio
   assert.match(trust, /import \{ mealReadHtml, wireReadControls \} from '\.\/meal\.js';/);
   assert.match(trust, /export function pastMealDetail\(m\)/, 'a meals row is mapped to the mealDetail() shape');
   assert.match(trust, /mealReadHtml\(M, \{ exec: null, past: true, dayTotals: pastDayTotalsThrough\(m\) \}\)/);
-  assert.match(trust, /<section class="mt-confirm">/, 'the logged confirmation card');
+  // The logged confirmation is the same slim status line today's meal wears (2026-09-22): the
+  // bordered .mt-confirm card was retired on the live thread 09-15 and lingered here alone.
+  assert.match(trust, /<div class="lm-status">/, 'the logged status line');
+  assert.doesNotMatch(trust, /<section class="mt-confirm">/, 'the retired confirmation card');
   assert.match(trust, /<section class="disc" id="meal-disc"/, 'the Team discussion section');
   assert.match(trust, /<div class="chat-dock disc-dock">/, 'the docked composer');
   assert.match(trust, /class="disc-open" id="open-full-chat"/, 'the aimed door to the full chat');

@@ -87,7 +87,7 @@ export const coachCreate = {
     const group = (grp, heading) => {
       const rows = opts.filter((o) => o.grp === grp);
       if (!rows.length) return '';
-      return `<h2 class="co-eyebrow">${heading}</h2>
+      return `<h2 class="eyebrow">${heading}</h2>
       <section class="card" style="padding:6px 16px">${rows.map(row).join('')}</section>`;
     };
     return `${backHead('Create', 'What do you want to put in motion?', back)}

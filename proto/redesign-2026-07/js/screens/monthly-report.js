@@ -2,15 +2,19 @@
    numbers) plus an optional AI headline/narrative/wins/focus when the athlete's plan includes it.
    Reached from Progress's "Monthly report" row. Module shape mirrors my-trainer-offers.js:
    CACHE + load() -> roles.fetchMonthlyReport() -> window.__render(), render()/mount(). */
-import { backHead, esc, skeletonRows, errorState } from '../components.js';
+import { backHead, esc, skeletonRows, errorState, emptyState } from '../components.js';
 import { icon } from '../icons.js';
 import { S } from '../state.js';
 import * as roles from '../roles.js';
 import { buildMonthPayload } from '../monthly.js';
 import { track, EVENTS } from '../analytics.js';
-import { monthYear, shortDate } from '../fmt-date.js';
+import { monthYear, shortDate, longDate } from '../fmt-date.js';
 import { shareScoreCard } from '../share-card.js';
-import { planById, effectiveMonthly, fmtPrice } from '../pricing.js';
+import { planById, disclosure } from '../pricing.js';
+import { tierFor } from '../score-band.js';
+
+/* The month's average is a score: score face, tier colour (lead ruling 2026-09-22). */
+const avgInk = (v) => `tier-ink ${v == null ? 'none' : tierFor(v).cls}`;
 
 let CACHE = { report: null, period: null, loaded: false, payload: null, paywallFired: false };
 
@@ -47,7 +51,11 @@ async function load(force) {
     // excluded on purpose; buildMonthPayload only needs {date, score, weight}.
     const days = (S.history || []).map(h => ({ date: h.iso, score: h.score, weight: h.weight }));
     CACHE.payload = buildMonthPayload(days, period);
-    CACHE.report = await roles.fetchMonthlyReport(period, CACHE.payload);
+    // A month with nothing logged has nothing to report and nothing to sell against: no cold
+    // edge-function call, no paywall exposure. render() shows the empty state (2026-09-22).
+    CACHE.report = CACHE.payload && CACHE.payload.loggedDays
+      ? await roles.fetchMonthlyReport(period, CACHE.payload)
+      : null;
   } catch (e) {
     // callFn resolves failures into { error } rather than throwing, so the only way in here is a
     // local one — buildMonthPayload on a malformed history row, or the module failing to reach
@@ -113,13 +121,18 @@ function lockedCard(payload, period) {
   const monthWord = esc(monthLabel(period)).split(' ')[0];
   // Priced from the one catalog (js/pricing.js), never hardcoded: the paywall, onboarding and
   // this line must all quote the same number or one of them is lying.
+  // The paywall's OWN disclosure, word for word (pricing.js disclosure(), the annual cadence the
+  // paywall opens on, plus its "No charge today."). This line used to lead with the monthly
+  // equivalent and promise "No card today", which an Apple free trial is not: the Apple ID's
+  // payment method is on file from the start. What the athlete reads here is what the store
+  // sheet will charge them, and it is the same sentence the paywall prints (2026-09-22).
   const plan = planById('individual');
   const trialLine = plan
-    ? `${plan.name}: free for ${plan.trialDays} days, then ${fmtPrice(effectiveMonthly(plan))}/mo billed annually. No card today.`
-    : 'Individual: free trial first. No card today.';
+    ? `${plan.name}: ${disclosure(plan, 'annual')} No charge today.`
+    : 'Individual: free trial first. No charge today.';
   return `
   <section class="card pad">
-    <div class="bigstat"><span class="n">${report.avgScore != null ? report.avgScore : '—'}</span><span class="d">Average score</span></div>
+    <div class="bigstat score"><span class="n ${avgInk(report.avgScore)}">${report.avgScore != null ? report.avgScore : '—'}</span><span class="d">Average score</span></div>
     <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${esc(monthLabel(period))} · ${report.loggedDays || 0} day${report.loggedDays === 1 ? '' : 's'} logged</div>
     ${report.loggedDays ? `<div style="height:8px"></div><span class="status-pill g">Your month, already counted</span>` : ''}
   </section>
@@ -155,12 +168,30 @@ function lockedCard(payload, period) {
   `;
 }
 
+/* Nothing logged in the reported month. A brand-new athlete used to get the locked upsell over a
+   month they did not exist in: dashes, "0 days logged" and "Start free trial". Say when the first
+   real report lands instead, and hand them the one action that builds it (2026-09-22). */
+function emptyMonth(period) {
+  const now = new Date();
+  const thisMonth = monthYear(now).split(' ')[0];
+  const lands = longDate(new Date(now.getFullYear(), now.getMonth() + 1, 1));
+  const [y, m] = String(period).split('-').map(Number);
+  const periodEnd = new Date(y, m, 0);
+  const existed = (S.history || []).some((h) => h && h.iso && new Date(h.iso + 'T12:00:00') <= periodEnd);
+  return emptyState({
+    icon: 'clipboard',
+    title: existed ? `Nothing logged in ${monthLabel(period).split(' ')[0]}` : 'Your first report is on its way',
+    body: `Reports cover a finished month. ${thisMonth}'s lands ${lands}, built from the days you log.`,
+    action: { go: 'camera', label: 'Log a meal' },
+  });
+}
+
 function reportBody(report, period) {
   const wins = Array.isArray(report.wins) ? report.wins : (report.wins ? [report.wins] : []);
   const focus = Array.isArray(report.focus) ? report.focus : (report.focus ? [report.focus] : []);
   return `
   <section class="card pad">
-    <div class="bigstat"><span class="n">${report.avgScore != null ? report.avgScore : '—'}</span><span class="d">Average score</span></div>
+    <div class="bigstat score"><span class="n ${avgInk(report.avgScore)}">${report.avgScore != null ? report.avgScore : '—'}</span><span class="d">Average score</span></div>
     <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:2px">${esc(monthLabel(period))} · ${report.loggedDays || 0} day${report.loggedDays === 1 ? '' : 's'} logged</div>
   </section>
 
@@ -209,6 +240,10 @@ export default {
     }
     const report = CACHE.report;
     const period = CACHE.period;
+    if (CACHE.payload && !CACHE.payload.loggedDays && !(report && report.error)) {
+      return `${backHead('Monthly report', esc(monthLabel(period)), 'progress')}
+    ${emptyMonth(period)}`;
+    }
     const locked = isLockedReport(report);
     return `${backHead('Monthly report', esc(monthLabel(period)), 'progress')}
     ${locked ? lockedCard(CACHE.payload, period) : report && !report.error ? reportBody(report, period) : `

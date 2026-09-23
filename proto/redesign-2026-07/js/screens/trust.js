@@ -45,15 +45,20 @@ export const trust = {
   tab: 'home',
   render() {
     const t = S.pass;
+    // The coach's own words, when the grant carried any. Classes, not the inline raw-px block
+    // that was pasted into both active shapes.
+    const coachNote = t.note ? `<section class="card pad tp-quote"><div class="q">“${esc(t.note)}”</div><div class="by">From your coach</div></section>` : '';
+    // Every shape leads with the record figure (.rfig, shared with Streak and the roll-call
+    // record): the count once, on the canvas, instead of a count in the header AND a card.
     if (!t.active) {
       const need = (RT.passPolicy || { eligibility_days: 7 }).eligibility_days;
       const have = Math.min(need, t.eligible || 0);
       const earned = have >= need;
-      return `${backHead('Trust Pass', earned ? 'Earned, waiting on your coach' : 'Not earned yet')}
-      <section class="card pad">
-        <div style="font-size:17px;font-weight:800">${have} of ${need} photo-logged days</div>
-        ${segBar(have, need, `${have} of ${need} photo-logged days`, 'margin:10px 0 6px')}
-        <div style="font-size:12.5px;font-weight:600;color:var(--text-2)">${earned
+      return `${backHead('Trust Pass', earned ? 'Earned, waiting on your coach' : 'Camera-free meals, earned with photos')}
+      <section class="rfig">
+        <div class="rfig-n">${have}<span class="rfig-u">of ${need} photo-logged days</span></div>
+        ${segBar(have, need, `${have} of ${need} photo-logged days`)}
+        <div class="rfig-s">${earned
           ? 'You have the days. Your coach can grant a pass any time from your profile.'
           : 'Show the pattern with photos first. Then your coach can give you camera-free meals, credited from your real history.'}</div>
       </section>`;
@@ -61,17 +66,12 @@ export const trust = {
 
     if (t.kind === 'credits') {
       return `
-      ${backHead('Trust Pass', `${t.left} of ${t.total} camera-free meals left`)}
-      ${t.note ? `<section class="card pad"><div style="font-size:13px;font-weight:600;color:var(--text-2);font-style:italic">"${esc(t.note)}"</div><div style="font-size:11.5px;font-weight:700;color:var(--text-3);margin-top:6px">FROM YOUR COACH</div></section>` : ''}
-      <section class="card pad" style="border-color:var(--blue-border)">
-        <div style="display:flex;align-items:center;gap:14px">
-          <div class="req-icon b" style="width:52px;height:52px;border-radius:16px">${icon('shield', 26)}</div>
-          <div style="flex:1">
-            <div style="font-size:17px;font-weight:800">${t.left} left</div>
-            <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:3px">Spend one on any meal from the hub. Expires ${esc(t.expires)}.</div>
-          </div>
-        </div>
+      ${backHead('Trust Pass', 'Camera-free meals from your coach')}
+      <section class="rfig">
+        <div class="rfig-n">${icon('shield', 22)}${t.left}<span class="rfig-u">of ${t.total} left</span></div>
+        <div class="rfig-s">Spend one on any meal from the hub. Expires ${esc(t.expires)}.</div>
       </section>
+      ${coachNote}
 
       <h2 class="eyebrow">How it scores</h2>
       <section class="card" style="padding:6px 16px">
@@ -94,17 +94,12 @@ export const trust = {
 
     // window
     return `
-    ${backHead('Trust Pass', `Day ${t.day} of ${t.length} · camera-free`)}
-    ${t.note ? `<section class="card pad"><div style="font-size:13px;font-weight:600;color:var(--text-2);font-style:italic">"${esc(t.note)}"</div><div style="font-size:11.5px;font-weight:700;color:var(--text-3);margin-top:6px">FROM YOUR COACH</div></section>` : ''}
-    <section class="card pad" style="border-color:var(--blue-border)">
-      <div style="display:flex;align-items:center;gap:14px">
-        <div class="req-icon b" style="width:52px;height:52px;border-radius:16px">${icon('shield', 26)}</div>
-        <div style="flex:1">
-          <div style="font-size:17px;font-weight:800">Every meal is covered</div>
-          <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:3px">Nothing to tap. Your score keeps moving from your real logging history through ${esc(t.covers_until)}.</div>
-        </div>
-      </div>
+    ${backHead('Trust Pass', 'Every meal is covered')}
+    <section class="rfig">
+      <div class="rfig-n">${icon('shield', 22)}Day ${t.day}<span class="rfig-u">of ${t.length}</span></div>
+      <div class="rfig-s">Nothing to tap. Your score keeps moving from your real logging history through ${esc(t.covers_until)}.</div>
     </section>
+    ${coachNote}
 
     <h2 class="eyebrow">How it scores</h2>
     <section class="card" style="padding:6px 16px">
@@ -128,18 +123,18 @@ export const streak = {
     const cal = S.streakCalendar; // Monday→Sunday, real scores, grace marker
     const graceAvailable = S.streak.graceUsedRecently ? 0 : 1;
     return `
-    ${backHead('Streak', `${S.streakDays} day${S.streakDays === 1 ? '' : 's'} on standard`, 'progress')}
+    ${backHead('Streak', 'Your run of days at 80 or better', 'progress')}
 
-    <section class="card pad" style="text-align:center">
-      <div style="display:inline-flex;align-items:center;gap:10px">
-        <span style="color:var(--amber-bright)">${icon('flame', 26)}</span>
-        <span style="font-size:52px;font-weight:800;letter-spacing:-0.04em">${S.streakDays}</span>
-      </div>
-      <div style="font-size:13px;font-weight:700;color:var(--text-2);margin-top:4px">days at 80 or better</div>
+    ${/* The record figure (.rfig, shared with the roll-call record and Trust Pass). The count
+          used to print three times on this screen (header, a 52px numeral, "Day N locks at
+          midnight"); it prints once now. The flame is neutral ink, not amber: a live streak is
+          the opposite of a warning (DESIGN.md 2026-09-05). */''}
+    <section class="rfig">
+      <div class="rfig-n">${icon('flame', 22)}${S.streakDays}<span class="rfig-u">day${S.streakDays === 1 ? '' : 's'}</span></div>
       ${S.score >= ON_STANDARD
-        ? `<div style="font-size:12.5px;font-weight:600;color:var(--green-bright);margin-top:10px">Today is above the bar.${S.streakDays > 0 ? ` Day ${S.streakDays} locks at midnight.` : ' Your streak starts when today locks at midnight.'}</div>`
-        : `<div style="font-size:12.5px;font-weight:600;color:var(--amber-bright);margin-top:10px">Today is still live. Reach 80 before the day closes to continue your streak.</div>`}
-      <div style="font-size:12px;font-weight:700;color:var(--text-2);margin-top:8px">Weekly grace available: ${graceAvailable}${graceAvailable ? '' : ` · used ${S.streak.label.replace('grace used ', '')}`}</div>
+        ? `<div class="rfig-s g">Today is above the bar.${S.streakDays > 0 ? ' It locks at midnight.' : ' Your streak starts when today locks at midnight.'}</div>`
+        : '<div class="rfig-s a">Today is still live. Reach 80 before the day closes to keep the run.</div>'}
+      <div class="rfig-k">Weekly grace available: ${graceAvailable}${graceAvailable ? '' : ` · used ${S.streak.label.replace('grace used ', '')}`}</div>
     </section>
 
     <h2 class="eyebrow">This week</h2>
@@ -152,21 +147,22 @@ export const streak = {
             ${x.grace ? '<span class="g">Grace</span>' : ''}
           </div>`).join('')}
       </div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:14px">Your real day scores, Monday through Sunday. A day under 80 ends the run unless your weekly grace bridges it. Grace applies only after the day closes.</div>
+      ${/* The grace rule lives once, in The rules below; this line only says what the tiles are. */''}
+      <div class="rfig-s">Your real day scores, Monday through Sunday.</div>
     </section>
 
     <h2 class="eyebrow">The rules</h2>
     <section class="card" style="padding:6px 16px" role="list">
       <div class="lrow" role="listitem" style="cursor:default">
         <div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('target', 17)}</div>
-        <div class="lm"><div class="lt">80 is the bar</div><div class="ls">On standard means 80+. Not close, not almost.</div></div>
+        <div class="lm"><div class="lt">80 is the bar</div><div class="ls">A streak day is 80 or better. Not close, not almost.</div></div>
       </div>
       <div class="lrow" role="listitem" style="cursor:default">
         <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('shield', 17)}</div>
         <div class="lm"><div class="lt">One grace per rolling 7 days</div><div class="ls">A single miss is bridged after the day closes: the chain survives, the day never counts. A second miss inside the week ends the run.</div></div>
       </div>
       <div class="lrow" role="listitem" style="cursor:default">
-        <div class="lic" style="background:var(--amber-surface);color:var(--amber-bright)">${icon('clock', 17)}</div>
+        <div class="lic" style="background:var(--surface-2);color:var(--text-2)">${icon('clock', 17)}</div>
         <div class="lm"><div class="lt">Absent days count as misses</div><div class="ls">Not opening the app isn't a loophole. The calendar is the judge.</div></div>
       </div>
     </section>
@@ -626,21 +622,24 @@ export const mealView = {
     const dayRow = (S.history || []).find((h) => h && h.iso === when) || null;
     const dayScore = dayRow && dayRow.score != null ? dayRow.score : null;
     const dayTier = dayScore != null ? tier(dayScore) : null;
-    const timing = M.loggedAt ? `Logged ${M.loggedAt} · ${M.minutesLate > 0 ? `${M.minutesLate} min late` : 'on time'}` : 'Logged';
+    /* THE STATUS LINE, as on today's meal (audit 2026-09-22). This screen kept the bordered green
+       "Lunch logged" card after the 09-15 restructure replaced it on the live thread with one slim
+       row, so yesterday's plate wore the old design again, which is the drift the 09-14 ruling
+       exists to stop. One row: check, slot (only when the title names the food), the day, the
+       clock time, the verdict, and that day's score in its tier colour. */
+    const lateLabel = M.minutesLate > 0 ? `${M.minutesLate} min late` : 'On time';
+    const statusBits = [
+      ...(M.dish ? [`<span class="lm-slot">${esc(M.name)}</span>`] : []),
+      `<span>${esc(weekdayLong(when))}, ${esc(shortDate(when))}</span>`,
+      ...(M.loggedAt ? [`<span>${esc(M.loggedAt)}</span>`] : []),
+      `<span class="${M.minutesLate > 0 ? 'late' : 'ontime'}">${esc(lateLabel)}</span>`,
+      ...(dayScore != null ? [`<span>Day <b class="lm-dayscore ${dayTier.cls}">${dayScore}</b></span>`] : []),
+    ].join('<span class="lm-dot">·</span>');
     const execTop = `
-    <section class="mt-confirm">
-      <div class="row1">
-        <div class="ck">${icon('check', 20)}</div>
-        <div><div class="t">${esc(M.name)} logged</div>
-        <div class="s">${esc(weekdayLong(when))} · ${esc(shortDate(when))} · ${esc(timing)}</div></div>
-      </div>
-      ${dayScore != null ? `
-      <div class="score-line">
-        <span class="k">Daily Score</span>
-        <span class="to ${dayTier.cls}">${dayScore}</span>
-        <span class="tier-chip ${dayTier.cls}">${esc(dayTier.name)}</span>
-      </div>` : ''}
-    </section>`;
+    <div class="lm-status">
+      <span class="lm-ck">${icon('check', 12)}</span>
+      ${statusBits}
+    </div>`;
     const { photoBlock, breakdown } = mealReadHtml(M, { exec: null, past: true, dayTotals: pastDayTotalsThrough(m) });
     const discussion = `
     <section class="disc" id="meal-disc" aria-labelledby="disc-title">

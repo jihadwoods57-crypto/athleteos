@@ -363,6 +363,10 @@
 }
 .sheet-row:hover, .sheet-row:active { background: var(--surface-2); }
 .sheet-row .si { width: 44px; height: 44px; border-radius: var(--r-card-sm); display: grid; place-items: center; flex: none; }
+/* Sign-in's page root is also `.si` (below: flex:1, padding 40px 0), and CSS is one flat
+   namespace, so its padding stretched every hub tile to ~44x80. Scoped reset until that root
+   gets a name of its own. */
+.sheet-row .si { padding: 0; }
 .sheet-row .st { flex: 1; }
 .sheet-row .st .t { font-size: var(--t-md); font-weight: 800; }
 .sheet-row .st .s { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin-top:1px; }
@@ -550,7 +554,7 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 }
 .tagline { font-size: var(--t-md); font-weight: 600; color: var(--text-2); margin-top:var(--s4h); line-height: 1.6; padding:0 var(--s3); }
 .welcome .spacer { flex: 1; }
-.role-note { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin-top:var(--s3h); line-height: 1.5; }
+.role-note { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin-top:var(--s3h); line-height: 1.5; text-align: center; }
 
 /* ----- Welcome (v2) — self-contained under .wel so the sign-in / reset screens
    keep the shared .welcome/.logo-wrap/.wordmark rules above. The premium reshape:
@@ -616,15 +620,12 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 /* Bright blue drops below 3:1 on the light canvas, so light uses the deep step. */
 :root[data-theme="light"] .wel-head .accent { color: var(--blue-deep); }
 
-/* Primary CTA on welcome: deep blue→teal fill keeps white text ≥4.5:1 (the bright
-   teal lives in the bloom, not under the label); reuses the .btn.primary base. */
-.wel .btn.primary {
-  background: linear-gradient(133deg, var(--blue-deep), var(--teal-deep));
-  box-shadow: var(--sh-blue);
-  color: #fff; /* deep fill in BOTH themes, so the ink stays white (base .btn.primary ink flips) */
-}
+/* Primary CTA on welcome is the app's own .btn.primary (2026-09-22). It used to wear a deep
+   blue->teal fill with white ink, so the first button a new user pressed was a different button
+   from the ~20 Continue buttons that followed it; the blue->teal sweep is reserved for score
+   surfaces (DESIGN.md). The arrow is the icon system's glyph, not a text character. */
 .wel .btn.primary:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 3px; }
-.wel-arrow { font-weight: 800; }
+.wel-arrow { display: flex; }
 .wel-signin {
   margin-top:var(--s3h); width: 100%; min-height: 44px; padding:var(--s2h);
   /* `gap` is load-bearing: flex discards the whitespace between the text node and <b>Sign in</b>,
@@ -637,22 +638,19 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .wel-signin b { color: var(--blue-bright); font-weight: 800; }
 .wel-signin:active { opacity: 0.6; }
 .wel-signin:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; border-radius: var(--r-chip); }
-.wel-trust {
-  display: flex; align-items: center; justify-content: center; gap:var(--s1h);
-  margin-top:var(--s4); font-size: var(--t-sm); font-weight: 600; color: var(--text-3);
-}
-.wel-trust svg { opacity: 0.85; }
 
 /* ----- Sign-in (v2) — self-contained under .si so reset.js keeps the shared
    .welcome / .ob-* rules. Matches the welcome screen's premium system: centered
-   composition, blue→teal brand CTA, labeled icon fields, eye toggle. Reuses the
+   composition, the app's own primary CTA, labeled icon fields, eye toggle. Reuses the
    shared .ob-input; the leading-icon padding is scoped to .si so other .ob-inputs
    are untouched. ----- */
 .view:has(> .si) { display: flex; flex-direction: column; min-height: 100%; }
 .si {
   flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center;
-  text-align: center; padding:var(--s8) 0;
+  text-align: center; padding:var(--s2) 0 var(--s8);
 }
+/* The back chip sits above the centred composition, where every other pre-auth step keeps it. */
+.si-nav { flex: none; padding-bottom: 0; }
 .si-logo {
   position: relative; width: 60px; height: 60px; margin:0 auto var(--s3);
   filter: drop-shadow(0 0 20px rgba(var(--teal-rgb), 0.22)) drop-shadow(0 0 44px rgba(var(--blue-deep-rgb), 0.20));
@@ -683,15 +681,11 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .si-field-hint { font-size: var(--t-sm); font-weight: 600; color: var(--amber-bright); margin:var(--s1h) 0 0 2px; }
 .si-err { font-size: var(--t-sm); font-weight: 600; color: var(--red-bright); min-height: 18px; margin-top:var(--s3); text-align: center; }
 
-.si .btn.primary.si-cta {
-  margin-top:22px;
-  background: linear-gradient(133deg, var(--blue-deep), var(--teal-deep));
-  box-shadow: var(--sh-blue);
-  color: #fff; /* deep fill in BOTH themes, so the ink stays white (base .btn.primary ink flips) */
-}
+/* The app's own .btn.primary (2026-09-22): see .wel-cta above. */
+.si .btn.primary.si-cta { margin-top:22px; }
 .si .btn.primary.si-cta:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 3px; }
 .si-cta.loading .si-arrow { display: none; }
-.si-arrow { font-weight: 800; }
+.si-arrow { display: flex; }
 
 .si-or { display: flex; align-items: center; gap:var(--s3h); margin:var(--s4h) 2px; color: var(--text-3); font-size: var(--t-sm); font-weight: 700; }
 .si-or span { flex: 1; height: 1px; background: var(--hairline); }
@@ -828,9 +822,11 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .err-box .sd-ic::after { border-color: var(--red-border); }
 
 /* ---------- Premium role picker (full-width rows, rich copy, tap affordance) ---------- */
-.role-list { display: flex; flex-direction: column; gap:var(--s3); }
+/* Tightened 2026-09-22 so all seven doors fit on a 390x844 screen: one-line subtitles, a 40px
+   tile, 12px row padding and an 8px gap. Each card still clears the 44px tap floor by far. */
+.role-list { display: flex; flex-direction: column; gap:var(--s2); }
 .role-card {
-  display: flex; align-items: center; gap:var(--s3h); padding:var(--s4) var(--s4);
+  display: flex; align-items: center; gap:var(--s3); padding:var(--s3) var(--s4);
   border-radius: var(--r-card); background: var(--surface-1); border: 1px solid var(--hairline);
   box-shadow: var(--sh-card); cursor: pointer; position: relative; overflow: hidden;
   transition: transform var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out), box-shadow var(--dur-1) var(--ease-out);
@@ -842,7 +838,11 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
    and does a real job: "this card is different from its siblings"). */
 .role-card:active { transform: scale(var(--press-card)); }
 .role-card:hover { border-color: var(--hairline); box-shadow: var(--sh-raised); }
-.role-ic { width: 46px; height: 46px; border-radius: var(--r-card-sm); display: grid; place-items: center; flex: 0 0 auto; }
+/* One tile for every door: the glyph tells them apart, the colour means "a choice" (blue = action). */
+.role-ic { width: 40px; height: 40px; border-radius: var(--r-chip); display: grid; place-items: center; flex: 0 0 auto; background: var(--blue-surface); color: var(--blue-bright); }
+.role-card.role-resume { border-color: var(--blue-border); }
+.role-note-gap { margin: var(--s2h) 0 var(--s4); }
+.ob-role .ob-body { padding-top: var(--s4); }
 .role-tt { flex: 1; min-width: 0; }
 .role-t { font-size: var(--t-lg); font-weight: 800; letter-spacing: var(--title-tight); line-height: 1.1; }
 .role-s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top:var(--s1); line-height: 1.4; }

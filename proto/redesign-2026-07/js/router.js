@@ -46,7 +46,7 @@ const NAVS = {
   // operator-shared screen lights the right tab for either role. Only the routes differ.
   trainer: [
     { id: 'home',    route: 'trainer',          label: 'Home',    icon: 'home' },
-    { id: 'roster',  route: 'trainer-roster',   label: 'Clients', icon: 'heart' },
+    { id: 'roster',  route: 'trainer-roster',   label: 'Clients', icon: 'users' },   // same people-list glyph as the coach's Roster; heart read as "favourites"
     { id: 'create',  route: 'trainer-create',   label: '',        icon: 'plus', fab: true },
     { id: 'inbox',   route: 'trainer-inbox',    label: 'Inbox',   icon: 'message' },
     { id: 'profile', route: 'trainer-profile',  label: 'You',     icon: 'user' },
@@ -179,13 +179,17 @@ function tabbar(activeTab, nav = 'athlete', { remember = true } = {}) {
   const lens = idx >= 0 ? `<i class="tab-lens at-${idx} from-${from}" aria-hidden="true"></i>` : '';
   return `<nav class="tabbar" aria-label="Main" role="tablist" style="--n: ${tabs.length}">${lens}${tabs.map(t => {
     if (t.fab) {
-      // Athlete camera FAB carries the exec status dot (gold = actionable, red = overdue,
-      // none = day complete). Other roles' FABs are plain. Glyph never changes.
+      // Athlete camera FAB carries the exec status dot, on the same rule as the items themselves:
+      // red when something is missed, amber when something is late or closing, and NO dot when
+      // the day is simply open. It used to be amber whenever anything was left, i.e. all day.
+      // Other roles' FABs are plain. Glyph never changes.
       let dot = '';
       if (nav === 'athlete') {
         try {
           const e = S.exec;
-          dot = e.celebration ? '' : `<span class="fab-dot ${e.overdue.length ? 'red' : 'gold'}"></span>`;
+          const items = e.celebration ? [] : (e.items || []).filter((i) => i.required);
+          const hue = items.some((i) => i.color === 'red') ? 'red' : items.some((i) => i.color === 'gold') ? 'gold' : '';
+          dot = hue ? `<span class="fab-dot ${hue}"></span>` : '';
         } catch { /* pre-auth render — no dot */ }
       }
       // WHERE THE ATHLETE FAB GOES (2026-09-07 audit). It wears a camera and is labelled "Log a

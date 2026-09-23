@@ -265,13 +265,15 @@ function nutritionSummary() {
   });
   const cells = [];
   if (rem.kcal != null) cells.push([String(rem.kcal), 'Calories left']);
-  if (rem.protein != null) cells.push([`${rem.protein}g`, 'Protein left']);
+  // A met protein target is a fact, not "0g left" (audit 2026-09-22): the same words the meal
+  // page's day bars already use. The third slot marks the cell as a met target.
+  if (rem.protein != null) cells.push(rem.protein > 0 ? [`${rem.protein}g`, 'Protein left'] : ['Met', 'Protein', true]);
   const eyebrow = `<h2 class="eyebrow">What's left <span class="link" data-go="plan/nutrition">Targets</span></h2>`;
   // A lone tile stretches to the full width and turns one number into the biggest object on the
   // tab. Below two, it is a sentence.
   if (cells.length < 2) {
     const line = cells.length
-      ? `<b>${cells[0][0]}</b> ${cells[0][1].toLowerCase()} today.`
+      ? (cells[0][2] ? 'Protein target met today.' : `<b>${cells[0][0]}</b> ${cells[0][1].toLowerCase()} today.`)
       : (PS.showMacros || PS.showCalories
         ? `No calorie or protein target set, so nothing is graded against a number.`
         : `Your plan tracks ${esc((S.trackedSignalLabels || []).join(' · ') || 'your check-in signals')} instead of numbers.`);
@@ -279,7 +281,9 @@ function nutritionSummary() {
   }
   return `${eyebrow}
   <div class="macro-row">
-    ${cells.map(([v, k]) => `<div class="macro"><div class="mv">${esc(v)}</div><div class="mk">${esc(k)}</div></div>`).join('')}
+    ${cells.map(([v, k, met]) => met
+      ? `<div class="macro met"><div class="mv">${icon('check', 22)}</div><div class="mk">${esc(k)} met</div></div>`
+      : `<div class="macro"><div class="mv">${esc(v)}</div><div class="mk">${esc(k)}</div></div>`).join('')}
   </div>`;
 }
 
@@ -382,7 +386,7 @@ function usualsSection() {
   if (items === null) return ''; // not loaded — show nothing rather than a false empty state
   const sug = suggestionCard();
   if (!items.length) {
-    return `<h2 class="eyebrow">Your usual meals</h2>${sug}
+    return `<h2 class="eyebrow">Food Memory</h2>${sug}
     ${sug ? '' : `<div class="pl-standard" style="margin-top:0">Log like normal. When a meal repeats, OnStandard offers to remember it, then it's one tap to log.
       <span class="link" data-go="memory-edit/new" style="cursor:pointer">Add one yourself</span></div>`}`;
   }
@@ -393,7 +397,7 @@ function usualsSection() {
   });
   const top = rankForRemaining(items, rem, 3).map((r) => r.item);
   return `
-  <h2 class="eyebrow">Your usual meals${items.length > top.length ? ` <span class="link" data-go="plan/memory">See all ${items.length}</span>` : ''}</h2>
+  <h2 class="eyebrow">Food Memory${items.length > top.length ? ` <span class="link" data-go="plan/memory">See all ${items.length}</span>` : ''}</h2>
   ${sug}
   <div class="pl-list">${top.map((it) => itemRow(it)).join('')}</div>`;
 }
@@ -866,6 +870,8 @@ export default {
     // Food Memory with its own label half under the mask reads as a rendering fault.
     const strip = root.querySelector('.ptabs');
     const on = strip && strip.querySelector('.pt.on');
+    // The edge fade is a "there is more" signal, so it only exists when there is (screens.css .over).
+    if (strip) strip.classList.toggle('over', strip.scrollWidth > strip.clientWidth + 1);
     if (strip && on && strip.scrollWidth > strip.clientWidth) {
       // Measure in the SCROLLER's frame. offsetLeft is relative to the offsetParent (the screen,
       // which carries the 20px page gutter), so comparing it to scrollLeft put every tab 20px to

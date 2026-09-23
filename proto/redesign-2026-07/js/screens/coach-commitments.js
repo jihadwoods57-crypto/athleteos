@@ -15,6 +15,7 @@ import { DAYS_SHORT } from '../fmt-date.js';
 import { track, EVENTS } from '../analytics.js';
 import { backHead, esc, errorState, skeletonRows, segBar, emptyState } from '../components.js';
 import { CD, bookId } from '../coach-data.js';
+import { statusColor } from '../status.js';
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 // The shared no-book trio (coach-connected.js): kick the book without forcing, the honest
 // "can't reach / no book yet / loading" screen for a book-less landing, and the Retry that
@@ -82,7 +83,7 @@ export function commitmentBoardCard() {
       <div class="ts" style="padding-bottom:10px">${esc(ctx)}</div>
       ${segBar(c.responded, c.total, `${c.responded} of ${c.total} responded`)}
       <div style="display:flex;align-items:baseline;gap:10px;padding-top:8px">
-        <div style="font-size:var(--t-2xl);font-weight:800;letter-spacing:-.02em;color:${allIn ? 'var(--green-bright)' : 'var(--text)'}">
+        <div style="font-size:var(--t-2xl);font-weight:800;letter-spacing:-.02em;color:${allIn ? statusColor({ key: 'on_standard' }) : 'var(--text)'}">
           ${c.responded} of ${c.total}</div>
         <div style="font-size:var(--t-sm);font-weight:700;color:var(--text-2)">in</div>
         <div style="flex:1"></div>
@@ -539,7 +540,7 @@ function wakeupBoard(inst, back) {
   </div>
   <section class="card rows">${attention.map((r) => wakeupRow(r, rowKind(r), inst, clock, phase)).join('')}</section>
   ${out && phase !== 'closed' && phase !== 'before' ? `
-  <button class="btn" id="vc-remind" data-inst="${esc(inst.instance_id)}">${icon('bell', 18)} Ping ${out} ${outLabel === 'Pending' ? 'pending' : 'still out'}</button>
+  <button class="btn primary" id="vc-remind" data-inst="${esc(inst.instance_id)}">${icon('bell', 18)} Ping ${out} ${outLabel === 'Pending' ? 'pending' : 'still out'}</button>
   <div class="wk-pinghint" id="wk-ping-hint">Only who’s still out gets it, with their own I’M UP button. One ping every ten minutes.</div>` : ''}` : ''}
 
   ${setup && !skipped && (attention.length + settled.length) ? `
@@ -716,7 +717,7 @@ export const coachCommitments = {
     <h2 class="eyebrow">Still waiting on ${missing.length}</h2>
     <section class="card" role="list" style="padding:2px 16px">${missing.map((r) => athleteRow(r)).join('')}</section>
     <div style="height:10px"></div>
-    <button class="btn" id="vc-remind" style="width:100%">${icon('bell', 18)} Remind ${missing.length} missing ${missing.length === 1 ? CD.noun : CD.nouns}</button>
+    <button class="btn primary" id="vc-remind" style="width:100%">${icon('bell', 18)} Remind ${missing.length} missing ${missing.length === 1 ? CD.noun : CD.nouns}</button>
     <div class="ts" style="text-align:center;padding-top:8px">Only these ${missing.length} get the reminder. Nobody who already responded is pinged.</div>
     ` : `
     <div class="sidebox" style="margin-top:12px">

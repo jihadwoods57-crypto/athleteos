@@ -4,19 +4,39 @@
    excused > overdue > needs_review > below_standard > due_soon > no_activity > on_standard.
    Every input is real data (day row, resolved requirement windows, exception rows) —
    an unknown score/window degrades to the safest honest answer, never an invented one. */
-import { ON_STANDARD } from './score-band.js';
+import { ON_STANDARD, tierColor, tierFor } from './score-band.js';
 
 /** @type {Record<string, { label: string, color: string }>} */
 export const STATUS_META = {
   excused:        { label: 'Excused',        color: 'var(--text-3)' },
   overdue:        { label: 'Overdue',        color: 'var(--red)' },
   needs_review:   { label: 'Needs review',   color: 'var(--amber-bright)' },
-  below_standard: { label: 'Below standard', color: 'var(--red)' },
+  // Amber, not red (2026-09-22). Red means MISSED (overdue, nothing logged). An athlete who
+  // logged every meal and scored 79 is below the bar, not absent, and was painted exactly like
+  // one who logged nothing. Where a score is known, statusColor() narrows this to the tier.
+  below_standard: { label: 'Below standard', color: 'var(--amber-bright)' },
   due_soon:       { label: 'Due soon',       color: 'var(--amber-bright)' },
   no_activity:    { label: 'No activity',    color: 'var(--text-3)' },
   on_standard:    { label: 'On standard',    color: 'var(--green-bright)' },
 };
 const DUE_SOON_MIN = 60;
+
+/** The colour a status dot wears. Score-shaped statuses (below / on standard) take the score's
+ *  TIER colour, so the dot, the number and the band header on one roster row agree. */
+export function statusColor(status, score) {
+  const key = status && status.key;
+  const meta = STATUS_META[key];
+  if ((key === 'below_standard' || key === 'on_standard') && score != null) return tierColor(score);
+  return meta ? meta.color : 'var(--text-3)';
+}
+
+/** The words for a status. A below-standard day says its tier ("Building", "Off Standard"),
+ *  the name the athlete reads on their own Home, instead of a third vocabulary. */
+export function statusLabel(status, score) {
+  const key = status && status.key;
+  if (key === 'below_standard' && score != null) return tierFor(score).name;
+  return STATUS_META[key] ? STATUS_META[key].label : '';
+}
 
 /** Pure mirror of requirements.js `runsToday` — status.js stays free of app-state imports (no
  *  DOM, no fetch; only the leaf score-band.js), so the schedule semantics are reproduced here

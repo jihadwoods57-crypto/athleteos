@@ -84,7 +84,8 @@ export const coachAnnounce = {
     return `
     ${backHead('Announcement', 'Lands in every selected athlete’s feed', 'coach-create')}
 
-    ${target ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px 8px">Sending to <b style="color:var(--text)">${esc(target.name)}</b> only.</div>` : ''}
+    ${/* The one-athlete target line is a status, written by sayStatus in mount (2026-09-22). */''}
+    ${target ? `<div id="an-target" class="an-target" data-name="${esc(target.name)}"></div>` : ''}
 
     <h2 class="eyebrow">Who</h2>
     <div class="chip-row" id="an-who" role="radiogroup" aria-label="Who">
@@ -104,13 +105,20 @@ export const coachAnnounce = {
 
     <div style="height:16px"></div>
     ${ARM ? `
-    <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);text-align:center;margin-bottom:8px">They get this in their feed and on their phone. It can't be recalled.</div>
-    <div style="display:flex;gap:8px">
-      <button class="btn ghost" id="an-cancel" style="flex:1">Cancel</button>
-      <button class="btn" id="an-send" style="flex:1.4">${icon('share', 18)} ${armCount ? `Send to ${armCount} athlete${armCount === 1 ? '' : 's'} now` : 'Send now'}</button>
+    ${/* ARMED reads as the point of no return (2026-09-22): the plain .btn it used to be looked
+          exactly like the unarmed button, so the second, irreversible tap had no visual weight.
+          It is the primary in a framed confirm with the count and the can't-be-recalled line;
+          Cancel is the quiet way out. The unarmed send is the primary too: it is the one action
+          the screen exists for. */''}
+    <div class="an-arm" role="group" aria-label="Confirm the send">
+      <div class="an-arm-t">${icon('alert', 16)} They get this in their feed and on their phone. It can't be recalled.</div>
+      <div class="an-arm-acts">
+        <button class="btn ghost" id="an-cancel">Cancel</button>
+        <button class="btn primary" id="an-send">${icon('share', 18)} ${armCount ? `Send to ${armCount} athlete${armCount === 1 ? '' : 's'} now` : 'Send now'}</button>
+      </div>
     </div>` : `
-    <button class="btn" id="an-send">${icon('share', 18)} ${sendLabel}</button>`}
-    <div id="an-status" style="text-align:center;font-size:12.5px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:8px"></div>
+    <button class="btn primary" id="an-send">${icon('share', 18)} ${sendLabel}</button>`}
+    <div id="an-status" class="an-status"></div>
 
     <h2 class="eyebrow" style="margin-top:18px">Recent announcements</h2>
     ${(HIST && HIST.teamId === teamId && HIST.offline) ? errorState({ title: "Couldn't load history", body: 'Your sent announcements are safe. Reconnect to see them.', retryId: 'an-hist-retry' }) : histRows === null ? skeletonRows(2, 'Loading announcements') : histRows.length ? `
@@ -121,7 +129,7 @@ export const coachAnnounce = {
         <div class="lm"><div class="lt">${esc(a.title)}</div><div class="ls">${esc(audienceLabel(a.scope_kind, a.scope_value, groups))} · ${esc(fmtWhen(a.created_at, Date.now()))}${a.sent_count != null ? ` · Reached ${a.sent_count}` : ''}</div></div>
       </div>`).join('')}
     </section>` : `
-    <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:0 2px">Nothing sent yet. Your first one shows up here.</div>`}
+    <div class="an-none">Nothing sent yet. Your first one shows up here.</div>`}
     <div style="height:10px"></div>
     `;
   },
@@ -139,6 +147,8 @@ export const coachAnnounce = {
       const el = root.querySelector('#an-status');
       if (el) sayStatus(el, msg, { error: !!isErr });
     };
+    const tgt = root.querySelector('#an-target');
+    if (tgt) sayStatus(tgt, `Sending to ${tgt.getAttribute('data-name') || 'this athlete'} only.`);
     const keep = () => {
       ANN.title = (root.querySelector('#an-title') || {}).value || '';
       ANN.body = (root.querySelector('#an-body') || {}).value || '';

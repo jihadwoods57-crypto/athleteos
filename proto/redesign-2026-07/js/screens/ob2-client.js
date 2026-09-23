@@ -89,7 +89,7 @@ const steps = [
         <div class="h-note">Retelling your week from memory isn&rsquo;t accountability. It&rsquo;s a story, and stories flatter.</div>
       </div>` },
 
-  { id: 'answer', ch: 0, cta: 'Show me',
+  { id: 'answer', ch: 0, cta: 'Continue',
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">OnStandard&rsquo;s answer</div>
@@ -98,7 +98,7 @@ const steps = [
         <div class="h-note">No food diary. No retelling. One photo per meal is the whole job.</div>
       </div>` },
 
-  { id: 'name', ch: 0, cta: 'Next',
+  { id: 'name', ch: 0, cta: 'Continue',
     title: () => 'Start with the basics',
     sub: () => 'This is how your trainer will recognize you.',
     body: (o) => `
@@ -120,7 +120,7 @@ const steps = [
       sync();
     } },
 
-  { id: 'goal', ch: 0, cta: 'Next',
+  { id: 'goal', ch: 0, cta: 'Continue',
     title: () => 'What are we fixing?',
     sub: () => 'This picks how your nutrition gets scored. Honest either way.',
     /* Same goal values the legacy client-ob captured: lose / maintain / build / health. */
@@ -134,7 +134,7 @@ const steps = [
   // trainer confirms/adjusts a style, THAT wins (act.setPlanStyle / resolvePlanStyle).
   structureStep({ mode: 'propose' }),
 
-  { id: 'trainer-status', ch: 0, cta: 'Next',
+  { id: 'trainer-status', ch: 0, cta: 'Continue',
     title: () => 'Do you work with a trainer?',
     sub: () => 'This shapes how OnStandard shows up for you.',
     body: () => choiceGrid('trainerStatus', [
@@ -143,7 +143,7 @@ const steps = [
       { v: 'never', t: 'Never worked with one', s: 'The AI holds the line until you do', ic: 'user' },
     ]) },
 
-  { id: 'sessions', ch: 0, cta: 'Next',
+  { id: 'sessions', ch: 0, cta: 'Continue',
     title: () => 'How many training sessions a week?',
     sub: () => 'With a trainer or on your own, count them all.',
     body: () => chipRow('sessionsPerWeek', [
@@ -151,7 +151,7 @@ const steps = [
       { v: 'none', t: 'None right now' },
     ]) },
 
-  { id: 'between', ch: 0, cta: 'Next',
+  { id: 'between', ch: 0, cta: 'Continue',
     title: () => 'What actually happens between sessions?',
     sub: () => 'Pick everything that sounds familiar. No judgment; this is the part we fix.',
     body: () => chipRow('betweenSessions', [
@@ -161,14 +161,14 @@ const steps = [
       { v: 'prove', t: 'I eat fine, I just can’t prove it' },
     ], { multi: true }) },
 
-  { id: 'acct-rate', ch: 0, cta: 'Next',
+  { id: 'acct-rate', ch: 0, cta: 'Continue',
     title: () => 'How strong is your accountability right now?',
     sub: () => 'The thing that catches you when motivation dips. Rate it honestly; nobody else is grading this.',
     body: () => scale10('accountabilityRating', { lo: 'Nothing catches me', hi: 'Someone always notices' }) },
 
   /* ==================== ch1 · See it ==================== */
 
-  { id: 'aha', ch: 1, cta: 'See it work',
+  { id: 'aha', ch: 1, cta: 'Continue',
     title: () => 'Here’s your real math.',
     body: (o) => {
       const r = Number(o.accountabilityRating) || 0;
@@ -188,7 +188,7 @@ const steps = [
 
   /* ==================== ch2 · Your plan ==================== */
 
-  { id: 'plan', ch: 2, cta: 'One more thing',
+  { id: 'plan', ch: 2, cta: 'Continue',
     title: () => 'Your system, built from your answers',
     body: (o) => {
       const goal = GOALS[o.goal];
@@ -216,7 +216,7 @@ const steps = [
         </div>`)}`;
     } },
 
-  { id: 'habit', ch: 2, cta: 'I can do that',
+  { id: 'habit', ch: 2, cta: 'Continue',
     body: () => `
       <div class="ob2-habit" style="padding-top:56px">
         <div class="hb">Before your first bite, <span class="accent">take one photo.</span></div>
@@ -225,7 +225,7 @@ const steps = [
 
   /* ==================== ch3 · Commit ==================== */
 
-  { id: 'commit-q', ch: 3, cta: 'Next',
+  { id: 'commit-q', ch: 3, cta: 'Continue',
     title: () => 'How accountable do you want to be held?',
     sub: () => 'This sets your reminder intensity and how misses are handled. You can change it any time.',
     body: () => choiceGrid('pressure', [
@@ -247,7 +247,7 @@ const steps = [
           ${row('target', 'The goal', goal ? `Every meal scored against ${goal}` : 'Every meal scored against your goal')}
           ${row('bell', 'The pressure', p ? `${p[0]} · ${p[1]}` : 'Set on the last screen; change it any time')}
         </div>`)}
-        <div class="ob-foot" style="margin-top:auto">
+        <div class="ob-foot ob-foot-push">
           ${committed ? commitContinue() : commitButton(false)}
         </div>`;
     },
@@ -345,7 +345,7 @@ const steps = [
      flow does but shipped with NO dob step, so the obf door skipped the 13+ check the oba
      door enforces. Same mechanics as oba/dob: COPPA scrub on the blocked step, future dates
      and bad dates treated as typos, not blocks. */
-  { id: 'dob', ch: 4, cta: 'Next',
+  { id: 'dob', ch: 4, cta: 'Continue',
     next: (o) => {
       if (o.dobBlocked) return 'blocked';
       if (RT.userId) return paywallVariant('client') === 'trainer_covered' ? 'covered' : 'plans';

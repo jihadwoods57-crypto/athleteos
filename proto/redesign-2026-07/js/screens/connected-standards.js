@@ -186,15 +186,28 @@ export default {
 
     ${ruleCard(row)}
 
-    ${canManual ? `<section class="card pad">
-      <h2 class="cs-eyebrow" style="margin-bottom:8px">WATCH NOT SYNCING?</h2>
-      <div class="cs-p muted" style="margin-bottom:10px">Log it yourself. ${row.manual_requires_approval
+    ${canManual ? (() => {
+      /* Open only when the watch is actually not counting (no access, or a partial sync). While a
+         verified count is live and climbing, a one-tap "I did this" sitting open under it read as
+         the easier way to finish, so it folds into a disclosure: still one tap away for the day
+         the watch really misses a workout, no longer the loudest thing under the number
+         (2026-09-22). Same ids, same handler. */
+      const body = `<div class="cs-p muted cs-manual-p">Log it yourself. ${row.manual_requires_approval
         ? 'Your coach reviews manual entries before they count.'
         : 'It’s recorded as reported rather than verified. Nobody assumes you’re being dishonest.'}</div>
-      <input class="input" id="cs-note" aria-label="Anything your coach should know" aria-describedby="cs-manual-err" maxlength="200" placeholder="Anything your coach should know (optional)">
-      <button class="btn" id="cs-manual" style="margin-top:10px">I did this</button>
-      <div id="cs-manual-err" role="status" class="cs-p cs-err"></div>
-    </section>` : ''}
+      <input class="input" id="cs-note" aria-label="Anything your coach should know" aria-describedby="cs-manual-err" maxlength="200" placeholder="Note for your coach (optional)">
+      <button class="btn cs-manual-btn" id="cs-manual">I did this</button>
+      <div id="cs-manual-err" role="status" class="cs-p cs-err"></div>`;
+      return geo.state === 'unknown' || geo.state === 'partial'
+        ? `<section class="card pad">
+      <h2 class="cs-eyebrow cs-manual-h">WATCH NOT SYNCING?</h2>
+      ${body}
+    </section>`
+        : `<details class="card pad xcollapse cs-manual">
+      <summary class="xsum"><span class="cs-eyebrow">WATCH MISSED SOMETHING?</span><span class="xchev">${icon('chevron', 14)}</span></summary>
+      <div class="xcollapse-body cs-manual-body">${body}</div>
+    </details>`;
+    })() : ''}
 
     ${row.manual_submitted_at ? `<section class="card pad">
       <h2 class="cs-eyebrow" style="margin-bottom:6px">YOU REPORTED THIS</h2>
@@ -334,19 +347,25 @@ export const connectedStandardsList = {
       icon: 'target',
       title: 'Nothing assigned right now',
       body: 'When your coach sets an activity standard, it shows up here and on your Home screen.',
+      compact: true,
     }))}
     <h2 class="xgrp">Personal</h2>
     ${personal.length ? `<section class="card rows">${personal.map((r) => standardRow(r, today)).join('')}</section>` : ''}
     ${resting.length ? `<section class="card rows">${resting.map(defRow).join('')}</section>` : ''}
+    ${/* The empty state carries its own action (DESIGN.md: an empty state teaches AND acts); the
+          free-standing button under it only renders once there is a list to add to, so the
+          empty screen no longer has a card with no button and a button with no card. */''}
     ${!personal.length && !resting.length ? emptyState({
       icon: 'bolt',
       title: 'Set your own target',
       body: 'Steps, distance, workouts or active minutes, checked against your watch, and yours alone.',
+      action: { go: 'connected-standard-edit', label: 'Set a personal standard' },
+      compact: true,
     }) : ''}
     <div id="cs-connect-slot"></div>
-    <div style="padding:12px 20px">
+    ${personal.length || resting.length ? `<div style="padding:12px 20px">
       <button class="btn" id="cs-new">Set a personal standard</button>
-    </div>
+    </div>` : ''}
     <div style="height:20px"></div>`;
   },
   mount(root) {

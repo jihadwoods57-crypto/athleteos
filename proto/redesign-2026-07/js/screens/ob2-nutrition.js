@@ -156,7 +156,7 @@ const steps = [
     ),
   },
   {
-    id: 'answer', ch: 0, cta: 'Show me',
+    id: 'answer', ch: 0, cta: 'Continue',
     body: () => hero(
       'The OnStandard answer',
       `AI does the first read. <span class="accent">You make the call.</span>`,
@@ -164,7 +164,7 @@ const steps = [
     ),
   },
   {
-    id: 'name', ch: 0, cta: 'Next',
+    id: 'name', ch: 0, cta: 'Continue',
     title: () => 'You, the professional.',
     sub: () => 'Clients see this name on every review you sign off.',
     body: (o) => `
@@ -192,13 +192,13 @@ const steps = [
     },
   },
   {
-    id: 'clients', ch: 0, cta: 'Next',
+    id: 'clients', ch: 0, cta: 'Continue',
     title: () => 'How many clients do you carry?',
     sub: () => 'Everyone whose food you’re expected to have eyes on.',
     body: () => chipRow('clientCount', CLIENT_BANDS.map((b) => ({ v: b.v, t: b.t }))),
   },
   {
-    id: 'practice-type', ch: 0, cta: 'Next',
+    id: 'practice-type', ch: 0, cta: 'Continue',
     title: () => 'What kind of practice?',
     sub: () => 'This shapes how your queue and client codes are set up.',
     body: () => choiceGrid('practiceType', [
@@ -208,7 +208,7 @@ const steps = [
     ]),
   },
   {
-    id: 'workflow', ch: 0, cta: 'Next',
+    id: 'workflow', ch: 0, cta: 'Continue',
     title: () => 'Where do meal reviews live today?',
     sub: () => 'However it works now, honestly.',
     body: () => choiceGrid('currentWorkflow', [
@@ -219,7 +219,7 @@ const steps = [
     ]),
   },
   {
-    id: 'review-hours', ch: 0, cta: 'Next',
+    id: 'review-hours', ch: 0, cta: 'Continue',
     title: () => 'Hours a week spent reviewing food logs?',
     sub: () => 'Reading, judging, and writing back: the whole loop.',
     body: () => chipRow('reviewHours', [
@@ -227,7 +227,7 @@ const steps = [
     ]),
   },
   {
-    id: 'slips', ch: 0, cta: 'Next',
+    id: 'slips', ch: 0, cta: 'Continue',
     title: () => 'Where do clients slip between check-ins?',
     sub: () => 'Pick everything you keep catching too late.',
     body: () => chipRow('slips', [
@@ -241,7 +241,7 @@ const steps = [
 
   /* ================= ch1 · See it ================= */
   {
-    id: 'aha', ch: 1, cta: 'Show me the queue',
+    id: 'aha', ch: 1, cta: 'Continue',
     title: () => 'Your reading load, honestly.',
     body: (o) => {
       const b = bandOf(o);
@@ -260,7 +260,7 @@ const steps = [
     },
   },
   {
-    id: 'queue', ch: 1, cta: 'Open one',
+    id: 'queue', ch: 1, cta: 'Continue',
     title: () => 'Monday, 8:04 am.',
     sub: () => 'Every entry already read, scored, and sorted: lowest scores and quiet clients float to the top.',
     body: () => `
@@ -284,7 +284,7 @@ const steps = [
     },
   },
   {
-    id: 'meal-open', ch: 1, cta: 'The read isn’t perfect. Fix it',
+    id: 'meal-open', ch: 1, cta: 'Continue',
     title: () => 'Devon’s dinner, pre-analyzed.',
     sub: () => 'Foods, portions, macros, and a quality read, done before you opened it.',
     body: () => `
@@ -297,7 +297,7 @@ const steps = [
         <div class="ob2-scan-note" style="text-align:left;margin-top:10px">AI quality read: ${esc(String(SAMPLE_MEAL.quality))}/100. Strong protein anchor, no vegetable on the plate. Scored low enough to surface near the top of your queue.</div>`)}`,
   },
   {
-    id: 'correct', ch: 1, cta: 'Sign off',
+    id: 'correct', ch: 1, cta: 'Continue',
     title: () => 'Correct the read.',
     sub: () => 'Your correction becomes part of the client’s record. The AI’s first read is a draft, your sign-off is the truth.',
     body: () => `
@@ -332,7 +332,7 @@ const steps = [
     },
   },
   {
-    id: 'feedback', ch: 1, cta: 'Send it forward',
+    id: 'feedback', ch: 1, cta: 'Continue',
     title: () => 'Feedback, in your voice.',
     sub: () => 'The AI drafts from the analysis and your correction. You edit, and it sends under your name, not the machine’s.',
     body: (o) => {
@@ -346,7 +346,7 @@ const steps = [
     },
   },
   {
-    id: 'trends', ch: 1, cta: 'Next',
+    id: 'trends', ch: 1, cta: 'Continue',
     title: () => 'The week, per client.',
     sub: () => 'Protein consistency across seven days. Drift is visible before the client feels it.',
     body: () => `
@@ -359,7 +359,7 @@ const steps = [
       <div class="ob2-scan-note">Sam’s slide took four seconds to spot. In a food diary it takes four scrolls per client, if you look at all.</div>`,
   },
   {
-    id: 'flag', ch: 1, cta: 'Next',
+    id: 'flag', ch: 1, cta: 'Continue',
     title: () => 'Flag it. Move on.',
     sub: () => 'Tap the flag on anything that needs a human follow-up. Your Monday starts with the flags, not the firehose.',
     body: () => `
@@ -398,7 +398,7 @@ const steps = [
     },
   },
   {
-    id: 'collab', ch: 1, cta: 'That’s the loop',
+    id: 'collab', ch: 1, cta: 'Continue',
     title: () => 'The whole circle, one thread.',
     sub: () => 'Athletes with a coach already live in a shared thread. Your read lands right inside it.',
     body: () => `
@@ -412,7 +412,7 @@ const steps = [
 
   /* ================= ch2 · Your plan ================= */
   {
-    id: 'plan', ch: 2, cta: 'Set my standard',
+    id: 'plan', ch: 2, cta: 'Continue',
     title: () => 'Your practice, systematized.',
     sub: () => 'Built from what you told us.',
     body: (o) => {
@@ -441,7 +441,7 @@ const steps = [
 
   /* ================= ch3 · Commit ================= */
   {
-    id: 'commit-q', ch: 3, cta: 'Next',
+    id: 'commit-q', ch: 3, cta: 'Continue',
     title: () => 'How should your review day run?',
     sub: () => 'This sets your queue’s default sort and what the AI handles alone. Change it anytime.',
     body: () => choiceGrid('reviewMode', [
@@ -458,7 +458,7 @@ const steps = [
       const committed = !!o.committedAt;
       return `
       <div class="ob2-gap-verdict" style="margin-top:4px">Every client meal gets a first read within minutes. <b>${esc(mode)}</b> Nothing reaches a client’s record without your sign-off.</div>
-      <div class="ob-foot" style="margin-top:auto">
+      <div class="ob-foot ob-foot-push">
         ${committed ? commitContinue() : commitButton(false)}
       </div>`;
     },

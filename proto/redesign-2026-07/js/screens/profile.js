@@ -21,6 +21,7 @@ export default {
     const t = S.pass;
     const a = S.athlete;
     const e = S.exec || {};
+    const scored = !S.notYetScored && e.score != null;
     // THE HERO (founder 2026-09-15: "improve the player profile design but not complicate it.
     // Include their profile picture"). The person leads: a large photo with the camera badge
     // on it, the name, the one line that places them, and three facts they earned. Everything
@@ -39,10 +40,15 @@ export default {
         <div class="pf-name">${esc(a.name)}</div>
         ${placeLine}
       </div>
+      ${/* Nothing scored yet (the activation day, or no score at all) reads the way Home's ring
+            reads it: a dash and a muted "Not scored yet". tierFor(0) is "Off Standard" in red,
+            which told a brand-new athlete they had failed before logging anything (2026-09-22).
+            A real score wears its tier colour on BOTH facts, the number and the word, so the
+            two can never disagree (lead ruling 2026-09-22: numbers wear the tier). */''}
       <div class="pf-stats">
         <button type="button" class="pf-stat" data-go="streak"><b>${S.streakDays}</b><small>day streak</small></button>
-        <button type="button" class="pf-stat" data-go="score-breakdown"><b>${e.score != null ? e.score : '–'}</b><small>today</small></button>
-        <button type="button" class="pf-stat" data-go="score-explained"><b class="${esc(S.tier.cls || '')}">${esc(S.tier.name || '–')}</b><small>standing</small></button>
+        <button type="button" class="pf-stat" data-go="score-breakdown"><b class="${scored ? esc(S.tier.cls || '') : 'muted'}">${scored ? e.score : '–'}</b><small>today</small></button>
+        <button type="button" class="pf-stat" data-go="score-explained"><b class="${scored ? esc(S.tier.cls || '') : 'muted pf-stat-word'}">${scored ? esc(S.tier.name || '–') : 'Not scored yet'}</b><small>standing</small></button>
       </div>
       <button class="btn ghost sm pf-edit" data-go="edit-profile">Edit profile</button>
     </section>`;
@@ -52,16 +58,13 @@ export default {
     <h2 class="eyebrow">${coachNoun} Connection</h2>
     <section class="card rows">
       ${/* The person you answer to, with their real face (hydrated by uid like every thread
-            avatar), and the row IS the door to what they can see. It used to be a dead row with
-            a separate "View connection" beneath it: two rows, one fact. */''}
-      <div class="lrow" data-go="privacy">
-        <div class="lic pf-coach-av"${S.coach.id ? ` data-avatar-uid="${esc(S.coach.id)}"` : ''}><span data-avatar-fallback>${esc(S.coach.initials)}</span></div>
-        <div class="lm"><div class="lt">${esc(S.coach.name)}</div><div class="ls">${esc([S.coach.role, S.coach.team].filter(Boolean).join(' · '))} · what they can see</div></div>
-        ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
+            avatar). ONE row: it opens the conversation with them. It used to open Privacy
+            ("what they can see") with a separate Messages row beneath it, which made Privacy a
+            second door on this screen (Support & legal has the one) and the coach two rows.
+            What they can see is the first row on the Privacy screen. (IA dedupe 2026-09-22) */''}
       <div class="lrow" data-go="messages">
-        <div class="lic">${icon('message', 17)}</div>
-        <div class="lm"><div class="lt">Messages</div><div class="ls">${esc(S.coach.name)}'s comments land on your meals</div></div>
+        <div class="lic pf-coach-av"${S.coach.id ? ` data-avatar-uid="${esc(S.coach.id)}"` : ''}><span data-avatar-fallback>${esc(S.coach.initials)}</span></div>
+        <div class="lm"><div class="lt">${esc(S.coach.name)}</div><div class="ls">${esc([S.coach.role, S.coach.team].filter(Boolean).join(' · '))} · messages</div></div>
         ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
     </section>` : `
@@ -95,39 +98,48 @@ export default {
     ${trust}
     ${coach}
 
+    ${/* ONE door per destination (IA dedupe 2026-09-22). Edit profile is the hero's button (the
+          "Personal details" row opened the same screen); Plan style and Apple Health live here and
+          left App settings; the history row carries the title of the screen it opens (as Progress does); the settings row
+          carries the title of the screen it opens. The discipline record is part of Verified
+          Profile (verified-profile.js header), so its old separate row is gone and #recruiting
+          routes there. */''}
     <h2 class="eyebrow">Account</h2>
     <section class="card rows">
-      ${row('edit-profile', 'user', 'Personal details', 'Name, sport, position, school')}
       <div class="lrow" data-go="account">
         <div class="lic">${icon('lock', 17)}</div>
         <div class="lm"><div class="lt">Sign-in &amp; email</div><div class="ls">${esc(RT.email || 'Password, email address')}</div></div>
         ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
-      ${row('settings', 'gear', 'Preferences', 'Units, appearance, Face ID, app tour')}
-      ${row('billing', 'bolt', 'Plan &amp; billing', 'Your membership &amp; premium features', ' pf-lic-green')}
-      ${row('invite-parent', 'users', 'Invite a parent', 'Let a parent see your score &amp; streak')}
+      ${row('billing', 'bolt', 'Plan &amp; billing', 'Your membership &amp; premium features')}
+      ${row('invite-parent', 'users', 'Invite a parent', 'Let a parent see your score and your week')}
+      ${row('settings', 'gear', 'App settings', 'Appearance, notifications, Face ID')}
     </section>
 
     <h2 class="eyebrow">Tracking</h2>
     <section class="card rows">
       ${row('plan-style', 'target', 'Plan style', `${esc(S.planStyle.name)} · ${S.planStyle.canChoose ? 'yours to change' : esc(S.planStyle.sourceLabel)}`)}
-      ${row('apple-health', 'heart', 'Apple Health', 'Steps, workouts and sleep, from your phone')}
-      ${row('notif-settings', 'bell', 'Reminders', 'Tone, quiet hours')}
-      ${row('restrictions', 'bell', 'Food restrictions &amp; allergies', RT.allergies.length ? esc(RT.allergies.join(' · ')) : 'None declared', ' pf-lic-red')}
+      ${row('restrictions', 'shield', 'Food restrictions &amp; allergies', RT.allergies.length ? esc(RT.allergies.join(' · ')) : 'None declared')}
+      ${/* The phone's live answer under the row (moved here from App settings with the row). Profile
+            is in the boot bundle, so apple-health.js is imported lazily by mount() and the label is
+            patched in place; the static line is what shows for the beat before it lands. */''}
+      <div class="lrow" data-go="apple-health">
+        <div class="lic">${icon('heart', 17)}</div>
+        <div class="lm"><div class="lt">Apple Health</div><div class="ls" id="pf-hk-state">Steps, workouts and sleep, from your phone</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>
+      ${row('connected-standards', 'bolt', 'Activity standards', 'Steps, distance and workouts · verified from your device')}
     </section>
 
     <h2 class="eyebrow">Your record</h2>
     <section class="card rows">
-      ${row('history', 'clipboard', 'Activity history', 'The proof trail, day by day')}
-      ${row('connected-standards', 'bolt', 'Activity standards', 'Steps, distance and workouts · verified from your device', ' pf-lic-blue')}
+      ${row('history', 'clock', 'Activity history', 'The proof trail, day by day')}
       ${S.audience === 'client' && S.coach.kind === 'trainer' ? '' : `
-      ${row('recruiting', 'shield', 'Discipline record', S.coach.hasCoach ? 'Coach-verified · proof of the work' : 'Not verified yet · connect a coach to verify', S.coach.hasCoach ? ' pf-lic-green' : '')}
       <div class="lrow" data-go="verified-profile">
-        <div class="lic pf-lic-blue">${icon('share', 17)}</div>
-        <div class="lm"><div class="lt">Verified Profile</div><div class="ls">A public page recruiters can check</div></div>
+        <div class="lic">${icon('share', 17)}</div>
+        <div class="lm"><div class="lt">Verified Profile</div><div class="ls">Your public page and discipline record</div></div>
         ${icon('chevron', 17, 'class="chev-dim"')}
       </div>`}
-      ${row('score-explained', 'info', 'Score colors explained', 'What every tier and meal band means', ' pf-lic-blue')}
     </section>
 
     <h2 class="eyebrow">Support &amp; legal</h2>
@@ -146,7 +158,7 @@ export default {
       ${/* Two-tap confirm, wired in mount(): a single unguarded tap signed the athlete out, and
             on a shared phone that is one brush of a thumb. Disarms after ~5 seconds. */''}
       <div class="lrow" id="pf-signout" role="button" tabindex="0"><div class="lic">${icon('back', 17)}</div><div class="lm"><div class="lt">Sign out</div><div class="ls pf-hidden" id="pf-signout-sub">You'll need your password to get back in.</div></div></div>
-      <div class="lrow" data-go="delete-account"><div class="lic pf-lic-red-ink">${icon('trash', 17)}</div><div class="lm"><div class="lt pf-red">Delete account</div></div>${icon('chevron', 17, 'class="chev-dim"')}</div>
+      <div class="lrow" data-go="delete-account"><div class="lic lic-danger">${icon('trash', 17)}</div><div class="lm"><div class="lt pf-red">Delete account</div></div>${icon('chevron', 17, 'class="chev-dim"')}</div>
     </section>
 
     <div class="ac-tail"></div>
@@ -173,6 +185,13 @@ export default {
         armTimer = setTimeout(disarm, 5000);
       });
     }
+    // Apple Health row: the phone's live answer, patched in place when it arrives so a slow probe
+    // never re-renders the whole screen under a finger.
+    import('./apple-health.js').then(async ({ HK, probeHealth, hkLabel }) => {
+      if (!HK.probed) await probeHealth();
+      const el = root.querySelector('#pf-hk-state');
+      if (el && root.isConnected) el.textContent = hkLabel();
+    }).catch(() => {});
     // The photo control is the shared one (avatar-upload.js); the status line and Remove sit
     // under the name, inside the hero.
     wireAvatarUpload(root, { errHost: '.pf-hero .pf-id', hasLocalPhoto: !!S.athlete.avatar });

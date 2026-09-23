@@ -17,7 +17,7 @@
 import { icon } from '../icons.js';
 import { DAYS_LONG } from '../fmt-date.js';
 import { track, EVENTS } from '../analytics.js';
-import { backHead, esc, errorState } from '../components.js';
+import { backHead, esc, errorState, collapseSection } from '../components.js';
 import { initialsOf } from '../initials.js';
 import { RT } from '../state.js';
 import { CD, bookId, loadBook, bookKindFor } from '../coach-data.js';
@@ -191,6 +191,8 @@ const initials = (name) => initialsOf(name, '?');
 
 /* Signature of the board the screen last painted. See the loop note in mount(). */
 let BOARD_SIG = null;
+/* Whether the coach opened the folded "Met" list, so a live repaint does not snap it shut. */
+let CS_MET_OPEN = false;
 
 /* Direct entry — a relaunch restoring #coach-standards, or a typed link — reaches these mounts
    before any coach screen has fetched the book. bookId() is null then, and without this kick
@@ -272,6 +274,11 @@ export const coachStandards = {
       r.status !== 'awaiting_review' && !r.disputed_at);
     const flagged = new Set([...review, ...disputed, ...gaps]);
     const rest = rows.filter((r) => !flagged.has(r));
+    /* Met rows fold away (2026-09-22). Forty identical "Verified" rows made the board 9,600px
+       tall under three rows that needed the coach; the count above already says how many met.
+       Everything still in motion (in progress, reported, excused, missed) stays open. */
+    const met = rest.filter((r) => r.status === 'verified_complete');
+    const open = rest.filter((r) => r.status !== 'verified_complete');
 
     return `${backHead(inst.title || 'Activity standard', [
       inst.audience_label || (CD.kind === 'practice' ? 'All clients' : 'Entire team'),
@@ -326,9 +333,12 @@ export const coachStandards = {
       <div class="cs-p">A phone that never reported produces no evidence either way, so these leave the completion rate entirely rather than counting against the ${CD.noun}. Mark one missed only if you know the work wasn’t done.</div></div>
     </div>` : ''}
 
-    ${rest.length ? `
+    ${open.length ? `
     <h2 class="eyebrow">Roster</h2>
-    <section class="card" style="padding:2px 16px">${rest.map((r) => athleteRow(r, inst)).join('')}</section>` : ''}
+    <section class="card" style="padding:2px 16px">${open.map((r) => athleteRow(r, inst)).join('')}</section>` : ''}
+
+    ${met.length ? collapseSection('cs-met', 'Met', met.length,
+      `<section class="card co-list">${met.map((r) => athleteRow(r, inst)).join('')}</section>`, CS_MET_OPEN) : ''}
 
     <div class="cs-p" style="text-align:center;padding:14px 20px 24px">
       You see progress toward the target you set. Never anyone’s raw health data.
@@ -340,6 +350,8 @@ export const coachStandards = {
     // board it already holds even if the roster cache was since lost (a failed forced reload
     // elsewhere), and bailing here would leave that board's Approve buttons dead.
     if (!ensureBook() && !(CS.board || []).length) { wireBookRetry(root); return; }
+    const metFold = root.querySelector('details[data-sec="cs-met"]');
+    if (metFold) metFold.addEventListener('toggle', () => { CS_MET_OPEN = metFold.open; });
     const id = bookId();
     // ⚠ Repaint ONLY on a real change. __render() re-runs this mount, so an unconditional
     // refresh here is an infinite loop — and forcing the reload every pass never lets it settle.
@@ -560,7 +572,7 @@ export const coachStandardEdit = {
     </section>
 
     <div style="padding:12px 20px 0">
-      <button class="btn" id="cs-save">${d.id ? 'Save changes' : 'Set this standard'}</button>
+      <button class="btn primary" id="cs-save">${d.id ? 'Save changes' : 'Set this standard'}</button>
       ${d.id ? `<button class="btn ghost" id="cs-off" style="margin-top:8px">Turn this off</button>` : ''}
     </div>
     <div style="height:24px"></div>`;
@@ -704,7 +716,7 @@ export const coachStandardsManage = {
     // contract exists to prevent). Loading is the only honest word.
     : `<section class="card pad"><div class="cs-p">Loading your standards…</div></section>`}
     ${canSet() ? `<div style="padding:12px 20px">
-      <button class="btn" data-go="coach-standard-edit">Set a standard</button>
+      <button class="btn primary" data-go="coach-standard-edit">Set a standard</button>
     </div>` : ''}
     <div style="height:20px"></div>`;
   },

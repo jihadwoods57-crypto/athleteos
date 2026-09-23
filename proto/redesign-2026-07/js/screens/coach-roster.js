@@ -8,7 +8,7 @@ import { icon } from '../icons.js';
 import { avatarHead, esc, sparkline, errorState, skeletonRows } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, entriesFor, bookId } from '../coach-data.js';
-import { STATUS_META } from '../status.js';
+import { statusColor, statusLabel } from '../status.js';
 import { styleLabel } from '../plan-style.js';
 import { initialsOf } from '../initials.js';
 import { hydrateAvatars } from '../avatar.js';
@@ -30,6 +30,20 @@ function stylePill(style) {
   return `<span class="ros-style" title="${esc(l.name)} standard">${STYLE_LETTER[style] || '?'}</span>`;
 }
 
+/* Open the roster already filtered to a set of statuses (2026-09-22). Home's standing legend and
+   the Inbox's overdue rows both answer "how many"; this is where they show WHO. One status is the
+   ordinary status chip; several (Home's "need attention" adds up due soon, below standard and
+   needs review) become one preset chip named for the count the coach tapped, so the list and the
+   number match. Search and selection are cleared: a stale query would hide the very athletes the
+   coach was sent to see. */
+export function openRosterFiltered(keys, label) {
+  const list = (keys || []).filter(Boolean);
+  Q = ''; SELECTING = false; SEL.clear(); BULK_NUDGE_ARM = null; BULK_STATUS = '';
+  FILTER = list.length === 1 ? { kind: 'status', value: list[0] } : list.length ? { kind: 'statusSet', value: list.join(','), label: label || '' } : { kind: 'all', value: null };
+  const route = CD.kind === 'practice' || RT.authRole === 'trainer' ? 'trainer-roster' : 'coach-roster';
+  if (window.__go) window.__go(route); else location.hash = '#' + route;
+}
+
 /* nav:'operator'. Load whichever book the signed-in role owns (see coach-home.js). */
 const loadMyBook = (force) => loadBook(force, bookKindFor(RT.authRole));
 
@@ -40,7 +54,7 @@ const VOCAB = {
 };
 const vocab = () => VOCAB[CD.kind] || VOCAB.team;
 
-let Q = '', SORT = 'score', FILTER = { kind: 'all', value: null };
+let Q = '', SORT = 'score', FILTER = /** @type {{ kind: string, value: string | null, label?: string }} */ ({ kind: 'all', value: null });
 let SELECTING = false; const SEL = new Set();
 let SHOW_GROUPS = false, SHOW_ABSENCE = false, BULK_STATUS = '';
 let BULK_BUSY = false;
@@ -72,6 +86,7 @@ function applyView(entries) {
     list = list.filter(e => ids.has(e.row.athleteId));
   }
   if (FILTER.kind === 'status') list = list.filter(e => e.status.key === FILTER.value);
+  if (FILTER.kind === 'statusSet') { const keys = new Set(String(FILTER.value).split(',')); list = list.filter(e => keys.has(e.status.key)); }
   const by = {
     score: (a, b) => (b.row.score ?? -1) - (a.row.score ?? -1),
     status: (a, b) => STATUS_ORDER.indexOf(a.status.key) - STATUS_ORDER.indexOf(b.status.key),
@@ -81,14 +96,13 @@ function applyView(entries) {
   return [...list].sort(by[SORT] || by.score);
 }
 
-/* The dot's colour and the score's colour BOTH already say "on standard" and "below standard",
-   so repeating those two in words is noise. The other five statuses carry information neither
-   can — and note overdue and below_standard are the same red, so dropping labels wholesale
-   would merge them. */
+/* The dot's colour and the score's colour BOTH already say "on standard" and "below standard"
+   (statusColor gives both the score's tier hue), so repeating those two in words is noise. The
+   other five statuses carry information neither can, so they keep their label. */
 const REDUNDANT_STATUS = new Set(['on_standard', 'below_standard']);
 
 function rosterRow(e) {
-  const r = e.row, st = e.status, meta = STATUS_META[st.key];
+  const r = e.row, st = e.status;
   const sel = SEL.has(r.athleteId);
   // One calm status signal: a colored dot on the left. The label reads in quiet text-2,
   // not saturated body text — a roster full of red type reads as panic, not information.
@@ -100,7 +114,7 @@ function rosterRow(e) {
   // covers the ungrouped case, where the label is the only place the status appears.
   const sub = (bandsApply() || REDUNDANT_STATUS.has(st.key))
     ? activity
-    : `${esc(meta.label)} <span style="color:var(--text-3)">· ${activity}</span>`;
+    : `${esc(statusLabel(st, r.score))} <span style="color:var(--text-3)">· ${activity}</span>`;
   /* data-vt-row is what makes a re-sort READABLE. Without it the fourteen rows snap into a new
      order and the coach has to re-read the whole list to find out what moved; with it each row
      travels from its old position to its new one and the movement itself carries the answer. The
@@ -110,10 +124,12 @@ function rosterRow(e) {
   return `
   <div class="roster-row" data-vt-row="ath-${esc(r.athleteId)}" ${SELECTING
     ? `data-sel="${esc(r.athleteId)}" role="checkbox" aria-checked="${sel}" tabindex="0" aria-label="${esc(r.name)}"`
-    : `data-go="coach-athlete/${esc(r.athleteId)}" role="button" tabindex="0" aria-label="${esc(r.name)}${r.score != null ? `, score ${r.score}` : ''}. ${esc(meta.label)}"`}>
+    : `data-go="coach-athlete/${esc(r.athleteId)}" role="button" tabindex="0" aria-label="${esc(r.name)}${r.score != null ? `, score ${r.score}` : ''}. ${esc(statusLabel(st, r.score))}"`}>
     ${SELECTING
-      ? `<div style="width:20px;height:20px;border-radius:6px;border:2px solid ${sel ? 'var(--green-bright)' : 'var(--hairline)'};background:${sel ? 'var(--green-bright)' : 'transparent'};display:grid;place-items:center;flex:none;color:var(--ink-on-accent);font-weight:900">${sel ? icon('check', 13) : ''}</div>`
-      : `<span class="ros-av" data-avatar-uid="${esc(r.athleteId)}" aria-hidden="true"><span data-avatar-fallback>${esc(initialsOf(r.name, '?'))}</span><i class="ros-dot" style="background:${meta.color}"></i></span>`}
+      ? /* Selection is blue, the action accent, like the audience picker's box: green means DONE
+           in this system, and a ticked row is chosen, not finished. */
+        `<span class="aud-box" aria-hidden="true">${icon('check', 13)}</span>`
+      : `<span class="ros-av" data-avatar-uid="${esc(r.athleteId)}" aria-hidden="true"><span data-avatar-fallback>${esc(initialsOf(r.name, '?'))}</span><i class="ros-dot" style="background:${statusColor(st, r.score)}"></i></span>`}
     <div class="rn">
       <div class="t">${esc(r.name)}${r.unit ? ` <small style="color:var(--text-3);font-weight:700">· ${esc(r.unit)}</small>` : ''}</div>
       <div class="s" style="color:var(--text-2)">${sub}</div>
@@ -139,17 +155,16 @@ function rosterRow(e) {
    Bands appear only when the score sort is doing the ordering and the list is the whole book:
    under a name/status/recent sort or a search the ordering means something else, and a band head
    would be labelling a list it did not arrange. */
-const BAND_COLOR_BY_CLS = { g: 'var(--green-bright)', b: 'var(--blue-bright)', a: 'var(--amber-bright)', r: 'var(--red-bright)' };
 function bandKeyFor(e) {
   if (e.row.score == null) return { key: 'none', name: 'No log today', color: 'var(--text-3)' };
   const t = tierFor(e.row.score);
-  return { key: t.cls, name: t.name, color: BAND_COLOR_BY_CLS[t.cls] || 'var(--text-3)' };
+  return { key: t.cls, name: t.name, color: scoreColor(e.row.score) };
 }
 /* Select mode keeps its bands. Dropping them there would re-flow the whole list the instant the
    coach taps Select — the rows they were aiming at jump, which is the worst possible moment for
    the layout to move. Checkboxes replace the status dot inside the row; the heads are untouched. */
 function bandsApply() {
-  return SORT === 'score' && !Q.trim() && FILTER.kind !== 'status';
+  return SORT === 'score' && !Q.trim() && FILTER.kind !== 'status' && FILTER.kind !== 'statusSet';
 }
 function listHtml(view) {
   if (!view.length) return NO_MATCH_HTML;
@@ -363,7 +378,7 @@ export const coachRoster = {
       <button class="btn ${SELECTING ? 'primary' : 'ghost'} sm" data-selmode>${SELECTING ? 'Done' : 'Select'}</button>
     </div>
     <div class="co-seg co-scroll edge-fade">
-      ${fchip('all', '', `All ${entries.length}`)}${liveStatuses.map(([k, n]) => fchip('status', k, `${STATUS_META[k].label} ${n}`, STATUS_META[k].color)).join('')}${positions.map(p => fchip('position', p, p)).join('')}${groups.map(g => fchip('group', g.id, g.name)).join('')}
+      ${fchip('all', '', `All ${entries.length}`)}${FILTER.kind === 'statusSet' ? fchip('statusSet', FILTER.value, `${FILTER.label || 'Filtered'} ${list.length}`) : ''}${liveStatuses.map(([k, n]) => fchip('status', k, `${statusLabel({ key: k })} ${n}`, statusColor({ key: k }))).join('')}${positions.map(p => fchip('position', p, p)).join('')}${groups.map(g => fchip('group', g.id, g.name)).join('')}
       ${CD.caps.groups ? `<button class="co-chip" data-groups>${icon('plus', 12)} Group</button>` : ''}
     </div>
     ${SHOW_GROUPS ? groupSheet(groups) : ''}
@@ -375,11 +390,11 @@ export const coachRoster = {
       <div id="bulk-nudge-note" style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:6px 0">This exact message goes to all ${SEL.size}, from "${esc(S.operatorIdentity.handle)} is waiting".</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
         <button class="btn ghost sm" data-bulk="nudgecancel" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-xs)">Cancel</button>
-        <button class="btn sm" data-bulk="nudgesend" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-xs)">Send to ${SEL.size}</button>
+        <button class="btn sm primary" data-bulk="nudgesend" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-xs)">Send to ${SEL.size}</button>
       </div>
     </div>` : `
     <div class="action-bar" style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s1h)">
-      <button class="btn sm" data-bulk="nudge" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">Nudge ${SEL.size}</button>
+      <button class="btn sm primary" data-bulk="nudge" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">Nudge ${SEL.size}</button>
       ${CD.caps.groups ? `<button class="btn ghost sm" data-bulk="group" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">→ Group</button>` : ''}
       ${CD.caps.exceptions ? `<button class="btn ghost sm" data-bulk="absence" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-sm)">Excuse</button>` : ''}
     </div>`) : ''}
@@ -408,6 +423,7 @@ export const coachRoster = {
     root.querySelectorAll('[data-sel]').forEach(b => b.addEventListener('click', () => toggleSel(root, b.getAttribute('data-sel'))));
     root.querySelectorAll('[data-filter]').forEach(b => b.addEventListener('click', () => {
       const [kind, value] = b.getAttribute('data-filter').split(':');
+      if (kind === 'statusSet') return;   // the preset chip is already the active filter
       FILTER = kind === 'all' ? { kind: 'all', value: null } : { kind, value: value || null }; window.__restate();
     }));
     root.querySelectorAll('[data-groups]').forEach(b => b.addEventListener('click', () => { SHOW_GROUPS = !SHOW_GROUPS; window.__restate(); }));

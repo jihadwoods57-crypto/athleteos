@@ -13,14 +13,13 @@ export default {
       <div class="wel-hero">
         <div class="wel-logo">${logoMark(104, 'welcome')}</div>
         <div class="wel-mark"><span class="on">On</span>Standard</div>
-        <div class="wel-kicker">Built for athletes. Read by coaches.</div>
+        <div class="wel-kicker">For athletes and everyone in their corner</div>
         <h1 class="wel-head">The coach sets the standard.<br>You prove the work.<br><span class="accent">The score never lies.</span></h1>
       </div>
 
       <div class="wel-actions">
-        <button class="btn primary wel-cta" data-go="role"><span>Get started</span><span class="wel-arrow" aria-hidden="true">→</span></button>
+        <button class="btn primary wel-cta" data-go="role"><span>Get started</span><span class="wel-arrow" aria-hidden="true">${icon('arrowRight', 18)}</span></button>
         <button class="wel-signin" data-go="signin">Already have an account? <b>Sign in</b></button>
-        <div class="wel-trust">${icon('lock', 13)}<span>Built for accountability</span></div>
       </div>
     </div>`;
   },

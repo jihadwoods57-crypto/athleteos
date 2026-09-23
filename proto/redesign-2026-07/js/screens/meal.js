@@ -162,18 +162,42 @@ async function warmParticipants(rolesMod, uid) {
   return PARTICIPANTS.rows.length > 0;
 }
 
+/* One Nutrition tile, the settled meal page's shape (.nut-tiles .nt), so the pre-log check and
+   the logged plate read as one family (2026-09-22). `v` is trusted markup built from numbers. */
+const NUT_ICONS = { protein: 'biceps', carbs: 'bars', fat: 'droplet', cals: 'flame' };
+const nutTile = (k, v, label) => `<div class="nt${k === 'protein' ? ' lead' : ''}"><span class="nt-ic ${k}">${icon(NUT_ICONS[k], 16)}</span><div class="nt-v">${v}</div><div class="nt-k">${label}</div></div>`;
+
 function macroRow(m) {
   // Per figure (0142): protein/carbs/fat behind showMacros, the calorie figure behind
   // showCalories — a professional can hide calories alone, and the prescription must hold
   // on every cell, not just the row.
   const cells = [];
   if (S.planStyle.showMacros) cells.push(
-    `<div class="macro"><div class="mv">${m.protein}g</div><div class="mk">Protein</div></div>`,
-    `<div class="macro"><div class="mv">${m.carbs}g</div><div class="mk">Carbs</div></div>`,
-    `<div class="macro"><div class="mv">${m.fat}g</div><div class="mk">Fat</div></div>`,
+    nutTile('protein', `${m.protein}<i>g</i>`, 'Protein'),
+    nutTile('carbs', `${m.carbs}<i>g</i>`, 'Carbs'),
+    nutTile('fat', `${m.fat}<i>g</i>`, 'Fat'),
   );
-  if (S.planStyle.showCalories) cells.push(`<div class="macro"><div class="mv">${m.cals}</div><div class="mk">Calories</div></div>`);
-  return cells.length ? `<div class="macro-row${cells.length >= 4 ? ' four' : ''}">${cells.join('\n    ')}</div>` : '';
+  if (S.planStyle.showCalories) cells.push(nutTile('cals', `${m.cals}`, 'Calories'));
+  return cells.length ? `<div class="nut-tiles${cells.length === 3 ? ' three' : cells.length <= 2 ? ' two' : ''}">${cells.join('')}</div>` : '';
+}
+
+/** The meal score on a photograph: the brand dial holding the numeral alone, the band word on
+ *  the photo scrim above it (2026-09-22). `button` makes the dial the door to "Why did this meal
+ *  score N?" (data-open="rub"); pass it only where that drawer renders. Shared by the logged
+ *  meal's hero and the pre-log check, so the two cannot drift. */
+export function mealDialHtml(score, { id = '', button = false } = {}) {
+  const band = qualityBand(score);
+  const word = band ? (band.label === 'Strong' ? 'Strong meal' : band.label) : '';
+  const label = `Meal score ${score}${word ? `, ${word}` : ''}`;
+  const tag = button ? 'button' : 'div';
+  const attrs = button ? ` type="button" data-open="rub" aria-label="${esc(label)}. Why this score"` : ` role="img" aria-label="${esc(label)}"`;
+  return `<div class="lm-score">
+        ${word ? `<span class="lm-band" aria-hidden="true">${esc(word)}</span>` : ''}
+        <${tag} class="scorechip big ${band ? band.cls : ''}"${id ? ` id="${id}"` : ''}${attrs}>
+        ${miniDial(score)}
+        <span class="v" data-count="${score}">${score}</span>
+      </${tag}>
+      </div>`;
 }
 
 /* ---------- Analyzing interstitial (branded loading) ---------- */
@@ -410,8 +434,9 @@ export const mealQuestions = {
           two and a three-question screen undercounted itself. Small, but this screen's entire
           pitch is that it does not guess. */''}
     ${backHead(qs.length === 1 ? 'One quick thing' : qs.length === 2 ? 'Two quick things' : `${qs.length} quick things`, 'So your numbers are exact', 'camera')}
-    ${img ? `<div class="mq-photo" style="background-image:url('${img}')"><div class="mq-grad"></div>
-      <div class="mq-badge">${icon('sparkle', 13)} The camera can't see everything</div></div>` : ''}
+    ${/* The photo carries no caption (audit 2026-09-22): a "The camera can't see everything"
+          badge on it said what the lead line under it says, twice in one glance. */''}
+    ${img ? `<div class="mq-photo" style="background-image:url('${img}')"><div class="mq-grad"></div></div>` : ''}
     <div class="mq-lead">A photo can't show what's hidden under or off the plate. Answer these and your read is dead on.</div>
     <div class="mq-list">
       ${qs.map((q, i) => `
@@ -657,13 +682,15 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
    The old page rendered the AI note three times (planMatch + AI Feedback + thread opener) and
    macros/foods twice (componentsRead + chips/macroRow) — all of that is consolidated here. */
 
-/** "Captured 1:42 PM · 18 min before the 2:00 PM deadline" — real clock math, never canned. */
-function captureTimingLine(capturedAtMin, slot) {
+/** "Captured 1:42 PM" + "18 min before the 2:00 PM deadline": real clock math, never canned.
+ *  Two parts (2026-09-22) so the status line can set them as its own segments and colour only a
+ *  miss: the whole sentence used to be green and wrap into two green lines under the photo. */
+function captureTimingParts(capturedAtMin, slot) {
   if (capturedAtMin == null) return null;
   const dl = slotDeadline(slot);
-  const when = fmtClock(capturedAtMin);
-  if (capturedAtMin > dl) return `Captured ${when} · ${capturedAtMin - dl} min past the ${fmtClock(dl)} deadline`;
-  return `Captured ${when} · ${dl - capturedAtMin} min before the ${fmtClock(dl)} deadline`;
+  const when = `Captured ${fmtClock(capturedAtMin)}`;
+  if (capturedAtMin > dl) return { when, rel: `${capturedAtMin - dl} min past the ${fmtClock(dl)} deadline`, late: true };
+  return { when, rel: `${dl - capturedAtMin} min before the ${fmtClock(dl)} deadline`, late: false };
 }
 
 export const analysis = {
@@ -671,21 +698,28 @@ export const analysis = {
   hideTabs: true,
   transient: true,
   render() {
+    // Nothing staged (a deep link, a refresh after the plate was logged, a back-swipe into a
+    // cleared flow): there is no read to check, so go back to the camera the way #analyzing does,
+    // rather than painting "0g" tiles over an empty breakdown with a live Log button (A15).
+    if (!MEAL.result) {
+      if (location.hash.startsWith('#meal-analysis')) location.hash = MEAL.key ? `#camera/${MEAL.key}` : '#camera';
+      return '';
+    }
     const L = S.logging;
     const slot = MEAL.key || 'dinner';
     const already = !!DAY.meals[slot];
     const nonLive = MEAL.live === false;
-    const timingLine = captureTimingLine(L.capturedAtMin, slot);
+    const timing = captureTimingParts(L.capturedAtMin, slot);
     const rich = (MEAL.result && Array.isArray(MEAL.result.detectedRich) && MEAL.result.detectedRich.length)
       ? MEAL.result.detectedRich
       : L.foods.map((f) => ({ name: f, confidence: 'high' }));
     const edited = hasUserEdits(MEAL.result);
     // Source-honest labels (WS7): a typed nutrition label is EXACT, never "estimated from photo".
     const src = MEAL.source;
-    const srcLabel = edited ? 'edited by you'
-      : src === 'label' ? 'exact, from the nutrition label'
-      : src === 'manual' ? 'entered by you'
-      : 'estimated from photo';
+    const srcLabel = edited ? 'Edited by you'
+      : src === 'label' ? 'Exact, from the nutrition label'
+      : src === 'manual' ? 'Entered by you'
+      : 'Estimated from photo';
     // INTUITIVE (0142), same two rules the settled thread already lives by (see showNums and
     // styleSafeProse above): no macro or calorie figure reaches the athlete, and long AI prose
     // shows only when the style permits numbers or the server stamped it for this exact style.
@@ -695,38 +729,51 @@ export const analysis = {
     // Prose needs BOTH flags (or the stamp) — a paragraph can quote any figure.
     const showNums = S.planStyle.showMacros || S.planStyle.showCalories;
     const styleSafeProse = (S.planStyle.showMacros && S.planStyle.showCalories) || L.styleApplied === S.planStyle.key;
+    const img = safeImg(L.img);
+    /* THE SAME FAMILY AS THE LOGGED MEAL (2026-09-22, the 09-15 restructure carried back one
+       step). The timing is one muted status line under the title, not a green sentence wrapping
+       under the photo; the photo is the hero and the score rides it as the same dial; then
+       stacked sections separated by space: the plate (editable), Nutrition (the logged page's
+       own tiles), the AI's read as plain text, and the one line saying what logging does. No
+       card around the read, no status-green box around an informational sentence. */
+    const statusBits = [
+      ...(timing ? [`<span>${esc(timing.when)}</span>`, `<span class="${timing.late ? 'late' : 'ontime'}">${esc(timing.rel)}</span>`]
+        : [`<span>${nonLive ? 'From your gallery' : 'Captured just now'}</span>`]),
+    ].join('<span class="lm-dot">·</span>');
     return `
     ${backHead(`${L.name} Analysis`, already ? 'Already logged' : 'Check it before it counts', 'camera')}
+    <div class="lm-status ma-status">${statusBits}</div>
 
-    <div class="photo-hero" style="${safeImg(L.img) ? `background-image:url('${safeImg(L.img)}')` : 'background:linear-gradient(150deg, rgba(var(--green-rgb),0.14), rgba(var(--blue-deep-rgb),0.06))'}">
+    <div class="photo-hero lm-hero ma-hero${img ? '' : ' ph-nophoto'}"${img ? ` style="background-image:url('${img}')"` : ''}>
       <div class="ph-grad"></div>
-      <div class="ph-meta">
-        <div><div class="ph-t">${esc(L.name)}</div><div class="ph-s">${esc(timingLine || (nonLive ? 'From your gallery' : 'Captured just now'))}</div>${nonLive ? `<div style="margin-top:6px">${nonLiveBadge()}</div>` : ''}</div>
-        ${L.score != null ? `<div class="scorechip ${(qualityBand(L.score) || {}).cls || ''}"><span class="v">${L.score}</span><span class="k">Meal</span></div>` : ''}
-      </div>
+      ${nonLive ? `<div class="lm-prov">${nonLiveBadge()}</div>` : ''}
+      ${L.score != null ? mealDialHtml(L.score) : ''}
     </div>
 
-    <h2 class="eyebrow" style="flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">Breakdown</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span> <span class="link" id="edit-foods" style="margin-left:auto">${'Edit'}</span></h2>
-    <section class="card" style="padding:4px 16px" id="foods">
+    <section class="lm-sec ma-plate">
+      <div class="lm-h"><h2>On the plate</h2><button type="button" class="ma-edit" id="edit-foods">Edit</button></div>
+      <section class="card ma-foods" id="foods">
       ${rich.map((d) => `
         <div class="food-row" data-name="${esc(d.name)}">
           <span class="conf-dot ${esc(d.confidence)}"></span>
           <span class="fr-name">${esc(d.name)}${d.confidence === 'low' ? '<span class="q" title="AI is unsure. Confirm or remove">?</span>' : ''}</span>
           <span class="fr-qty">${d.quantity ? esc(d.quantity) : ''}</span>
         </div>`).join('')}
-      <div class="food-row fr-add" id="food-add" style="display:none">
+      <div class="food-row fr-add" id="food-add" hidden>
         <span class="conf-dot high"></span>
         <input class="fr-in name" id="add-name" maxlength="60" placeholder="Add item (e.g. 2 eggs off-frame)" aria-label="Food name" />
         <input class="fr-in qty" id="add-qty" maxlength="12" placeholder="Qty" aria-label="Quantity" />
         <button class="fr-ok" id="add-ok" aria-label="Add">${icon('check', 15)}</button>
       </div>
-      ${edited ? `<div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);padding:4px 0 8px">${MEAL.result && MEAL.result.recomputed ? 'Edited by you. Macros and score recalculated from the foods listed.' : 'Edited by you. Macros stay the AI’s estimate.'}</div>` : ''}
+      ${edited ? `<div class="ma-edited">${MEAL.result && MEAL.result.recomputed ? 'Edited by you. Macros and score recalculated from the foods listed.' : 'Edited by you. Macros stay the AI’s estimate.'}</div>` : ''}
+      </section>
     </section>
 
-    ${showNums ? `<h2 class="eyebrow">${src === 'label' ? 'From the label' : src === 'manual' ? 'As entered' : 'Estimated'}</h2>
-    ${macroRow(L.macros)}` : ''}
+    ${showNums ? `<section class="lm-sec lm-nut">
+      <div class="lm-h"><h2>Nutrition</h2><span class="lm-conf">${esc(srcLabel)}</span></div>
+      ${macroRow(L.macros)}
+    </section>` : ''}
 
-    <div style="height:14px"></div>
     ${(() => {
       // REAL restriction comparison (spec §18.3/§18.4): name-level match of detected foods
       // vs saved restrictions. A severe hit is a loud pre-confirm alert that names the
@@ -737,31 +784,29 @@ export const analysis = {
       const vAll = (MEAL.result && Array.isArray(MEAL.result.verifyAllergens)) ? MEAL.result.verifyAllergens : [];
       const severeHits = [...new Set([...cf.severe, ...vAll])];
       if (severeHits.length) return `
-      <div style="display:flex;gap:10px;padding:13px 14px;border-radius:var(--r-tile);background:var(--red-surface);border:1.5px solid var(--red-border)">
+      <div class="ma-restrict" style="display:flex;gap:10px;padding:13px 14px;border-radius:var(--r-tile);background:var(--red-surface);border:1.5px solid var(--red-border)">
         ${icon('bell', 17, 'style="color:var(--red);flex:none;margin-top:1px"')}
         <div><div style="font-size:var(--t-sm);font-weight:800;color:var(--red-bright)">Possible severe allergen: ${esc(severeHits.join(', '))}</div>
         <div style="font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:3px;line-height:1.45">A detected food may contain it. The read can't see every ingredient or cross-contact. Check the label or ask staff before you eat or log this.</div></div>
       </div>`;
       if (cf.moderate.length || cf.noted.length) return `
-      <div style="display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:var(--r-tile);background:var(--amber-surface);border:1px solid var(--amber-border)">
+      <div class="ma-restrict" style="display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:var(--r-tile);background:var(--amber-surface);border:1px solid var(--amber-border)">
         ${icon('bell', 15)} <span style="font-size:var(--t-sm);font-weight:700;color:var(--amber-bright)">Heads up: this may contain ${esc([...cf.moderate, ...cf.noted].join(', '))} from your restrictions.</span>
       </div>`;
       return `
-      <div style="display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:var(--r-tile);background:var(--surface-2);border:1px solid var(--hairline)">
+      <div class="ma-restrict" style="display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:var(--r-tile);background:var(--surface-2);border:1px solid var(--hairline)">
         ${icon('shield', 15)} <span style="font-size:var(--t-sm);font-weight:600;color:var(--text-2)">Compared with your saved restrictions. No matches detected. Detection can miss ingredients or cross-contact; always verify severe allergens yourself.</span>
       </div>`;
     })()}
 
-    <div style="height:12px"></div>
-    <div class="ai-note">
-      <div class="av">${icon('sparkle', 18)}</div>
-      <div><div class="who">AI Analysis</div><p>${esc((styleSafeProse ? L.analysis : '') || L.ai)}</p></div>
-    </div>
+    <section class="lm-sec ma-read">
+      <div class="ma-who">${icon('sparkle', 14)} AI Nutritionist</div>
+      <p>${esc((styleSafeProse ? L.analysis : '') || L.ai)}</p>
+    </section>
 
-    ${already ? '' : `<div class="score-change">${icon('arrowUp', 16)} Logging this counts toward Nutrition (${liveWeightPct('nutrition')}%) and closes 1 of ${S.remainingCount} remaining tonight.</div>`}
+    ${already ? '' : `<p class="ma-counts">Logging this counts toward Nutrition (${liveWeightPct('nutrition')}%) and closes 1 of ${S.remainingCount} remaining tonight.</p>`}
 
-    <div style="height:20px"></div>
-    <div class="btn-row">
+    <div class="btn-row ma-actions">
       ${src === 'manual' ? `<button class="btn ghost sm" style="flex:1" data-go="food-search">${icon('search', 17)} Edit plate</button>`
         : src === 'label' ? `<button class="btn ghost sm" style="flex:1" data-go="label-scan">${icon('barcode', 17)} Edit label</button>`
         : `<button class="btn ghost sm" style="flex:1" data-go="camera/${slot}">${icon('camera', 17)} Retake</button>`}
@@ -769,7 +814,6 @@ export const analysis = {
         ? `<button class="btn ghost sm" style="flex:1.6" data-back="home">Back to Home</button>`
         : `<button class="btn green sm" style="flex:1.6" data-act="logMeal:${slot}" data-then="meal-thread/${slot}">${icon('check', 18)} Log ${esc(L.name)}</button>`}
     </div>
-    <div style="height:10px"></div>
     `;
   },
   mount(root) {
@@ -799,7 +843,7 @@ export const analysis = {
       btn.textContent = 'Done';
       box.classList.add('editing');
       const addRow = root.querySelector('#food-add');
-      if (addRow) addRow.style.display = 'flex';
+      if (addRow) addRow.hidden = false;
       // Per-row edit affordances: name/qty become inputs, ✕ removes.
       box.querySelectorAll('.food-row:not(.fr-add)').forEach((row) => {
         const name = row.getAttribute('data-name');
@@ -955,10 +999,9 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
        confidence" — the word twice, over two lines, on the app's most-read card. Worse on the
        other two branches: it announced an EXACT typed nutrition label as "Estimated Nutrition",
        which is the one thing line 544 above exists to prevent. The heading is now just
-       "Nutrition" and the provenance is stated once, here, where it can be true for all three. */
-    const srcLabel = M.source === 'label' ? 'exact, from the nutrition label'
-      : M.source === 'manual' ? 'entered by you'
-      : `estimated from photo · ${conf} confidence`;
+       "Nutrition" and the provenance is stated once, in `provShort` below, where it can be true
+       for all three. (The long-form `srcLabel` that lived here fed only the Intuitive plate
+       heading, which reads `provShort` too since 2026-09-22.) */
     // Photo estimates present as estimates (~ prefix on tiles; the full range lives in the
     // rubric). Label/manual values stay exact — no false hedging on real numbers.
     const tilde = fromPhoto ? '~' : '';
@@ -1052,7 +1095,9 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
       if (/^Fat/.test(l)) return 'Go lighter on oils and cheese';
       if (/^Good fiber/.test(l)) return 'Produce is showing';
       if (/^Fiber light/.test(l)) return 'Add fruit, veggies or higher fiber carbs';
-      if (/^No fiber/.test(l)) return 'Nothing green on the plate';
+      // Not "Nothing green on the plate": that is a claim about the photo, and the photo can show
+      // edamame and lettuce while the fiber estimate reads zero (audit 2026-09-22). Say what to do.
+      if (/^No fiber/.test(l)) return 'Add fruit, veg or a fiber carb';
       if (/^Good timing/.test(l)) return 'Landed in the window';
       if (/^Logged/.test(l)) return M.minutesLate > 0 ? `${M.minutesLate} min past the window` : 'Past the window';
       return '';
@@ -1142,7 +1187,15 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
       ${todayRows}` : ''}
       ${dayFoot}
     </section>` : '';
-    const bandWord = band ? (band.label === 'Strong' ? 'Strong meal' : band.label) : '';
+    /* THE DIAL IS THE NUMBER, AND THE DOOR TO WHY (audit 2026-09-22; mealDialHtml). The band word used to sit
+       inside the ring under the numeral, where every band's word ("Strong meal", "Perfect plate",
+       "Needs work") is as wide as the ring's inner chord: its corners ran onto the arc, and a
+       28px info mark covered the arc's end. The word now rides above the dial on the same photo
+       scrim as "View photo", the ring holds the numeral alone, and the dial itself opens "Why did
+       this meal score N?" (an 88px target instead of 28). It is a button ONLY when that drawer
+       renders: an Intuitive read or an unsettled one has no rubric, and the old info mark opened
+       nothing there. */
+    const hasRub = settled && showNums && !!band && M.score != null && rub.rows.length > 0;
     const photoBlock = `
     <!-- The plate, blurred, as the screen's own backdrop. Same <img> src as the hero (assigned once
          in mount), so this costs no second fetch. Decorative and behind everything. -->
@@ -1152,11 +1205,7 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
       <div class="ph-grad"></div>
       ${M.live === false ? `<div class="lm-prov">${nonLiveBadge()}</div>` : ''}
       <div class="lm-view" aria-hidden="true">${icon('image', 15)} View photo</div>
-      ${M.score != null ? `<div class="scorechip big ${band ? band.cls : ''}" id="meal-scorechip" aria-label="Meal score ${M.score}${bandWord ? `, ${bandWord}` : ''}">
-        ${miniDial(M.score)}
-        <span class="v" data-count="${M.score}">${M.score}</span><span class="k">${esc(bandWord)}</span>
-      </div>` : ''}
-      ${M.score != null && rub.rows.length ? `<button type="button" class="lm-why" data-open="rub" aria-label="Why did this meal score ${M.score}">${icon('info', 14)}</button>` : ''}
+      ${M.score != null ? mealDialHtml(M.score, { id: 'meal-scorechip', button: hasRub }) : ''}
     </div>
     ${stoodOut}${nutrition}${today}`;
 
@@ -1199,11 +1248,16 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
       </div>` : ''}
       ${M.analysisFailed ? `<div class="est-note" style="margin-top:10px">No numbers for this one. The photo is still your proof that the meal happened.</div>` : ''}
     </section>` : !showNums ? `
-    <h2 class="eyebrow" style="margin-top:16px;flex-wrap:wrap;row-gap:2px;column-gap:8px"><span style="white-space:nowrap">What was on the plate</span><span style="color:var(--text-3);font-weight:600;text-transform:none;letter-spacing:0;white-space:nowrap">· ${srcLabel}</span></h2>
-    ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
-    ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">${you ? 'Your note' : 'Their note'}:</b> ${esc(M.userNote)}</div>` : ''}
-    <div class="est-note" style="margin-top:8px">${you ? `Your plan tracks how food leaves you feeling rather than calorie and macro counts. Your ${esc(S.coach.noun)} can still see the full numbers.` : 'This plan tracks how food leaves the athlete feeling rather than counts. You see the full numbers.'}</div>
-    ${emptyRead ? rereadNote : ''}` : `
+    ${/* The Intuitive read's plate section wears the 09-15 section shape (a heading with its
+          provenance once, beside it), not the old uppercase eyebrow whose "· estimated from
+          photo" fell onto its own line. No foods, no heading over nothing. */''}
+    <section class="lm-sec lm-plate">
+    ${foodRows ? `<div class="lm-h"><h2>What was on the plate</h2><span class="lm-conf">${esc(provShort)}</span></div>
+    <div class="lm-plate-rows">${foodRows}</div>` : ''}
+    ${M.userNote ? `<div class="est-note"><b class="est-k">${you ? 'Your note' : 'Their note'}:</b> ${esc(M.userNote)}</div>` : ''}
+    <div class="est-note">${you ? `Your plan tracks how food leaves you feeling rather than calorie and macro counts. Your ${esc(S.coach.noun)} can still see the full numbers.` : 'This plan tracks how food leaves the athlete feeling rather than counts. You see the full numbers.'}</div>
+    ${emptyRead ? rereadNote : ''}
+    </section>` : `
     ${/* The Estimated Nutrition panel that opened this section lives inside the read card now
           (founder 2026-08-10) — what remains here is the detail drawer: foods, notes,
           corrections, and the correction panel itself. */''}
@@ -1222,9 +1276,13 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
       </div>
     </details>` : ''}
     <details class="bd-wrap"${thread._bdOpen ? ' open' : ''}>
-      <summary><span class="lm-ric">${icon('clipboard', 16)}</span><span class="lm-rt">Detected foods<small>${M.detectedRich.length} item${M.detectedRich.length === 1 ? '' : 's'}</small></span>${icon('chevron', 16)}</summary>
+      ${/* No card inside this card (audit 2026-09-22): the foods are plain rows in the drawer's own
+            surface. A read with no foods is not "Detected foods · 0 items", a drawer that opens
+            onto nothing: it is the meal's details (the notes, the disclaimer, the correction row),
+            and the summary says so. */''}
+      <summary><span class="lm-ric">${icon('clipboard', 16)}</span><span class="lm-rt">${M.detectedRich.length ? `Detected foods<small>${M.detectedRich.length} item${M.detectedRich.length === 1 ? '' : 's'}</small>` : 'Meal details'}</span>${icon('chevron', 16)}</summary>
       <div class="bd-body">
-      ${foodRows ? `<section class="card" style="margin-top:8px;padding:4px 16px">${foodRows}</section>` : ''}
+      ${foodRows ? `<div class="bd-foods">${foodRows}</div>` : ''}
       ${/* "No targets" is claimed off the RAW targets, not the visible bars: a target a
             professional chose to hide still exists, and this line must not say otherwise. */''}
       ${targetBars.length || T.protein || T.calories ? '' : `<div class="est-note">${you ? "No coach targets set yet, so there's nothing to measure against. These are this meal's totals." : 'No targets set for this athlete yet, so there is nothing to measure against. These are this meal\'s totals.'}</div>`}
@@ -1297,12 +1355,17 @@ export const thread = {
       dayReviewed: RECEIPT.uid === RT.userId && RECEIPT.date === String(DAY.date) && RECEIPT.reviewed,
     });
     const lateLabel = M.minutesLate > 0 ? `${M.minutesLate} min late` : M.late ? 'Late, still counts' : 'On time';
+    // The slot is named here only when the title names the FOOD. With no dish from the read the
+    // title already reads "Lunch", and "Lunch / ✓ Lunch · 1:06 PM" said it twice (audit 2026-09-22).
+    const statusBits = [
+      ...(M.dish ? [`<span class="lm-slot">${esc(M.name)}</span>`] : []),
+      ...(M.loggedAt ? [`<span>${esc(M.loggedAt)}</span>`] : []),
+      `<span class="${M.minutesLate > 0 || M.late ? 'late' : 'ontime'}">${esc(lateLabel)}</span>`,
+    ].join('<span class="lm-dot">·</span>');
     const execTop = `
     <div class="lm-status">
       <span class="lm-ck${justLogged ? ' pop' : ''}">${icon('check', 12)}</span>
-      <span class="lm-slot">${esc(M.name)}</span>
-      ${M.loggedAt ? `<span class="lm-dot">·</span><span>${esc(M.loggedAt)}</span>` : ''}
-      <span class="lm-dot">·</span><span class="${M.minutesLate > 0 || M.late ? 'late' : 'ontime'}">${esc(lateLabel)}</span>
+      ${statusBits}
       ${cStatus.label ? `<span class="lm-dot">·</span><span id="coach-status">${esc(cStatus.label)}</span>` : ''}
     </div>
     ${dupFlagged ? `<div class="lm-dup">Duplicate photo · recorded, but it doesn't count. Coach can see the flag.</div>` : ''}`;

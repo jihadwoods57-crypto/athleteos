@@ -1,7 +1,7 @@
 import { S, RT, act } from '../state.js';
 import { icon } from '../icons.js';
 import { avatarControlHtml, wireAvatarUpload } from '../avatar-upload.js';
-import { backHead, titleHead, logoMark, esc, copyText, sayStatus, emptyState } from '../components.js';
+import { backHead, titleHead, avatarHead, logoMark, esc, copyText, sayStatus, emptyState } from '../components.js';
 import { initialsOf } from '../initials.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { standardForGoal, reqHeadTint, showConfirmPending } from '../ob-helpers.js';
@@ -1106,7 +1106,8 @@ export const clientOb = {
    self-guarding (every handler is querySelector-null-guarded), so it wires only whichever section's
    controls are actually present — no flow changed, just where each concern lives. */
 const CP_SECTIONS = [
-  { sub: 'personal',    icon: 'user',      t: 'Personal profile',       s: 'Your name, coach handle, sign out' },
+  // No "sign out" here: the root's own Sign out card sits directly below this menu.
+  { sub: 'personal',    icon: 'user',      t: 'Personal profile',       s: 'Your name and coach handle' },
   { sub: 'invitations', icon: 'share',     t: 'Athlete code & invites', s: 'The code athletes join with' },
   { sub: 'staff',       icon: 'users',     t: 'Staff & collaborators',  s: 'Invite staff, set their scope' },
   { sub: 'program',     icon: 'clipboard', t: 'Program',                s: 'Standards, templates, Coach Voice, visibility' },
@@ -1303,7 +1304,7 @@ function cpPrefsBlock() {
       ${/* Same name the athlete sees ("Units & appearance"), and no promised "reminders" — those
             deliberately live only in Notification Settings (spec §22.4), and a subtitle that
             promises a control the screen doesn't have is a lie on arrival. */''}
-      <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">App settings</div><div class="ls">Light or dark, plan, health, security</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">App settings</div><div class="ls">Appearance, Face ID, app tour</div></div>${icon('chevron', 17)}</div>
     </section>`;
 }
 function cpSignOut() {
@@ -1386,7 +1387,9 @@ export const coachProfile = {
     if (alias === 'account')     return `${back('Account', 'Email, password, billing, delete')}${operatorAccountSection()}<div style="height:10px"></div>`;
     // Root: identity + a scannable section menu + sign out — never the old wall of settings.
     return `
-    ${titleHead('Coach Profile', 'You, your team, your code')}
+    ${/* One tab-root header across the operator tabs (2026-09-22): title + bell + avatar, the
+          same avatarHead Home, Roster and Inbox wear, so the bell never disappears on one tab. */''}
+    ${avatarHead('Coach Profile', 'You, your team, your code', S.operatorIdentity.initials)}
     ${cpIdCard(false)}
     <h2 class="eyebrow">Manage</h2>
     <section class="card" style="padding:6px 16px">
@@ -1551,7 +1554,7 @@ function trainerSettingsSections() {
     <h2 class="eyebrow">Your app</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-notif-settings"><div class="lic">${icon('bell', 17)}</div><div class="lm"><div class="lt">Notifications</div><div class="ls">Briefings, alerts, quiet hours</div></div>${icon('chevron', 17)}</div>
-      <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">App settings</div><div class="ls">Light or dark, plan, health, security</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="settings"><div class="lic">${icon('moon', 17)}</div><div class="lm"><div class="lt">App settings</div><div class="ls">Appearance, Face ID, app tour</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Your visibility scope</div><div class="ls">Recovery, readiness, consistency only</div></div>${icon('chevron', 17)}</div>
     </section>`;
 }

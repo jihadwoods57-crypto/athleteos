@@ -168,7 +168,8 @@ body {
      `--nav-h + 62px` here was the pre-capsule bar's math and had to be re-derived by anyone who
      needed the same clearance elsewhere (coach-roster's sticky bulk bar did, and disagreed). */
   padding: var(--s1) var(--pad-screen) var(--tab-clear);
-  --bar-lift: calc(var(--tab-clear) + var(--s2));
+  /* The sticky bar's breath above the tab bar. Only the breath: see .action-bar below. */
+  --bar-lift: var(--s2);
   scroll-behavior: smooth;
 }
 .viewport::-webkit-scrollbar { display: none; }
@@ -177,7 +178,7 @@ body {
 /* A screen that renders no tab bar has nothing to clear. These carried the full nav clearance
    anyway — ~104px of dead scroll under the last button on the meal result, settings, recovery
    and 12 other screens. */
-.viewport.notabs { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); --bar-lift: calc(24px + env(safe-area-inset-bottom, 0px) + var(--s2)); }
+.viewport.notabs { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); --bar-lift: var(--s2); }
 /* `fill: true` on a screen module: this screen owns its whole vertical rhythm and wants the real
    height handed to it. #view is otherwise a plain block sized to its content, so a `margin-top:
    auto` inside a screen has no free space to distribute and a bottom-anchored control just floats
@@ -254,7 +255,7 @@ body {
 body.kb-open .tabbar { transform: translateY(100%); opacity: 0; pointer-events: none; }
 /* …and the clearance the bar was owed leaves with it, so the end of a conversation can actually
    reach the top of the keyboard instead of resting 100px above it. */
-body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); --bar-lift: var(--s3); }
+body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); --bar-lift: 0px; }
 
 /* ===== App header ===== */
 .apphead {
@@ -532,9 +533,12 @@ body.kb-open .viewport:not(.bleed) { padding-bottom: var(--s3); --bar-lift: var(
    whole time an athlete is answering. Worse, that button IS the progress meter (its label reads
    "0 of 4 answered" until the last question lands), so the one element telling you how far
    along you are was the one element you could not see.
-   Geometry: --bar-lift (set per .viewport variant above) because a sticky offset is measured
-   from the scrollport's padding box, so bottom:0 would sit under the floating capsule. This
-   rule is the named version of an inline style that lived in two copies in coach-roster.js. */
+   Geometry (corrected 2026-09-22): a sticky inset is measured from the scrollport INSIDE its
+   padding, so .viewport's padding-bottom (--tab-clear) already lifts the bar clear of the tab
+   bar and --bar-lift is only the breath above it. It used to add --tab-clear a second time,
+   which parked the bar ~150px above the capsule, over the recovery check-in's last question.
+   Measured in WebKit (the iPhone engine) and Chromium: both inset by the padding. The chat
+   dock (screens.css) found the same thing on 2026-09-14. */
 .action-bar {
   position: sticky; bottom: var(--bar-lift, var(--s2)); z-index: 20;
   margin-top: var(--s4); padding: var(--s2h);

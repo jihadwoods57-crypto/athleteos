@@ -1,6 +1,6 @@
 import { S, RT, roleNav, notifsFetchFailed } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc, skeletonRows, emptyState } from '../components.js';
+import { backHead, esc, skeletonRows, emptyState, errorState } from '../components.js';
 import { openFeedback } from './feedback.js';
 
 const isOperator = () => RT.authRole === 'coach' || RT.authRole === 'trainer';
@@ -109,12 +109,12 @@ export default {
 
     ${N.earlier.length ? `<h2 class="eyebrow">Earlier</h2>${N.earlier.map(row).join('')}` : ''}
 
-    ${!hasRows && notifsFetchFailed ? `
-    <div class="ne-empty">
-      <div class="ne-ring" style="color:var(--amber-bright)">${icon('wifiOff', 30)}</div>
-      <div class="ne-t">Couldn't check notifications</div>
-      <div class="ne-s">Nothing was cleared; this screen just couldn't reach the server. It retries on its own, so check back in a moment.</div>
-    </div>` : ''}
+    ${/* The shared errorState (role="alert"), not a hand-rolled amber block: amber is the
+          warning hue, and a failed fetch is a failure, which the primitive already dresses. */''}
+    ${!hasRows && notifsFetchFailed ? errorState({
+      title: "Couldn't check notifications",
+      body: "Nothing was cleared; this screen just couldn't reach the server. It retries on its own, so check back in a moment.",
+    }) : ''}
     ${!hasRows && !notifsFetchFailed ? `
     ${emptyState({
       icon: 'checkCircle',

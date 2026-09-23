@@ -10,15 +10,10 @@
    edge. The fade (.edge-fade, app.css) is what this row was missing; the snap was not. */
 .co-scroll { overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; }
 .co-scroll::-webkit-scrollbar { display: none; }
-/* Rendered as <h2> (2026-09-01, same move as .eyebrow in app.css) — the class carries the look,
-   the * reset wipes the UA heading styles. */
-.co-eyebrow {
-  font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase;
-  color: var(--text-3); margin: var(--s6) 2px var(--s3);
-  display: flex; align-items: baseline; justify-content: space-between; gap: var(--s3);
-}
-.co-eyebrow .n { color: var(--blue-bright); letter-spacing: 0.02em; font-size: var(--t-sm); }
-.co-eyebrow.tight { margin-top: var(--s4); }
+/* ONE section label on the coach screens (2026-09-22): app.css's .eyebrow. .co-eyebrow was a
+   second class for the same look (24px above instead of 26px) and the athlete page used both,
+   one section apart. Its one extra, the blue count riding the label, lives on here. */
+.eyebrow .n { color: var(--blue-bright); letter-spacing: 0.02em; font-size: var(--t-sm); }
 .co-note { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); line-height: 1.5; margin: 2px 2px var(--s2); }
 
 /* Section rhythm. Every eyebrow on the operator dashboard sat at the same 26px, so the screen
@@ -93,6 +88,20 @@
 .co-legend .it { display: inline-flex; align-items: center; gap:var(--s1h); font-size: var(--t-sm); font-weight: 700; color: var(--text-2); }
 .co-legend .it .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .co-legend .it b { color: var(--text); font-variant-numeric: tabular-nums; }
+/* A legend count that opens the roster pre-filtered (coach Home, 2026-09-22). It has to look
+   tappable, so it takes the filter chip's quiet shape (the roster's chips are what it opens onto);
+   the invisible ::after carries the 32px chip to the 44px touch floor, like focus.css does for
+   .co-chip. Not .co-chip itself: that one is scoped to the .co-seg rail. */
+.co-legend .co-leg-go {
+  position: relative; height: 32px; padding: 0 var(--s3); border-radius: var(--r-pill);
+  background: var(--surface-1); border: 1px solid var(--hairline); font-family: var(--font);
+  cursor: pointer; transition: background var(--dur-1) var(--ease-out);
+}
+.co-legend .co-leg-go::after {
+  content: ''; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 100%; height: 100%; min-width: 44px; min-height: 44px;
+}
+.co-legend .co-leg-go:active { background: var(--surface-3); }
 .dot.g { background: var(--green-bright); } .dot.a { background: var(--amber-bright); }
 .dot.r { background: var(--red); } .dot.d { background: var(--text-3); } .dot.b { background: var(--blue-bright); }
 
@@ -136,9 +145,11 @@
   transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out), border-color var(--dur-1) var(--ease-out);
 }
 .co-seg .co-chip:active { transform: scale(var(--press-btn)); }
+/* Selected = the blue tint + blue edge every other chip in the app uses (.chip-row .chip.on,
+   .std-chip.on). It was a one-step surface lift, which on light theme read as a greyer, sunken
+   chip: dimmer than its unselected neighbours, the selection affordance upside down. */
 .co-seg .co-chip.on {
-  background: var(--surface-3); color: var(--text); border-color: var(--hairline);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+  background: rgba(var(--blue-rgb), 0.12); color: var(--blue-bright); border-color: var(--blue-bright);
 }
 .co-seg .co-chip .cnt {
   font-size: var(--t-xs); font-weight: 800; color: var(--text-3); font-variant-numeric: tabular-nums;
@@ -323,6 +334,11 @@
 .ib-list .lrow { padding: var(--s3) 2px; gap: var(--s3); }
 .ib-list .lrow .lic { width: 34px; height: 34px; }
 .ib-list .lrow .lt { font-size: var(--t-base); }
+/* An overdue alert row is a door to the filtered roster (2026-09-22), so it is a real <button>
+   reset to the row. Red, not amber: an overdue requirement is missed, and amber is warning only. */
+.ib-list .ib-alert { width: 100%; text-align: left; font: inherit; background: none; border: 0; border-bottom: 1px solid var(--hairline-soft); color: inherit; cursor: pointer; }
+.ib-list .ib-alert:last-child { border-bottom: none; }
+.ib-list .ib-alert .lic { background: var(--red-surface); color: var(--red-bright); }
 .ib-when { flex: none; font-size: var(--t-xs); font-weight: 600; color: var(--text-3); font-variant-numeric: tabular-nums; }
 /* There was an attention dot here, scoped to the needs-response bucket. It came out because each
    category renders on its own, so within any one view the mark was on 100% of rows or none of
@@ -365,6 +381,10 @@
 /* Context sizing only (see .ring-center .score in app.css): the 96px ring's opening is ~50px,
    the same proportion the Home hero gives --t-hero inside its 128px ring. */
 .co-hero-ring .ring-center.num .score { --score-size: var(--t-3xl); }
+/* The status beside the ring. Was three inline size/colour strings (14px, 12.5px, 11.5px). */
+.co-hero-st .lbl { font-size: var(--t-base); font-weight: 800; }
+.co-hero-sub { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin-top: var(--s1h); line-height: 1.4; }
+.co-hero-last { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); margin-top: var(--s1); }
 
 /* ============================================================
    Athlete profile — identity header + slim action bar
@@ -397,6 +417,19 @@
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .co-act.hero { background: var(--blue-surface); color: var(--blue-bright); }
+/* More: the door to Targets / Manage / Reward. Narrow, so Nudge owns the bar. */
+.co-act.co-act-more { flex: 0 0 88px; }
+.co-act.co-act-more.on { color: var(--text); background: var(--surface-2); }
+
+/* The More sheet (athlete page). Rows are real <button>s reset to .sheet-row. It sits over the
+   floating tab bar (z 50, app.css): under it, the capsule covered Reward and Close. */
+.sheet-scrim.ca-more-scrim { z-index: 60; }
+.sheet.ca-more { z-index: 61; }
+.ca-more .sheet-row { width: 100%; text-align: left; background: none; border: 0; font: inherit; color: inherit; }
+.ca-more .sheet-row .si { background: var(--surface-2); color: var(--text-2); }
+.ca-more .sheet-row .st > span { display: block; }
+.ca-more .sheet-row > svg:last-child { color: var(--text-3); flex: none; }
+.ca-more .cancel { display: block; width: 100%; background: none; border: 0; font-family: var(--font); }
 .co-act:disabled { opacity: 0.5; cursor: default; }
 .co-act:disabled:active { background: transparent; }
 
@@ -426,6 +459,12 @@
   border-radius: var(--r-micro) var(--r-micro) 0 0; background: var(--blue-bright);
 }
 .co-seg.co-tabs .co-chip:active { transform: none; opacity: 0.65; }
+/* The athlete page's section tabs all fit on the rail (2026-09-22): no scroll, no fade, nothing
+   hidden past the edge. Five tabs spread across the width at --t-sm; a phone too narrow for that
+   still scrolls rather than clipping a label. */
+.co-seg.co-tabs.co-tabs-fit { justify-content: space-between; gap: var(--s2); overflow-x: auto; scrollbar-width: none; }
+.co-seg.co-tabs.co-tabs-fit::-webkit-scrollbar { display: none; }
+.co-seg.co-tabs.co-tabs-fit .co-chip { font-size: var(--t-sm); }
 
 /* ============================================================
    Today's proof — the photo is the evidence
@@ -452,7 +491,9 @@
   display: inline-flex; align-items: center; border-radius: var(--r-pill);
   /* No blur (2026-09-05): a 0.60 ground on a 116px photo thumbnail is opaque enough for 12.5px
      numerals on its own, and blur is chrome, not a chip treatment. */
-  background: rgba(7, 11, 20, 0.60);
+  /* 0.88, not 0.60 (2026-09-22): over a white-plated photo the lighter scrim went mid-grey and
+     neither theme's green read on it (1.6:1). Near-opaque, the chip is its own ground. */
+  background: rgba(7, 11, 20, 0.88);
   font-size: var(--t-sm); font-weight: 800; font-variant-numeric: tabular-nums;
   letter-spacing: var(--num-tight);
 }
@@ -465,6 +506,11 @@
    system's warning and a 51 on one plate is not a warning. */
 .co-proof .sc.g { color: var(--green-bright); border: 1px solid var(--green-border); }
 .co-proof .sc.b { color: var(--blue-bright); border: 1px solid var(--blue-border); }
+/* The chip's ground is a dark scrim over a photograph in BOTH themes, so the ink is pinned to the
+   dark theme's values on light (the .mq-badge / .cc-badges precedent): light's text-weight
+   green-700 on that scrim was near-invisible. The no-photo tile keeps the theme ink. */
+:root[data-theme="light"] .co-proof .pm:not(.icon) .sc.g { color: #4ADE80; }
+:root[data-theme="light"] .co-proof .pm:not(.icon) .sc.b { color: #60A5FA; }
 .co-proof .ft { padding: 9px 11px 11px; }
 .co-proof .nm {
   font-size: var(--t-sm); font-weight: 700; color: var(--text);
@@ -474,10 +520,12 @@
 .co-proof .st { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); margin-top: 1px; }
 .co-proof-none { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin: -2px 2px var(--s3); }
 
-/* Still-open items keep a container: this is the list the coach acts on. */
+/* Still-open items keep a container: this is the list the coach acts on. Neutral icons and a
+   muted "Open" pill (2026-09-22): a dinner that is not due yet is not a warning, and amber means
+   warning only. A genuinely late item is already said by the status line and the priority card. */
 .co-open { padding: var(--s1) var(--s4); }
 .co-open .lrow { cursor: default; }
-.co-open .lic { color: var(--amber-bright); }
+.co-open .lic { color: var(--text-2); }
 
 /* The .lrow lists the profile panes render inside a card. `.ro` marks a list that is a read-out
    rather than a set of controls, so the rows do not claim a pointer they do nothing with. */
@@ -757,6 +805,10 @@
 .aud-row[aria-checked="true"] .aud-box svg { opacity: 1; }
 .aud-row[aria-checked="true"] .aud-name { color: var(--text); }
 .aud-row .ros-av { width: 30px; height: 30px; }
+/* The roster's select mode borrows the picker's box (2026-09-22): blue when ticked, never green. */
+.roster-row .aud-box { width: 20px; height: 20px; }
+.roster-row[aria-checked="true"] .aud-box { background: var(--blue-bright); border-color: var(--blue-bright); }
+.roster-row[aria-checked="true"] .aud-box svg { opacity: 1; }
 /* Faces where a coach acts on one person (2026-09-08): the priority card and the join request. */
 .co-pri-av { flex: none; margin-right: var(--s2); }
 .jr-top .ros-av { flex: none; }
@@ -793,3 +845,54 @@
 .as-done .s { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top: var(--s1h); }
 .as-done .s.warn { color: var(--amber-bright); }
 .as-done .acts { display: grid; gap: var(--s2); margin-top: var(--s4h); }
+
+/* ----- Parent hub (screens/coach.js `parent`, 2026-09-22) -----
+   One card per linked athlete: the latest score beside the name, then the athlete's own week
+   (js/week-bars.js, the Progress chart). The number wears the score face like the roster's
+   .rs; a number older than yesterday goes muted, because its colour would otherwise report a
+   week nobody logged. */
+.par-card { padding: var(--s4); margin-bottom: var(--s2h); }
+.par-head { display: flex; align-items: center; gap: var(--s3); }
+.par-who { flex: 1; min-width: 0; }
+.par-name { font-size: var(--t-lg); font-weight: 800; letter-spacing: var(--title-tight); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.par-when { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin-top: 2px; }
+.par-score { flex: none; text-align: right; }
+.par-n { font-family: var(--font-display); font-size: var(--t-3xl); font-weight: 900; letter-spacing: -0.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+.par-tier { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); margin-top: var(--s1); }
+.par-score.stale .par-n { color: var(--text-3); }
+.par-card .weekbars { margin-top: var(--s3); }
+.par-meta { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin-top: var(--s2h); }
+.par-link-card { padding: var(--s1h) var(--s4); margin-top: var(--s3); }
+
+/* ============================================================
+   Announcement composer (coach-announce.js), 2026-09-22
+   ============================================================ */
+.an-target { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin: 0 2px var(--s2); }
+.an-target:empty { display: none; }
+.an-status { text-align: center; font-size: var(--t-sm); font-weight: 600; color: var(--text-3); min-height: 18px; margin-top: var(--s2); }
+.an-none { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); margin: 0 2px; }
+/* The armed send: a framed confirm, so the irreversible second tap cannot look like the first.
+   Amber is earned here: "it can't be recalled" is a genuine warning, and the send itself stays blue. */
+.an-arm {
+  border: 1px solid var(--amber-border); background: var(--amber-surface);
+  border-radius: var(--r-card-sm); padding: var(--s3) var(--s3) var(--s3);
+}
+.an-arm-t {
+  display: flex; align-items: flex-start; gap: var(--s2); justify-content: center; text-align: center;
+  font-size: var(--t-sm); font-weight: 700; color: var(--text); line-height: 1.45; margin-bottom: var(--s3);
+}
+.an-arm-t svg { flex: none; color: var(--amber-bright); margin-top: 1px; }
+.an-arm-acts { display: flex; gap: var(--s2); }
+.an-arm-acts .btn.ghost { flex: none; width: auto; padding: 0 var(--s5); }
+.an-arm-acts .btn.primary { flex: 1; }
+
+/* Insights' read lines (coach-insights.js dotLine). */
+.ci-line { display: flex; gap: var(--s2h); align-items: flex-start; padding: var(--s1) 0; font-size: var(--t-base); font-weight: 600; color: var(--text); line-height: 1.5; }
+.ci-line .dot { width: 7px; height: 7px; border-radius: 50%; margin-top: var(--s2); flex: none; }
+.co-home-after { margin-top: var(--s6); }
+
+/* The dietitian's fueling rows ride .roster-row (coach-home.js). The bars are the row's evidence
+   on the right; a warning figure keeps the amber it earned (under target, half the week unseen). */
+.nb-fuel .rn .s .warn { color: var(--amber-bright); }
+.nb-fuel .nb-bars { height: 22px; }
+.ib-end { margin-top: var(--s3); }

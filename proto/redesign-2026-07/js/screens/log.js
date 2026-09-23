@@ -67,8 +67,8 @@ export default {
         ${head}${segs}${syncRow}
         <div class="hub-celeb">
           <div class="n">${e.score}</div>
-          <div style="font-size:var(--t-md);font-weight:800;margin-top:2px">You're OnStandard.</div>
-          <div style="font-size:var(--t-sm);color:var(--text-2);margin-top:4px;line-height:1.5">Every requirement is in. Day ${S.streakDays} locks at midnight.</div>
+          <div style="font-size:var(--t-md);font-weight:800;margin-top:2px">${S.tier.name === 'OnStandard' ? "You're OnStandard." : 'Every requirement is in.'}</div>
+          <div style="font-size:var(--t-sm);color:var(--text-2);margin-top:4px;line-height:1.5">${S.tier.name === 'OnStandard' ? `Every requirement is in. Day ${S.streakDays} locks at midnight.` : 'Your score is final at midnight.'}</div>
         </div>
         ${/* The celebration is a HAT on the hub, not a replacement for it. This branch used to
               return here with a single "Close", so the biggest, brightest button in the app
@@ -106,7 +106,7 @@ export default {
     const hue = n && !od && !closing ? ({ g: 'g', p: 'p', b: 'b', c: 'c', muted: 'b' }[n.accent] || '') : '';
     const hero = n ? `
       <div class="hub-hero ${missed ? 'red' : hue}" data-go="${n.route}">
-        <div class="xico ${n.color}" style="width:44px;height:44px">${icon(heroIcon, 20)}</div>
+        <div class="xico">${icon(heroIcon, 20)}</div>
         <div class="ht">
           <div class="a">${heroTitle}</div>
           <div class="b">${od ? esc(n.sub) : `${icon('clock', 12)} ${n.countdown ? `${esc(n.countdown)} · ` : ''}${esc(n.dueLabel)}`}</div>
@@ -135,8 +135,10 @@ export default {
         <div class="st"><div class="t">Daily Commitment</div><div class="s">End-of-day reflection · doesn't change your score</div></div>
         <span class="status-pill muted">Open</span>
       </div>` : ''}
-      <h2 class="xgrp" style="margin:4px 2px 7px">Forms &amp; check-ins</h2>
+      ${/* The header rides its one row: when Recovery IS the hero above, the group was a label
+            with nothing under it. */''}
       ${recovery && !(e.now && e.now.id === 'recovery') ? `
+      <h2 class="xgrp" style="margin:4px 2px 7px">Forms &amp; check-ins</h2>
       <div class="sheet-row" data-go="${recovery.route}">
         <div class="si" style="background:${recovery.state === 'done' ? 'var(--green-surface);color:var(--green-bright)' : 'rgba(var(--purple-rgb),0.22);color:var(--purple-bright)'}">${icon(recovery.state === 'done' ? 'check' : 'moon', 20)}</div>
         <div class="st"><div class="t">Recovery check-in</div><div class="s">${recovery.state === 'done' ? 'Submitted tonight' : `Before bed · 20 seconds · Recovery ${liveWeightPct('checkin') + liveWeightPct('recovery')}%`}</div></div>

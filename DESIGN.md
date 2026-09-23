@@ -391,3 +391,36 @@ records what the CSS now says.
 - **The sweep checks the outline.** `scripts/qc-capture.mjs` flags `NOH1` when a screen renders
   h2s with no h1, and skips `.sr-only` in its clipped-text check because that clipping is the
   point.
+
+## Amendments · 2026-09-22 one product
+
+- **One score ladder.** `scoreColor(score)` is the tier colour (90+ green, 80–89 blue, 60–79
+  amber, below 60 red; no score `--text-3`). The old three-way band (80+ green) is gone, so an 86
+  no longer reads green on a roster row under a blue "Locked In" header. Rule: a score shown as a
+  NUMBER or a BAR wears its tier colour; the ring keeps the blue-teal sweep and is never
+  recoloured. One exception stands: the athlete's own below-60 history bars are neutral, not red.
+- **Red means missed.** `STATUS_META.below_standard` is amber. `statusColor(status, score)` and
+  `statusLabel(status, score)` (status.js) narrow a score-shaped status to its tier, so the dot,
+  the number and the band header on one row agree and a 71 says "Building".
+- **Amber means a real warning.** An item merely due later today is `gray` in exec.js (muted pill,
+  neutral tile). Amber starts inside the last 90 minutes (`due_soon`) or for a late-but-savable log.
+  The camera FAB carries a dot only when something is closing, late (amber) or missed (red).
+- **Sticky bars.** A sticky inset is measured inside the scroller's padding (verified in WebKit and
+  Chromium), so `.viewport`'s `--tab-clear` padding already lifts `.action-bar` clear of the tab
+  bar; `--bar-lift` is only the breath above it. Never add the clearance twice.
+- **Selection is blue.** A selected plan, filter chip or checkbox is a blue tint and border. Green
+  is for done and on standard, never for "chosen".
+- **Numbers are not boxed one per tile.** Stat groups are one strip split by hairlines
+  (`.pf-stats`) or a plain row; small captions under a number are sentence case at `--t-xs`, not
+  tracked uppercase micro text. Uppercase eyebrows remain for SECTION headers only.
+- **One primary button.** Welcome, sign-in and every onboarding step use `.btn.primary`; the
+  blue-teal sweep stays reserved for score surfaces. "Continue" moves a flow on; a verb only for a
+  real action. Every primary sits at the bottom of its step.
+- **Record numbers that are not the daily score** (streak, roll-call %, Trust Pass) share one
+  treatment, `.rfig`: on the page, left aligned, body face, never a hero number in a card.
+- **One section label on coach screens:** `.eyebrow` (`.co-eyebrow` is gone). Coach tab roots
+  (Home, Roster, Inbox, You) all use `avatarHead`.
+- **The capture harness sees full screens.** `qc-capture.mjs --full` grows the window to
+  `.viewport`'s content; `--port` + `--shard i/n` run captures in parallel; `pre` on a shot sets
+  device state after the seed. The stub's `commitment_board` matches migration 0216 (one
+  instance, nested rows).

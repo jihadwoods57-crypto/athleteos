@@ -66,7 +66,10 @@ export default {
     // Apple named the acceptable labels — "Continue" or "Next". Do not reword this back.
     if (!RT.camPrimed) {
       return `
-      <div class="ob" style="padding-top:40px">
+      ${''/* .cam-prime: this route is full-bleed (the viewfinder runs edge to edge), so the priming
+           screen that shares it had no page gutter at all: Continue ran 0 to 390px and the body
+           copy sat 12px from the glass (audit 2026-09-22). It carries its own. */}
+      <div class="ob cam-prime">
         <h1 class="sr-only">Camera, for proof</h1>
         <div class="standard-set prime-body">
           <div class="halo"><div class="core" style="background:linear-gradient(155deg, var(--green), var(--green-deep))">${icon('camera', 34)}</div></div>

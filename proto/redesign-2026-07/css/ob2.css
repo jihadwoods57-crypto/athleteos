@@ -30,17 +30,16 @@
    make the body a flex column so that auto-margin actually pins the CTA to the bottom
    (commit / account / covered / plans) instead of floating mid-screen. */
 .ob-body:has(> .ob-foot) { display: flex; flex-direction: column; }
-/* The commit "signing" moment (bare #ob-commit button, every flow) and the one-idea habit
-   anchor read best centered in the available height — otherwise they strand in the top third. */
-.ob-body:has(> .ob2-habit),
-.ob-body:has(#ob-commit) { display: flex; flex-direction: column; justify-content: center; }
-/* Sparse single-question screens (the whole body IS a choice grid / chip row / rating scale)
-   center their options instead of stranding them at the top with a big void below. These bodies
-   are always short, so centering never overflows; the `> ` guards keep preview/mirror screens
-   (phone cards, boards — grids nested deeper) and noFoot screens untouched. */
-.ob-body:has(> .choice-grid),
-.ob-body:has(> .chip-row),
-.ob-body:has(> .ob2-scale) { display: flex; flex-direction: column; justify-content: center; }
+/* The one-idea habit anchor reads best centered in the height it has. The commit "signing"
+   moment used to be centered with it, which floated "Hold to commit" mid-screen: the one primary
+   in the whole flow that was not at the thumb (2026-09-22). Every flow's commit button now sits
+   in `.ob-foot.ob-foot-push`, pinned to the bottom like every other step's Continue, and the
+   habit line takes the space above it. */
+.ob-body:has(> .ob2-habit) { display: flex; flex-direction: column; }
+.ob-body > .ob2-habit { margin-block: auto; }
+/* Question screens keep their answers directly under the question. They used to be centered in
+   the leftover height, which put ~330px of empty screen between "Your sport" and the sport chips:
+   the eye read the title, saw nothing, and had to hunt downward (2026-09-22). */
 .ob2-hero { display: flex; flex-direction: column; justify-content: center; flex: 1; padding:var(--s2) 0 var(--s8); }
 .ob2-hero .h-eyebrow { font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow);
   text-transform: uppercase; color: var(--text-3); margin-bottom:var(--s3h); }

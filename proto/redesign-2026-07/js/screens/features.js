@@ -3,7 +3,6 @@ import { icon } from '../icons.js';
 import { backHead, esc, errorState } from '../components.js';
 import * as roles from '../roles.js';
 import * as CD from '../coach-data.js';
-import { tierColor, ON_STANDARD } from '../score-band.js';
 
 /* ============================================================
    The 11 approved ideas, made walkable. Live where possible,
@@ -14,77 +13,9 @@ import { tierColor, ON_STANDARD } from '../score-band.js';
    resting heart rate. Folded into #apple-health on 2026-09-06, which now offers both grants (the
    phone asks for activity and recovery separately) and shows the same numbers under Recovery. */
 
-/* ---------- #recruiting · Discipline Record (spec §17) ---------- */
-export const recruiting = {
-  tab: 'profile',
-  render() {
-    const P = S.progress;
-    const hist = S.history; // newest first, real day rows
-    const range = hist.length
-      ? `${hist[hist.length - 1].date} – today`
-      : 'Started today';
-    const avgAll = hist.length
-      ? Math.round((hist.reduce((a, h) => a + (h.score || 0), 0) + S.score) / (hist.length + 1))
-      : S.score;
-    const onPct = hist.length
-      ? Math.round(([...hist.map(h => h.score), S.score].filter(s => s >= ON_STANDARD).length / (hist.length + 1)) * 100)
-      : null;
-    const verified = S.coach.hasCoach;
-    return `
-    ${backHead('Discipline record', 'Your real execution, yours to share', 'profile')}
-
-    <section class="card pad" style="border-color:${verified ? 'var(--green-border)' : 'var(--hairline)'}">
-      <div style="display:flex;align-items:center;gap:14px">
-        <div class="req-icon ${verified ? 'g' : 'b'}" style="width:52px;height:52px;border-radius:16px">${icon('shield', 25)}</div>
-        <div style="flex:1">
-          <div style="font-size:17px;font-weight:800">${esc([S.athlete.name, S.athlete.position].filter(Boolean).join(' · '))}</div>
-          <div style="font-size:12.5px;font-weight:600;color:${verified ? 'var(--green-bright)' : 'var(--text-3)'};margin-top:3px">
-            ${verified ? `Verified by ${esc(S.coach.name)} · ${esc(range)}` : `Not verified yet · ${esc(range)}`}</div>
-        </div>
-      </div>
-      ${P.daysLogged > 0 ? `
-      ${/* Averages wear their TIER color (score-band.js), never a flat green: a 39 average
-            painted success-green on the one surface built to be shown to a recruiter is the
-            exact dishonesty PRODUCT.md forbids. Streaks stay in default ink: DESIGN.md gives
-            amber ONE meaning (warning: at risk, off pace) and a living streak is the opposite
-            of a warning, so the weight of the number carries it and no colour is spent. */''}
-      <div class="macro-row" style="margin-top:16px">
-        <div class="macro"><div class="mv">${P.daysLogged}</div><div class="mk">Days tracked</div></div>
-        <div class="macro"><div class="mv" style="color:${tierColor(avgAll)}">${avgAll}</div><div class="mk">Avg score</div></div>
-        ${onPct != null ? `<div class="macro"><div class="mv">${onPct}%</div><div class="mk">On standard</div></div>` : ''}
-      </div>
-      <div class="macro-row" style="margin-top:8px">
-        <div class="macro"><div class="mv">${P.bestStreak}d</div><div class="mk">Best streak</div></div>
-        <div class="macro"><div class="mv">${S.streakDays}d</div><div class="mk">Current streak</div></div>
-        ${P.weekAvg != null ? `<div class="macro"><div class="mv" style="color:${tierColor(P.weekAvg)}">${P.weekAvg}</div><div class="mk">Recent avg</div></div>` : ''}
-      </div>` : `
-      <div style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:14px">Your record builds as you log. A few days in, your real average, consistency, and streaks show up here.</div>`}
-    </section>
-
-    ${verified ? '' : `
-    <div class="sidebox mt">
-      <div class="req-icon b s38">${icon('users', 17)}</div>
-      <div><div class="tt">Not verified yet</div>
-      <div class="ts">Connect a coach to begin building a verified record. Verification means a real coach watches the same numbers.</div>
-      <div style="margin-top:8px"><button class="btn ghost sm" data-go="connect" style="width:auto;padding:0 18px">Connect a coach</button></div></div>
-    </div>`}
-
-    <h2 class="eyebrow">Why a recruiter cares</h2>
-    <div class="sidebox">
-      <div class="req-icon b s38">${icon('bars', 17)}</div>
-      <div><div class="tt">Film shows talent. This shows habits.</div>
-      <div class="ts">Verified daily execution is a signal no highlight reel carries: this athlete does the work when nobody claps.</div></div>
-    </div>
-
-    <div class="sidebox mt">
-      <div class="req-icon g s38">${icon('lock', 17)}</div>
-      <div><div class="tt">Private by default</div>
-      <div class="ts">Nothing here is public and nothing is shared unless you explicitly share it. You control who ever sees this record.</div></div>
-    </div>
-    <div style="height:10px"></div>
-    `;
-  },
-};
+/* #recruiting (the Discipline record) lived here until 2026-09-22. It recomputed the record on the
+   client and wore "Verified by <coach>" on a coach CONNECTION alone. The route now opens
+   verified-profile.js, which carries the server's discipline record with its own share switch. */
 
 /* ---------- #restrictions · Food restrictions & allergies (spec §18) ----------
    Three SEPARATE data types — allergies (with per-allergen severity), intolerances, and

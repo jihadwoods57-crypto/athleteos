@@ -2,9 +2,10 @@ import { S, RT, act, fmtClock, nutritionConfigForGoal, liveWeightPct } from '../
 import { FILTERED_NOTE } from '../content-filter.js';
 import { openMembersSheet } from '../members-sheet.js';
 import { icon } from '../icons.js';
-import { accentVar, scoreColor, ON_STANDARD, qualityAccent } from '../score-band.js';
-import { backHead, titleHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner, copyText, scoreRing, sayStatus } from '../components.js';
-import { DAYS_SHORT, shortDate, weekdayLong } from '../fmt-date.js';
+import { accentVar, scoreColor, ON_STANDARD, qualityAccent, tierFor } from '../score-band.js';
+import { backHead, titleHead, avatarHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner, copyText, scoreRing, sayStatus } from '../components.js';
+import { DAYS_SHORT, shortDate, weekdayLong, dateKey } from '../fmt-date.js';
+import { weekBars, calendarWeek, daysBetween } from '../week-bars.js';
 import {
   attachedPhoto, isPhotoOnly, wireComposerAttach, postChatMessage,
   bubblePhotoHtml, hydrateThreadPhotos,
@@ -20,9 +21,11 @@ import { layoutThread, visibleThread, MUTED_HIDDEN_NOTE, authorName, initialsFor
   participantList,
 } from '../chat-view.js';
 import { openImageViewer } from '../image-viewer.js';
+import { overlayOpen } from '../overlay-guard.js';
 import { wireTapback } from '../tapback.js';
 import { CD, loadBook, bookKindFor, bookId as currentBookId, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock, logBookIntervention, resolvePos, seenMealSet } from '../coach-data.js';
-import { STATUS_META } from '../status.js';
+import { STATUS_META, statusColor, statusLabel } from '../status.js';
+import { openRosterFiltered } from './coach-roster.js';
 import { everyone, people, audienceIds, audienceLabel, planSends, namesSummary, audienceHtml, wireAudience } from '../audience.js';
 import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin, planStyleFromItems } from '../requirements.js';
 import { STYLE_KEYS, styleLabel, knobsFor, resolveStyleKey } from '../plan-style.js';
@@ -1642,7 +1645,9 @@ const ALL_INBOX_CATEGORIES = [
   ['needsResponse', 'Needs response'],
   // 0199: the flame's landing place — "your Monday starts with the flags, not the firehose".
   ['flagged', 'Flagged'],
-  ['athletes', 'Athletes'],
+  // "Meal threads", not "Athletes": the count is plates with a conversation, and "Athletes 12"
+  // beside a six-person roster read as a headcount that could not be true.
+  ['athletes', 'Meal threads'],
   ['mealReviews', 'Meal reviews'],
   ['staff', 'Staff'],
   ['announcements', 'Announcements'],
@@ -1651,16 +1656,25 @@ const ALL_INBOX_CATEGORIES = [
 // Staff and Announcements are team-owned (0136/0137 give a practice its own). Their empty-state
 // actions route to coach-only screens (coach-profile/staff, coach-announce) — a trainer must
 // never be a tap away from a category that's always empty AND dead-ends.
-const inboxCategories = () => ALL_INBOX_CATEGORIES.filter(([key]) =>
-  (key !== 'staff' || CD.caps.staffRoles) && (key !== 'announcements' || CD.caps.announcements));
+const inboxCategories = () => {
+  const cats = ALL_INBOX_CATEGORIES.filter(([key]) =>
+    (key !== 'staff' || CD.caps.staffRoles) && (key !== 'announcements' || CD.caps.announcements));
+  // On the nutrition lens Meal reviews leads the rail: it is the queue that operator works.
+  if (!isNutritionBook()) return cats;
+  return [...cats.filter(([k]) => k === 'mealReviews'), ...cats.filter(([k]) => k !== 'mealReviews')];
+};
 let INBOX_CAT = 'needsResponse';
+/* Whether the category is the coach's own choice (saved, or tapped this session). Only an
+   unchosen inbox may open on a lens default: the nutrition book's first open lands on Meal
+   reviews (2026-09-22), because reviewing plates is that professional's queue. */
+let INBOX_CAT_CHOSEN = false;
 /* Client-side paging (item 6): rows shown per category so far; 0 = the first page. Reset when
    the coach switches category, so "Show more" never carries over into a different list. */
 const INBOX_PAGE = 20;
 let INBOX_SHOWN = {};
 try {
   const savedCat = localStorage.getItem(INBOX_CAT_KEY);
-  if (savedCat && ALL_INBOX_CATEGORIES.some(([key]) => key === savedCat)) INBOX_CAT = savedCat;
+  if (savedCat && ALL_INBOX_CATEGORIES.some(([key]) => key === savedCat)) { INBOX_CAT = savedCat; INBOX_CAT_CHOSEN = true; }
 } catch { /* default stands */ }
 
 /* categorizeInbox's staff param wants {id, name, email?, role, created_at?} — team_staff_list
@@ -1744,12 +1758,15 @@ function inboxRow(r) {
     </div>`;
   }
   if (r.kind === 'alert') {
+    // An overdue count is only half an answer; WHO is on the roster. The row opens it filtered to
+    // overdue (2026-09-22). It was a cursor:default dead end the coach could read and not act on.
     return `
-    <div class="lrow" style="cursor:default">
-      <div class="lic" style="background:var(--amber-surface);color:var(--amber-bright)">${icon('bell', 17)}</div>
+    <button type="button" class="lrow ib-alert" data-roster-status="overdue">
+      <div class="lic">${icon('bell', 17)}</div>
       <div class="lm"><div class="lt">${esc(r.title)}</div><div class="ls">${esc(r.sub || '')}</div></div>
       ${stamp}
-    </div>`;
+      ${icon('chevron', 17)}
+    </button>`;
   }
   // resolved meals land here too (kind 'meal') via the branch above; anything unrecognized
   // still renders as an honest, non-clickable summary rather than silently disappearing.
@@ -1803,6 +1820,9 @@ function replyTitle(meal) {
   const slot = meal && meal.type ? String(meal.type).toLowerCase() : 'meal';
   return `${first} replied on your ${slot}`;
 }
+const INBOX_EMPTY_TITLE = {
+  needsResponse: 'All caught up', flagged: 'Nothing flagged', mealReviews: 'Every plate seen', resolved: 'Nothing resolved yet',
+};
 const INBOX_EMPTY = {
   needsResponse: 'No threads need you right now.',
   flagged: 'Nothing flagged. Flame a meal from its thread and it waits for you here.',
@@ -1847,9 +1867,9 @@ export const coachInbox = {
       const top = rows.filter(r => r.score != null && r.score >= ON_STANDARD).sort((a, b) => b.score - a.score)[0];
       const lines = [];
       const bline = (color, html) => `<div class="l"><span class="dot" style="background:${color}"></span><span>${html}</span></div>`;
-      if (notLogged.length) lines.push(bline('var(--red)', `<b>${notLogged.length} not logged yet</b>. ${esc(notLogged.slice(0, 3).map(r => r.name.split(' ')[0]).join(', '))}${notLogged.length > 3 ? '…' : ''}.`));
-      if (below.length) lines.push(bline('var(--amber-bright)', `<b>${below.length} below the bar</b> today (under 80).`));
-      if (top) lines.push(bline('var(--green-bright)', `<b>${esc(top.name)}</b> leads the day at ${top.score}.`));
+      if (notLogged.length) lines.push(bline(statusColor({ key: 'overdue' }), `<b>${notLogged.length} not logged yet</b>. ${esc(notLogged.slice(0, 3).map(r => r.name.split(' ')[0]).join(', '))}${notLogged.length > 3 ? '…' : ''}.`));
+      if (below.length) lines.push(bline(statusColor({ key: 'below_standard' }), `<b>${below.length} below the bar</b> today (under 80).`));
+      if (top) lines.push(bline(scoreColor(top.score), `<b>${esc(top.name)}</b> leads the day at ${top.score}.`));
       briefing = lines.join('') || `<div class="l"><span>Quiet so far. Logs land here as they come in.</span></div>`;
     }
 
@@ -1863,7 +1883,7 @@ export const coachInbox = {
     // categories over data we can't actually see.
     if (CD.roster && CD.roster.offline) {
       return `
-      ${titleHead('Inbox', "Can't reach your roster")}
+      ${avatarHead('Inbox', "Can't reach your roster", S.operatorIdentity.initials)}
       <h2 class="eyebrow">Daily briefing</h2>
       <section class="card ib-brief">${briefing}</section>
       <div class="co-gap"></div>`;
@@ -1873,6 +1893,7 @@ export const coachInbox = {
     // value) persists INBOX_CAT_KEY across role switches on the same device — the same class of
     // cross-role bleed the roster scope key had (Slice A). Coerce to a category this book
     // actually offers rather than showing a permanently-empty bucket with a dead-end tap.
+    if (!INBOX_CAT_CHOSEN && isNutritionBook()) INBOX_CAT = 'mealReviews';
     if (!inboxCategories().some(([key]) => key === INBOX_CAT)) INBOX_CAT = 'needsResponse';
     const out = inboxOut();
     const needsMe = out.counts.needsResponse;
@@ -1895,7 +1916,7 @@ export const coachInbox = {
     const capped = !!(CD.act && CD.act.capped);
 
     return `
-    ${titleHead('Inbox', needsMe ? `${countLabel(needsMe, capped, 'needsResponse')} need${needsMe === 1 && !capped ? 's' : ''} you` : (inboxFailed ? "Couldn't check" : 'All caught up'))}
+    ${avatarHead('Inbox', needsMe ? `${countLabel(needsMe, capped, 'needsResponse')} need${needsMe === 1 && !capped ? 's' : ''} you` : (inboxFailed ? "Couldn't check" : 'All caught up'), S.operatorIdentity.initials)}
     ${inboxFailed ? `<div class="co-note warn">Some of your inbox didn't load, so this may not be everything. Nothing was missed on the server; it retries when you reopen.</div>` : ''}
 
     ${isNeedsResponse ? `
@@ -1906,7 +1927,7 @@ export const coachInbox = {
     </section>` : ''}
 
     <div class="co-seg co-scroll edge-fade" id="inbox-cat-row" role="radiogroup" aria-label="Inbox category">
-      ${inboxCategories().map(([key, label]) => `<button type="button" class="co-chip ${INBOX_CAT === key ? 'on' : ''}" role="radio" aria-checked="${INBOX_CAT === key ? 'true' : 'false'}" data-icat="${key}">${esc(key === 'athletes' && CD.kind === 'practice' ? 'Clients' : label)} <span class="cnt">${esc(countLabel(out.counts[key], capped, key))}</span></button>`).join('')}
+      ${inboxCategories().map(([key, label]) => `<button type="button" class="co-chip ${INBOX_CAT === key ? 'on' : ''}" role="radio" aria-checked="${INBOX_CAT === key ? 'true' : 'false'}" data-icat="${key}">${esc(label)} <span class="cnt">${esc(countLabel(out.counts[key], capped, key))}</span></button>`).join('')}
     </div>
 
     ${isNeedsResponse && pending.length ? `
@@ -1928,7 +1949,10 @@ export const coachInbox = {
         <div class="lic">${icon('plus', 17)}</div>
         <div class="lm"><div class="lt">New announcement</div></div>
       </div>` : ''}
-    </section>` : (isNeedsResponse && pending.length ? '' : `
+    </section>
+    ${/* The end of the triage list says so (2026-09-22): two rows over an empty screen read as
+          "still loading?", not "that is all of it". Only on a complete, successfully read list. */''}
+    ${isNeedsResponse && !page.more && !inboxFailed ? `<div class="ib-end">${emptyState({ icon: 'check', title: "That's everything", body: 'Nothing else needs you right now.', compact: true })}</div>` : ''}` : (isNeedsResponse && pending.length ? '' : `
     ${(() => {
       if (inboxFailed) return `<div class="co-note">This list couldn't be loaded, so it isn't empty as far as we know.</div>`;
       const practice = CD.kind === 'practice';
@@ -1940,13 +1964,18 @@ export const coachInbox = {
       // ALL_INBOX_CATEGORIES documents for staff/announcements and missed here).
       const action = a && INBOX_CAT === 'athletes' && practice
         ? { label: 'Share client code', go: codeRoute() } : a;
-      return `<div class="co-note">${esc(emptyCopy)}</div>${action ? `<div class="ib-empty-act"><button class="btn ghost sm" data-go="${esc(action.go)}" style="width:auto;padding:0 16px">${esc(action.label)}</button></div>` : ''}`;
+      // The house compact empty (2026-09-22), not a loose grey line under the chips: the state
+      // says what it means, and a category with a real next step carries it as the action.
+      return emptyState({ icon: INBOX_CAT === 'needsResponse' ? 'check' : 'message', title: INBOX_EMPTY_TITLE[INBOX_CAT] || 'Nothing here yet', body: emptyCopy, action, compact: true });
     })()}`)}
 
     <div style="height:10px"></div>
     `;
   },
   mount(root) {
+    root.querySelectorAll('.ib-alert[data-roster-status]').forEach(b => b.addEventListener('click', () => {
+      openRosterFiltered([b.getAttribute('data-roster-status')], 'Overdue');
+    }));
     loadBook(false, bookKindFor(RT.authRole)).then(() => {
       loadActivity();
       const bookId = CD.roster && CD.roster.book[0] && CD.roster.book[0].id;
@@ -1990,6 +2019,7 @@ export const coachInbox = {
     }));
     root.querySelectorAll('[data-icat]').forEach(el => el.addEventListener('click', () => {
       INBOX_CAT = el.getAttribute('data-icat');
+      INBOX_CAT_CHOSEN = true;
       INBOX_SHOWN = {};
       try { localStorage.setItem(INBOX_CAT_KEY, INBOX_CAT); } catch { /* in-memory only */ }
       window.__render();
@@ -2102,9 +2132,13 @@ let VIEWED_FOR = null;
    "Score today" tile, and the first decision point offered 12 controls before the coach read
    anything. One Overview now runs state → today's proof → what's open → why it scores this →
    trend; the chip row is six. */
+/* Conversation folded into Activity (2026-09-22) so every tab fits on the rail with nothing
+   hidden past the edge. Nothing was lost: Conversation was a directory of the last 30 days of meal
+   threads, and every one of those meals is already a row on the Activity timeline that opens the
+   same thread. */
 const ALL_PROFILE_SECTIONS = [
   ['overview', 'Overview', null],
-  ['activity', 'Activity', null], ['conversation', 'Conversation', null],
+  ['activity', 'Activity', null],
   ['requirements', 'Requirements', 'standards'], ['foodmem', 'Food Memory', null],
   ['notes', 'Notes', 'notes'],
 ];
@@ -2181,8 +2215,19 @@ function breakdownBlock(P, athleteId) {
     nowMin, fmtClock, std,
   });
   const first = ((P.row && P.row.name) || 'This athlete').split(' ')[0];
+  /* The breakdown must add up to the ring above it (2026-09-22). It is rebuilt from the day row's
+     meals JSON, which lags the meals table whenever day sync does (0233), and it rendered
+     "Nutrition 0/82" under a 71 with two plates photographed. Two readings of one day on one
+     screen is misinformation, so when the parts do not sum to the stored score the parts step
+     aside and say why; the score itself stands. */
+  const stored = row.score;
+  const earned = cats.reduce((n, c) => n + (Number(c.earned) || 0), 0);
+  if (stored != null && Math.abs(earned - stored) > 2) return `
+  <h2 class="eyebrow">Why ${esc(first)}'s day scores this</h2>
+  <div class="sidebox"><div class="req-icon b s38">${icon('clock', 17)}</div>
+  <div><div class="tt">Breakdown catching up</div><div class="ts">Today's latest logs are still syncing into the per-category view. Their score of ${esc(String(stored))} stands.</div></div></div>`;
   return `
-  <h2 class="co-eyebrow" style="margin-top:14px">Why ${esc(first)}'s day scores this</h2>
+  <h2 class="eyebrow">Why ${esc(first)}'s day scores this</h2>
   <section class="card bd-comp" style="padding:2px 16px">
     ${cats.map(coachCatCard).join('')}
   </section>
@@ -2259,6 +2304,52 @@ function manageSheet(P, athleteId, position) {
   </section>`;
 }
 
+/* The athlete page's More sheet (2026-09-22): Targets, Manage, Reward / End pass. Cloned from the
+   page's <template> into .screen, the same absolute layer log.js's quick-log sheet uses, and torn
+   down on close, on any navigation out of it, and on a hash change, so it can never outlive the
+   page. One overlay at a time: it will not open over the tour or another sheet. */
+function closeMoreSheet(focusBack) {
+  document.querySelectorAll('.ca-more-scrim, .sheet.ca-more').forEach((n) => n.remove());
+  document.removeEventListener('keydown', moreKey);
+  window.removeEventListener('hashchange', closeMoreSheetQuiet);
+  if (focusBack && typeof focusBack.focus === 'function') { try { focusBack.focus(); } catch { /* gone */ } }
+}
+function closeMoreSheetQuiet() { closeMoreSheet(null); }
+function moreKey(e) { if (e.key === 'Escape') closeMoreSheet(document.getElementById('ca-more')); }
+function openMoreSheet(root, athleteId, opener) {
+  const tpl = root.querySelector('#ca-more-tpl');
+  const host = root.querySelector('.screen') || root;
+  if (!tpl || overlayOpen()) return;
+  host.appendChild(tpl.content.cloneNode(true));
+  const sheet = host.querySelector('.sheet.ca-more');
+  if (!sheet) return;
+  document.addEventListener('keydown', moreKey);
+  window.addEventListener('hashchange', closeMoreSheetQuiet);
+  host.querySelectorAll('[data-more-close]').forEach((el) => el.addEventListener('click', () => closeMoreSheet(opener)));
+  // A row that navigates closes first; the click still bubbles to the router's delegated
+  // [data-go] listener on #device, whose path was fixed when the tap landed.
+  sheet.querySelectorAll('[data-go]').forEach((el) => el.addEventListener('click', () => closeMoreSheet(null)));
+  const manage = sheet.querySelector('#ca-manage');
+  if (manage) manage.addEventListener('click', () => {
+    closeMoreSheet(null);
+    MANAGE.open = !MANAGE.open; MANAGE.arm = false; MANAGE.note = ''; window.__render();
+  });
+  // END lives here. Granting needs a shape, an amount and an optional note (0196), so Reward is
+  // a `data-go` link to the pass-grant sheet instead.
+  const end = sheet.querySelector('#tp-btn');
+  if (end) end.addEventListener('click', async () => {
+    closeMoreSheet(opener);
+    const status = document.querySelector('#tp-status');
+    if (status) status.textContent = 'Ending…';
+    const ok = await roles.endPass(athleteId);
+    const st2 = document.querySelector('#tp-status');
+    if (st2) st2.textContent = ok ? 'Trust Pass ended.' : 'Could not end it.';
+    setTimeout(() => { if (location.hash.startsWith('#coach-athlete')) loadAthleteProfile(athleteId, true); }, 500);
+  });
+  const first = sheet.querySelector('.sheet-row');
+  if (first) { try { first.focus(); } catch { /* no focus */ } }
+}
+
 /* The AI Nutritionist's standing read on the Overview (2026-09-15, 0238). One row per athlete
    per book; the function regenerates it every 3 or 6 days (coach's choice) and the coach may
    force one refresh every two days. Module state keyed by athlete so a repaint never refetches. */
@@ -2324,7 +2415,7 @@ function aiSummaryCard(P, athleteId) {
   </section>`;
 }
 function overviewSection(P, athleteId) {
-  const st = P.status, meta = st ? STATUS_META[st.key] : null;
+  const st = P.status;
   const crit = st && (st.key === 'overdue' || st.key === 'no_activity');
   const last = lastActivityLabel(P.row && P.row.lastMealAt);
   const subtitle = (st && st.detail) || last || 'On track';
@@ -2333,13 +2424,16 @@ function overviewSection(P, athleteId) {
   // was the one thing this page dropped — while printing the same number three times (stat
   // tile, "Finished day", trend endpoint). Now the ring carries it, once.
   const score = P.day && P.day.score != null ? P.day.score : null;
+  // Dot and words from the one status vocabulary (statusColor / statusLabel): a below-standard 71
+  // reads "Building" in its tier's amber, the same name the roster band and their own badge use.
+  const stLabel = st ? statusLabel(st, score) : '';
   return `
   <section class="card co-hero">
     ${score != null ? `<div class="co-hero-ring">${scoreRing({ score, size: 96, stroke: 9, showCenter: false, centerNum: true, uid: 'coathlete' })}</div>` : ''}
     <div style="min-width:0;flex:1">
-      <div class="co-status ${crit ? 'crit' : ''}"><span class="dot" style="background:${meta ? meta.color : 'var(--text-3)'}"></span><span class="lbl" style="font-size:14px;font-weight:800">${meta ? esc(meta.label) : '—'}</span></div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin-top:5px;line-height:1.4">${esc(subtitle)}</div>
-      ${last && st && st.detail ? `<div style="font-size:11.5px;font-weight:700;color:var(--text-3);margin-top:4px">${esc(last)}</div>` : ''}
+      <div class="co-status co-hero-st ${crit ? 'crit' : ''}"><span class="dot" style="background:${st ? statusColor(st, score) : 'var(--text-3)'}"></span><span class="lbl">${stLabel ? esc(stLabel) : '—'}</span></div>
+      <div class="co-hero-sub">${esc(subtitle)}</div>
+      ${last && st && st.detail ? `<div class="co-hero-last">${esc(last)}</div>` : ''}
     </div>
   </section>
 
@@ -2347,10 +2441,10 @@ function overviewSection(P, athleteId) {
   ${todayBlock(P, athleteId)}
   ${breakdownBlock(P, athleteId)}
 
-  <h2 class="co-eyebrow">7-day trend</h2>
+  <h2 class="eyebrow">7-day trend</h2>
   ${coTrend((P.row && P.row.scoreHistory) || [])}
 
-  ${alerts.length ? `<h2 class="co-eyebrow">Active alerts</h2>
+  ${alerts.length ? `<h2 class="eyebrow">Active alerts</h2>
   <section class="card" role="list" style="padding:var(--s1) var(--s4)">
     ${alerts.map(a => `<div class="lrow" role="listitem" style="cursor:default"><div class="lic" style="color:var(--amber-bright)">${icon('bell', 17)}</div><div class="lm"><div class="lt">${esc(a)}</div></div></div>`).join('')}
   </section>` : ''}
@@ -2425,9 +2519,9 @@ function todayBlock(P, athleteId) {
       ${anyOpen ? `<section class="card co-open" role="list">
         ${openSlots.map(k => `
           <div class="lrow" role="listitem"><div class="lic">${icon('bowl', 17)}</div>
-          <div class="lm"><div class="lt">${esc(slotTitle(k))}</div><div class="ls">Not logged yet</div></div><span class="status-pill a">Open</span></div>`).join('')}
+          <div class="lm"><div class="lt">${esc(slotTitle(k))}</div><div class="ls">Not logged yet</div></div><span class="status-pill muted">Open</span></div>`).join('')}
         ${!ci.submitted ? `<div class="lrow" role="listitem"><div class="lic">${icon('moon', 17)}</div>
-          <div class="lm"><div class="lt">Recovery check-in</div><div class="ls">Before bed</div></div><span class="status-pill a">Open</span></div>` : ''}
+          <div class="lm"><div class="lt">Recovery check-in</div><div class="ls">Before bed</div></div><span class="status-pill muted">Open</span></div>` : ''}
       </section>`
       : `<div class="co-done"><div class="ic">${icon('check', 16)}</div>
         <div><div class="t">Everything is in</div><div class="s">Finished day</div></div></div>`}`;
@@ -2503,53 +2597,11 @@ function activitySection(P) {
   ${TLOGS.error ? `<div class="co-note warn">Training logs couldn't load just now. Reopen the page to retry.</div>` : ''}
   ${emptyState({ icon: 'clock', title: 'No activity in the last 30 days', body: 'Meal logs, weigh-ins, check-ins, and your own actions land here as they happen.' })}`;
   return `
-  <h2 class="co-eyebrow">Last 30 days</h2>
+  <h2 class="eyebrow">Last 30 days</h2>
   ${TLOGS.error ? `<div class="co-note warn">Training logs couldn't load just now, so they're missing from this list. Reopen the page to retry.</div>` : ''}
   <div class="co-tl">
     ${items.map(i => `<div class="co-tl-item ${i.cls}${i.go ? ' go' : ''}"${i.go ? ` data-go="${esc(i.go)}"` : ''}><div class="co-tl-when">${esc(i.when)}</div><div class="co-tl-what">${i.what}</div></div>`).join('')}
   </div>`;
-}
-
-/* Date label for a meal row in Conversation: "Jul 15 · 2d ago" from its real logged_at
-   (falling back to day_date if logged_at is somehow missing — never a made-up time). */
-function mealDateLabel(m) {
-  const d = m.logged_at ? new Date(m.logged_at) : (m.day_date ? new Date(`${m.day_date}T00:00:00`) : null);
-  if (!d || isNaN(d)) return '';
-  const rel = relTime(m.logged_at || m.day_date);
-  return `${d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}${rel ? ` · ${rel}` : ''}`;
-}
-
-/* ---------- Conversation pane (Task 6): a DIRECTORY into existing meal threads — deliberately
-   NOT a second composer. The real thread (the AI Nutritionist's read, coach comments, athlete
-   replies, reactions, private notes) already lives entirely in coachMeal and is reused as-is;
-   this list is pure navigation into it, newest meal first. */
-function conversationSection(P) {
-  const meals = [...(P.meals || [])].filter(m => m && m.id)
-    .sort((a, b) => new Date(b.logged_at || b.day_date || 0) - new Date(a.logged_at || a.day_date || 0));
-  if (!meals.length) return `
-  <div class="state-demo"><div class="sd-ic">${icon('message', 24)}</div>
-  <div class="sd-t">No meal conversations yet</div>
-  <div class="sd-s">Once they log a meal, you can react or comment on it here.</div></div>
-  <div style="height:10px"></div>`;
-  return `
-  <h2 class="eyebrow">Meal threads</h2>
-  ${/* The trailing control was a "View thread" pseudo-button on EVERY row: a .btn wearing
-        pointer-events:none, so it looked like the thing you press and was not, thirty times down
-        one list, while the row itself was the target. The whole row already says "tap me" the way
-        every other .lrow in the app does, and the app already has one affordance for that: the
-        trailing chevron, which .lrow > .ic-chevron:last-child colors by rule. */''}
-  <section class="card co-list">
-  ${meals.slice(0, 30).map(m => `
-    <div class="lrow" data-go="coach-meal/${esc(m.id)}">
-      <div class="lic ph">
-        ${P.photos[m.id] ? `<img src="${esc(P.photos[m.id])}" alt="Photo of this meal" loading="lazy" decoding="async"/>` : icon('message', 17)}
-      </div>
-      <div class="lm"><div class="lt">${esc(cap(m.type || 'Meal'))}${m.quality != null ? ` · ${m.quality}` : ''}</div>
-      <div class="ls">${esc(mealDateLabel(m))}</div></div>
-      ${icon('chevron', 17)}
-    </div>`).join('')}
-  </section>
-  <div class="co-gap"></div>`;
 }
 
 /* Human label for the requirement source, mirroring resolveRequirementSet's own precedence
@@ -2696,7 +2748,7 @@ function foodMemSection(P, athleteId) {
   }
   const placeName = (pid) => { const p = FMEM.places.find((x) => x.id === pid); return p ? p.name : null; };
   return `
-  <h2 class="co-eyebrow">Their usual meals <span class="n">${items.length}</span></h2>
+  <h2 class="eyebrow">Their usual meals <span class="n">${items.length}</span></h2>
   <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.5;margin:2px 2px 10px">Verify a meal you know is right. It gets a trusted badge on their Plan and future AI reads lean on it.</div>
   <section class="card" style="padding:4px 16px">
     ${items.map((it) => {
@@ -2721,7 +2773,7 @@ function notesSection(P) {
   return `
   <div class="co-notebanner"><span class="ic">${icon('lock', 16)}</span><span>Private to your staff. <b>the athlete never sees these.</b></span></div>
 
-  <h2 class="co-eyebrow">Notes${notes.length ? ` <span class="n">${notes.length}</span>` : ' · none yet'}</h2>
+  <h2 class="eyebrow">Notes${notes.length ? ` <span class="n">${notes.length}</span>` : ' · none yet'}</h2>
   ${notes.length ? `
   <section class="card" style="padding:0 var(--s4)">
     ${notes.map(n => `
@@ -2741,7 +2793,7 @@ function notesSection(P) {
     ? `<div class="co-note warn">Couldn't load their notes. Any notes already written are safe; reopen to retry.</div>`
     : `<div class="co-note">No notes on this athlete yet. Jot the first below.</div>`}
 
-  <h2 class="co-eyebrow">Add a note</h2>
+  <h2 class="eyebrow">Add a note</h2>
   <section class="card" style="padding:var(--s3) var(--s4)">
     <textarea id="cn-input" aria-label="New note" aria-describedby="cn-err" rows="3" maxlength="1000" placeholder="Something worth remembering about this athlete…"
       style="display:block;width:100%;box-sizing:border-box;border-radius:var(--r-chip);background:var(--surface-2);border:1.5px solid var(--hairline);color:var(--text);font-family:var(--font);font-size:14px;font-weight:600;line-height:1.5;padding:11px 13px;outline:none;resize:none"></textarea>
@@ -2810,40 +2862,52 @@ export const coachAthlete = {
       <div style="height:10px"></div>`;
     }
     const body = PSECTION === 'overview' ? overviewSection(P, athleteId)
-      : PSECTION === 'activity' ? activitySection(P) : PSECTION === 'conversation' ? conversationSection(P)
+      : PSECTION === 'activity' ? activitySection(P)
       : PSECTION === 'requirements' ? requirementsSection(P, athleteId)
       : PSECTION === 'foodmem' ? foodMemSection(P, athleteId) : notesSection(P);
     return `
     ${head}
 
+    ${/* ONE primary, one door to the rest (2026-09-22). The bar was four equal segments (Nudge,
+          Targets, Manage, Reward) over a six-tab rail: ten controls before a single number. Nudge
+          is the action a coach opens this page to take, so it keeps the bar; Targets, Manage and
+          Reward are occasional and live in the More sheet. "Assign" stays out (founder
+          2026-09-15). The sheet ships as a <template> and is cloned on open, so nothing sits in
+          the DOM (and trips the one-overlay guard) until the coach asks for it. */''}
     <div class="co-actionbar">
       ${onStd
         ? `<button class="co-act" disabled aria-label="They're on standard today. Nothing to nudge." title="They're on standard today. Nothing to nudge.">${icon('bell', 18)}<span class="lbl">On standard</span></button>`
         : nudgedTodayHere
           ? `<button class="co-act" disabled aria-label="Already nudged today. One a day keeps it meaningful." title="Already nudged today. One a day keeps it meaningful.">${icon('check', 18)}<span class="lbl">Nudged today</span></button>`
           : `<button class="co-act${P.pass ? '' : ' hero'}" data-anudge="${esc(athleteId)}">${icon('bell', 18)}<span class="lbl">Nudge</span></button>`}
-      <button class="co-act" data-go="coach-plan/${esc(athleteId)}">${icon('edit', 18)}<span class="lbl">Targets</span></button>
-      ${/* "Assign" left this row (founder 2026-09-15: "take out assign"). Assignments still exist
-            from the create menu; this row is about THIS athlete. Manage is the real management:
-            position, room, and leaving the team. */''}
-      <button class="co-act${MANAGE.open && MANAGE.id === athleteId ? ' hero' : ''}" id="ca-manage" aria-expanded="${MANAGE.open && MANAGE.id === athleteId ? 'true' : 'false'}">${icon('gear', 18)}<span class="lbl">Manage</span></button>
-      ${CD.caps.trustPass
-        ? P.pass
-          ? `<button class="co-act hero" id="tp-btn">${icon('shield', 18)}<span class="lbl">End pass</span></button>`
-          : `<button class="co-act" data-go="pass-grant/${esc(athleteId)}">${icon('shield', 18)}<span class="lbl">Reward</span></button>`
-        : ''}
+      <button class="co-act co-act-more${MANAGE.open && MANAGE.id === athleteId ? ' on' : ''}" id="ca-more" aria-haspopup="dialog">${icon('more', 18)}<span class="lbl">More</span></button>
     </div>
+    <template id="ca-more-tpl">
+      <div class="sheet-scrim ca-more-scrim" data-more-close></div>
+      <div class="sheet ca-more" role="dialog" aria-modal="true" aria-labelledby="ca-more-t">
+        <div class="grab"></div>
+        <div class="sh-title" id="ca-more-t">${esc(name)}</div>
+        <button type="button" class="sheet-row" data-go="coach-plan/${esc(athleteId)}"><span class="si">${icon('edit', 20)}</span><span class="st"><span class="t">Targets</span><span class="s">Their meal and macro targets</span></span>${icon('chevron', 16)}</button>
+        <button type="button" class="sheet-row" id="ca-manage"><span class="si">${icon('gear', 20)}</span><span class="st"><span class="t">Manage</span><span class="s">Position, room, or remove from the ${CD.kind === 'practice' ? 'practice' : 'team'}</span></span>${icon('chevron', 16)}</button>
+        ${CD.caps.trustPass
+          ? P.pass
+            ? `<button type="button" class="sheet-row" id="tp-btn"><span class="si">${icon('shield', 20)}</span><span class="st"><span class="t">End pass</span><span class="s">Their Trust Pass is active</span></span></button>`
+            : `<button type="button" class="sheet-row" data-go="pass-grant/${esc(athleteId)}"><span class="si">${icon('shield', 20)}</span><span class="st"><span class="t">Reward</span><span class="s">Give a Trust Pass</span></span>${icon('chevron', 16)}</button>`
+          : ''}
+        <button type="button" class="cancel" data-more-close>Close</button>
+      </div>
+    </template>
     ${NUDGE_ARM ? `
     <div style="display:flex;gap:6px;align-items:center;margin:6px 0 2px">
       <input id="anudge-body" class="ob-input" maxlength="120" value="${esc(NUDGE_ARM.body)}" aria-label="Nudge message" style="flex:1;height:36px;font-size:var(--t-sm)" />
       <button class="btn ghost sm" data-anudge-cancel="1" style="width:auto;padding:0 12px;height:32px;flex:none">Cancel</button>
-      <button class="btn sm" data-anudge-send="${esc(athleteId)}" style="width:auto;padding:0 12px;height:32px;flex:none">Send</button>
+      <button class="btn sm primary" data-anudge-send="${esc(athleteId)}" style="width:auto;padding:0 12px;height:32px;flex:none">Send</button>
     </div>
     <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:0 0 4px">This exact message goes to them, from "${esc(S.operatorIdentity.handle)} is waiting".</div>` : ''}
-    <div id="tp-status" style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);min-height:0"></div>
+    <div id="tp-status" style="text-align:center;font-size:var(--t-sm);font-weight:600;color:var(--text-3);min-height:0"></div>
     ${MANAGE.open && MANAGE.id === athleteId ? manageSheet(P, athleteId, position) : ''}
 
-    <div class="co-seg co-scroll co-tabs edge-fade" id="psec-row" role="radiogroup" aria-label="Profile section">
+    <div class="co-seg co-tabs co-tabs-fit" id="psec-row" role="radiogroup" aria-label="Profile section">
       ${profileSections().map(([key, label]) => `<button type="button" class="co-chip ${PSECTION === key ? 'on' : ''}" role="radio" aria-checked="${PSECTION === key ? 'true' : 'false'}" data-psec="${key}">${esc(label)}</button>`).join('')}
     </div>
 
@@ -2888,8 +2952,8 @@ export const coachAthlete = {
       ASUM.note = `Updates every ${days} days.`;
       window.__render();
     }));
-    const manageBtn = root.querySelector('#ca-manage');
-    if (manageBtn) manageBtn.addEventListener('click', () => { MANAGE.open = !MANAGE.open; MANAGE.arm = false; MANAGE.note = ''; window.__render(); });
+    const moreBtn = root.querySelector('#ca-more');
+    if (moreBtn) moreBtn.addEventListener('click', () => openMoreSheet(root, athleteIdM, moreBtn));
     const mnote = (t, ok) => { MANAGE.note = t || ''; const el = root.querySelector('#ca-mstatus'); if (el) { el.textContent = MANAGE.note; el.classList.toggle('ok', !!ok); } };
     const setPos = async (v) => {
       if (MANAGE.busy) return;
@@ -3067,16 +3131,7 @@ export const coachAthlete = {
       NOTE_DEL = null;
       loadAthleteProfile(athleteId, true); // ALWAYS refresh — a bare true can be an RLS no-op
     }));
-    // Only END lives here now. Granting needs a shape, an amount and an optional note (0196), so
-    // the actionbar's "Reward" state is a `data-go` link to the pass-grant sheet instead.
-    const btn = root.querySelector('#tp-btn');
-    const status = root.querySelector('#tp-status');
-    if (btn) btn.addEventListener('click', async () => {
-      btn.disabled = true; if (status) status.textContent = 'Ending…';
-      const ok = await roles.endPass(athleteId);
-      if (status) status.textContent = ok ? 'Trust Pass ended.' : 'Could not end it.';
-      setTimeout(() => { if (location.hash.startsWith('#coach-athlete')) loadAthleteProfile(athleteId, true); }, 500);
-    });
+    // End pass lives in the More sheet now (openMoreSheet wires it when the sheet opens).
   },
 };
 
@@ -3930,10 +3985,19 @@ export const coachMeal = {
    always routed to coach-athlete/<id> for either book), so the route is retired rather than
    aliased — a stale bookmark now falls through the router's normal unknown-route handling. */
 
-/* ---------- Parent view — the child's scores/streaks via the guardian_* RPCs (migration 0081).
-   A guardian reads ONLY score/grade/day here; meal photos, weight, and check-ins are closed
+/* ---------- Parent view — the child's scores via the guardian_* RPCs (migration 0081).
+   A guardian reads ONLY score/day here; meal photos, weight, and check-ins are closed
    server-side. Graceful when nothing is linked yet or the RPCs aren't live — renders the
-   "no athletes linked" state, never a fabricated score. ---------- */
+   "no athletes linked" state, never a fabricated score.
+
+   2026-09-22: one card per athlete is now the athlete's OWN seven-bar week (js/week-bars.js, the
+   chart Progress draws) under the latest score, instead of a number and a school letter. The
+   letter (days.grade, A to F with a 70 step the tier ladder does not have) appeared on no other
+   surface in the app; the week is what onboarding showed this parent they would get. The latest
+   day now says how old it is, and a number older than yesterday is drawn muted: a nine-day-old
+   94 in full green was reading as "doing great" about a week nobody logged. No streak here: the
+   athlete's streak is grace-aware (state.js), and a count rebuilt from these rows would disagree
+   with the one the athlete sees. ---------- */
 export const parent = {
   hideTabs: true,
   render() {
@@ -3941,17 +4005,9 @@ export const parent = {
     ${titleHead('Your athletes', 'Daily scores')}
     ${emailVerifyBanner()}
 
-    <div id="par-list" data-tour="children"><div class="sd-s" style="text-align:center;padding:28px 10px">Loading…</div></div>
+    <div id="par-list" data-tour="children">${skeletonRows(1, 'Loading your athletes')}</div>
 
-    <div style="height:12px"></div>
-    <div class="sidebox" data-tour="visibility">
-      <div class="req-icon b s38">${icon('lock', 17)}</div>
-      <div><div class="tt">What you can see</div>
-      <div class="ts">Their daily score and grade, and the date of their latest logged day; that's the whole view. Meal photos, weight, and check-in answers stay between your athlete and their coach.</div></div>
-    </div>
-
-    <div style="height:12px"></div>
-    <section class="card" style="padding:6px 16px">
+    <section class="card par-link-card" id="par-link">
       <div class="lrow" data-go="parent-link" data-tour="link"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Link an athlete</div><div class="ls">Enter the invite code they gave you</div></div>${icon('chevron', 17)}</div>
     </section>
 
@@ -3965,7 +4021,7 @@ export const parent = {
         <div class="lic">${icon('mail', 17)}</div>
         <div class="lm"><div class="lt">Signed in as</div><div class="ls">${esc(RT.email || 'Email unavailable, sign in again to refresh')}</div></div>
       </div>
-      <div class="lrow" data-go="settings"><div class="lic">${icon('gear', 18)}</div><div class="lm"><div class="lt">Units &amp; appearance</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="settings"><div class="lic">${icon('gear', 18)}</div><div class="lm"><div class="lt">App settings</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Privacy &amp; your data</div><div class="ls">Who sees what · download your data</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="terms"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Terms &amp; privacy policy</div></div>${icon('chevron', 17)}</div>
     </section>
@@ -3979,9 +4035,11 @@ export const parent = {
     `;
   },
   async mount(root) {
-    wireReadControls(root, coachMeal); // the read's See details / info / confidence controls
-    // Before the early returns below: every anchor a parent's tour points at comes from render(),
-    // so it runs whether or not an athlete is linked yet. Safe on every repaint (see tour.js).
+    // (A wireReadControls(root, coachMeal) call sat here, copied from the coach meal screen. This
+    // screen renders no meal read, and a parent must never be one control away from one.)
+    // Before the early returns below. The children/link anchors come from render(); the
+    // visibility anchor rides the empty state, and tour.js re-plans at fire time (SETTLE_MS),
+    // skipping any anchor that is not on screen. Safe on every repaint (see tour.js).
     maybeStartTour();
     wireEmailVerifyBanner(root);
     const list = root.querySelector('#par-list');
@@ -3997,30 +4055,61 @@ export const parent = {
       return;
     }
     if (!kids.length) {
-      list.innerHTML = `
-      <div class="state-demo">
-        <div class="sd-ic">${icon('users', 24)}</div>
-        <div class="sd-t">No athletes linked yet</div>
-        <div class="sd-s">When your athlete sends you an invite and you accept it, their daily score and grade show up here. Never their photos, weight, or check-in answers.</div>
-      </div>`;
+      // Nothing linked: the privacy line lives HERE now (it used to be a permanent box bigger than
+      // the athlete card it described), with the one action the parent can take. The standing
+      // "Link an athlete" row would only repeat that button, so it steps aside.
+      list.innerHTML = `<div data-tour="visibility">${emptyState({
+        icon: 'users',
+        title: 'No athletes linked yet',
+        body: 'Ask your athlete for their invite code. You will see their daily score and their week, never their meal photos, weight, or check-in answers.',
+        action: { label: 'Link an athlete', go: 'parent-link' },
+      })}</div>`;
+      const linkCard = root.querySelector('#par-link');
+      if (linkCard) linkCard.remove();
       return;
     }
-    list.innerHTML = kids.map((k) => {
-      const score = (k.latest_score == null) ? '—' : String(k.latest_score);
-      const grade = k.latest_grade ? esc(String(k.latest_grade)) : '';
+    const today = dateKey();
+    // Seven days per athlete, in parallel. guardianChildDays answers [] on a failed read as well
+    // as on an empty week, so the week is only drawn when it can be believed: an empty answer for
+    // an athlete whose latest logged day falls INSIDE the window is a failure, and the card then
+    // shows the score alone rather than a week of empty days that did not happen.
+    const weeks = await Promise.all(kids.map((k) => {
+      const uid = k.athlete_id || k.id;
+      return uid ? act.guardianChildDays(uid, 7).catch(() => []) : Promise.resolve([]);
+    }));
+    list.innerHTML = kids.map((k, i) => {
+      const hasScore = k.latest_score != null;
+      const age = k.latest_day ? daysBetween(k.latest_day, today) : null;
+      const stale = age != null && age > 1;
       // A parent reads "Jul 23", not the server's "2026-07-23". Fall back to the raw string
       // only if the value isn't a date at all — never to an empty line.
-      const when = k.latest_day ? esc(shortDate(k.latest_day) || String(k.latest_day)) : 'No days logged yet';
+      const on = k.latest_day ? (shortDate(k.latest_day) || String(k.latest_day)) : '';
+      const when = age == null ? 'No days logged yet'
+        : age <= 0 ? 'Today, still in progress'
+        : age === 1 ? 'Yesterday'
+        : `Last logged ${on} · ${age} days ago`;
+      const rows = weeks[i] || [];
+      const trusted = rows.length > 0 || age == null || age > 6;
+      const week = calendarWeek(rows, today);
+      const logged = week.filter((d) => d.score != null);
+      const onStd = logged.filter((d) => d.score >= ON_STANDARD).length;
+      const meta = logged.length
+        ? `${logged.length} of 7 days logged · ${onStd} on standard`
+        : 'Nothing logged in the last 7 days';
       const kidUid = k.athlete_id || k.id || '';
       return `
-      <section class="card" style="padding:16px;margin-bottom:10px">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <section class="card par-card">
+        <div class="par-head">
           <span class="ros-av"${kidUid ? ` data-avatar-uid="${esc(kidUid)}"` : ''} aria-hidden="true"><span data-avatar-fallback>${esc(initialsOf(k.name || 'A', 'A'))}</span></span>
-          <div style="min-width:0;flex:1"><div class="lt" style="font-size:16px">${esc(k.name || 'Athlete')}</div>
-          <div class="ls">Latest day: ${when}</div></div>
-          <div style="text-align:right;flex:none"><div style="font-size:30px;font-weight:800;letter-spacing:-0.03em;color:${scoreColor(k.latest_score)}">${score}</div>
-          <div class="ls">${grade}</div></div>
+          <div class="par-who"><div class="par-name">${esc(k.name || 'Athlete')}</div>
+          <div class="par-when">${esc(when)}</div></div>
+          ${hasScore ? `<div class="par-score${stale ? ' stale' : ''}">
+            <div class="par-n"${stale ? '' : ` style="color:${scoreColor(k.latest_score)}"`}>${esc(String(k.latest_score))}</div>
+            <div class="par-tier">${esc(tierFor(k.latest_score).name)}</div>
+          </div>` : ''}
         </div>
+        ${trusted ? `${weekBars({ scores: week.map((d) => d.score), labels: week.map((d) => d.label), gaps: true })}
+        <div class="par-meta">${esc(meta)}</div>` : ''}
       </section>`;
     }).join('');
     hydrateAvatars(list);
@@ -4035,11 +4124,11 @@ export const inviteParent = {
   hideTabs: true,
   render() {
     return `
-    ${backHead('Invite a parent', 'They see your score & streak')}
+    ${backHead('Invite a parent', 'They see your score and your week')}
     <div class="sidebox">
       <div class="req-icon b s38">${icon('lock', 17)}</div>
       <div><div class="tt">What they'll see</div>
-      <div class="ts">Your daily score, streak, and completion. Never your meal photos, weight, or check-in answers.</div></div>
+      <div class="ts">Your daily score and your last seven days. Never your meal photos, weight, or check-in answers.</div></div>
     </div>
     <div style="height:16px"></div>
     <div id="inv-out"></div>

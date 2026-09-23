@@ -57,7 +57,10 @@ function ctaState() {
   // is the one action that fixes it. Never "opens at launch": that is a coming-soon placeholder,
   // and 2.1 App Completeness rejects a purchase screen that promises instead of sells.
   if (UI.iapReady !== true) {
-    return `<button class="btn primary" style="width:100%;opacity:.6" disabled>${UI.iapReady === null ? 'Checking the store…' : 'Update the app to join'}</button>`;
+    // Off the iOS app there is no binary to update (a browser preview, or a build with no store
+    // rail): the label names where memberships ARE bought, matching the banner above it.
+    const notBuyable = isIOSApp() ? 'Update the app to join' : 'Join in the OnStandard app';
+    return `<button class="btn primary" disabled>${UI.iapReady === null ? 'Checking the store…' : notBuyable}</button>`;
   }
   const label = p.trialDays > 0 ? `Start ${p.trialDays}-day free trial` : `Start ${esc(p.name)}`;
   return `<button class="btn primary" id="pw-buy" style="width:100%">${label}</button>
@@ -131,12 +134,16 @@ export default {
       <div><div class="tt">Update OnStandard to join</div>
       <div class="ts">This version of the app was built before memberships opened. The App Store has the current one; your stats are always yours either way.</div></div>
     </div>` : `
+    ${/* Not the iOS app, and no store rail: a browser preview (or a build without the store
+          module). "Memberships open at launch" read as a coming-soon placeholder and sat above a
+          button saying "Update the app", which is not a thing a browser can do. The true
+          sentence: memberships are bought in the app, and this screen charges nothing. */''}
     <div class="sidebox pw-pre">
-      <div class="req-icon b s38">${icon('clock', 17)}</div>
-      <div><div class="tt">Memberships open at launch</div>
-      <div class="ts">You can see what is coming below. Nothing here can be bought yet, and nothing you do on this screen charges you.</div></div>
+      <div class="req-icon b s38">${icon('download', 17)}</div>
+      <div><div class="tt">Memberships are bought in the OnStandard app</div>
+      <div class="ts">The plans below are the ones the app sells. Nothing on this screen charges you.</div></div>
     </div>`}
-    ${isIOSApp() ? '' : '<h2 class="eyebrow">What is coming</h2>'}` : ''}
+    ${isIOSApp() ? '' : '<h2 class="eyebrow">The plans</h2>'}` : ''}
 
     ${/* Plain toggle buttons with aria-pressed, not role=tablist/tab: there are no tab panels
           here, and claiming the tab pattern promises arrow-key semantics nothing wires. The iOS
@@ -147,9 +154,9 @@ export default {
           can't keep, on the screen App Review reads closest. One quiet beat instead. */''}
     ${UI.iapReady === null ? `
     ${isIOSApp() ? '' : checkingSkeleton()}
-    <section class="card pad">${ctaState()}</section>` : isIOSApp() && UI.iapReady === false ? '' : `
+    <div class="pw-buy-wrap">${ctaState()}</div>` : isIOSApp() && UI.iapReady === false ? '' : `
     <div class="pw-toggle">
-      <button class="pw-seg${UI.cadence === 'annual' ? ' on' : ''}" data-pw-cadence="annual" aria-pressed="${UI.cadence === 'annual'}">Annual <span class="pw-save">Save ${savePct}%</span></button>
+      <button class="pw-seg${UI.cadence === 'annual' ? ' on' : ''}" data-pw-cadence="annual" aria-pressed="${UI.cadence === 'annual'}">Annual <span class="status-pill b pw-save">Save ${savePct}%</span></button>
       <button class="pw-seg${UI.cadence === 'monthly' ? ' on' : ''}" data-pw-cadence="monthly" aria-pressed="${UI.cadence === 'monthly'}">Monthly</button>
     </div>
 
@@ -157,9 +164,11 @@ export default {
       ${CONSUMER_PLANS.map(planCard).join('')}
     </div>
 
-    <section class="card pad" style="margin-top:4px">
+    ${/* The purchase button sits on the canvas, not in a card of its own: a card holding one
+          button is a container with nothing to contain (2026-09-22). */''}
+    <div class="pw-buy-wrap">
       ${ctaState()}
-    </section>`}
+    </div>`}
     ${statusBanner()}
 
     ${/* Guideline 3.1.2: an auto-renewing subscription screen links its Terms of Use and Privacy

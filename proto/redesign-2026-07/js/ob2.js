@@ -45,7 +45,11 @@ function chapterProgress(steps, idx) {
     if (c === cur) return `<div class="seg"${w}><i style="transform:scaleX(${(pct / 100).toFixed(3)})"></i></div>`;
     return `<div class="seg"${w}><i></i></div>`;
   }).join('');
-  return `<div class="ob2-prog" role="progressbar" aria-label="Step ${doneSteps} of ${total} · ${CHAPTERS[cur]}" aria-valuenow="${doneSteps}" aria-valuemin="0" aria-valuemax="${total}">${segs}</div><div class="ob2-ch-label">${CHAPTERS[cur]}</div>`;
+  /* A step may name itself (`label`) where its chapter's name would mislabel it: the athlete's
+     follow-up questions ride chapter 1 after the demo (the ordering is deliberate, see
+     ob2-athlete.js), and "SEE IT" over a 1-to-10 rating read as a caption for nothing. */
+  const label = steps[idx].label || CHAPTERS[cur];
+  return `<div class="ob2-prog" role="progressbar" aria-label="Step ${doneSteps} of ${total} · ${label}" aria-valuenow="${doneSteps}" aria-valuemin="0" aria-valuemax="${total}">${segs}</div><div class="ob2-ch-label">${label}</div>`;
 }
 
 /* ---------- step-view funnel ----------
@@ -93,7 +97,7 @@ export function defineFlow({ route, steps }) {
         </div>`;
       return `
       <div class="ob">
-        <div class="ob-nav"><div class="ob-back" data-go="${backRoute(vis, idx)}" aria-label="Back">${icon('chevron', 18)}</div>${chapterProgress(vis, idx)}</div>
+        <div class="ob-nav"><button type="button" class="ob-back" data-go="${backRoute(vis, idx)}" aria-label="Back">${icon('chevron', 18)}</button>${chapterProgress(vis, idx)}</div>
         ${s.title ? `<h1 class="ob-title">${s.title(o) || ''}</h1>` : ''}
         ${s.sub ? `<div class="ob-sub">${s.sub(o) || ''}</div>` : ''}
         <div class="ob-body">${s.body ? s.body(o) : ''}</div>
@@ -207,7 +211,7 @@ const STRUCTURE_COPY = {
 export function structureStep({ mode = 'self', who } = {}) {
   const c = STRUCTURE_COPY[mode] || STRUCTURE_COPY.self;
   return {
-    id: 'structure', ch: 0, cta: 'Next',
+    id: 'structure', ch: 0, cta: 'Continue',
     title: (o) => c.title(o, who),
     sub: (o) => c.sub(o, who),
     body: () => choiceGrid('structurePref', STRUCTURE_OPTIONS),
@@ -440,7 +444,7 @@ export const PLANS = {
     { id: 'individual', name: 'Individual', monthly: '$19.99', annual: '$199.99', annualPer: '$16.67', save: 'Save $40', tag: '14-day free trial',
       sub: 'Daily Score, AI meal analysis and streaks, your full history and trends, unlimited supporters, and the recruiting card a coach can open.' },
     { id: 'family', name: 'Family', monthly: '$24.99', annual: '$249.99', annualPer: '$20.83', save: 'Save $50',
-      sub: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
+      sub: 'One household, up to 4 athletes, one bill. Parents see each athlete’s score and week.' },
   ],
   /* Names are CANONICAL (pricing.ts .name), never audience flavours. "Pro Solo" / "Nutrition Pro" /
      "Team Starter" / "Program" / "Practice" all named the same plans differently, so the plan a
@@ -482,7 +486,7 @@ export const PLANS = {
 export function adultDobSteps({ R, next, who }) {
   return [
     {
-      id: 'dob', ch: 0, cta: 'Next',
+      id: 'dob', ch: 0, cta: 'Continue',
       next: (o) => (o.dobBlocked ? 'blocked' : next),
       title: () => 'Your birth date',
       sub: () => `Asked once. ${who} accounts are for adults.`,

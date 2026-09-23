@@ -8,33 +8,24 @@
    ============================================================ */
 import { RT } from '../state.js';
 import { icon } from '../icons.js';
-import { esc, logoMark } from '../components.js';
+import { esc } from '../components.js';
 import { track, EVENTS } from '../analytics.js';
 
+/* Every door wears the same blue tile (2026-09-22); the GLYPH tells them apart. The tiles used to
+   be green (client, dietitian), purple (trainer) and cyan (nutrition pro): status hues doing an
+   identity job, the same mistake the 2026-08-25 pass fixed for amber (coach) and red (parent).
+   Subtitles are one line each so all seven doors fit on a 390x844 screen. */
 const ROLES = [
-  { go: 'oba/why', key: 'athlete', ic: 'bolt', tint: 'var(--blue-surface)', accent: 'var(--blue-bright)',
-    t: 'Athlete', s: 'Build and prove your daily consistency.' },
-  { go: 'obf/why', key: 'client', ic: 'user', tint: 'var(--green-surface)', accent: 'var(--green-bright)',
-    t: 'Fitness Client', s: 'Stay accountable between training sessions.' },
-  /* Blue family (2026-08-25): amber is a status hue app-wide (warnings, due-soon), so the
-     Coach door wore a caution color as identity. */
-  { go: 'obk/why', key: 'coach', ic: 'users', tint: 'var(--blue-surface)', accent: 'var(--blue-bright)',
-    t: 'Coach', s: 'Set expectations and see who is executing.' },
-  { go: 'obt/why', key: 'trainer', ic: 'bars', tint: 'var(--purple-surface)', accent: 'var(--purple-bright)',
-    t: 'Trainer', s: 'Scale client accountability and increase your value.' },
-  /* Neutral (2026-08-25): red is the miss/danger hue. The one door a worried parent taps
-     should not be dressed as an alert. */
-  { go: 'obp/why', key: 'parent', ic: 'heart', tint: 'var(--surface-3)', accent: 'var(--text-2)',
-    t: 'Parent', s: 'Support an athlete without constantly checking on them.' },
+  { go: 'oba/why', key: 'athlete', ic: 'bolt', t: 'Athlete', s: 'Prove your work, every day.' },
+  { go: 'obf/why', key: 'client', ic: 'user', t: 'Fitness Client', s: 'Stay on track between sessions.' },
+  { go: 'obk/why', key: 'coach', ic: 'users', t: 'Coach', s: 'Set the standard. See who meets it.' },
+  { go: 'obt/why', key: 'trainer', ic: 'bars', t: 'Trainer', s: 'Keep clients accountable all week.' },
+  { go: 'obp/why', key: 'parent', ic: 'heart', t: 'Parent', s: 'Support them without hovering.' },
   /* Two nutrition entries on purpose (2026-08-18): a college RD covering a roster and a
-     private-practice pro run different books. The subtitles carry the fork. */
-  { go: 'obd/why', key: 'dietitian', ic: 'bowl', tint: 'var(--green-surface)', accent: 'var(--green-bright)',
-    t: 'Team Dietitian / RD', s: 'Run fueling for a whole roster, any sport.' },
-  /* Its own glyph (2026-08-19): the two nutrition doors shared 'bowl' and were told apart only
-     by tint — the two most-confusable options were the two least visually separated. The
-     stethoscope says "private practice"; the bowl stays on the roster door. */
-  { go: 'obn/why', key: 'nutritionist', ic: 'stethoscope', tint: 'var(--cyan-surface)', accent: 'var(--cyan)',
-    t: 'Nutrition Professional', s: 'Your own practice: clients, reviews, progress.' },
+     private-practice pro run different books. The subtitles carry the fork, and each has its
+     own glyph (2026-08-19): the bowl for the roster door, the stethoscope for private practice. */
+  { go: 'obd/why', key: 'dietitian', ic: 'bowl', t: 'Team Dietitian / RD', s: 'Fuel a whole roster, any sport.' },
+  { go: 'obn/why', key: 'nutritionist', ic: 'stethoscope', t: 'Nutrition Professional', s: 'Your own practice and clients.' },
 ];
 
 /* Resume crumb written by the OB2 engine on every step view. Only offered while the
@@ -57,29 +48,24 @@ export const ob2Role = {
     const resume = resumeTarget();
     const card = (r) => `
       <div class="role-card" data-go="${r.go}" data-role="${r.key}" role="button" aria-label="${esc(r.t)}. ${esc(r.s)}">
-        <div class="role-ic" style="background:${r.tint};color:${r.accent}">${icon(r.ic, 21)}</div>
+        <div class="role-ic">${icon(r.ic, 20)}</div>
         <div class="role-tt"><div class="role-t">${esc(r.t)}</div><div class="role-s">${esc(r.s)}</div></div>
         <div class="role-chev">${icon('chevron', 18)}</div>
       </div>`;
     return `
-    <div class="ob">
-      <h1 class="sr-only">Choose your role</h1>
-      <div style="width:52px;height:52px;margin:4px auto 14px">${logoMark(52, 'role2')}</div>
-      <div class="ob-title" style="text-align:center">How will you use OnStandard?</div>
-      <div class="ob-sub" style="text-align:center">Everything that follows is built around your answer.</div>
+    <div class="ob ob-role">
+      <div class="ob-nav"><button type="button" class="ob-back" data-go="welcome" aria-label="Back">${icon('chevron', 18)}</button></div>
+      <h1 class="ob-title">How will you use OnStandard?</h1>
       <div class="ob-body">
         ${resume ? `
-        <div class="role-card" id="ob2-resume" data-go="${esc(resume.go)}" role="button" aria-label="Continue where you left off. ${esc(resume.role.t)}" style="border-color:${resume.role.accent}">
-          <div class="role-ic" style="background:${resume.role.tint};color:${resume.role.accent}">${icon('back', 21)}</div>
+        <div class="role-card role-resume" id="ob2-resume" data-go="${esc(resume.go)}" role="button" aria-label="Continue where you left off. ${esc(resume.role.t)}">
+          <div class="role-ic">${icon('back', 20)}</div>
           <div class="role-tt"><div class="role-t">Pick up where you left off</div><div class="role-s">Your ${esc(resume.role.t.toLowerCase())} answers are saved.</div></div>
           <div class="role-chev">${icon('chevron', 18)}</div>
         </div>
-        <div class="role-note" style="text-align:center;margin:10px 0 16px">Or start over with a different role.</div>` : ''}
+        <div class="role-note role-note-gap">Or start over with a different role.</div>` : ''}
         <div class="role-list">${ROLES.map(card).join('')}</div>
-        <div class="role-note" style="text-align:center">Invited by a coach, trainer, or athlete? Pick your role. You’ll connect with your code in a minute.</div>
-      </div>
-      <div class="ob-foot">
-        <div class="ob-textlink" role="button" tabindex="0" aria-label="Back to welcome" data-go="welcome">Back</div>
+        <div class="role-note">Invited by a coach, trainer, or athlete? Pick your role. You’ll connect with your code in a minute.</div>
       </div>
     </div>`;
   },

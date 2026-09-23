@@ -281,8 +281,11 @@ const MEAL_SRC = read('screens', 'meal.js');
 const FS_SRC = read('screens', 'foodsearch.js');
 
 test('meal.js: every calorie figure rides showCalories, every macro cell rides showMacros', () => {
-  // The analysis screen's macroRow builds its cells per figure.
-  assert.match(MEAL_SRC, /if \(S\.planStyle\.showCalories\) cells\.push\(`<div class="macro"><div class="mv">\$\{m\.cals\}/);
+  // The analysis screen's macroRow builds its cells per figure. Since 2026-09-22 each cell is the
+  // settled meal page's Nutrition tile (nutTile) rather than a boxed .macro, so the pre-log check
+  // and the logged plate read as one family; the per-figure gates are unchanged.
+  assert.match(MEAL_SRC, /if \(S\.planStyle\.showCalories\) cells\.push\(nutTile\('cals', `\$\{m\.cals\}`/);
+  assert.match(MEAL_SRC, /if \(S\.planStyle\.showMacros\) cells\.push\(\s*nutTile\('protein'/);
   // The thread's value strip: kcal cell behind showCalories, the three macro cells behind showMacros.
   // (Cells read through mg(raw.*) since 2026-09-14: null prints a dash, the gates are unchanged.)
   const kcalCell = MEAL_SRC.split('\n').find((l) => l.includes("tile('cals', raw.cals"));

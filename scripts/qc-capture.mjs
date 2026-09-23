@@ -13,6 +13,8 @@
 //   node scripts/qc-capture.mjs --audit-only # no PNGs, just the defect report
 //   node scripts/qc-capture.mjs --scroll-to '#meal-thread'   # frame a section below the fold
 //   node scripts/qc-capture.mjs home,score   # only shots whose name matches
+//   node scripts/qc-capture.mjs --full       # capture the whole scrolled document, not one viewport
+//   node scripts/qc-capture.mjs --port 9342 --shard 1/4 --out x-1   # one of four parallel shards
 //
 // Output: qc/<out>/<theme>-<width>/<name>.png, plus report.json and index.html (contact sheet).
 //
@@ -108,7 +110,9 @@ const SHOTS = [
   { g: 'athlete', name: 'notifications', seed: 'dayMidday', route: 'notifications', at: [13, 15] },
 
   // athlete — the meal state machine
-  { g: 'meal', name: 'camera', seed: 'dayMorning', route: 'camera/lunch', at: [12, 40] },
+  // `pre` marks the device as already primed: the camera shot used to capture the one-time
+  // permission primer (camera-priming covers that) and the real viewfinder was never seen.
+  { g: 'meal', name: 'camera', seed: 'dayMorning', route: 'camera/lunch', at: [12, 40], pre: `const st = await import('./js/state.js'); st.RT.camPrimed = true;` },
   // This entry was named 'analyzing' and captured the CAMERA PRIMING screen for its whole life:
   // #analyzing with nothing staged bounces to #camera by design, so the contact sheet has been
   // showing a permission prompt under the name of the scan interstitial — which is part of why
@@ -129,7 +133,16 @@ const SHOTS = [
   { g: 'athlete2', name: 'coach-home-planpick', seed: 'coachPickedPlan', route: 'coach-home', at: [10, 1] },
   { g: 'athlete2', name: 'plan-upgrade-picked', seed: 'coachPickedPlan', route: 'plan-upgrade', at: [10, 2] },
   { g: 'athlete2', name: 'home-roster-ended', seed: 'rosterEnded', route: 'home', at: [10, 5] },
-  { g: 'meal', name: 'meal-analysis', seed: 'dayMidday', route: 'meal-analysis', at: [13, 5] },
+  // A staged plate WITH the read the analyze call returns, so the confirm-before-it-counts screen
+  // shows what an athlete sees after a real scan. It rendered 0g tiles and a "take a photo" prompt
+  // in every capture before, so the one screen between the scan and the log was never reviewed.
+  { g: 'meal', name: 'meal-analysis', seed: 'stagedCapture', route: 'meal-analysis', at: [13, 5], pre: `const st = await import('./js/state.js'); st.RT.camPrimed = true;
+    st.MEAL.source = 'photo';
+    st.MEAL.result = { quality: 84, protein: 52, carbs: 74, fat: 18, kcal: 780, fiber: 6,
+      detected: ['Grilled chicken', 'Brown rice', 'Edamame', 'Soft-boiled egg'],
+      detectedRich: [{ name: 'Grilled chicken', confidence: 'high' }, { name: 'Brown rice', confidence: 'high' },
+        { name: 'Edamame', confidence: 'medium' }, { name: 'Soft-boiled egg', confidence: 'medium' }],
+      note: 'Solid lunch. Fibre is the thin part, so a piece of fruit would round it out.' };` },
   { g: 'meal', name: 'meal-detail', seed: 'dayMidday', route: 'meal-detail/lunch', at: [13, 8] },
   // The score rubric lives in a closed <details>, so every sweep before 09-16 audited it shut —
   // which is how its notes clipped at 320 through two polish passes. Open it so the rows render
@@ -138,7 +151,10 @@ const SHOTS = [
     act: `const d = document.querySelector('details.rub'); if (d) d.open = true; else console.error('meal-rubric: details.rub not found — shot is a silent duplicate of meal-detail');` },
   { g: 'meal', name: 'meal-thread', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9] },
   { g: 'meal', name: 'nutrition-chat', seed: 'dayMidday', route: 'nutrition-chat', at: [13, 30] },
-  { g: 'meal', name: 'meal-questions', seed: 'dayMidday', route: 'meal-questions', at: [13, 6] },
+  // The clarifying moment needs the questions the analyze call sends back; without them the
+  // route correctly bounces to the camera, which is all this shot ever showed.
+  { g: 'meal', name: 'meal-questions', seed: 'stagedCapture', route: 'meal-questions', at: [13, 6], pre: `const st = await import('./js/state.js'); st.RT.camPrimed = true;
+    st.MEAL.questions = ['Is that chicken breast or thigh?', 'About how much rice is under it?'];` },
   { g: 'meal', name: 'food-search', seed: 'dayMidday', route: 'food-search', at: [13, 7] },
   { g: 'meal', name: 'history', seed: 'dayComplete', route: 'history', at: [21, 58] },
   // The PAST-meal conversation — where a follow-up notification lands. Never captured before,
@@ -449,14 +465,19 @@ if (ALL) {
 // Positional args are name filters. Skip anything that is a flag or a flag's value, then split
 // on commas so `qc-capture.mjs home,meal` matches both rather than looking for one literal
 // "home,meal" screen.
-const flagValues = new Set(['themes', 'widths', 'out', 'scroll-to'].map((f) => flag(f, null)).filter(Boolean));
+const flagValues = new Set(['themes', 'widths', 'out', 'scroll-to', 'port', 'shard'].map((f) => flag(f, null)).filter(Boolean));
 const nameFilter = argv
   .filter((a) => !a.startsWith('--') && !flagValues.has(a))
   .flatMap((a) => a.split(',').map((s) => s.trim()).filter(Boolean));
 if (nameFilter.length) TARGETS = TARGETS.filter((s) => nameFilter.some((f) => s.name.includes(f)));
+// --shard 0/4 keeps every 4th shot starting at 0, so four runs (each with its own --port and
+// --out) cover the set once between them in a quarter of the wall-clock.
+const SHARD = flag('shard', null);
+if (SHARD) { const [si, sn] = SHARD.split('/').map(Number); TARGETS = TARGETS.filter((_, k) => k % sn === si); }
 
 const SCROLL_TO = flag('scroll-to', null);
-const b = await launch({ port: 9341, scale: 2 });
+const FULL = has('full');
+const b = await launch({ port: Number(flag('port', 9341)), scale: 2 });
 const report = [];
 try {
   for (const theme of THEMES) {
@@ -492,6 +513,8 @@ try {
           await withTimeout((async () => {
             await goto(page, BASE, { settleMs: 1100 });
             if (!s.preAuth) await evalJs(page, `(async () => { ${SEEDS[s.seed]} return 1; })()`);
+            // `pre` runs after the seed and before navigation: device state a seed does not own.
+            if (s.pre) await evalJs(page, `(async () => { ${s.pre} return 1; })()`);
             await evalJs(page, setTheme(theme));
             await evalJs(page, `(() => { location.hash = '#${s.route}'; return 1; })()`);
             await sleep(/^(coach|trainer|parent|copilot)/.test(s.route) ? 2600 : 1400);
@@ -515,6 +538,16 @@ try {
           rec.thin = audit.textLen < 90;
           rec.noH1 = audit.h1 === 0 && audit.h2 > 0;
           if (!AUDIT_ONLY) {
+            // --full frames the whole screen, not one viewport. The page never scrolls; .viewport
+            // does (app.css), so the window is grown until .viewport's content fits, then shot.
+            // Capped so a runaway list cannot make a 40MB PNG. The tab bar lands at the bottom.
+            const extra = FULL ? await evalJs(page, `(() => { const v = document.querySelector('.viewport');
+              return v ? Math.max(0, v.scrollHeight - v.clientHeight) : 0; })()`) : 0;
+            if (extra > 0) {
+              const tall = Math.min(6000, 844 + extra);
+              await page.send('Emulation.setDeviceMetricsOverride', { width, height: tall, deviceScaleFactor: 2, mobile: true, screenWidth: width, screenHeight: tall });
+              await sleep(350);
+            }
             const buf = await screenshot(page, { format: 'png' });
             await writeFile(join(dir, s.name + '.png'), buf);
             rec.kb = Math.round(buf.length / 1024);

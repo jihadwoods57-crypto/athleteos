@@ -116,7 +116,7 @@ const steps = [
       </div>`,
   },
   {
-    id: 'answer', ch: 0, cta: 'Show me',
+    id: 'answer', ch: 0, cta: 'Continue',
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">The OnStandard answer</div>
@@ -125,7 +125,7 @@ const steps = [
       </div>`,
   },
   {
-    id: 'name', ch: 0, cta: 'Next',
+    id: 'name', ch: 0, cta: 'Continue',
     title: () => 'You, coach.',
     sub: () => 'Your athletes see this name on every standard you set.',
     body: () => `
@@ -196,7 +196,7 @@ const steps = [
   },
   ...adultDobSteps({ R: 'obk', next: 'sport', who: 'Coach' }),
   {
-    id: 'sport', ch: 0, cta: 'Next',
+    id: 'sport', ch: 0, cta: 'Continue',
     title: () => 'Your sport.',
     sub: () => 'Positions, rooms, and templates follow it.',
     /* Soccer was missing here while the athlete flow offered it — a soccer program's coach
@@ -213,7 +213,7 @@ const steps = [
     },
   },
   {
-    id: 'team-size', ch: 0, cta: 'Next',
+    id: 'team-size', ch: 0, cta: 'Continue',
     title: () => 'How many athletes?',
     sub: () => 'Across everything you run. Rough is fine.',
     body: () => chipRow('teamSize', [
@@ -221,7 +221,7 @@ const steps = [
     ]),
   },
   {
-    id: 'expectations', ch: 0, cta: 'Next',
+    id: 'expectations', ch: 0, cta: 'Continue',
     title: () => 'Daily non-negotiables.',
     sub: () => 'The things every athlete owes you every day: meals, weigh-in, recovery, lift log.',
     body: (o) => `${chipRow('dailyExpectations', [
@@ -230,7 +230,7 @@ const steps = [
     <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:14px 2px 0;line-height:1.5">${o.teamSize ? `Across ${esc(teamSizeOf(o))} athletes, this number decides how much your staff is really tracking.` : 'This number decides how much your staff is really tracking.'}</div>`,
   },
   {
-    id: 'tracking', ch: 0, cta: 'Next',
+    id: 'tracking', ch: 0, cta: 'Continue',
     title: () => 'How do you track it today?',
     sub: () => 'Honest answer. It shapes what we show you next.',
     body: () => choiceGrid('currentTracking', [
@@ -241,7 +241,7 @@ const steps = [
     ]),
   },
   {
-    id: 'staff', ch: 0, cta: 'Next',
+    id: 'staff', ch: 0, cta: 'Continue',
     title: () => 'Who’s on staff?',
     sub: () => 'Staff seats see their rooms. You see everything.',
     body: () => chipRow('staffSize', [
@@ -249,7 +249,7 @@ const steps = [
     ]),
   },
   {
-    id: 'blindspot', ch: 0, cta: 'Next',
+    id: 'blindspot', ch: 0, cta: 'Continue',
     title: () => 'Where does it slip?',
     sub: () => 'Pick every blind spot that costs you. We build around them.',
     body: () => chipRow('blindspots', [
@@ -264,7 +264,7 @@ const steps = [
 
   /* ================= ch1 — SEE IT ================= */
   {
-    id: 'aha', ch: 1, cta: 'There’s a better way',
+    id: 'aha', ch: 1, cta: 'Continue',
     title: () => 'Your program, counted.',
     body: (o) => {
       const ts = teamSizeOf(o), de = expectationsOf(o);
@@ -276,7 +276,7 @@ const steps = [
     },
   },
   {
-    id: 'req-build', ch: 1, cta: 'Create it',
+    id: 'req-build', ch: 1, cta: 'Continue',
     title: () => 'Build your first requirement.',
     sub: () => 'Pick one to try. Windows, proof, and full templates are yours to tune later in Standards.',
     body: () => `${simChip('Sample requirement · yours are fully custom')}
@@ -288,7 +288,7 @@ const steps = [
       ])}`,
   },
   {
-    id: 'req-assign', ch: 1, cta: 'Assign it',
+    id: 'req-assign', ch: 1, cta: 'Continue',
     title: () => 'Now point it at a room.',
     sub: (o) => `${REQ_LABEL[o.sampleReq] || 'Your requirement'} can hit the whole team or one position room.`,
     body: (o) => `${chipRow('sampleAssign', [
@@ -298,7 +298,7 @@ const steps = [
     <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:14px 2px 0;line-height:1.5">Rooms come from the positions your athletes pick. One tap and the requirement lands on everyone in it.</div>`,
   },
   {
-    id: 'board', ch: 1, cta: 'How’s a score built?',
+    id: 'board', ch: 1, cta: 'Continue',
     title: () => 'Tuesday, 8:40 pm.',
     sub: (o) => `${REQ_LABEL[o.sampleReq] || 'Your standard'} on ${roomLabel(o, o.sampleAssign)}: every athlete, without sending a single text.`,
     body: (o) => `${simChip('Simulated roster · your real board fills as athletes join')}
@@ -306,7 +306,7 @@ const steps = [
       <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:12px 2px 0;line-height:1.5">${icon('check', 10)} done · ${icon('x', 10)} missed · one column per daily expectation.</div>`,
   },
   {
-    id: 'breakdown', ch: 1, cta: 'Next',
+    id: 'breakdown', ch: 1, cta: 'Continue',
     title: () => 'Tap a name. See the why.',
     sub: () => 'Every score opens the same honest breakdown: the real weights, not a vibe.',
     body: (o) => `${simChip('Simulated athlete · real breakdowns come from real logs')}
@@ -334,7 +334,7 @@ const steps = [
     },
   },
   {
-    id: 'alert', ch: 1, cta: 'Next',
+    id: 'alert', ch: 1, cta: 'Continue',
     title: () => 'Know the moment it slips.',
     sub: () => 'You choose what’s worth a ping. Everything else waits for your morning brief.',
     body: () => `${simChip('Simulated alert previews')}
@@ -343,7 +343,7 @@ const steps = [
       <div style="font-size:12.5px;font-weight:600;color:var(--text-3);margin:6px 2px 0;line-height:1.5">Alert rules are yours: per requirement, per room, or off entirely.</div>`,
   },
   {
-    id: 'thread', ch: 1, cta: 'Next',
+    id: 'thread', ch: 1, cta: 'Continue',
     title: () => 'One thread per meal.',
     sub: () => 'The AI does the first read on every plate. You step in only where it counts.',
     body: () => `${simChip('Simulated thread')}
@@ -354,7 +354,7 @@ const steps = [
       ])}`,
   },
   {
-    id: 'automation', ch: 1, cta: 'Build my system',
+    id: 'automation', ch: 1, cta: 'Continue',
     title: () => 'The texts nobody sends.',
     body: (o) => {
       const ts = teamSizeOf(o), de = expectationsOf(o);
@@ -367,7 +367,7 @@ const steps = [
 
   /* ================= ch2 — YOUR PLAN ================= */
   {
-    id: 'plan', ch: 2, cta: 'Set the standard',
+    id: 'plan', ch: 2, cta: 'Continue',
     title: () => 'Your program’s system.',
     sub: () => 'Built from what you just told us.',
     body: (o) => {
@@ -390,7 +390,7 @@ const steps = [
 
   /* ================= ch3 — COMMIT ================= */
   {
-    id: 'commit-q', ch: 3, cta: 'Next',
+    id: 'commit-q', ch: 3, cta: 'Continue',
     title: () => 'How much do you want to see?',
     sub: () => 'This sets your alert defaults. Tune any of it later in Notifications.',
     body: () => choiceGrid('visibilityLevel', [
@@ -409,7 +409,7 @@ const steps = [
       ${mirrorCard('users', `A board for <b>${esc(teamSizeOf(o))} athletes</b>, filled without asking.`)}
       ${mirrorCard('bell', `Visibility: <b>${esc(VIS_LABEL[o.visibilityLevel] || 'scores + alerts')}</b>. Your alert defaults follow it.`)}
       ${mirrorCard('shield', `The standard gets written down, proven daily, and seen, by you.`)}
-      <div class="ob-foot" style="margin-top:auto">
+      <div class="ob-foot ob-foot-push">
         ${committed ? commitContinue() : commitButton(false)}
       </div>`;
     },
@@ -428,7 +428,7 @@ const steps = [
 
   /* ================= ch4 — START ================= */
   {
-    id: 'proof', ch: 4, cta: 'Next',
+    id: 'proof', ch: 4, cta: 'Continue',
     title: () => 'What it looks like in a program.',
     sub: () => 'Illustrative, not actual customers yet.',
     body: () => `
@@ -437,7 +437,7 @@ const steps = [
       ${testimonial({ quote: 'The board caught two guys drifting in week one, before the scale did. That used to take a month.', name: 'Coach R.', role: 'College track, 31 athletes', initials: 'CR', stat: 'wk 1', statKey: 'first catch' })}`,
   },
   {
-    id: 'staff-or-create', ch: 4, cta: 'Next',
+    id: 'staff-or-create', ch: 4, cta: 'Continue',
     title: (o) => (o.coachMode === 'join' ? 'Join a staff.' : 'Build the team.'),
     sub: (o) => (o.coachMode === 'join'
       ? 'Enter the code from your head coach.'

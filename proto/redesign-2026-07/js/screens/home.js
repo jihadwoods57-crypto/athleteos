@@ -658,8 +658,10 @@ function nowCard(e) {
   // Overdue announced itself four ways at once (eyebrow + pill + a display-size "Late" + the sub).
   // The eyebrow names the state and the sub explains it; the pill only ever restated one of them,
   // so it goes in both overdue cases. Closing-soon drops it too: "CLOSING SOON" + the hot countdown
-  // says it all.
-  const pill = od || closing ? '' : `<span class="status-pill ${pillTone(n.color)}">${n.pill}</span>`;
+  // says it all. A plain "Due today" goes too (2026-09-22): the countdown under the title already
+  // says "10h 20m left · Before bed", so the pill was the same fact in a box. The pill stays only
+  // when it adds a WARNING the countdown does not carry ("Due soon", inside the last 90 minutes).
+  const pill = od || closing || n.color !== 'gold' ? '' : `<span class="status-pill ${pillTone(n.color)}">${n.pill}</span>`;
   // The card wears the hue of the thing it is ASKING FOR — green meal, purple recovery, blue
   // commitment, cyan weekly — not a blanket amber. Amber is this system's warning ("at risk, off
   // pace"), and painting every next action with it meant the app shouted an alarm at 9am about a
@@ -671,7 +673,7 @@ function nowCard(e) {
   return `<section class="xnow ${missed ? 'red' : ''}${closing ? ' closing' : ''}${hue ? ` ${hue}` : ''}">
     <div class="xlab"><span class="xl">${od ? (missed ? 'MISSED' : 'LATE') : closing ? 'NOW · CLOSING SOON' : 'NOW'}</span>${pill}</div>
     <div class="xmain">
-      <div class="xico ${n.color}">${icon(n.icon, 21)}</div>
+      <div class="xico">${icon(n.icon, 21)}</div>
       <div><div class="xt">${esc(n.title)}</div><div class="xwhy">${whyHtml(n.why)}</div></div>
     </div>
     <div class="xcount">
@@ -759,7 +761,8 @@ function syncBanner() {
   return '';
 }
 
-/* Trust Pass, compressed (founder call 2026-07-16): a purple shield in the header row —
+/* Trust Pass, compressed (founder call 2026-07-16): a shield in the header row (blue since
+   2026-09-22, lead-approved: it was purple, which means recovery only, and #trust wears blue) —
    same 44px metrics as the bell — instead of a full-width card eating the fold. Tap opens
    a quick anchored popup with the essentials; "Full details" goes to the existing trust
    page. Renders ONLY while a real pass is active (0196: two shapes, see S.pass). */
@@ -786,15 +789,20 @@ function trustShield() {
    "N to go — your day is still open". Saying it once and giving the athlete their bearings
    instead is worth more than saying it three ways. */
 function headSub(e) {
-  if (e.celebration) return 'Locked in for today';
+  // Not "Locked in": that is the 80-89 tier's NAME, and this line printed it over a 93 (and over
+  // a 72). The greeting states the fact that is true at every score; the ring states the tier.
+  if (e.celebration) return 'Day complete';
   const d = new Date();
   /* The team when there is one, the athlete's own school when there isn't. The precedence and
      the reason for it live in identity-line.js, which is where this line can be tested. */
   return identityLine(weekdayLong(d), RT.myCoach && RT.myCoach.teamName, S.athlete.school);
 }
 
-/* The single next move, named inside the score card. It deliberately repeats what the NOW
-   card below is — the score card TELLS you, the NOW card is where you DO it. */
+/* The single next move, named inside the score card. It used to repeat what the NOW card below
+   is ("the score card TELLS you, the NOW card is where you DO it"); reversed 2026-09-22 with the
+   lead's approval, because with the card directly below the item was named three times above
+   the fold. liveHero now asks for it only when there is no NOW card, which leaves this the
+   locked-item line ("Dinner · opens 6:00 PM"). */
 function nextLabel(e) {
   const n = e.now;
   if (n) return (!n.proof || n.proof === 'check') ? `Mark ${n.title} done` : `${VERB[n.proof]} ${n.title}`;
@@ -897,7 +905,11 @@ function liveHero(e, { inProgress = false, backdrop = false } = {}) {
   // `notStarted`: the digit arrives with the first requirement, and the screen reader is told
   // "not started yet" rather than a number that would read as a failing grade.
   const notStarted = inProgress && e.met === 0;
-  const next = decided ? nextLabel(e) : '';
+  // "Next:" only when there is no NOW card to say it (2026-09-22, lead-approved reversal of the
+  // note on nextLabel): with a NOW card directly below, the same item was named three times in
+  // one screen and the line cost the card its button above the tab bar. What survives is the
+  // no-NOW case, where "Dinner · opens 6:00 PM" is information nothing else on screen carries.
+  const next = decided && !e.now ? nextLabel(e) : '';
   // The formula bar is S.breakdown verbatim — the same values and accent colors as the
   // breakdown screen, so the two surfaces can never disagree. Segments sum to /100.
   // Deliberately UNLABELED (founder call 2026-07-16): the bar is a one-stroke teaser of
@@ -911,11 +923,16 @@ function liveHero(e, { inProgress = false, backdrop = false } = {}) {
   // ONE line, not two. The in-progress hero used to render "<b>N</b> of <b>M</b> done" and,
   // beneath it, "N to go — your day is still open" — the same fact twice, under a header that
   // had already said it a third time. The "In progress" chip carries the reassurance; this line
-  // carries the count and nothing else.
+  // carries the count and nothing else. Since 2026-09-22 the chip rides the SAME row as the
+  // count ("In progress · 2 of 4 done today"): stacked, the two cost 31px that the NOW card's
+  // button needed above the tab bar. Before the first log the chip STAYS (the day is open, and
+  // "In progress" is the one word that says no verdict is coming yet; firstDayActivationLive
+  // pins it) and the count becomes "Nothing logged yet": short enough to share the row, and the
+  // NOW card directly below already says what to log first.
   const line = decided
     ? `<b>${e.met}</b> of <b>${e.total}</b> completed <span class="sep">·</span> max today <b>${e.possible}</b>`
     : (e.met === 0 && e.total > 0
-      ? 'Log your first requirement to start your score'
+      ? 'Nothing logged yet'
       : `<b>${e.met}</b> of <b>${e.total}</b> done today`);
   const aria = decided
     ? `Daily Score ${e.score}, ${S.tier.name}. ${e.met} of ${e.total} completed. Open score breakdown`
@@ -939,10 +956,8 @@ function liveHero(e, { inProgress = false, backdrop = false } = {}) {
       ${gain > 0 ? `<span class="xh-float" aria-hidden="true">+${gain}</span>` : ''}
     </div>
     <div class="xh-under">
-      ${decided
-        ? (deltaChip(e.score) ? `<div class="xrow">${deltaChip(e.score)}</div>` : '')
-        : '<div class="xrow"><span class="status-pill inprog">In progress</span></div>'}
-      <div class="${decided ? 'xh-line' : 'xh-flow'}">${line} <span class="xstrip-chev">${icon('chevron', 15)}</span></div>
+      ${decided && deltaChip(e.score) ? `<div class="xrow">${deltaChip(e.score)}</div>` : ''}
+      <div class="${decided ? 'xh-line' : 'xh-flow xh-prog'}">${!decided ? '<span class="status-pill inprog">In progress</span>' : ''}<span>${line} <span class="xstrip-chev">${icon('chevron', 15)}</span></span></div>
     </div>
     ${decided ? `<div class="xh-formula">
       <div class="xf-bar" role="img" aria-label="Score parts: ${parts.map((b) => `${b.key} ${b.earned} of ${b.possible}`).join(', ')}">${segs}</div>
@@ -985,7 +1000,9 @@ function celebration(e) {
       aria-label="Daily Score ${e.score}, ${S.tier.name}. Every requirement complete. Open score breakdown">
       ${scoreRing({ score: e.score, tierName: S.tier.name, tierCls: S.tier.cls, vt: 'score', size: HERO_RING, stroke: HERO_STROKE })}
     </section>
-    <div style="font-size:var(--t-xl);font-weight:800;letter-spacing:-.02em;margin-top:2px">You're OnStandard.</div>
+    ${/* The headline names the tier only when it IS the tier: "You're OnStandard." printed over
+          every finished day, including a 72 whose ring said Building. */''}
+    <div style="font-size:var(--t-xl);font-weight:800;letter-spacing:-.02em;margin-top:2px">${S.tier.name === 'OnStandard' ? "You're OnStandard." : 'Every requirement is in.'}</div>
     <!-- One meta row, no echoes: the ring already says the score and (by color) the tier; the
          record list below already proves every requirement is in. Everything left that's UNIQUE
          lives here: delta, streak, and when it locks.
@@ -1152,7 +1169,11 @@ export default {
     const sync = syncBanner();
     // Keep-record joins the priority ladder LAST: a sync problem outranks a conversion
     // moment — pitching a membership over a broken sync would read as tone-deaf.
-    const attention = sync || keepRecordCard();
+    // ...but BELOW the NOW card, not above it (2026-09-22): above, a membership pitch pushed the
+    // day's one required action off the first screen entirely (its button landed at y 821-868 of
+    // 844). The work comes first; the parachute is still the first thing after it.
+    const attention = sync;
+    const keepRecord = sync ? '' : keepRecordCard();
     const demoted = '';
 
     const upcoming = e.later;
@@ -1188,6 +1209,7 @@ export default {
     <div id="cv-nudge">${cachedNudge(e)}</div>
     ${e.overdue.filter((o) => o.id !== (e.now && e.now.id) && o.id !== (e.next && e.next.id)).map((i) => row(i)).join('')}
     ${e.now ? nowCard(e) : ''}
+    ${keepRecord}
     ${nextRows.length ? `<h2 class="xgrp">${e.next.state === 'overdue' ? 'Also overdue' : 'Next'}</h2>${nextRows.map(row).join('')}` : ''}
     ${laterHtml}
     ${doneHtml}

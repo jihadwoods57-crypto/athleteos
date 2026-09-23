@@ -1,7 +1,8 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
-import { esc, segBar, emptyState } from '../components.js';
-import { scoreBand } from '../score-band.js';
+import { esc, segBar } from '../components.js';
+import { weekBars } from '../week-bars.js';
+import { tierFor } from '../score-band.js';
 import { maybeShowTip } from '../tour.js';
 import { cutoverIndex } from '../score-cutover.js';
 import { ROLLCALL_OFF } from '../commitments.js';
@@ -16,23 +17,37 @@ import { ROLLCALL_OFF } from '../commitments.js';
    DIFFERENT getters (grace-aware S.streak in the ribbon, raw S.streakDays in a borrowed
    coach-dashboard tile) that could disagree on a grace day. One getter now, one render each. */
 
-/* Baseline card shared by day-0 and day-1..2 states: real numbers + the exact unlock rule. */
+/* A score numeral wears its TIER colour and the score face (lead ruling 2026-09-22: a score shown
+   as a number or a bar is coloured by its tier everywhere; the ring alone keeps the sweep). */
+const tierInk = (v) => `tier-ink ${tierFor(v).cls}`;
+
+/* Baseline card shared by day-0 and day-1..2 states: real numbers + the exact unlock rule.
+   Nothing scored reads as a dash, the way Home's ring reads it, never as a 0: "0 Today's score"
+   and "Best score 0" told a brand-new athlete they had scored nothing before they had started.
+   The first-log action lives INSIDE this card (it used to be a second, separate empty-state card
+   stacked under it, two containers for one message). */
 function baseline(P) {
   const dots = segBar(P.unlockHave, P.unlockNeed, `${P.unlockHave} of ${P.unlockNeed} days logged toward your first trend`, 'flex:1');
+  const scoredToday = !RT.day0 && !S.notYetScored;
   return `
   <section class="card pad">
-    <h2 class="eyebrow" style="margin:0 0 10px">Progress starts today</h2>
-    <div class="bigstat"><span class="n">${S.score}</span><span class="d">Today's score</span></div>
+    <h2 class="eyebrow pg-base-h">Progress starts today</h2>
+    <div class="bigstat score"><span class="n ${scoredToday ? tierInk(S.score) : 'tier-ink none'}">${scoredToday ? S.score : '–'}</span><span class="d">${scoredToday ? "Today's score" : 'Not scored yet'}</span></div>
     <div class="unlock-row">
       ${dots}
       <span class="unlock-k">${P.unlockHave} of ${P.unlockNeed} days</span>
     </div>
     <div class="base-stats">
       <div class="stat"><div class="v">${S.streak.days} day${S.streak.days === 1 ? '' : 's'}</div><div class="k">Current streak</div></div>
-      <div class="stat"><div class="v">${P.bestScore}</div><div class="k">Best score</div></div>
+      <div class="stat"><div class="v${P.daysLogged ? ` ${tierInk(P.bestScore)}` : ''}">${P.daysLogged ? P.bestScore : '–'}</div><div class="k">Best score</div></div>
       <div class="stat"><div class="v">${P.daysLogged}</div><div class="k">Days logged</div></div>
     </div>
-    <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:8px">Early baseline. These sharpen as days accumulate.</div>
+    ${RT.day0 ? `
+    <div class="pg-base-act">
+      <div class="pg-sub">Today counts the moment you log. Your first meal photo starts the record.</div>
+      <button class="btn primary sm pg-wbtn" data-go="camera">${icon('camera', 16)} Log a meal</button>
+    </div>` : `
+    <div class="pg-sub">Early baseline. These sharpen as days accumulate.</div>`}
   </section>`;
 }
 
@@ -103,7 +118,9 @@ function recordsSection() {
       ? row('squad', 'users', 'Squad', 'Opt-in · your score number only') : ''}
     ${/* `clock`, not `clipboard`: Score history and Monthly report both drew the clipboard, so
           the icon column said nothing on either row. */''}
-    ${row('history', 'clock', 'Score history', 'The proof trail, day by day')}
+    ${/* "Activity history": the title of the screen it opens (trust.js), the same name Profile's
+          row uses. Two names for one screen read as two screens (2026-09-22). */''}
+    ${row('history', 'clock', 'Activity history', 'The proof trail, day by day')}
     ${row('monthly-report', 'clipboard', 'Monthly report', 'Your month in review',
     ` <span class="status-pill b">Premium</span>`)}
   </section>`;
@@ -138,8 +155,6 @@ export default {
       <h1 class="screen-title">Progress</h1>
       <div style="height:10px"></div>
       ${baseline(P)}
-      ${RT.day0 ? `
-      ${emptyState({ icon: 'camera', title: 'Today counts the moment you log', body: 'Your first meal photo starts the record.', action: { go: 'camera', label: 'Log a meal' }, compact: true })}` : ''}
       ${bodySection()}
       ${recordsSection()}
       <div style="height:10px"></div>`;
@@ -173,19 +188,13 @@ export default {
     // needs no label at all. The tour tip's anchor moved onto the card with it.
     const scoreTrendSection = `
     <section class="card pad" data-tour="trend">
-      <div class="bigstat"><span class="n">${P.weekAvg}</span>${P.weekDelta ? `<span class="d${ddir}">${P.weekDelta} vs prior week</span>` : ''}</div>
+      <div class="bigstat score"><span class="n ${tierInk(P.weekAvg)}">${P.weekAvg}</span>${P.weekDelta ? `<span class="d${ddir}">${P.weekDelta} vs prior week</span>` : ''}</div>
       ${/* "best streak Nd" used to close this line and then render again as its own tile 16px
             below. The tile is the better home for a numeral; the line keeps the fact the tiles
             cannot show. */''}
       <div class="pg-sub">${P.onDays} days on standard (≥80)</div>
-      <div class="weekbars" role="img" aria-label="Last ${P.weekScores.length} days: ${P.weekScores.map((v, i) => `${P.weekDayLabels[i] || ''} ${v}`).join(', ')}. The standard is 80.${cutIdx !== -1 ? ` ${esc(CUTOVER_LABEL)}.` : ''}">
-        ${P.weekScores.map((v, i) => `
-          ${i === cutIdx ? `<div class="wb-cutover" aria-hidden="true" title="${esc(CUTOVER_LABEL)}" style="align-self:stretch;width:2px;border-radius:1px;background:var(--text-3);opacity:.4"></div>` : ''}
-          <div class="wb b-${scoreBand(v) || 'off'}">
-            <div class="track"><div class="bar" style="height:${Math.max(0, Math.min(100, v))}%"></div></div>
-            <span class="d">${P.weekDayLabels[i] || ''}</span>
-          </div>`).join('')}
-      </div>
+      ${/* The builder lives in js/week-bars.js now: the parent hub draws the same week. */''}
+      ${weekBars({ scores: P.weekScores, labels: P.weekDayLabels, cutIdx, cutLabel: CUTOVER_LABEL })}
       ${cutIdx !== -1 ? `<div class="pg-note">${esc(CUTOVER_LABEL)}</div>` : ''}
       ${styleBandRow()}
       <div class="sd-cta pg-share-row">

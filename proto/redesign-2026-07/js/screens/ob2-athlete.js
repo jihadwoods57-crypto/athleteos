@@ -76,13 +76,13 @@ const steps = [
       'Willpower is not the problem. Visibility is.'),
   },
   {
-    id: 'answer', ch: 0, cta: 'Show me',
+    id: 'answer', ch: 0, cta: 'Continue',
     body: () => hero('The answer',
       'One number, <span class="accent">seen daily.</span>',
       'OnStandard builds one Daily Score from what you actually do (meals, sleep, check-ins) and puts it in front of the people who hold you to it.'),
   },
   {
-    id: 'name', ch: 0, cta: 'Next',
+    id: 'name', ch: 0, cta: 'Continue',
     title: () => 'Start with the basics',
     sub: () => 'This is how your coach and team will recognize you.',
     body: (o) => `
@@ -108,7 +108,7 @@ const steps = [
      eighteen screens of answers and a signed commitment before telling a 12-year-old none
      of it could be kept. The engine is data-driven, so the pair rides here unchanged. */
   {
-    id: 'dob', ch: 0, cta: 'Next',
+    id: 'dob', ch: 0, cta: 'Continue',
     next: (o) => (o.dobBlocked ? 'blocked' : 'sport'),
     title: () => 'Your birth date',
     sub: () => 'Asked once. It verifies you are old enough to use OnStandard.',
@@ -195,7 +195,7 @@ const steps = [
     },
   },
   {
-    id: 'sport', ch: 0, cta: 'Next',
+    id: 'sport', ch: 0, cta: 'Continue',
     title: () => 'Your sport',
     sub: () => 'Position and level shape your plan.',
     body: (o) => `
@@ -225,7 +225,7 @@ const steps = [
     },
   },
   {
-    id: 'goal', ch: 0, cta: 'Next',
+    id: 'goal', ch: 0, cta: 'Continue',
     title: () => 'What are we building?',
     sub: () => 'This decides how your nutrition gets scored. Your coach can adjust it.',
     body: () => choiceGrid('goal', [
@@ -253,7 +253,7 @@ const steps = [
   ...mealDemoSteps({ route: R, voice: 'coach', computeScore }),
 
   {
-    id: 'obstacle', ch: 1, cta: 'Next',
+    id: 'obstacle', ch: 1, label: 'Discover', cta: 'Continue',
     title: () => 'Where do your hours leak?',
     sub: () => 'Pick everything that actually happens. Your plan targets these.',
     body: () => chipRow('obstacles', [
@@ -261,7 +261,7 @@ const steps = [
     ], { multi: true }),
   },
   {
-    id: 'support', ch: 1, cta: 'Next',
+    id: 'support', ch: 1, label: 'Discover', cta: 'Continue',
     title: () => 'Who holds you to it?',
     sub: () => 'These are the people your score can reach.',
     body: () => chipRow('supporters', [
@@ -289,7 +289,7 @@ const steps = [
        your current accountability system") is founder language a 16-year-old doesn't parse.
        One screen, two scales, plain questions, and end-labels that actually fit what each
        scale measures. Keys are unchanged so every downstream read still works. */
-    id: 'rate', ch: 1, cta: 'Next',
+    id: 'rate', ch: 1, label: 'Discover', cta: 'Continue',
     title: () => 'Two quick reads',
     sub: () => 'Be honest. Both numbers come back on the next screen.',
     body: () => `
@@ -298,7 +298,7 @@ const steps = [
       ${scale10('accountabilityRating', { label: 'When you skip a meal, does anyone notice?', lo: 'Nobody notices', hi: 'I always hear about it' })}`,
   },
   {
-    id: 'aha', ch: 1, cta: 'Build my plan',
+    id: 'aha', ch: 1, cta: 'Continue',
     title: () => 'The hours nobody sees',
     body: (o) => {
       const n = clamp10(o.goalImportance);
@@ -326,7 +326,7 @@ const steps = [
 
   /* ============================== ch2 · Your plan ============================== */
   {
-    id: 'plan', ch: 2, cta: 'Build the habit',
+    id: 'plan', ch: 2, cta: 'Continue',
     title: () => 'The system we’re building for you',
     sub: () => 'Assembled from your answers, nothing generic in it.',
     body: (o) => {
@@ -356,7 +356,7 @@ const steps = [
     },
   },
   {
-    id: 'habit', ch: 2, cta: 'I can do that',
+    id: 'habit', ch: 2, cta: 'Continue',
     body: () => `
       <div class="ob2-habit" style="display:flex;flex-direction:column;justify-content:center;flex:1">
         <div class="hb">Before your first bite,<br /><span class="accent">take one photo.</span></div>
@@ -366,7 +366,7 @@ const steps = [
 
   /* ============================== ch3 · Commit ============================== */
   {
-    id: 'commit-q', ch: 3, cta: 'Next',
+    id: 'commit-q', ch: 3, cta: 'Continue',
     title: () => 'What standard are you ready to hold yourself to?',
     sub: () => 'This sets how hard OnStandard pushes: reminder timing and intensity. You can change it any time.',
     body: () => choiceGrid('pressure', [
@@ -390,8 +390,7 @@ const steps = [
           <div class="hb">${esc(P[o.pressure] || 'Your standard, daily.')}</div>
           <div class="hs">${esc(o.firstName ? `${o.firstName}, this` : 'This')} is the deal you are making with yourself. The score simply reports whether you kept it.</div>
         </div>
-        <div style="height:24px"></div>
-        ${committed ? commitContinue() : commitButton(false)}`;
+        <div class="ob-foot ob-foot-push">${committed ? commitContinue() : commitButton(false)}</div>`;
     },
     mount(root, ctx) {
       const done = root.querySelector('#ob2-commit-next');

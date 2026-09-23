@@ -138,14 +138,17 @@ function resetDay() {
   assert.ok(!html.includes('Add your sport'), "a trainer's client must not be asked for a sport");
   assert.ok(!html.includes('Add your school'), "a trainer's client must not be asked for a school");
   assert.ok(html.includes('Rivera Strength'), 'the ID card shows the practice, not a sport/school prompt');
-  assert.ok(!html.includes('data-go="recruiting"'), "a trainer's client does not get the recruiting/discipline row");
+  // The recruiting/discipline row folded into Verified Profile (2026-09-22, #recruiting now opens
+  // verified-profile.js), so the audience rule is pinned on the row that carries it now.
+  assert.ok(!html.includes('data-go="verified-profile"'), "a trainer's client does not get the recruiter row");
+  assert.ok(!html.includes('data-go="recruiting"'), 'the folded row is gone for everyone');
   assert.ok(html.includes('Trainer Connection'), 'the connection card eyebrow uses the real noun');
 
   RT.myCoach = { teamId: 't1', teamName: 'Northside Prep', name: 'Coach J' }; RT.myTrainer = null;
   RT.profile = { name: 'Y', baseGoal: 'lose', sport: 'Football', position: 'LB', school: 'Northside High' };
   const teamHtml = profile.render();
   assert.ok(teamHtml.includes('Football') && teamHtml.includes('Northside High'), 'a team athlete keeps sport/school');
-  assert.ok(teamHtml.includes('data-go="recruiting"'), 'a team athlete keeps the recruiting/discipline row');
+  assert.ok(teamHtml.includes('data-go="verified-profile"'), 'a team athlete keeps the recruiter row');
   assert.ok(teamHtml.includes('Coach Connection'), 'a coach-linked athlete sees "Coach Connection"');
 }
 {
@@ -154,7 +157,7 @@ function resetDay() {
   RT.myCoach = null; RT.myTrainer = null; RT.profile = { name: 'Z', baseGoal: 'maintain' };
   const html = profile.render();
   assert.strictEqual(S.audience, 'client');
-  assert.ok(html.includes('data-go="recruiting"'), 'falls back to the recruiting/discipline row honestly');
+  assert.ok(html.includes('data-go="verified-profile"'), 'falls back to the recruiter row honestly');
 }
 
 console.log('client experience (Slice E): all assertions passed');

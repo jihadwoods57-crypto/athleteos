@@ -139,7 +139,9 @@ export const coachRooms = {
       ? rooms.map(roomCard).join('')
       : roomsFailed
         ? errorState({ title: "Couldn't load your rooms", body: 'Any rooms you already built are safe. Reconnect and they list right here.', retryId: 'rooms-retry' })
-        : emptyState({ icon: 'users', title: 'No rooms yet', body: 'Create a room for each position group. Athletes drop into their room as they join.', action: { label: 'Add a room', id: 'rooms-empty-add' } });
+        // Compact and action-free (2026-09-22): the suggestion chips and the Add field directly
+        // below ARE the way to add a room, and a third "Add a room" button here was one path too many.
+        : emptyState({ icon: 'users', title: 'No rooms yet', body: 'Add one per position group below. Athletes drop into their room as they join.', compact: true });
 
     const suggestChips = suggestions.length ? `
       <h2 class="eyebrow">Suggested from your roster · tap to add</h2>
@@ -160,12 +162,8 @@ export const coachRooms = {
     </div>
     <div id="rooms-status" style="font-size:var(--t-xs);font-weight:700;color:var(--red);min-height:16px;margin-top:6px">${esc(ERR)}</div>
 
-    <div style="height:12px"></div>
-    <div class="sidebox">
-      <div class="req-icon b s38">${icon('users', 17)}</div>
-      <div><div class="tt">Rooms vs groups</div>
-      <div class="ts">A <b>room</b> is a permanent position unit an athlete belongs to. It can carry its own standard (set the position scope in the standards editor). A custom <b>group</b> on the roster is an ad-hoc filter you build any time. New athletes auto-join the room matching their position.</div></div>
-    </div>
+    ${/* The eight-line "Rooms vs groups" explainer, cut to the one distinction a coach needs. */''}
+    <div class="co-note">A room is a permanent position unit that can carry its own standard. A roster group is a quick filter.</div>
     <div style="height:10px"></div>
     `;
   },
@@ -200,15 +198,6 @@ export const coachRooms = {
     }));
     root.querySelectorAll('[data-room-del-cancel]').forEach((el) => el.addEventListener('click', () => { DELETING = null; window.__render(); }));
     root.querySelectorAll('[data-room-del-confirm]').forEach((el) => el.addEventListener('click', () => deleteRoom(el.getAttribute('data-room-del-confirm'))));
-    // The empty state's Add-a-room action hands focus to the real input below it.
-    const emptyAdd = root.querySelector('#rooms-empty-add');
-    if (emptyAdd) emptyAdd.addEventListener('click', () => {
-      const nameInput = root.querySelector('#room-name');
-      if (nameInput) {
-        nameInput.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        nameInput.focus();
-      }
-    });
     root.querySelectorAll('[data-room-rename]').forEach((el) => el.addEventListener('click', () => {
       RENAMING = el.getAttribute('data-room-rename'); RENAME_VAL = null; OPEN_OWNER = null; window.__render();
     }));

@@ -1,4 +1,4 @@
-// Apple Health (Settings > Apple Health): the one front door for the integration. Source-shape
+// Apple Health (Profile > Apple Health): the one front door for the integration. Source-shape
 // pins, the way the other screen suites work: the route is registered lazily, Settings carries
 // the row with the live state under it, the phone-side steps open the Health app through the
 // native bridge (never a bare location change the WebView would swallow), every state has its
@@ -14,15 +14,20 @@ const read = (p) => readFileSync(join(here, p), 'utf8');
 const screen = read('apple-health.js');
 const registry = read('index.js');
 const settings = read('settings.js');
+const profile = read('profile.js');
 const consent = read('health-consent.js');
 const css = read('../../css/screens.css');
 const icons = read('../icons.js');
 
-test('the route is registered as a lazy thunk and Settings links to it', () => {
+test('the route is registered as a lazy thunk and Profile links to it', () => {
   assert.match(registry, /'apple-health': lazy\(\(\) => import\('\.\/apple-health\.js'\)\)/);
-  assert.match(settings, /data-go="apple-health"/);
-  assert.match(settings, /id="set-hk-state"/);
-  assert.match(settings, /import \{ HK, probeHealth, hkLabel \} from '\.\/apple-health\.js'/);
+  // The row moved from App settings to Profile's Tracking group on 2026-09-22 (IA dedupe: it had a
+  // door on both screens). It carries the phone's live answer the same way Settings did, but
+  // imports apple-health.js lazily because Profile is in the boot bundle.
+  assert.match(profile, /data-go="apple-health"/);
+  assert.match(profile, /id="pf-hk-state"/);
+  assert.match(profile, /import\('\.\/apple-health\.js'\)\.then\(async \(\{ HK, probeHealth, hkLabel \}\)/);
+  assert.doesNotMatch(settings, /data-go="apple-health"/, 'one door, not two');
 });
 
 test('the Health app is opened through the native bridge, with a plain fallback', () => {

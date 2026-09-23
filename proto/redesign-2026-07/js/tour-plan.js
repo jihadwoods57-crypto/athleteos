@@ -64,7 +64,7 @@ const ATHLETE_STEPS = [
     title: 'Everything starts here',
     // The dot line is phrased as WHEN, not IS: on a complete day the FAB correctly carries no dot,
     // and the old copy described a signal that wasn't on screen while pointing straight at it.
-    body: 'Photograph a meal and the AI reads the plate; the breakdown lands in seconds. Training, weight, and check-ins live behind this button too. When something is due, a gold dot appears here. Red means overdue.',
+    body: 'Photograph a meal and the AI reads the plate; the breakdown lands in seconds. Training, weight, and check-ins live behind this button too. When something is closing or late, an amber dot appears here. Red means missed.',
   },
   {
     key: 'plan', anchor: 'plan',
@@ -176,7 +176,7 @@ const PARENT_STEPS = [
   {
     key: 'children', anchor: 'children',
     title: 'The athletes you follow',
-    body: "Everyone you're linked to shows up here with their daily score and grade. It updates as they log, a quiet way to know the work is happening without hovering.",
+    body: "Everyone you're linked to shows up here with their daily score and their last seven days. It updates as they log, a quiet way to know the work is happening without hovering.",
   },
   {
     key: 'link', anchor: 'link',
@@ -186,7 +186,7 @@ const PARENT_STEPS = [
   {
     key: 'visibility', anchor: 'visibility',
     title: "What you can see, and what you can't",
-    body: 'Their daily score, their grade, and the date of their latest logged day. Meal photos, weight, and check-in answers stay between your athlete and their coach. That line is deliberate.',
+    body: 'Their daily score and their week, day by day. Meal photos, weight, and check-in answers stay between your athlete and their coach. That line is deliberate.',
   },
 ];
 

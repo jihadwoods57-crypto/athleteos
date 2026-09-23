@@ -44,13 +44,13 @@ export default {
     let actionBtn = assigned
       ? (done
         ? `<div class="day-done"><div class="req-icon g" style="width:44px;height:44px">${icon('check', 21)}</div>
-           <div><div class="tt">Done. ${assigned.from} can see it.</div><div class="ts">Completed tonight.</div></div></div>`
+           <div><div class="tt">Done. ${esc(assigned.from)} can see it.</div><div class="ts">Completed tonight.</div></div></div>`
         : `<button class="btn green" data-act="completeAssigned:${id}" data-then="requirement/${id}">${icon('check', 19)} Mark Done · coach sees it</button>`)
       : isStandingCheck
         ? (checkDone
           ? `<button class="btn ghost" data-act="completeCheck:${id}" data-then="requirement/${id}" style="width:100%">${icon('check', 19)} Done · coach sees it · tap to undo</button>`
           : `<button class="btn green" data-act="completeCheck:${id}" data-then="requirement/${id}">${icon('check', 19)} Mark Done · coach sees it</button>`)
-        : `<button class="btn primary" data-go="${req.route || proof.route || 'home'}">${icon(req.icon, 19)} ${proof.verb} ${req.title}</button>`;
+        : `<button class="btn primary" data-go="${req.route || proof.route || 'home'}">${icon(req.icon, 19)} ${proof.verb} ${esc(req.title)}</button>`;
 
     /* "What counts as completion" — the question the proof label only half answered. Each line is
        the ENGINE's real rule, not a description of one: meals run on day.js's on-time/late-credit
@@ -106,15 +106,15 @@ export default {
               catalog carries the minute, and derive() (which builds dueLabel) never runs on this
               route. Print the time. */''}
         <div class="lm"><div class="lt">${req.dueLabel || (req.window && req.window.due != null ? `Due by ${fmtMin(req.window.due)}` : 'No deadline')}</div>
-        <div class="ls">${assigned ? 'One-time task' : freqText}</div></div>
+        ${/* The frequency is already the header's subtitle; saying it again here was the same
+              two words twice in one glance. Only a one-time task has something new to add. */''}
+        ${assigned ? '<div class="ls">One-time task</div>' : ''}</div>
       </div>
+      ${/* Proof and impact on ONE row: each used to carry a caption describing itself ("How you
+            prove it", "What it touches. No black boxes") instead of any information. */''}
       <div class="lrow" role="listitem" style="cursor:default">
         <div class="lic">${icon('camera', 17)}</div>
-        <div class="lm"><div class="lt">${proof.label}</div><div class="ls">How you prove it</div></div>
-      </div>
-      <div class="lrow" role="listitem" style="cursor:default">
-        <div class="lic">${icon('target', 17)}</div>
-        <div class="lm"><div class="lt">${impact}</div><div class="ls">What it touches. No black boxes</div></div>
+        <div class="lm"><div class="lt">${proof.label}</div><div class="ls">${impact}</div></div>
       </div>
       <div class="lrow" role="listitem" style="cursor:default">
         <div class="lic">${icon('check', 17)}</div>

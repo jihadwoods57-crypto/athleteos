@@ -20,7 +20,7 @@ export const CONSUMER_PLANS = [
   { id: 'individual', name: 'Individual', monthly: 19.99, annual: 199.99, trialDays: 14, seatLimit: 0,
     blurb: 'Your daily score, AI meal analysis and streaks, your full history and trends, unlimited supporters, and the recruiting card a coach can open.' },
   { id: 'family', name: 'Family', monthly: 24.99, annual: 249.99, trialDays: 14, seatLimit: 4,
-    blurb: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
+    blurb: 'One household, up to 4 athletes, one bill. Parents see each athlete’s score and week.' },
 ];
 
 /* Guideline 2.3.10: an iOS build never names another platform. The store is the one this build

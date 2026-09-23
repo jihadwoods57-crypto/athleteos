@@ -133,7 +133,7 @@ export const PLAN_CATALOG: PricedPlan[] = [
   // Individuals are $39.98/mo, Family is $24.99, so the household that picks the family option
   // saves $14.99 a month. It has been re-opened twice by moving one price and not the other.
   { id: 'family', name: 'Family', audience: 'individual', rail: 'iap', monthly: 24.99, annual: 249.99, trialDays: 14, seatLimit: 4,
-    blurb: 'One household, up to 4 athletes, one bill. Parents see every dashboard.' },
+    blurb: 'One household, up to 4 athletes, one bill. Parents see each athlete’s score and week.' },
   // Cost sweep 2026-07-04: Solo/Professional were repriced up (69->99, 124.99->179) and the extra-seat
   // add-on 3->10. The old numbers sat at/below the per-seat AI-cost floor once a trainer's roster was
   // genuinely engaged, so a MORE successful trainer earned us LESS margin. New floor: ~$4/seat of budget

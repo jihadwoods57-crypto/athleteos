@@ -1,8 +1,8 @@
 /* ============================================================
    OB2 — PARENT flow (route `obp`, ~15 steps). The emotional
    heart of the onboarding: support and peace of mind, never
-   surveillance. The parent sees the EFFORT (score, streak,
-   weekly grade via the guardian_* safe-column RPCs) and never
+   surveillance. The parent sees the EFFORT (the daily score and the
+   week, via the guardian_* safe-column RPCs) and never
    the details (photos, weight, meals, messages — closed
    server-side, migration 0081).
    Chapters: 0 Discover · 1 See it · 2 Your plan · 3 Commit ·
@@ -11,8 +11,9 @@
    ============================================================ */
 import { RT, act } from '../state.js';
 import { icon } from '../icons.js';
-import { esc, sparkline } from '../components.js';
-import { scoreColor } from '../score-band.js';
+import { esc } from '../components.js';
+import { scoreColor, tierFor } from '../score-band.js';
+import { weekBars } from '../week-bars.js';
 import {
   defineFlow, saveProgressStep, ob, capture, gateCta, choiceGrid, chipRow,
   simChip, mirrorCard, notifCard, phoneCard, structureStep, commitContinue,
@@ -37,9 +38,11 @@ const hero = (eyebrow, title, body, note = '') => `
     ${note ? `<div class="h-note">${note}</div>` : ''}
   </div>`;
 
-/* Simulated week for the summary preview — mirrors the guardian_children
-   RPC shape (latest_score / latest_grade) without claiming to be real. */
-const DEMO_HIST = [{ score: 74 }, { score: 78 }, { score: 76 }, { score: 83 }, { score: 85 }, { score: 88 }, { score: 90 }];
+/* Simulated week for the summary preview. It is drawn by the SAME builder the parent hub uses
+   (js/week-bars.js), so what this screen promises is what the hub shows, bar for bar. It used to
+   promise a streak and a weekly letter grade the hub never had (2026-09-22). */
+const DEMO_WEEK = [74, 78, 76, 83, 85, 88, 90];
+const DEMO_DAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 const WORRY_TEXT = {
   enough: 'eating enough',
@@ -96,7 +99,7 @@ const steps = [
     body: () => hero(
       'The OnStandard answer',
       'See the effort. <span class="accent">Never the details.</span>',
-      'A daily score, a streak, a weekly grade: proof of effort, straight from the work they log. What they log stays theirs.',
+      'A daily score and the week behind it: proof of effort, straight from the work they log. What they log stays theirs.',
       'Their privacy is a hard boundary here, not a setting.',
     ),
   },
@@ -184,7 +187,7 @@ const steps = [
     id: 'aha', ch: 1, cta: 'Continue',
     title: () => 'Support works better when progress is visible, without surveillance.',
     body: (o) => `
-      ${mirrorCard('eye', `<b>What you'll see:</b> a daily score, a streak, a weekly grade, the shape of ${nmEsc(o)}'s effort.`)}
+      ${mirrorCard('eye', `<b>What you'll see:</b> a daily score and their week, day by day: the shape of ${nmEsc(o)}'s effort.`)}
       ${mirrorCard('lock', `<b>What stays theirs:</b> photos, meals, weight, messages. Every detail, every time.`)}
       <div class="ob2-gap-verdict">That's enough to answer <b>"are they okay?"</b> without a single "did you eat?"</div>`,
   },
@@ -194,23 +197,13 @@ const steps = [
     sub: () => 'The weekly summary: everything you get, nothing you don\'t.',
     body: (o) => `
       ${simChip('Simulated preview')}
-      ${phoneCard(`${nm(o)}'s week`, `
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-          <div><div class="ls" style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-3)">Daily Score</div>
-          <div style="font-size:34px;font-weight:800;letter-spacing:-0.03em;color:${scoreColor(88)}">88</div></div>
-          <div style="text-align:right;flex:none">${sparkline(DEMO_HIST)}
-          <div style="font-size:11px;font-weight:700;color:var(--green-bright);margin-top:2px">Trending up</div></div>
+      ${phoneCard('', `
+        <div class="par-head">
+          <div class="par-who"><div class="par-name">${nmEsc(o)}</div><div class="par-when">Today, still in progress</div></div>
+          <div class="par-score"><div class="par-n" style="color:${scoreColor(DEMO_WEEK[DEMO_WEEK.length - 1])}">${DEMO_WEEK[DEMO_WEEK.length - 1]}</div><div class="par-tier">${esc(tierFor(DEMO_WEEK[DEMO_WEEK.length - 1]).name)}</div></div>
         </div>
-        <div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid var(--hairline-soft);margin-top:12px">
-          <div style="width:30px;height:30px;border-radius:var(--r-chip);display:grid;place-items:center;background:var(--green-surface);color:var(--green-bright);flex:none">${icon('flame', 15)}</div>
-          <div style="font-size:14px;font-weight:700;flex:1">12-day streak</div>
-          <div style="font-size:12px;font-weight:600;color:var(--text-3)">their longest yet</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;padding-top:11px;border-top:1px solid var(--hairline-soft)">
-          <div style="width:30px;height:30px;border-radius:var(--r-chip);display:grid;place-items:center;background:var(--blue-surface);color:var(--blue-bright);flex:none">${icon('check', 15)}</div>
-          <div style="font-size:14px;font-weight:700;flex:1">Weekly grade</div>
-          <div style="font-size:16px;font-weight:800;color:var(--text)">A−</div>
-        </div>`)}
+        ${weekBars({ scores: DEMO_WEEK, labels: DEMO_DAYS })}
+        <div class="par-meta">7 of 7 days logged · 4 on standard</div>`)}
       <div style="font-size:12.5px;font-weight:600;color:var(--text-3);text-align:center;line-height:1.5;margin-top:12px">No photos. No meals. Just the answer to "are they on track?"</div>`,
   },
   {
@@ -219,8 +212,8 @@ const steps = [
     sub: () => 'Milestones you\'d hate to miss: worth celebrating, not monitoring.',
     body: (o) => `
       ${simChip('Simulated preview')}
-      ${notifCard({ ic: 'flame', tint: 'var(--green-surface)', color: 'var(--green-bright)', title: `${nm(o)} hit a 14-day streak`, body: 'Fourteen straight days of showing up. Worth a text.', time: '6:12 PM' })}
-      ${notifCard({ ic: 'check', tint: 'var(--green-surface)', color: 'var(--green-bright)', title: 'Best week yet', body: `${nm(o)} just posted their highest weekly grade so far.`, time: 'Sun' })}
+      ${notifCard({ ic: 'flame', tint: 'var(--green-surface)', color: 'var(--green-bright)', title: `${nm(o)} is back on standard`, body: 'Three days in a row at 80 or better. Worth a text.', time: '6:12 PM' })}
+      ${notifCard({ ic: 'check', tint: 'var(--green-surface)', color: 'var(--green-bright)', title: 'Best week yet', body: `${nm(o)} just had their strongest seven days so far.`, time: 'Sun' })}
       <div style="font-size:12.5px;font-weight:600;color:var(--text-3);text-align:center;line-height:1.5;margin-top:8px">Nothing here needs a reply. It just gives you a reason to be proud out loud.</div>`,
   },
   {
@@ -232,14 +225,13 @@ const steps = [
       <div class="ob2-gap-verdict">These are off until <b>both of you</b> turn them on. ${nmEsc(o)} chooses to share them; you choose to receive them. Support, not surveillance, by design.</div>`,
   },
   {
-    id: 'privacy', ch: 1, cta: 'That works for me',
+    id: 'privacy', ch: 1, cta: 'Continue',
     title: () => 'The boundary, in writing.',
     sub: () => 'Enforced on our servers, not just hidden in the app.',
     body: () => `
       <div class="ob2-phone">
         ${boundRow(true, 'Daily Score', 'Their effort, as one number')}
-        ${boundRow(true, 'Streaks', 'Consistency over time')}
-        ${boundRow(true, 'Weekly grade', 'The week, summed up')}
+        ${boundRow(true, 'Their week', 'Seven days, day by day')}
         ${boundRow(false, 'Meal photos', 'Stay between them and their coach')}
         ${boundRow(false, 'Meal details', 'What they ate is their business')}
         ${boundRow(false, 'Weight', 'Theirs alone')}
@@ -254,7 +246,7 @@ const steps = [
     body: (o) => `
       ${choiceGrid('parentDigest', [
         { v: 'weekly', t: 'Weekly digest', s: 'One summary, Sunday evening', ic: 'mail' },
-        { v: 'milestones', t: 'Milestones only', s: 'Streaks and bests, as they happen', ic: 'flame' },
+        { v: 'milestones', t: 'Milestones only', s: 'Their best days, as they happen', ic: 'flame' },
         { v: 'milestones-missed', t: 'Milestones + missed days', s: `Missed-day alerts also need ${nm(o)}'s ok`, ic: 'bell' },
       ])}
       <div style="font-size:12.5px;font-weight:600;color:var(--text-3);text-align:center;line-height:1.5;margin-top:12px">Nothing is silent to them: ${nmEsc(o)} can always see what reaches you.</div>`,
@@ -304,8 +296,8 @@ const steps = [
     sub: (o) => `${nmEsc(o)} holds the standard. You hold the support.`,
     body: (o) => `
       ${mirrorCard('heart', `<b>${esc(STYLE_LABEL[o.parentStyle] || 'Your way')}.</b> ${esc(STYLE_LINE[o.parentStyle] || 'You see the effort; they keep the details.')}`)}
-      ${mirrorCard('lock', `You'll see scores, streaks, and grades. <b>Never</b> photos, weight, meals, or messages.`)}
-      <div class="ob-foot" style="margin-top:18px">
+      ${mirrorCard('lock', `You'll see their daily score and their week. <b>Never</b> photos, weight, meals, or messages.`)}
+      <div class="ob-foot ob-foot-push">
         ${o.committedAt ? commitContinue() : commitButton(false)}
       </div>`,
     mount(root, ctx) {

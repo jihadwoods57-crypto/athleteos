@@ -44,15 +44,17 @@ export const recoveryConfirm = {
             literal), and compose the halo from --purple-rgb. */''}
       <div class="big-check"><div class="core" style="background:linear-gradient(155deg, var(--purple), var(--purple-deep)); color:var(--ink-on-accent); box-shadow: 0 0 44px rgba(var(--purple-rgb),0.55), 0 10px 34px rgba(0,0,0,0.4)">${icon('moonStar', 32)}</div></div>
       <div class="confirm-title">Check-in submitted</div>
-      <div class="confirm-sub">Recovery refreshed · ${S.coach.hasCoach ? `${esc(S.coach.nameMid)} can see your readiness` : 'counted toward tomorrow'}</div>
+      ${/* ONE status line. A visit that is not the submit itself used to print this line AND
+            "Recovery is in for tonight. Your score already counts it." directly under it: two
+            sentences for one fact. The no-move case now says the score part here instead. */''}
+      <div class="confirm-sub">${mv ? 'Recovery refreshed' : 'Counted in today’s score'} · ${S.coach.hasCoach ? `${esc(S.coach.nameMid)} can see your readiness` : 'feeds tomorrow’s readiness'}</div>
 
       ${/* The move, as the score's own dial: the points just filed sweep in from where the score
             already was, the numeral counts through them, and the tier chip flips at the frame the
             arc crosses the line. Nothing is shown at all when this visit is not the submit itself
             (see checkinMove above) — a screen with no move to report says so. */''}
       ${mv ? `${scoreMoveDial({ from: mv.from, to: mv.to, uid: 'rc' })}
-      <div class="confirm-sub">Daily Score · +${mv.gain} pts</div>`
-      : `<div class="confirm-sub">Recovery is in for tonight. Your score already counts it.</div>`}
+      <div class="confirm-sub">Daily Score · +${mv.gain} pts</div>` : ''}
       ${mv && firstEver() ? `<div class="confirm-sub">Your first check-in. Recovery is ${liveWeightPct('checkin') + liveWeightPct('recovery')}% of the score, and it is the part only you can report.</div>` : ''}
 
       ${(() => {
@@ -80,7 +82,7 @@ export const recoveryConfirm = {
       <div class="day-done" style="width:100%; text-align:left">
         <div class="req-icon g" style="width:44px;height:44px">${icon('check', 21)}</div>
         <div><div class="tt">Every requirement is in.</div>
-        <div class="ts">This is what OnStandard looks like. Same again tomorrow.</div></div>
+        <div class="ts">That was the last one. Same again tomorrow.</div></div>
       </div>`}
     </div>
     <div style="height:22px"></div>
@@ -103,6 +105,10 @@ export const recoveryConfirm = {
 
 export default {
   tab: 'home',
+  // A 20-second form: no tab bar (2026-09-22). The capsule and the camera FAB sat under the
+  // sticky submit bar, a second way off the screen mid-answer and a red dot competing with the
+  // one control this screen exists to reach.
+  hideTabs: true,
   transient: true, // form screen: submitting hands off to the confirm — never a back-target
   render() {
     if (RT.recoveryDone) {

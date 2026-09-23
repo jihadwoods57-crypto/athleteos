@@ -4,13 +4,12 @@ import { icon } from '../icons.js';
 import { mapPressure } from '../exec.js';
 import { normalizePrefs } from '../notify-plan.js';
 import { normalizeCoachPrefs } from '../coach-notify-plan.js';
-import { backHead, esc, errorState, planStyleCard, skeletonRows } from '../components.js';
+import { backHead, esc, emptyState, errorState, skeletonRows } from '../components.js';
 import { STYLE_KEYS, styleLabel } from '../plan-style.js';
 import * as roles from '../roles.js';
 import { planById } from '../pricing.js';
 import { armReplay } from '../tour.js';
 import { normalizePressure } from '../ob-helpers.js';
-import { HK, probeHealth, hkLabel } from './apple-health.js';
 
 /* Reminder-pressure chips: restore the athlete's REAL saved pressure and persist taps into
    RT.ob.standard.pressure (the same field onboarding writes, which drives the exec engine's
@@ -20,7 +19,7 @@ function wirePressure(root, sel) {
   const row = root.querySelector(sel);
   if (!row) return;
   const saved = (RT.ob && RT.ob.standard && RT.ob.standard.pressure) || 'Hold me accountable';
-  const chips = [...row.querySelectorAll('.chip')];
+  const chips = [...row.querySelectorAll('.chip, button')];
   const match = chips.find((c) => mapPressure(c.textContent.trim()) === mapPressure(saved));
   if (match) { chips.forEach((c) => c.classList.remove('on')); match.classList.add('on'); }
   chips.forEach((c) => c.addEventListener('click', () => {
@@ -112,94 +111,62 @@ export const messages = {
   },
 };
 
-/* ---------- Units & appearance (spec §22): focused — units, time, appearance. ----------
-   Unsupported unit options are HIDDEN, never shown as "· soon" (spec §22.2). Reminder
-   controls live ONLY in Notification Settings (spec §22.4). */
+/* ---------- App settings (spec §22): how the app behaves, nothing about who you are. ----------
+   Unsupported unit options are HIDDEN, never shown as "· soon" (spec §22.2).
+   IA 2026-09-22: grouped rows, iOS Settings shape. Plan style and Apple Health left for Profile
+   (they are what you track, and each had a second door there); Notifications and Score colors
+   explained arrived from Profile, because they are how the app talks to you. The Units row went:
+   it could not be tapped and there is nothing to change (US units, 12-hour), so it was a fact
+   wearing a control's clothes. The Done button went too: Back already does exactly that.
+   Appearance is a segmented control: three options, one choice (DESIGN.md 2026-09-06). */
 export const settings = {
   tab: 'profile',
   get nav() { return roleNav(); },
   render() {
+    const athlete = RT.authRole === 'athlete';
+    const theme = RT.theme || 'dark';
     return `
     ${backHead('App settings', '', roleProfileRoute())}
 
-    <h2 class="eyebrow">Units</h2>
-    <section class="card" style="padding:6px 16px">
-      ${/* ONE read-only fact, not two dead rows. The old pair wore row styling with nothing to
-            tap, which is a fake affordance; a single non-interactive line states the fact and
-            the sub says why there is no control yet. */''}
-      <div class="lrow" style="cursor:default">
-        <div class="lic">${icon('scale', 17)}</div>
-        <div class="lm"><div class="lt">Units · lb, 12-hour</div><div class="ls">US units.</div></div>
-      </div>
-    </section>
-
-    <h2 class="eyebrow">Appearance</h2>
-    <div class="chip-row" id="set-theme" data-toggle-group>
-      ${['dark', 'light', 'system'].map((m) => `<span class="chip ${(RT.theme || 'dark') === m ? 'on' : ''}" data-theme-pick="${m}">${m === 'dark' ? 'Dark' : m === 'light' ? 'Light' : 'System'}</span>`).join('')}
+    <h2 class="eyebrow" id="set-theme-h">Appearance</h2>
+    <div class="seg set-seg" id="set-theme" data-toggle-group aria-labelledby="set-theme-h">
+      ${['dark', 'light', 'system'].map((m) => `<button type="button" class="${theme === m ? 'on' : ''}" data-theme-pick="${m}">${m === 'dark' ? 'Dark' : m === 'light' ? 'Light' : 'System'}</button>`).join('')}
     </div>
 
-    ${/* The plan-style picker's only stable browsable home. Before this row existed the screen
-          it back-navigates to could not reach it: owners found it through the Plan tab's Change
-          button, locked athletes had no path at all (settings.js:1030's honesty contract was
-          unreachable). Athletes only — an operator's plan style is per-athlete, on the roster. */''}
-    ${RT.authRole === 'athlete' ? `
-    <h2 class="eyebrow">Plan</h2>
-    <section class="card rows">
-      <div class="lrow" data-go="plan-style">
-        <div class="lic">${icon('target', 17)}</div>
-        <div class="lm"><div class="lt">Plan style</div><div class="ls">${esc(S.planStyle.name)} · ${S.planStyle.canChoose ? 'yours to change' : esc(S.planStyle.sourceLabel)}</div></div>
+    ${/* Face ID renders into this same card when the phone supports it (mount), so the group is
+          one card whether it holds one row or two. Operators reach their own notification
+          screen from their own profile, so the Notifications row here is the athlete's. */''}
+    <h2 class="eyebrow">General</h2>
+    <section class="card rows" id="set-general">
+      ${athlete ? `
+      <div class="lrow" data-go="notif-settings">
+        <div class="lic">${icon('bell', 17)}</div>
+        <div class="lm"><div class="lt">Notifications</div><div class="ls">Tone, quiet hours, haptics</div></div>
         ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>` : ''}
+      <div class="lrow" id="set-bio" role="switch" tabindex="0" aria-checked="false" aria-label="Unlock with Face ID" aria-describedby="set-bio-sub" hidden>
+        <div class="lic">${icon('lock', 17)}</div>
+        <div class="lm"><div class="lt">Unlock with Face ID</div><div class="ls" id="set-bio-sub">Required on app open</div></div>
+        <div class="std-switch" aria-hidden="true"></div>
       </div>
-    </section>
-
-    ${/* Apple Health had two doors (health-consent, the old devices screen) and no row here, so an athlete who
-          wanted to change what Health shares, or switch it off, had nowhere to look. One row, one
-          screen; the state under it is the phone's live answer, not a stored flag. */''}
-    <h2 class="eyebrow">Health</h2>
-    <section class="card rows">
-      <div class="lrow" data-go="apple-health">
-        <div class="lic">${icon('heart', 17)}</div>
-        <div class="lm"><div class="lt">Apple Health</div><div class="ls" id="set-hk-state">${esc(hkLabel())}</div></div>
-        ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
-    </section>` : ''}
-
-    <div id="set-bio-wrap" style="display:none">
-      <h2 class="eyebrow">Security</h2>
-      <section class="card" style="padding:6px 16px">
-        <div class="lrow" id="set-bio" role="switch" tabindex="0" aria-checked="false" aria-label="Unlock with Face ID" aria-describedby="set-bio-sub">
-          <div class="lic">${icon('lock', 17)}</div>
-          <div class="lm"><div class="lt">Unlock with Face ID</div><div class="ls" id="set-bio-sub">Required on app open</div></div>
-          <div class="std-switch" aria-hidden="true"></div>
-        </div>
-      </section>
-    </div>
-
-    <h2 class="eyebrow">Help</h2>
-    <section class="card" style="padding:6px 16px">
-      <div class="lrow" id="set-tour" role="button" tabindex="0" style="cursor:pointer">
+      <div class="lrow" id="set-tour" role="button" tabindex="0">
         <div class="lic">${icon('sparkle', 17)}</div>
         <div class="lm"><div class="lt">Replay app tour</div><div class="ls">A quick walk through the app</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
+      ${athlete ? `
+      <div class="lrow" data-go="score-explained">
+        <div class="lic">${icon('info', 17)}</div>
+        <div class="lm"><div class="lt">Score colors explained</div><div class="ls">What every tier and meal band means</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>` : ''}
     </section>
-
-    <div style="height:18px"></div>
-    <button class="btn ghost" data-back="${roleProfileRoute()}">Done</button>
-    <div style="height:10px"></div>
+    <div class="set-tail"></div>
     `;
   },
   mount(root) {
     wireToggles(root);
     wireSegAria(root);
-    // Apple Health row: the phone's live answer, patched in place when it arrives so a slow probe
-    // never re-renders the whole screen under a finger.
-    if (!HK.probed) {
-      probeHealth().then(() => {
-        const el = root.querySelector('#set-hk-state');
-        if (el && root.isConnected) el.textContent = hkLabel();
-      }).catch(() => {});
-    }
     // Its own listener, not a delegate: wireToggles' chip handler stopPropagation()s, and a
     // row-level delegate here would never fire (see the note at the top of this file).
     // Click only: the router promotes this row centrally (cursor:pointer promotion), so a local
@@ -217,9 +184,9 @@ export const settings = {
       let ok = false;
       try { ok = await N.biometrics.available(); } catch { /* hidden */ }
       if (!ok) return;
-      const wrap = root.querySelector('#set-bio-wrap');
-      wrap.style.display = '';
       const row = root.querySelector('#set-bio');
+      if (!row) return;
+      row.hidden = false;
       const sw = row.querySelector('.std-switch');
       const paint = (on) => { sw.classList.toggle('on', on); row.setAttribute('aria-checked', on ? 'true' : 'false'); };
       try { paint((await N.secureStore.getItem('onstd-biolock')) === '1'); } catch { /* default Off */ }
@@ -298,12 +265,20 @@ export const privacy = {
         ],
       });
     }
-    return `
-    ${backHead('Privacy & visibility', 'Who sees what: nothing is public', back)}
-
-    ${rows.length ? `
-    <section class="card" style="padding:6px 16px">
-      ${rows.map((r, i) => `
+    /* The public page (verified-profile, 0199/0200) is the one thing an athlete CAN make public,
+       and this screen used to say "nothing is public" twice without ever mentioning it: true for
+       most athletes, false for any athlete who published. It has its own row now, and the claim
+       is made only once mount() has asked the server (2026-09-22). A trainer's client has no
+       Verified Profile door (profile.js), so they get neither the row nor the caveat. */
+    const hasPage = RT.authRole === 'athlete' && !(S.audience === 'client' && S.coach.kind === 'trainer');
+    const pageRow = hasPage ? `
+      <div class="lrow" data-go="verified-profile" id="pv-page">
+        <div class="lic">${icon('share', 17)}</div>
+        <div class="lm"><div class="lt">Your public page</div><div class="ls" id="pv-page-sub">Your Verified Profile, if you publish it</div></div>
+        <span class="status-pill muted" id="pv-page-pill">Checking</span>
+        ${icon('chevron', 15, 'class="chev-dim pv-go"')}
+      </div>` : '';
+    const peopleRows = rows.map((r) => `
         <details class="pv-row">
           ${/* The pill states a FACT, so it wears the fact's color: green = they see your day,
                 blue = a limited slice, muted = nothing at all. "No access" in action-blue read
@@ -318,41 +293,71 @@ export const privacy = {
           <div class="pv-detail">
             ${r.detail.map(([k, v]) => `<div class="pv-line"><b>${esc(k)}</b>${esc(v)}</div>`).join('')}
           </div>
-        </details>`).join('')}
-    </section>` : `
-    <section class="card pad">
-      <div style="font-size:15px;font-weight:800">No one is connected</div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);margin-top:4px;line-height:1.5">Right now your data is visible to you alone. Connecting a coach or trainer shares your execution with them; you'll see exactly what before you join.</div>
-    </section>`}
+        </details>`).join('');
+    return `
+    ${backHead('Privacy & visibility', hasPage ? 'Who sees what' : 'Who sees what: nothing is public', back)}
 
-    <div style="height:14px"></div>
-    <div class="sidebox">
+    ${rows.length ? `
+    <section class="card rows">
+      ${peopleRows}
+      ${pageRow}
+    </section>` : `
+    ${emptyState({ icon: 'lock', title: 'No one is connected', body: 'Right now your day is visible to you alone. Connecting a coach or trainer shares your execution with them; you see exactly what before you join.', action: RT.authRole === 'athlete' ? { go: 'connect', label: 'Connect a coach' } : null, compact: true })}
+    ${pageRow ? `<section class="card rows pv-page-card">${pageRow}</section>` : ''}`}
+
+    <div class="sidebox pv-defaults">
       <div class="req-icon b s38">${icon('lock', 17)}</div>
       <div><div class="tt">Defaults that protect you</div>
-      <div class="ts">Nothing is public. Meal photos never leave your coach connection. You can download or delete everything, below.</div></div>
+      <div class="ts">${hasPage ? 'Nothing is public unless you publish your Verified Profile.' : 'Nothing is public.'} Meal photos never leave your coach connection. You can download or delete everything, below.</div></div>
     </div>
 
     <h2 class="eyebrow">Your data</h2>
-    <section class="card" style="padding:6px 16px">
+    <section class="card rows">
       <div class="lrow" id="pv-export" role="button" tabindex="0">
         <div class="lic">${icon('download', 17)}</div>
         <div class="lm"><div class="lt">Download my data</div><div class="ls">Profile, days, and meal records as a JSON file</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
       <div class="lrow" data-go="delete-account">
-        <div class="lic" style="color:var(--red)">${icon('trash', 17)}</div>
-        <div class="lm"><div class="lt" style="color:var(--red)">Delete my account</div><div class="ls">Permanent, in-app</div></div>
-        ${icon('chevron', 17, 'style="color:var(--text-3)"')}
+        <div class="lic lic-danger">${icon('trash', 17)}</div>
+        <div class="lm"><div class="lt pf-red">Delete my account</div><div class="ls">Permanent, in-app</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
     </section>
-    <div id="pv-export-note" style="font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px;padding:0 2px"></div>
-
-    <div style="height:14px"></div>
-    <button class="btn ghost" data-back="${back}">Done</button>
-    <div style="height:10px"></div>
+    <div id="pv-export-note" class="pv-note"></div>
+    <div class="set-tail"></div>
     `;
   },
   mount(root) {
+    // The public page's real state, patched in place. A failed read claims nothing either way:
+    // the pill goes and the line says where to look.
+    const pvPill = root.querySelector('#pv-page-pill');
+    // No session (an onboarding detour lands here before sign-up): nothing to ask, so no pill.
+    if (pvPill && !RT.userId) pvPill.remove();
+    else if (pvPill) {
+      // A read that never answers must not leave "Checking" up for good: after 6s it counts as
+      // unknown, and a late answer still lands.
+      const unknown = new Promise((resolve) => setTimeout(() => resolve({ error: 'timeout' }), 6000));
+      let settled = false;
+      const live = roles.verifiedProfileStatus();
+      live.then((st) => { if (settled) paint(st); }, () => {});
+      Promise.race([live, unknown]).then((st) => { settled = true; paint(st); }, () => { settled = true; paint(null); });
+      const paint = (st) => {
+        if (!root.isConnected) return;
+        const pill = root.querySelector('#pv-page-pill');
+        const sub = root.querySelector('#pv-page-sub');
+        const hs = root.querySelector('.back-head .hs');
+        if (!st || st.error) {
+          if (pill) pill.remove();
+          if (sub) sub.textContent = 'Open it to check whether it is published';
+          return;
+        }
+        const pub = !!st.published;
+        if (pill) { pill.textContent = pub ? 'Public' : 'Not published'; pill.className = `status-pill ${pub ? 'b' : 'muted'}`; }
+        if (sub) sub.textContent = pub ? 'Anyone with the link sees your name, sport and record' : 'Nothing about you is on the web';
+        if (hs) hs.textContent = pub ? 'Who sees what: your Verified Profile is public' : 'Who sees what: nothing is public';
+      };
+    }
     const btn = root.querySelector('#pv-export');
     const note = root.querySelector('#pv-export-note');
     if (!btn) return;
@@ -362,10 +367,11 @@ export const privacy = {
     btn.addEventListener('click', async () => {
       if (busy) return;
       busy = true;
-      if (note) { note.style.color = ''; note.textContent = 'Preparing your export…'; }
+      if (note) { note.classList.remove('ok', 'bad'); note.textContent = 'Preparing your export…'; }
       const r = await act.exportMyData();
       if (note) {
-        note.style.color = r.ok ? 'var(--green-bright)' : 'var(--red-bright)';
+        note.classList.toggle('ok', !!r.ok);
+        note.classList.toggle('bad', !r.ok);
         note.textContent = r.ok ? 'Export downloaded.' : (r.error || 'Export failed.');
       }
       busy = false;
@@ -618,9 +624,11 @@ export const notifSettings = {
           schedule", and the chips write the pressure knob that decides how MANY reminders fire
           (one heads-up per item on Supportive; a last call on every item on Intense) and how
           firmly they read. */''}
-    <h2 class="eyebrow">Your tone · how often and how firmly it reminds you</h2>
-    <div class="chip-row" id="ns-pressure" data-toggle-group>
-      <span class="chip">Supportive</span><span class="chip on">Direct</span><span class="chip">Intense</span>
+    ${/* "Tone" alone (2026-09-22): the note under the control already says what each one does, so
+          the heading no longer restates it. Three options, one choice: a segmented control. */''}
+    <h2 class="eyebrow" id="ns-pressure-h">Tone</h2>
+    <div class="seg" id="ns-pressure" data-toggle-group aria-labelledby="ns-pressure-h">
+      <button type="button">Supportive</button><button type="button" class="on">Direct</button><button type="button">Intense</button>
     </div>
     <div class="set-note">Supportive: one heads-up per item. Direct: a last call on the ones your plan marks high. Intense: a last call on everything.</div>
 
@@ -641,12 +649,12 @@ export const notifSettings = {
       ${/* The resume hour was read by the planner and settable nowhere on the athlete side (the
             coach screen has had it since Slice E); the prose above hard-coded "7 AM". */''}
       <div class="lrow">
-        <div class="lic">${icon('bell', 17)}</div>
+        <div class="lic">${icon('sun', 17)}</div>
         <div class="lm"><div class="lt">Back on at</div></div>
         <div class="seg" style="width:150px" id="ns-quietto"><button class="${qt === 6 ? 'on' : ''}">6 AM</button><button class="${qt === 7 ? 'on' : ''}">7 AM</button><button class="${qt === 8 ? 'on' : ''}">8 AM</button></div>
       </div>
       <div class="lrow" id="ns-deadline" role="switch" tabindex="0" aria-checked="${p.allowDeadline ? 'true' : 'false'}" aria-label="Deadline warnings" aria-describedby="ns-deadline-sub">
-        <div class="lic">${icon('bell', 17)}</div>
+        <div class="lic">${icon('clock', 17)}</div>
         <div class="lm"><div class="lt">Deadline warnings</div><div class="ls" id="ns-deadline-sub">The only ones that break quiet hours</div></div>
         <div class="std-switch ${p.allowDeadline ? 'on' : ''}" aria-hidden="true"></div>
       </div>
@@ -677,7 +685,9 @@ export const notifSettings = {
         <div class="lrow" role="listitem" style="cursor:default">
           <div class="lic">${icon(ic, 17)}</div>
           <div class="lm"><div class="lt">${esc(t)}</div></div>
-          <span class="status-pill ${lv === 'High' ? 'a' : 'b'}" style="display:inline-flex;align-items:center;gap:5px">${icon('lock', 11)} ${lv}</span>
+          ${/* Muted, both levels: urgency is a setting someone else owns, a neutral fact. Amber means
+                warning only, and blue read as a control (DESIGN.md, one meaning per hue). */''}
+          <span class="status-pill muted ns-lv">${icon('lock', 11)} ${lv}</span>
         </div>`).join('')}
     </section>`;
     })()}
@@ -866,7 +876,7 @@ export const coachNotifSettings = {
         <div class="seg" style="width:150px" id="cns-quiet"><button class="${qf === 21 ? 'on' : ''}">9 PM</button><button class="${qf === 22 ? 'on' : ''}">10 PM</button><button class="${qf === 23 ? 'on' : ''}">11 PM</button></div>
       </div>
       <div class="lrow" style="cursor:default">
-        <div class="lic">${icon('bell', 17)}</div>
+        <div class="lic">${icon('sun', 17)}</div>
         <div class="lm"><div class="lt">Back on at</div></div>
         <div class="seg" style="width:150px" id="cns-quietto"><button class="${qt === 6 ? 'on' : ''}">6 AM</button><button class="${qt === 7 ? 'on' : ''}">7 AM</button><button class="${qt === 8 ? 'on' : ''}">8 AM</button></div>
       </div>
@@ -954,7 +964,7 @@ export const coachNotifSettings = {
     const chipTime = (sel, flag, atMap) => {
       const row = root.querySelector(sel);
       if (!row) return;
-      const chips = [...row.querySelectorAll('.chip')];
+      const chips = [...row.querySelectorAll('.chip, button')];
       chips.forEach((c) => c.addEventListener('click', () => {
         chips.forEach((x) => x.classList.remove('on'));
         c.classList.add('on');
@@ -1231,9 +1241,10 @@ export const planStylePicker = {
     // When someone else owns the setting, the chips pick a PREFERENCE, not the plan itself.
     const selected = choosing ? current : (PS.preference || current);
     return `
-    ${backHead('Plan style', choosing ? 'How much structure helps you succeed' : esc(PS.sourceLabel), 'settings')}
-
-    ${planStyleCard(PS, { compact: true })}
+    ${/* The style in force is said ONCE, in the header (audit 2026-09-22). A planStyleCard under
+          it repeated "Plan style" and the source line ("Recommended for you" twice on one
+          screen), and the list below already marks the choice. */''}
+    ${backHead('Plan style', choosing ? 'How much structure helps you succeed' : `${esc(PS.name)}${PS.customized ? ' (customized)' : ''} · ${esc(PS.sourceLabel)}`, roleProfileRoute())}
 
     <h2 class="eyebrow">${choosing ? 'Choose your style' : 'Tell your ' + esc(S.coach.noun) + ' what you prefer'}</h2>
     ${!choosing ? `<div class="ps-note lead">Your ${esc(S.coach.noun)} sets the plan you're scored on. What you pick here is shared with them; it doesn't change your scoring on its own.</div>` : ''}
@@ -1242,10 +1253,12 @@ export const planStylePicker = {
       ${STYLE_KEYS.map((k) => {
         const L = styleLabel(k);
         const on = selected === k;
+        // Someone else sets the plan: the row in force says so when the athlete prefers another.
+        const inForce = !choosing && current === k && !on;
         return `
         <div class="lrow" data-ps-pick="${k}" role="radio" tabindex="0" aria-checked="${on ? 'true' : 'false'}">
           <div class="lic">${icon(k === 'structured' ? 'clipboard' : k === 'guided' ? 'target' : 'heart', 17)}</div>
-          <div class="lm"><div class="lt">${esc(L.name)}${on ? ` <span class="status-pill ${choosing ? 'g' : 'muted'}" style="margin-left:6px">${choosing ? 'Selected' : 'Preferred'}</span>` : ''}</div>
+          <div class="lm"><div class="lt">${esc(L.name)}${on ? ` <span class="status-pill ps-opt-pill ${choosing ? 'g' : 'muted'}">${choosing ? 'Selected' : 'Preferred'}</span>` : ''}${inForce ? ' <span class="status-pill ps-opt-pill muted">Current</span>' : ''}</div>
           <div class="ls">${esc(L.how)}</div></div>
         </div>`;
       }).join('')}
@@ -1257,7 +1270,7 @@ export const planStylePicker = {
     </div>
 
     <div style="height:16px"></div>
-    <button class="btn ghost" data-back="settings">Done</button>
+    <button class="btn ghost" data-back="${roleProfileRoute()}">Done</button>
     <div style="height:10px"></div>`;
   },
   mount(root) {

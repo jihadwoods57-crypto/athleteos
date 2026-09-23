@@ -12,7 +12,8 @@
  *     completes only after BOTH addresses confirm, and the copy says so. The signed-in address
  *     shown here is what the session says, refreshed on every paint.
  *   - Forgot the current password: the existing reset-link path, from here, without signing out.
- *   - Delete account: the existing screen (settings.js deleteAccount).
+ *   - Delete account: the existing screen (settings.js deleteAccount), reached from Profile and
+ *     Privacy (and the operator account section), not from here.
  * The password rule is sign-up's own (ob-helpers.js): 12 characters, nothing common, nothing
  * built from the email. One rule, one helper, both doors.
  */
@@ -31,42 +32,49 @@ export const account = {
     return `
     ${backHead('Account', email || 'Signed in', roleProfileRoute())}
 
-    <section class="card rows">
+    <section class="card rows ac-tasks">
       <div class="lrow ac-static">
-        <div class="lic">${icon('mail', 17)}</div>
+        <div class="lic">${icon('user', 17)}</div>
         <div class="lm"><div class="lt">Signed in as</div><div class="ls" id="ac-email-now">${esc(email || 'Email unavailable. Sign in again to refresh.')}</div></div>
         ${RT.emailVerified === true ? '<span class="status-pill g">Verified</span>' : ''}
       </div>
-    </section>
 
-    <h2 class="eyebrow">Change password</h2>
-    <section class="card pad ac-form">
-      <label class="ac-label" for="ac-cur">Current password</label>
-      <div class="pw-row"><input id="ac-cur" class="ob-input" type="password" autocomplete="current-password" maxlength="64" placeholder="Current password" aria-label="Current password" /><span class="pw-eye" id="ac-eye" role="button" tabindex="0" aria-pressed="false" aria-label="Show passwords">Show</span></div>
-      <label class="ac-label" for="ac-new">New password</label>
-      <input id="ac-new" class="ob-input" type="password" autocomplete="new-password" maxlength="64" placeholder="At least 12 characters" aria-label="New password" />
-      <input id="ac-new2" class="ob-input" type="password" autocomplete="new-password" maxlength="64" placeholder="Retype new password" aria-label="Retype new password" />
-      <div id="ac-pass-note" class="est-note ac-note" role="status" aria-live="polite"></div>
-      <button class="btn primary" id="ac-pass-save" type="button">Update password</button>
-      <div class="est-note ac-foot">Forgot the current one? <span class="link" id="ac-pass-link" role="button" tabindex="0">Email me a reset link</span></div>
-    </section>
-
-    <h2 class="eyebrow">Change email</h2>
-    <section class="card pad ac-form">
-      <label class="ac-label" for="ac-email">New email</label>
-      <input id="ac-email" class="ob-input" type="email" inputmode="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="name@email.com" aria-label="New email" />
-      <div id="ac-email-note" class="est-note ac-note" role="status" aria-live="polite"></div>
-      <button class="btn ghost" id="ac-email-save" type="button">Send confirmation</button>
-      <div class="est-note ac-foot">We send a confirmation to your current address and the new one. The change completes when both are confirmed; until then you stay signed in as you are.</div>
-    </section>
-
-    <h2 class="eyebrow">Account actions</h2>
-    <section class="card rows">
-      <div class="lrow" data-go="delete-account">
-        <div class="lic ac-danger">${icon('trash', 17)}</div>
-        <div class="lm"><div class="lt ac-danger">Delete account</div><div class="ls">Permanent: everything goes</div></div>
-        ${icon('chevron', 17, 'class="chev-dim"')}
-      </div>
+    ${/* Two rows, each opening its own form in place (2026-09-22). Both forms used to sit open,
+          five inputs and two buttons on arrival for someone who came to check one thing. The iOS
+          shape is a row per task; a <details> keeps it one screen with no new routes, and the
+          form's own ids and handlers are unchanged. Delete account left this screen: Profile and
+          Privacy both carry it (App Review wants it easy to find, not in three places). */''}
+      <details class="ac-sec" id="ac-sec-pass">
+        <summary class="lrow">
+          <div class="lic">${icon('lock', 17)}</div>
+          <div class="lm"><div class="lt">Change password</div><div class="ls">Checks your current one first</div></div>
+          <span class="ac-chev" aria-hidden="true">${icon('chevron', 15)}</span>
+        </summary>
+        <div class="ac-form">
+          <label class="ac-label" for="ac-cur">Current password</label>
+          <div class="pw-row"><input id="ac-cur" class="ob-input" type="password" autocomplete="current-password" maxlength="64" placeholder="Current password" aria-label="Current password" /><span class="pw-eye" id="ac-eye" role="button" tabindex="0" aria-pressed="false" aria-label="Show passwords">Show</span></div>
+          <label class="ac-label" for="ac-new">New password</label>
+          <input id="ac-new" class="ob-input" type="password" autocomplete="new-password" maxlength="64" placeholder="At least 12 characters" aria-label="New password" />
+          <input id="ac-new2" class="ob-input" type="password" autocomplete="new-password" maxlength="64" placeholder="Retype new password" aria-label="Retype new password" />
+          <div id="ac-pass-note" class="est-note ac-note" role="status" aria-live="polite"></div>
+          <button class="btn primary" id="ac-pass-save" type="button">Update password</button>
+          <div class="est-note ac-foot">Forgot the current one? <span class="link" id="ac-pass-link" role="button" tabindex="0">Email me a reset link</span></div>
+        </div>
+      </details>
+      <details class="ac-sec" id="ac-sec-email">
+        <summary class="lrow">
+          <div class="lic">${icon('mail', 17)}</div>
+          <div class="lm"><div class="lt">Change email</div><div class="ls">Confirmed from both addresses</div></div>
+          <span class="ac-chev" aria-hidden="true">${icon('chevron', 15)}</span>
+        </summary>
+        <div class="ac-form">
+          <label class="ac-label" for="ac-email">New email</label>
+          <input id="ac-email" class="ob-input" type="email" inputmode="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="name@email.com" aria-label="New email" />
+          <div id="ac-email-note" class="est-note ac-note" role="status" aria-live="polite"></div>
+          <button class="btn primary" id="ac-email-save" type="button">Send confirmation</button>
+          <div class="est-note ac-foot">We send a confirmation to your current address and the new one. The change completes when both are confirmed; until then you stay signed in as you are.</div>
+        </div>
+      </details>
     </section>
     <div class="ac-tail"></div>`;
   },

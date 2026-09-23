@@ -10,6 +10,7 @@ import { icon } from '../icons.js';
 import { backHead, esc, errorState, emptyState } from '../components.js';
 import { morningReadiness, commitmentStreak, wakeupHistory, wakeupSummary, VERDICT } from '../commitments.js';
 import { loadMineRange, todayISO, shiftISO } from '../commitment-data.js';
+import { WAKEUP_SHIFT } from '../plan-style.js';
 
 let RANGE = 30;               // 7 | 30
 let ROWS = null;              // cached rows for the current range
@@ -48,7 +49,7 @@ function wakeupSection(rows, loading) {
     ? `${s.onStandard} On standard · ${s.late} Late · ${s.missed} Missed`
     : 'Your first one is today';
   return `
-    <h2 class="eyebrow">Roll call <span class="opt">· ${esc(line)}</span></h2>
+    <h2 class="eyebrow">Roll call <span class="opt">${esc(line)}</span></h2>
     <section class="card rows">
       ${h.slice(0, 30).map((x) => {
         const [cls, label] = VERDICT_PILL[x.verdict] || ['muted', x.verdict];
@@ -85,7 +86,7 @@ export default {
         title: 'Nothing to show yet',
         body: `${S.coach.hasCoach
           ? `When your ${S.coach.noun} schedules a roll call, a lift, or a study hall`
-          : 'When a roll call, a lift, or a study hall is scheduled for you'}, your responses and finished sessions build this record. It's separate from your daily score.`,
+          : 'When a roll call, a lift, or a study hall is scheduled for you'}, your responses and finished sessions build this record.`,
         action: S.coach.hasCoach ? null : { label: 'Connect a coach', go: 'connect' },
         compact: true,
       })}`;
@@ -94,15 +95,14 @@ export default {
     return `
     ${backHead('Roll call record', `Last ${RANGE} days`, 'progress')}
 
-    <section class="card pad" style="text-align:center">
-      ${/* Neutral ink, not green: green means "done / on standard" and a 38% painted in the
-            done hue inflates the one number this feature promises never to inflate. The value
-            speaks for itself; the bars below carry the detail. */''}
-      <div style="font-size:var(--t-hero);font-weight:800;letter-spacing:var(--num-tight);line-height:1;color:var(--text)">
-        ${loading ? '—' : (m.pct == null ? '—' : `${m.pct}%`)}</div>
-      <div class="ts" style="padding-top:8px">Accountability across every commitment ${S.coach.hasCoach ? `your ${esc(S.coach.noun)} scheduled` : 'scheduled for you'}</div>
-      ${streak ? `<div style="height:12px"></div>
-      <span class="status-pill g">${streak} day${streak === 1 ? '' : 's'} clean</span>` : ''}
+    ${/* The record figure (.rfig, shared with Streak and Trust Pass), not a --t-hero numeral
+          centred in a card. Neutral ink, not green: green means "done / on standard" and a 38%
+          painted in the done hue inflates the one number this feature promises never to
+          inflate. The bars below carry the detail. */''}
+    <section class="rfig">
+      <div class="rfig-n">${loading ? '—' : (m.pct == null ? '—' : `${m.pct}%`)}</div>
+      <div class="rfig-k">of every commitment ${S.coach.hasCoach ? `your ${esc(S.coach.noun)} scheduled` : 'scheduled for you'}</div>
+      ${streak ? `<div class="rfig-row"><span class="status-pill g">${streak} day${streak === 1 ? '' : 's'} clean</span></div>` : ''}
     </section>
 
     <div style="height:12px"></div>
@@ -122,19 +122,16 @@ export default {
       ${bar('Completed sessions', m.completion.done, m.completion.total)}
     </section>
 
+    ${/* ONE explainer, not two stacked boxes. The second one used to say "This is not your daily
+          score. Your daily number is still nutrition and recovery.", which stopped being true when
+          the roll call took a share of the score (WAKEUP_SHIFT, plan-style.js), and the wake-up
+          face says the opposite ("The morning counts toward today's score"). Both are now one
+          honest sentence: the % is its own record; the roll call itself does move the score. */''}
     <div class="sidebox" style="margin-top:14px">
       <div class="req-icon b s38">${icon('target', 19)}</div>
       <div>
-        <div class="tt">How this is weighted</div>
-        <div class="ts">Responding counts a little, finishing the session counts most. Sleeping through a roll call doesn't wreck your day; finishing the work is what keeps your number up. Anything that couldn't be verified is left out entirely rather than counted against you.</div>
-      </div>
-    </div>
-
-    <div class="sidebox" style="margin-top:10px">
-      <div class="req-icon g s38">${icon('shield', 19)}</div>
-      <div>
-        <div class="tt">This is not your daily score</div>
-        <div class="ts">Your daily number is still nutrition and recovery. This is a separate record of showing up.</div>
+        <div class="tt">How this record works</div>
+        <div class="ts">Finishing the session counts most; answering counts a little. Anything that couldn't be verified is left out rather than counted against you. This % is its own record. An answered roll call also moves your daily score, by up to ${Math.round(WAKEUP_SHIFT * 100)} points.</div>
       </div>
     </div>
     <div style="height:20px"></div>`;

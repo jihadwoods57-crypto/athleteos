@@ -62,7 +62,9 @@ export default {
     return `
     ${backHead('This morning', `${esc(inst.title || 'Roll call')} · ${esc(inst.audience_label || 'Everyone')}`, homeOf())}
 
-    <section class="wk-pulse">
+    ${/* No pulse on an empty roster (2026-09-22): a display-size "0/0 UP ON TIME" above
+          "Nobody was on this roll call" read as a failed morning before the sentence explained it. */''}
+    ${s.total ? `<section class="wk-pulse">
       <div class="wk-k">Up on time</div>
       <div class="wk-num"><span class="wk-big">${s.onTime}</span><span class="wk-of">/${s.total}</span></div>
       <div class="wk-bar" role="img" aria-label="${s.total ? `${s.onTime} up on time, ${s.late} late, ${s.missed} never answered` : 'Nobody was scheduled'}">
@@ -74,7 +76,7 @@ export default {
         ${s.missed ? `<span class="wk-seg r" data-flex="${s.missed}"></span>` : ''}
       </div>
       ${s.firstUp ? `<div class="wk-cap">${esc(s.firstUp.name)} was first up at ${esc(wakeClock(s.firstUp.atMin))}.</div>` : ''}
-    </section>
+    </section>` : ''}
 
     ${/* NOBODY SCHEDULED IS NOT EVERYONE ANSWERING (founder audit 2026-09-14). With a total of 0
           this congratulated the coach with "Everyone answered" and then, one line down, "0% of the
@@ -82,7 +84,6 @@ export default {
           An empty roster reports empty, the same way commitments.js and connected-standards.js
           report null rather than a fake zero. */''}
     ${!s.total ? `
-    <div class="wk-gap"></div>
     <div class="sidebox">
       <div class="req-icon muted s38">${icon('clock', 17)}</div>
       <div><div class="tt">Nobody was on this roll call</div>

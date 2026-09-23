@@ -139,7 +139,7 @@ function pageSection() {
   if (!st.enabled) {
     return `<section class="card pad">
       <div class="tt" style="margin-bottom:var(--s1h)">One link that proves you show up</div>
-      <div class="ts">A public page recruiters can open from your Twitter: days on record, your rate at standard, verified roll calls and completed sessions. Computed by OnStandard, so it reads as proof, not a claim.</div>
+      <div class="ts">A public page recruiters can open from your X profile: days on record, your rate at standard, verified roll calls and completed sessions. Computed by OnStandard, so it reads as proof, not a claim.</div>
     </section>
     ${contractCard()}
     <button class="btn primary" id="vp-enable" style="width:100%">Start my record</button>`;
@@ -236,32 +236,35 @@ function disciplineBody() {
       ${stat('Commitments completed', d.commitments_completed)}
       ${stat('Accountability', d.accountability_pct, '%')}
     </div>
-    ${noRecord ? `<div class="ts" style="margin-top:var(--s2h)">No verified commitments in the last 90 days yet. They appear here as your coach schedules them.</div>` : ''}
+    ${noRecord ? `<div class="vd-note">No verified commitments in the last 90 days yet. They appear here as your coach schedules them.</div>` : ''}
   </section>`;
 }
 
 function disciplineSection() {
   const on = VD.share === true;
+  /* 2026-09-22: one line of explanation, the numbers, the switch, and what is never shared. It
+     used to be four blocks telling the same separation story, the first a card whose .tt/.ts
+     title and body only style inside a .sidebox, so they rendered as one run of plain text. The
+     share control is a SWITCH row now (DESIGN.md: every On/Off is a std-switch); it was a chip
+     reading "Private", which looked like a status label, not something to turn on. Each switch
+     still names the other one and says it stays put. */
   return `<h2 class="eyebrow">Your discipline record <span class="status-pill ${on ? 'g' : 'muted'}">${on ? 'Shared' : 'Private'}</span></h2>
-  <section class="card pad">
-    <div class="tt">Four numbers, released on their own</div>
-    <div class="ts">A separate record with its own switch. This one has no page and no link: a recruiter asks OnStandard, and only if you have shared it do the four numbers below come back. Publishing the page above does not turn this on.</div>
-  </section>
+  <div class="vd-lead">Four numbers a recruiter can ask OnStandard for. No page, no link. Publishing the page above does not turn this on.</div>
   ${disciplineBody()}
+  <section class="card rows vd-switch-card">
+    <div class="lrow" id="vd-share" role="switch" tabindex="0" aria-checked="${on}" aria-label="Share my discipline record" aria-describedby="vd-share-sub">
+      <div class="lic">${icon('lock', 17)}</div>
+      <div class="lm"><div class="lt">Share my discipline record</div><div class="ls" id="vd-share-sub">Off by default. Only you can turn it on, and off any time. This switch covers the four numbers only, never the public page above.</div></div>
+      <div class="std-switch${on ? ' on' : ''}" aria-hidden="true"></div>
+    </div>
+  </section>
   <div class="sidebox mt">
     <div class="req-icon g s38">${icon('shield', 19)}</div>
     <div>
       <div class="tt">What is never shared</div>
-      <div class="ts">Recruiters see the four numbers above and nothing else. Not where you were, not which building, not your class schedule, not what time you did anything, not any single day. There is no way for them to ask for it. The record simply doesn't contain it.</div>
+      <div class="ts">Recruiters see the four numbers and nothing else. Not where you were, not which building, not your class schedule, not what time you did anything, not any single day. The record simply doesn't contain it.</div>
     </div>
-  </div>
-  <section class="card pad" style="display:flex;align-items:center;gap:var(--s3);margin-top:var(--s3h)">
-    <div style="flex:1">
-      <div class="tt">Share my discipline record</div>
-      <div class="ts">Off by default. Only you can turn it on, and you can turn it off any time. This switch covers the four numbers only, never the public page above.</div>
-    </div>
-    <button class="chip ${on ? 'on' : ''}" id="vd-share" aria-pressed="${on}">${on ? 'Shared' : 'Private'}</button>
-  </section>`;
+  </div>`;
 }
 
 export default {
@@ -353,10 +356,12 @@ export default {
     }
     const btn = root.querySelector('#vd-share');
     if (btn) btn.addEventListener('click', async () => {
+      // The row IS the switch (role="switch"); busy is a state on it, not a relabel of its text.
+      if (btn.getAttribute('aria-busy') === 'true') return;
       const next = !(VD.share === true);
-      btn.disabled = true; btn.textContent = '…';
+      btn.setAttribute('aria-busy', 'true');
       const ok = await setShareDiscipline(next);
-      btn.disabled = false;
+      btn.removeAttribute('aria-busy');
       if (!ok) { if (window.__render) window.__render(); return; }
       VD.share = next;
       RT.shareVerifiedDiscipline = next;

@@ -46,7 +46,9 @@ test('staleness escalation uses nowMs purely, never wall-clock', () => {
   const crit = buildPriorities({ nowMin: 900, nowMs: new Date('2026-07-17T12:00:00Z').getTime(), entries: [e], interventions: [] });
   expect(crit[0].tier).toBe('critical');       // 48h stale + 1 overdue ⇒ critical
   const fresh = buildPriorities({ nowMin: 900, nowMs: new Date('2026-07-15T14:00:00Z').getTime(), entries: [e], interventions: [] });
-  expect(fresh[0].tier).toBe('due_soon');      // 2h old ⇒ not stale ⇒ single overdue stays due_soon tier
+  // A single late item has its own 'overdue' tier since 2026-09-22 (same queue rank as before): the card
+  // used to say "Due soon" beside "Lunch overdue" while the roster painted the athlete red.
+  expect(fresh[0].tier).toBe('overdue');       // 2h old ⇒ not stale ⇒ single overdue stays in its own tier
   const unk = buildPriorities({ nowMin: 900, entries: [e], interventions: [] });
-  expect(unk[0].tier).toBe('due_soon');        // unknown nowMs ⇒ staleness never invented
+  expect(unk[0].tier).toBe('overdue');         // unknown nowMs ⇒ staleness never invented
 });

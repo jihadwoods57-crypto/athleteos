@@ -200,7 +200,11 @@ export const screens = {
   'delete-account': lazy(settings, 'deleteAccount'),
   account: lazy(accountMod, 'account'),
   terms: lazy(settings, 'terms'),
-  recruiting: lazy(features, 'recruiting'),
+  // The Discipline record screen folded into Verified Profile (2026-09-22): it was a second,
+  // client-computed copy of the record verified-profile.js already shows from the server, and it
+  // printed "Verified by <coach>" on the strength of a connection alone. The route stays so an old
+  // link or a restored stack still opens the record, now on the one screen that owns it.
+  recruiting: lazy(() => import('./verified-profile.js')),
   restrictions: lazy(features, 'restrictions'),
   'team-diet': lazy(features, 'teamDiet'),
   'coach-voice': lazy(features, 'coachVoice'),

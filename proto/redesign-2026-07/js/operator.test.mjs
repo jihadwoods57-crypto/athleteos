@@ -8,6 +8,7 @@
 import assert from 'node:assert';
 import { athleteStatus, teamPulse, runsOn, STATUS_META } from './status.js';
 import { buildPriorities, reasonKey } from './priority.js';
+import { nudgePreset } from './nudge-presets.js';
 import { resolveRequirementSet, catalogFromItems, CATALOG } from './requirements.js';
 import { scopeFilter, localClock, entriesFor, CD, can, getScope, setScope } from './coach-data.js';
 
@@ -197,6 +198,19 @@ assert.strictEqual(resolveRequirementSet([], 'a1', null), null, 'position-less (
   assert.strictEqual(q[0].unit, '', 'a unit-less practice row must render an empty unit, not undefined');
 }
 assert.deepStrictEqual(buildPriorities({ nowMin: 0, nowMs: NOW_MS, entries: [], interventions: [] }), []);
+{
+  // ONE late item on an athlete who is otherwise active is 'overdue', never 'due_soon'
+  // (2026-09-22): the card used to read "Due soon" beside its own "Dinner overdue" reason, and
+  // the nudge preset told the athlete their log was due soon when it was already late.
+  const r1 = row({ loggedToday: true, score: 70, lastMealAt: new Date(NOW_MS - 3600000).toISOString(),
+    tasks: [{ id: 'breakfast', done: true }] });
+  const st = athleteStatus({ nowMin: T(22), nowMs: NOW_MS, row: r1, reqs: REQS, excused: false, nowDow: THU });
+  assert.strictEqual(st.key, 'overdue');
+  const q = buildPriorities({ nowMin: T(22), nowMs: NOW_MS, entries: [{ row: r1, status: st }], interventions: [] });
+  assert.strictEqual(q.length, 1);
+  assert.strictEqual(q[0].tier, 'overdue', 'one late item names itself overdue');
+  assert.strictEqual(nudgePreset(q[0].tier), 'Your log is overdue. Get it in.');
+}
 
 /* ---------------- scopeFilter / entriesFor / localClock ---------------- */
 {

@@ -387,11 +387,13 @@ assert.deepStrictEqual(snapshotStatus.practice, snapshotStatus.team,
   // 0136 gave a practice its own requirement sets and coach notes, so the deep dive is the SAME
   // sections on either book. Overview absorbed the old Today and Score chips (2026-08-08): they
   // must be GONE as chips, with their content (proof strip, open items, breakdown) inside Overview.
-  for (const sec of ['overview', 'activity', 'conversation', 'requirements', 'notes']) {
+  for (const sec of ['overview', 'activity', 'requirements', 'notes']) {
     assert.ok(teamAthlete.includes(`data-psec="${sec}"`), `a coach keeps the ${sec} section`);
     assert.ok(practiceAthlete.includes(`data-psec="${sec}"`), `0136: a trainer must now get the ${sec} section`);
   }
-  for (const gone of ['today', 'score']) {
+  // Conversation folded into Activity (2026-09-22) so the tab rail fits with nothing hidden: it
+  // was a directory of the same 30 days of meal threads the Activity timeline already opens.
+  for (const gone of ['today', 'score', 'conversation']) {
     assert.ok(!teamAthlete.includes(`data-psec="${gone}"`), `the ${gone} chip merged into Overview`);
   }
   // Trust Pass is available to BOTH books as of 0196 — grant_pass authorizes is_team_coach_of OR

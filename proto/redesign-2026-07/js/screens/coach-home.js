@@ -1,19 +1,21 @@
 import { S, RT, act, tier } from '../state.js';
 import { icon } from '../icons.js';
 import { initialsOf } from '../initials.js';
+import { hydrateAvatars } from '../avatar.js';
 import { avatarHead, esc, safeImg, collapseSection, skeletonRows, errorState, emptyState, emailVerifyBanner, wireEmailVerifyBanner, copyText, scoreRing } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention, passWorthy, bookId, seenMealSet } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
 import { nudgePreset, nudgeResultCopy } from '../nudge-presets.js';
 import { PLANS } from '../ob2.js';
-import { teamPulse } from '../status.js';
-import { scoreColor } from '../score-band.js';
+import { teamPulse, statusLabel } from '../status.js';
+import { scoreColor, tierFor } from '../score-band.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
 import { paintBoard } from './coach-commitments.js';
 import { flagStateByMeal } from '../inbox.js';
 import { allowedCreateKeys } from '../staff-access.js';
 import { paintStandardsBoard } from './coach-connected.js';
+import { openRosterFiltered } from './coach-roster.js';
 import { maybeStartTour } from '../tour.js';
 import { canOpenExternalCheckout } from '../store-policy.js';
 
@@ -408,7 +410,10 @@ function pulseCard(rows, statuses) {
   const r = count(k => k === 'overdue');
   const d = count(k => k === 'no_activity' || k === 'excused');
   const seg = (cls, c) => c ? `<span class="seg ${cls}" style="flex:${c}"></span>` : '';
-  const leg = (cls, c, label) => c ? `<span class="it"><span class="dot ${cls}"></span><b>${c}</b> ${label}</span>` : '';
+  /* Each count is a door (2026-09-22): "2 overdue" is the question a coach opens Home to answer,
+     and the answer is WHO, which lives on the roster. A tap opens the roster already filtered to
+     exactly the statuses this count added up, so the number and the list can never disagree. */
+  const leg = (cls, c, label, keys) => c ? `<button type="button" class="it co-leg-go" data-roster-status="${keys}" data-roster-label="${esc(cap(label))}" aria-label="${c} ${label}. Open the roster filtered to them"><span class="dot ${cls}"></span><b>${c}</b> ${label}</button>` : '';
   const delta = p.deltaVsYesterday;
   const dCls = delta == null ? 'muted' : delta > 0 ? 'g' : delta < 0 ? 'r' : 'muted';
   const dTxt = delta == null ? 'First day of data' : delta === 0 ? 'Even with yesterday'
@@ -437,10 +442,14 @@ function pulseCard(rows, statuses) {
         ? `<b>${p.tasksDone}</b> of <b>${p.tasksTotal}</b> requirements in today <span class="sep">·</span> <b>${scored}</b> of <b>${rows.length}</b> scored`
         : `<b>${scored}</b> of <b>${rows.length}</b> scored today`}</div>
     </div>
+  </section>
+  ${/* The standing bar and its legend sit OUTSIDE the tappable ring: the legend counts are
+        buttons now, and a button nested in a role="button" is two controls in one hit area. */''}
+  <div class="co-hero-stand">
     <div class="co-standing co-hero-bar">${seg('g', g)}${seg('a', a)}${seg('r', r)}${seg('d', d)}</div>
-    <div class="co-legend co-hero-legend">${leg('g', g, 'on standard')}${leg('a', a, 'need attention')}${leg('r', r, 'overdue')}${leg('d', d, 'no activity')}</div>
+    <div class="co-legend co-hero-legend">${leg('g', g, 'on standard', 'on_standard')}${leg('a', a, 'need attention', 'due_soon,below_standard,needs_review')}${leg('r', r, 'overdue', 'overdue')}${leg('d', d, 'no activity', 'no_activity,excused')}</div>
     ${SHOW_PULSE ? `<div class="co-hero-note">The group score averages today's real ${CD.noun} scores (${scored} of ${rows.length} scored so far). The bar is your roster's live standing. Nothing is estimated; a ${CD.noun} with no log adds no score.</div>` : ''}
-  </section>`;
+  </div>`;
 }
 
 /* ---------- The dietitian's board (0197 discipline lens) ----------
@@ -507,6 +516,7 @@ async function paintNutritionBoard(root) {
   }
   if (!slot.isConnected) return;
   meals = NUT.rows || [];
+  const paintFaces = () => { try { hydrateAvatars(slot); } catch { /* initials stand */ } };
   // "Client" on a practice, "Athlete" on a team book — the noun follows the roster.
   const fallbackNoun = CD.kind === 'practice' ? 'Client' : 'Athlete';
   const nameOf = {};
@@ -611,11 +621,15 @@ async function paintNutritionBoard(root) {
       + (c.target ? ` against a ${c.target}g target` : '')
       + (c.kcalAvg ? `, about ${c.kcalAvg} calories` : '')
       + `, ${c.loggedDays} of 7 days logged`;
+    /* The roster's row shape (2026-09-22): face, name, one sub-line, the evidence on the right.
+       It was a three-column grid of its own, so the same athlete looked like a different kind of
+       thing on this board than on the roster one tab over. */
     return `
-    <div class="nb-row" data-go="coach-athlete/${esc(c.id)}" role="button" tabindex="0">
-      <span class="nb-name" title="${esc(nameOf[c.id] || first)}">${esc(first)}</span>
-      <span class="nb-bars" role="img" aria-label="${esc(label)}">${c.totals.map((t) => `<i style="height:${t ? Math.max(14, Math.round((t / max) * 100)) : 6}%${t ? '' : ';opacity:0.3'}"></i>`).join('')}</span>
-      <span class="nb-avg"><b${under ? ' class="warn"' : ''}>${esc(line1)}</b><i${low ? ' class="warn"' : ''}>${c.loggedDays} of 7 days</i></span>
+    <div class="roster-row nb-fuel" data-go="coach-athlete/${esc(c.id)}" role="button" tabindex="0" aria-label="${esc(label)}">
+      <span class="ros-av" data-avatar-uid="${esc(c.id)}" aria-hidden="true"><span data-avatar-fallback>${esc(initialsOf(nameOf[c.id] || first, '?'))}</span></span>
+      <div class="rn"><div class="t" title="${esc(nameOf[c.id] || first)}">${esc(first)}</div>
+        <div class="s"><span${under ? ' class="warn"' : ''}>${esc(line1)}</span> · <span${low ? ' class="warn"' : ''}>${c.loggedDays} of 7 days</span></div></div>
+      <div class="rr"><span class="nb-bars" aria-hidden="true">${c.totals.map((t) => `<i style="height:${t ? Math.max(14, Math.round((t / max) * 100)) : 6}%${t ? '' : ';opacity:0.3'}"></i>`).join('')}</span></div>
     </div>`;
   }).join('');
 
@@ -630,7 +644,7 @@ async function paintNutritionBoard(root) {
     : `<div class="nb-foot">No ${fallbackNoun.toLowerCase()} meals in the last 7 days. Every logged meal lands here for review.</div>`}
     ${perClient.length ? `
     <h2 class="eyebrow">${fallbackNoun} fueling · last 7 days</h2>
-    <section class="card" style="padding:10px 16px 12px">${fRows}</section>
+    <section class="card" style="padding:2px 0">${fRows}</section>
     <div class="nb-foot">${hasTargets
       ? 'Riskiest first: fewest logged days, furthest under their protein target. Averages count logged days only.'
       : NUT.tFail
@@ -641,6 +655,7 @@ async function paintNutritionBoard(root) {
     <div class="nb-foot">No logged days yet this week. Each ${fallbackNoun.toLowerCase()}'s protein pattern builds here as meals come in.</div>`}`;
   // A dead-end error line violates the house errorState contract (honest failure PLUS retry):
   // force the cache stale and repaint, right here, instead of "reopen the screen".
+  paintFaces();
   const nutRetry = slot.querySelector('#nut-retry');
   if (nutRetry) nutRetry.addEventListener('click', () => {
     nutRetry.textContent = 'Trying…';
@@ -650,13 +665,17 @@ async function paintNutritionBoard(root) {
 }
 
 /* Ranked priority. Calm hierarchy, one primary action by tier, the rest subordinate. */
-/* Tier to .status-pill accent: critical is red, below standard is amber, due soon is blue. */
-const TIER_PILL = { critical: 'r', below: 'a', due: 'b' };
+/* Tier to .status-pill accent: critical and overdue are red (missed), due soon is blue. A
+   below-standard day takes its score's TIER accent (Building amber, Off Standard red), the same
+   name and hue the roster band and the athlete's own badge give that number. */
+const TIER_PILL = { critical: 'r', overdue: 'r', below: 'a', due: 'b' };
 function priorityCard(c, i, nudgedToday) {
-  const tier = c.tier === 'critical' ? 'critical' : c.tier === 'below' ? 'below' : 'due';
+  const tier = ['critical', 'overdue', 'below'].includes(c.tier) ? c.tier : 'due';
   // needs_review also tiers as 'below', but "Below standard" would contradict its own reason
   // line ("Logged today · score pending"). Name it honestly when that's the actual status.
-  const tierLbl = c.statusKey === 'needs_review' ? 'Needs review' : { critical: 'Critical', below: 'Below standard', due: 'Due soon' }[tier];
+  const belowLbl = statusLabel({ key: 'below_standard' }, c.score) || 'Below standard';
+  const tierLbl = c.statusKey === 'needs_review' ? 'Needs review' : { critical: 'Critical', overdue: 'Overdue', below: belowLbl, due: 'Due soon' }[tier];
+  const pillCls = tier === 'below' && c.statusKey !== 'needs_review' && c.score != null ? tierFor(c.score).cls : TIER_PILL[tier];
   // Empty string, not --text-3, when there's no score: .co-pri supplies its own colour there.
   const scoreCol = c.score == null ? '' : scoreColor(c.score);
   const openPrimary = tier === 'below';  // below-standard → review the log; critical/due → send the nudge
@@ -686,7 +705,7 @@ function priorityCard(c, i, nudgedToday) {
             [data-avatar-uid] hook as the roster row: initials until the photo resolves. */''}
       <span class="ros-av co-pri-av" data-avatar-uid="${esc(c.athleteId)}" aria-hidden="true"><span data-avatar-fallback>${esc(initialsOf(c.name, '?'))}</span></span>
       <div class="co-pri-main">
-        <div class="co-pri-name">${esc(c.name)}${c.unit ? `<span class="pos">${esc(c.unit)}</span>` : ''}<span class="status-pill ${TIER_PILL[tier] || 'b'}">${tierLbl}</span></div>
+        <div class="co-pri-name">${esc(c.name)}${c.unit ? `<span class="pos">${esc(c.unit)}</span>` : ''}<span class="status-pill ${pillCls || 'b'}">${esc(tierLbl)}</span></div>
         ${c.reasons.map(r => `<div class="co-pri-reason">${esc(r)}</div>`).join('')}
       </div>
       ${c.score != null ? `<div class="co-pri-score" style="color:${scoreCol}">${c.score}</div>` : ''}
@@ -773,8 +792,10 @@ export const coachHome = {
     // athlete closest to (or furthest past) the bar surfaces first.
     const worthy = CD.caps.trustPass && TP_MAP ? passWorthy(rows, TP_MAP) : [];
     const milestone = worthy.length ? `
-    <div class="sidebox" style="border-color:var(--purple-border)">
-      <div class="req-icon p s38">${icon('shield', 17)}</div>
+    ${/* Blue, not purple (2026-09-22): purple means recovery only, and the athlete's own Trust
+          Pass surfaces (Home shield, the pass screen) are blue. One pass, one colour. */''}
+    <div class="sidebox">
+      <div class="req-icon b s38">${icon('shield', 17)}</div>
       <div style="flex:1"><div class="tt">${esc(worthy[0].row.name)} hit ${worthy[0].streak} straight days</div>
       <div class="ts">Reward it with camera-free meals.</div></div>
       ${/* .ghost, not the bare .btn: the bare button's fill is --surface-2, which is also the
@@ -786,8 +807,7 @@ export const coachHome = {
     <button class="btn ghost sm" data-scopes data-tour="roster" style="width:auto;padding:0 13px;height:30px;margin-bottom:10px">${icon('users', 13)} ${esc(scopeLabel(scope))} ${icon('chevron', 12, 'style="transform:rotate(90deg)"')}</button>
     ${SHOW_SCOPES ? scopeSheet() : ''}
     ${planCard()}
-    ${pending.length ? `<div class="card" data-go="coach-inbox" style="padding:10px 15px;cursor:pointer;display:flex;align-items:center;gap:10px"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 15)}</div><div style="flex:1;font-size:12.5px;font-weight:700">${pending.length} join request${pending.length > 1 ? 's' : ''} waiting</div>${icon('chevron', 14, 'style="color:var(--text-3)"')}</div>` : ''}
-    ${milestone}
+    ${pending.length ? `<div class="card" data-go="coach-inbox" style="padding:10px 15px;cursor:pointer;display:flex;align-items:center;gap:10px"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 15)}</div><div style="flex:1;font-size:var(--t-sm);font-weight:700">${pending.length} join request${pending.length > 1 ? 's' : ''} waiting</div>${icon('chevron', 14, 'style="color:var(--text-3)"')}</div>` : ''}
     ${/* THE RING LEADS FOR EVERY BOOK (founder 2026-09-15: the coach's and the nutritionist's
           home should look like the athlete's, with the group score in the ring). The dietitian's
           meal-review board (0197/0202) reads directly under it, painted async into its slot so
@@ -796,22 +816,19 @@ export const coachHome = {
     ${entries === null ? '' : pulseCard(rows, statuses)}
     ${isNutritionBook() ? '<div id="nut-board-slot"></div>' : ''}
     ${obPlanCard()}
-    <div id="vc-board-slot"></div>
-    <div id="cs-board-slot"></div>
-
-    ${(() => {
-      // Setup guidance persists (collapsed) after the first athlete joins — it no longer vanishes
-      // mid-setup. Hidden only once every step is genuinely done.
-      const st = coachSetupState();
-      const left = setupIncompleteCount(st);
-      return left ? collapseSection('coach-setup', vocab().setup, left, setupChecklistCard(st), false) : '';
-    })()}
-
+    ${/* TRIAGE BEFORE EVERYTHING ELSE UNDER THE RING (2026-09-22). The ring keeps its place (the
+          founder ruling above); what moved is the rest. The priority queue answers "who needs me",
+          so it now sits directly under the ring and its standing bar, and the roll-call and
+          standards boards, the Trust Pass praise card and the setup checklist follow it. Before
+          this the first athlete name sat ~1700px down, under six cards that were not triage. */''}
     <h2 class="eyebrow co-major" data-tour="priority">${esc(vocab().priorities)}</h2>
     ${entries === null ? `<div class="sidebox"><div class="req-icon b s38">${icon('bell', 17)}</div><div><div class="tt">Ranking the day…</div><div class="ts">Standards and exceptions are loading.</div></div></div>`
     : cards.length === 0 ? emptyState({ icon: 'check', title: 'Nothing needs you right now', body: 'Anything you nudge, assign, or mark handled stays out of this queue until the reason changes.', compact: true })
     : cards.slice(0, 6).map((c, i) => priorityCard(c, i, (RT.coachNudged || {})[c.athleteId] === roles.todayISO())).join('')
       + (cards.length > 6 ? `<button class="btn ghost sm" data-go="coach-roster" style="width:auto;padding:0 16px;margin-top:4px">${cards.length - 6} more need attention</button>` : '')}
+
+    <div id="vc-board-slot"></div>
+    <div id="cs-board-slot"></div>
 
     ${/* On a nutrition book the activity rail is the SAME plates the meal-review queue just
           listed (the feed is meals-only), so the whole section is a duplicate and the queue's
@@ -832,6 +849,16 @@ export const coachHome = {
           <div style="font-size:9.5px;color:var(--text-3);font-weight:700;margin-top:2px">${esc(bits.join(' · '))}</div></div>
         </div>`;
       }).join('')}</div>`}`}
+
+    ${milestone ? `<div class="co-home-after">${milestone}</div>` : ''}
+    ${(() => {
+      // Setup guidance persists (collapsed) after the first athlete joins — it no longer vanishes
+      // mid-setup. Hidden only once every step is genuinely done.
+      const st = coachSetupState();
+      const left = setupIncompleteCount(st);
+      return left ? collapseSection('coach-setup', vocab().setup, left, setupChecklistCard(st), false) : '';
+    })()}
+
 
     <div class="co-bottom"></div>`;
   },
@@ -926,6 +953,9 @@ export const coachHome = {
     });
     root.querySelectorAll('[data-scopes]').forEach(b => b.addEventListener('click', () => { SHOW_SCOPES = !SHOW_SCOPES; window.__restate(); }));
     root.querySelectorAll('[data-pulse]').forEach(b => b.addEventListener('click', () => { SHOW_PULSE = !SHOW_PULSE; window.__restate(); }));
+    root.querySelectorAll('[data-roster-status]').forEach(b => b.addEventListener('click', () => {
+      openRosterFiltered(b.getAttribute('data-roster-status').split(','), b.getAttribute('data-roster-label') || '');
+    }));
     root.querySelectorAll('[data-scope]').forEach(b => b.addEventListener('click', () => {
       const [kind, value] = b.getAttribute('data-scope').split(':');
       // The flagship on this screen: a new scope re-filters and re-ranks the whole queue.

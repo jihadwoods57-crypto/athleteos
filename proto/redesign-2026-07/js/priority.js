@@ -7,7 +7,11 @@
    today stays out of the queue; a genuinely new reason (extra overdue item, new tier)
    changes the signature and resurfaces the athlete. */
 
-const TIER_RANK = { critical: 0, below: 1, due_soon: 2 };
+/* 'overdue' is one late item on an athlete who is otherwise active (2026-09-22). It used to share
+   the 'due_soon' tier, so the card read "Due soon" beside its own reason line "Lunch overdue", and
+   the nudge preset told the athlete their log was due soon when it was already late. Same rank
+   slot as before, so the queue order does not move; only the name and the preset tell the truth. */
+const TIER_RANK = { critical: 0, below: 1, overdue: 2, due_soon: 2 };
 
 export function reasonKey(status) {
   const ids = (status.openItems || []).filter(i => i.state === 'overdue' || i.state === 'due_soon')
@@ -19,7 +23,7 @@ function tierOf(row, status, nowMs) {
   if (status.key === 'overdue' || status.key === 'no_activity') {
     const n = (status.openItems || []).filter(i => i.state === 'overdue').length;
     const stale = !row.loggedToday && (!row.lastMealAt || (nowMs != null && (nowMs - new Date(row.lastMealAt).getTime()) > 24 * 3600 * 1000));
-    return (n >= 2 || (n >= 1 && stale) || status.key === 'no_activity') ? 'critical' : 'due_soon';
+    return (n >= 2 || (n >= 1 && stale) || status.key === 'no_activity') ? 'critical' : n >= 1 ? 'overdue' : 'due_soon';
   }
   if (status.key === 'below_standard' || status.key === 'needs_review') return 'below';
   if (status.key === 'due_soon') return 'due_soon';
@@ -29,6 +33,7 @@ function tierOf(row, status, nowMs) {
 function suggestion(tier, status) {
   if (tier === 'critical') return { kind: 'message', label: 'Send direct reminder' };
   if (tier === 'below') return { kind: 'review', label: 'Review the log' };
+  if (tier === 'overdue') return { kind: 'nudge', label: 'Nudge' };
   if (status.key === 'due_soon') return { kind: 'nudge', label: 'Nudge' };
   return { kind: 'message', label: 'Check in' };
 }

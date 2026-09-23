@@ -33,7 +33,9 @@ export default {
     return `
     ${backHead('Daily Commitment', 'Intent in the morning. Truth at night.')}
 
-    <section class="card" style="margin-top:4px">
+    ${/* `card pad`: a bare .card carries no padding (app.css), so both of these rendered their
+          text flush on the card edge with the eyebrow riding the top border. */''}
+    <section class="card pad cmt-card" style="margin-top:4px">
       <h2 class="eyebrow" style="margin:0 0 10px">Today's commitment</h2>
       <input id="cmt-focus" class="input" maxlength="80" placeholder="One line, e.g. “No skipped meals, lights out by 10.”"
         value="${esc(focus)}" aria-label="Today's personal commitment" />
@@ -41,7 +43,7 @@ export default {
     </section>
 
     <h2 class="eyebrow">End-of-day reflection</h2>
-    <section class="card">
+    <section class="card pad cmt-card">
       <div class="ts" style="padding-bottom:10px">Did you execute today's plan? ${esc(VALUE_PROP)}</div>
       ${CHOICES.map(c => `
         <div class="cmt-choice ${ans === c.v ? 'on ' + c.cls : ''}" data-choice="${c.v}" role="button" tabindex="0" aria-pressed="${ans === c.v}">

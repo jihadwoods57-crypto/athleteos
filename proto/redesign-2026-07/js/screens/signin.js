@@ -16,7 +16,10 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export default {
   hideTabs: true,
   render() {
+    // The same back chip every onboarding step wears (2026-09-22): sign-in had no way back to
+    // Welcome except "Create an account", which went somewhere else entirely.
     return `
+    <div class="ob-nav si-nav"><button type="button" class="ob-back" data-go="welcome" aria-label="Back">${icon('chevron', 18)}</button></div>
     <div class="si">
       <div class="si-logo">${logoMark(60, 'welcome')}</div>
       <div class="si-mark"><span class="on">On</span>Standard</div>
@@ -45,7 +48,7 @@ export default {
 
       <div id="si-err" class="si-err" aria-live="polite"></div>
 
-      <button id="si-go" class="btn primary si-cta"><span class="si-go-label">Sign in</span><span class="si-arrow" aria-hidden="true">&#8594;</span></button>
+      <button id="si-go" class="btn primary si-cta"><span class="si-go-label">Sign in</span><span class="si-arrow" aria-hidden="true">${icon('arrowRight', 18)}</span></button>
 
       <div class="si-social" id="si-social" style="display:none">
         <div class="si-or"><span></span>or<span></span></div>

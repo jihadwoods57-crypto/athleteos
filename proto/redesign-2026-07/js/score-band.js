@@ -21,16 +21,13 @@ export function scoreBand(score) {
   return score >= ON_STANDARD ? 'on' : score >= CLOSE ? 'close' : 'off';
 }
 
-export const BAND_COLOR = {
-  on: 'var(--green-bright)',
-  close: 'var(--amber-bright)',
-  off: 'var(--red-bright)',
-};
-
-/** Token string for a score's colour; --text-3 when there is nothing to show. */
+/** Token string for a score's colour; --text-3 when there is nothing to show.
+ *  ONE ladder (2026-09-22). This used to paint a three-way band (80+ green, 60-79 amber, below
+ *  red) while the tier chip, the roster's band headers and the athlete's own badge painted the
+ *  four-tier ladder (80-89 blue). The same 86 read green on the roster row under a blue
+ *  "Locked In" header. A score is now coloured by its tier everywhere it appears as a number. */
 export function scoreColor(score) {
-  const b = scoreBand(score);
-  return b ? BAND_COLOR[b] : 'var(--text-3)';
+  return score == null ? 'var(--text-3)' : tierColor(score);
 }
 
 /* The legacy one-letter flags ('g'/'y'/'r') that roles.js -> tierFlag() has always returned.
@@ -110,7 +107,7 @@ export const TIER_COLOR = {
   r: 'var(--red-bright)',
 };
 
-/** Token string for a score's TIER colour (distinct from scoreColor's three-way band colour). */
+/** Token string for a score's TIER colour. scoreColor() is this plus the null case. */
 export function tierColor(score) { return TIER_COLOR[tierFor(score).cls]; }
 
 /** "60–79" style range label for a tier, for legends and the design-states gallery. */

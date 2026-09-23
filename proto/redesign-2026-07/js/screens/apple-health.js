@@ -215,7 +215,7 @@ function stepsCard() {
 export default {
   tab: 'profile',
   render() {
-    const head = backHead('Apple Health', 'What it reads, and how to change it', 'settings');
+    const head = backHead('Apple Health', 'What it reads, and how to change it', 'profile');
     if (!HK.probed) return `${head}${skeletonRows(3, 'Checking Apple Health')}`;
     const ios = HK.available !== false;
     // GUIDELINE 2.5.1, App Review 2026-09-18 (build 33, reviewed on an iPad Air): an app that uses

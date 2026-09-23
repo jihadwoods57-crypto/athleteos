@@ -39,7 +39,11 @@ export function fmtCountdown(mins) {
 
 export function samePlan(a, b) { return JSON.stringify(a || []) === JSON.stringify(b || []); }
 
-const COLOR = { done: 'green', done_late: 'green', overdue: 'red', due_soon: 'gold', ready: 'gold', locked: 'gray', not_required: 'gray' };
+/* Amber is WARNING ONLY (DESIGN.md). 'ready' (due later today, nothing wrong) used to be gold,
+   so every open requirement wore an amber tile and an amber "Due today" pill from 7 AM on, and
+   the colour had nothing left to say when a window really was closing. Ready is a neutral fact
+   now; amber starts at due_soon (inside the last 90 minutes) and for a late-but-savable log. */
+const COLOR = { done: 'green', done_late: 'green', overdue: 'red', due_soon: 'gold', ready: 'gray', locked: 'gray', not_required: 'gray' };
 /* Display labels only — itemState() below decides the states, and none of these strings feed it.
    Every value is a STATE NOUN. 'ready' used to read 'Open', an imperative verb, sitting in an
    uppercase pill on a row you tap to open — so the label read as the button. */
@@ -118,7 +122,7 @@ export function deriveExec({ nowMin, dow, status, assigned = [], pressure = 'acc
 
   const assignedItems = assigned.map((a) => ({
     id: a.id, title: a.title, icon: a.icon || 'clipboard',
-    state: a.done ? 'done' : 'ready', color: a.done ? 'green' : 'gold', pill: a.done ? 'Done' : 'Open',
+    state: a.done ? 'done' : 'ready', color: a.done ? 'green' : 'gray', pill: a.done ? 'Done' : 'Open',
     minsLeft: null, countdown: '', dueLabel: a.dueLabel || '', why: a.note || '',
     sub: a.done ? 'Completed' : `From ${a.from || 'Coach'} · ${a.dueLabel || ''}`,
     route: `requirement/${a.id}`, required: true, tracked: true, assigned: true,

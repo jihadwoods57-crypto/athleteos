@@ -105,7 +105,7 @@ const steps = [
       </div>`,
   },
   {
-    id: 'answer', ch: 0, cta: 'Show me',
+    id: 'answer', ch: 0, cta: 'Continue',
     body: () => `
       <div class="ob2-hero">
         <div class="h-eyebrow">OnStandard</div>
@@ -114,7 +114,7 @@ const steps = [
       </div>`,
   },
   {
-    id: 'name', ch: 0, cta: 'Next', back: 'role',
+    id: 'name', ch: 0, cta: 'Continue', back: 'role',
     title: () => 'You, trainer.',
     sub: () => 'Clients see this name on every note you send.',
     body: (o) => `
@@ -149,7 +149,7 @@ const steps = [
   },
   ...adultDobSteps({ R: 'obt', next: 'clients', who: 'Trainer' }),
   {
-    id: 'clients', ch: 0, cta: 'Next',
+    id: 'clients', ch: 0, cta: 'Continue',
     title: () => 'How many clients do you train?',
     sub: () => 'This sizes your daily queue, and the numbers you’ll see in a minute.',
     body: () => chipRow('clientCount', [
@@ -158,7 +158,7 @@ const steps = [
     ]),
   },
   {
-    id: 'service', ch: 0, cta: 'Next',
+    id: 'service', ch: 0, cta: 'Continue',
     title: () => 'How do you train them?',
     body: () => choiceGrid('serviceType', [
       { v: 'in-person', t: 'In person', s: 'Gym floor, sessions on a schedule', ic: 'users', tint: 'var(--purple-surface)', color: 'var(--purple-bright)' },
@@ -167,7 +167,7 @@ const steps = [
     ]),
   },
   {
-    id: 'followup-hours', ch: 0, cta: 'Next',
+    id: 'followup-hours', ch: 0, cta: 'Continue',
     title: () => 'Hours a week spent chasing check-ins?',
     sub: () => 'Texts, reminders, “did you log?” All the between-session follow-up.',
     body: () => chipRow('followupHours', [
@@ -175,7 +175,7 @@ const steps = [
     ]),
   },
   {
-    id: 'pain', ch: 0, cta: 'Next',
+    id: 'pain', ch: 0, cta: 'Continue',
     title: () => 'What costs you the most?',
     sub: () => 'Pick everything that’s true.',
     body: () => chipRow('pains', [
@@ -186,7 +186,7 @@ const steps = [
     ], { multi: true }),
   },
   {
-    id: 'price', ch: 0, cta: 'Next',
+    id: 'price', ch: 0, cta: 'Continue',
     title: () => 'What do you charge per client?',
     sub: () => 'Roughly, per month. Stays private. It only sizes the projection coming up.',
     body: () => chipRow('pricePoint', [
@@ -200,7 +200,7 @@ const steps = [
 
   /* ==================== ch1 · See it ==================== */
   {
-    id: 'aha', ch: 1, cta: 'Take it back',
+    id: 'aha', ch: 1, cta: 'Continue',
     title: () => 'The math on chasing.',
     body: (o) => {
       const mid = followupMid(o);
@@ -213,7 +213,7 @@ const steps = [
     },
   },
   {
-    id: 'req-build', ch: 1, cta: 'Next',
+    id: 'req-build', ch: 1, cta: 'Continue',
     title: () => 'Set a standard once.',
     sub: () => 'Pick one requirement: every client you invite starts with it, automatically.',
     body: (o) => {
@@ -238,7 +238,7 @@ const steps = [
     },
   },
   {
-    id: 'meal-review', ch: 1, cta: 'Next',
+    id: 'meal-review', ch: 1, cta: 'Continue',
     title: () => 'Review a client meal in seconds.',
     sub: () => 'The AI does the first read: foods, portions, macros. You approve or adjust, and your call is what the client sees.',
     body: () => `
@@ -263,7 +263,7 @@ const steps = [
         <div class="ob2-scan-note" style="text-align:left;margin-top:10px">This meal grades ${SAMPLE_MEAL.quality}/100: ${esc(SAMPLE_MEAL.note)} You can correct any line; your correction is what sticks.</div>`)}`,
   },
   {
-    id: 'summary', ch: 1, cta: 'Next',
+    id: 'summary', ch: 1, cta: 'Continue',
     title: () => 'Your Monday, drafted.',
     sub: () => 'Every week the AI writes the summary and drafts your reply in four stances. Nothing sends without you.',
     body: () => `
@@ -280,7 +280,7 @@ const steps = [
         ${stanceBubble('Follow-up', 'Haven’t seen a log since Thursday. Everything good? One photo tonight gets the streak back.')}`)}`,
   },
   {
-    id: 'client-view', ch: 1, cta: 'Next',
+    id: 'client-view', ch: 1, cta: 'Continue',
     title: () => 'What your client sees.',
     sub: () => 'Your standard, your name. The app just carries it.',
     body: (o) => {
@@ -299,7 +299,7 @@ const steps = [
     },
   },
   {
-    id: 'price-set', ch: 1, cta: 'Next',
+    id: 'price-set', ch: 1, cta: 'Continue',
     title: () => 'Set your client price.',
     sub: () => 'Configuration only: OnStandard doesn’t bill your clients today. You set the real price when you invite them.',
     body: (o) => {
@@ -341,7 +341,7 @@ const steps = [
     },
   },
   {
-    id: 'retention', ch: 1, cta: 'Next',
+    id: 'retention', ch: 1, cta: 'Continue',
     /* Qualitative framing only — no invented retention statistic. */
     body: () => `
       <div class="ob2-hero">
@@ -353,7 +353,7 @@ const steps = [
 
   /* ==================== ch2 · Your plan ==================== */
   {
-    id: 'plan', ch: 2, cta: 'Next',
+    id: 'plan', ch: 2, cta: 'Continue',
     title: () => 'Your practice, systemized.',
     body: (o) => {
       const style = styleLabel(styleForStructureAnswer(o.structurePref));
@@ -377,7 +377,7 @@ const steps = [
 
   /* ==================== ch3 · Commit ==================== */
   {
-    id: 'commit-q', ch: 3, cta: 'Next',
+    id: 'commit-q', ch: 3, cta: 'Continue',
     title: () => 'How involved should OnStandard be?',
     sub: () => 'This sets your automation defaults. Change it anytime.',
     body: () => choiceGrid('aiInvolvement', [
@@ -393,7 +393,7 @@ const steps = [
     body: (o) => `
       ${mirrorCard('users', `Every client you invite starts on <b>your standard</b>${o.practiceName ? ` at <b>${esc(o.practiceName)}</b>` : ''}.`)}
       ${mirrorCard('sparkle', `The AI runs <b>${esc(AI_LABEL[o.aiInvolvement] || AI_LABEL.drafts)}</b>.`)}
-      <div class="ob-foot" style="margin-top:18px">
+      <div class="ob-foot ob-foot-push">
         ${o.committedAt ? commitContinue() : commitButton(false)}
       </div>`,
     mount(root, ctx) {
@@ -411,7 +411,7 @@ const steps = [
 
   /* ==================== ch4 · Start ==================== */
   {
-    id: 'proof', ch: 4, cta: 'Next',
+    id: 'proof', ch: 4, cta: 'Continue',
     title: () => 'What it looks like for a trainer.',
     sub: () => 'Illustrative, not actual customers yet.',
     body: () => `

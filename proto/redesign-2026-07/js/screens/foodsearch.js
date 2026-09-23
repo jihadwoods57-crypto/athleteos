@@ -27,35 +27,28 @@ export const foodSearch = {
   render() {
     const slot = S.currentSlot;
     const slotName = slot ? slotTitle(slot) : 'meal';
+    /* ORDER (audit 2026-09-22): search, what it found, what you have picked, then the other ways
+       in. "Your plate" used to sit below the barcode and label rows, off the bottom of an 844px
+       screen, so tapping + changed nothing the athlete could see. Now a picked food wears its
+       count in place of the +, the plate sits straight under the results, and the Log control is
+       sticky and counts ITEMS (never calories: PRODUCT.md red line). The "Results" eyebrow and
+       its explainer went: a list under a search box needs no label, and the explainer's advice
+       lives in the no-match state, where it is the answer. */
     return `
     ${backHead(`Log without a photo · ${slotName}`, 'When a photo isn’t possible. Same score rules.', 'camera')}
 
     ${composer({ inputId: 'fs-input', placeholder: 'Search foods…', inputLabel: 'Search foods', decorativeSend: true, sendIcon: 'search', sendIconSize: 18, sendStyle: 'background:var(--surface-2);color:var(--text)', wrapStyle: 'margin-top:2px' })}
 
-    <h2 class="eyebrow">Results</h2>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Common foods. For anything not listed, a photo or the nutrition label reads best.</div>
-    <section class="card" style="padding:2px 0" id="fs-results"></section>
+    <section class="card fs-results" id="fs-results" aria-label="Foods"></section>
 
-    <div class="lrow" data-go="barcode-scan" style="border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:12px 15px;margin-top:10px">
-      <div class="lic">${icon('barcode', 17)}</div>
-      <div class="lm"><div class="lt">Scan a barcode</div><div class="ls">Packaged food, exact from the maker's own data</div></div>
-      ${icon('chevron', 16, 'style="color:var(--text-3)"')}
-    </div>
-
-    <div class="lrow" data-go="label-scan" style="border:1px solid var(--hairline);border-radius:var(--r-card-sm);padding:12px 15px;margin-top:10px">
-      <div class="lic">${icon('edit', 17)}</div>
-      <div class="lm"><div class="lt">Enter a nutrition label</div><div class="ls">Type the panel numbers. Exact, never estimated</div></div>
-      ${icon('chevron', 16, 'style="color:var(--text-3)"')}
-    </div>
-
-    <h2 class="eyebrow">Your plate <span class="link" id="fs-clear">Clear</span></h2>
+    <h2 class="eyebrow">Your plate <span class="link" id="fs-clear" role="button" tabindex="0" hidden>Clear</span></h2>
     <section class="card pad" id="fs-plate">
-      <div class="tiny" style="font-size:13px;font-weight:600" id="fs-empty">Tap results to build the plate.</div>
+      <div class="fs-empty" id="fs-empty">Tap a food above to add it.</div>
       <div id="fs-items"></div>
       ${/* Per figure (0142): a hidden figure's cell stays in the DOM (renderTotals writes into
             every cell unconditionally) and hides itself — macros ride showMacros, the calorie
             cell rides showCalories. */''}
-      <div class="macro-row" id="fs-totals" style="margin-top:12px;display:none">
+      <div class="macro-row fs-totals" id="fs-totals" hidden>
         <div class="macro"${S.planStyle.showMacros ? '' : ' hidden'}><div class="mv" id="t-p">0g</div><div class="mk">Protein</div></div>
         <div class="macro"${S.planStyle.showMacros ? '' : ' hidden'}><div class="mv" id="t-c">0g</div><div class="mk">Carbs</div></div>
         <div class="macro"${S.planStyle.showMacros ? '' : ' hidden'}><div class="mv" id="t-f">0g</div><div class="mk">Fat</div></div>
@@ -63,11 +56,23 @@ export const foodSearch = {
       </div>
     </section>
 
-    <div style="height:16px"></div>
+    <h2 class="eyebrow">Other ways to log</h2>
+    <section class="card rows">
+      <div class="lrow" data-go="barcode-scan">
+        <div class="lic">${icon('barcode', 17)}</div>
+        <div class="lm"><div class="lt">Scan a barcode</div><div class="ls">Packaged food, exact from the maker's own data</div></div>
+        ${icon('chevron', 16, 'class="chev-dim"')}
+      </div>
+      <div class="lrow" data-go="label-scan">
+        <div class="lic">${icon('edit', 17)}</div>
+        <div class="lm"><div class="lt">Enter a nutrition label</div><div class="ls">Type the panel numbers. Exact, never estimated</div></div>
+        ${icon('chevron', 16, 'class="chev-dim"')}
+      </div>
+    </section>
+
     ${!slot
-      ? `<button class="btn ghost" data-back="home">All meals logged · Done</button>`
-      : `<button class="btn green" id="fs-log" disabled>${icon('check', 19)} Log ${slotName}</button>`}
-    <div style="height:10px"></div>
+      ? `<div class="action-bar"><button class="btn ghost" data-back="home">All meals logged · Done</button></div>`
+      : `<div class="action-bar"><button class="btn green" id="fs-log" disabled>${icon('check', 19)} <span id="fs-log-label">Log ${esc(slotName)}</span></button></div>`}
     `;
   },
   mount(root) {
@@ -85,6 +90,9 @@ export const foodSearch = {
     const totals = root.querySelector('#fs-totals');
     const empty = root.querySelector('#fs-empty');
     const logBtn = root.querySelector('#fs-log');
+    const logLabel = root.querySelector('#fs-log-label');
+    const clear = root.querySelector('#fs-clear');
+    const slotName = SLOT ? slotTitle(SLOT) : 'meal';
     const plate = [];
 
     const renderTotals = () => {
@@ -93,18 +101,22 @@ export const foodSearch = {
       root.querySelector('#t-c').textContent = Math.round(sum.c) + 'g';
       root.querySelector('#t-f').textContent = Math.round(sum.f) + 'g';
       root.querySelector('#t-k').textContent = Math.round(sum.kc);
-      totals.style.display = (plate.length && showNums) ? 'flex' : 'none';
-      empty.style.display = plate.length ? 'none' : 'block';
+      totals.hidden = !(plate.length && showNums);
+      empty.hidden = !!plate.length;
+      if (clear) clear.hidden = !plate.length;
       // The REAL disabled attribute, not an opacity/pointer-events costume: .btn:disabled owns
       // the treatment, screen readers hear the state, and focus can't land on a dead control.
       if (logBtn) logBtn.disabled = !plate.length;
+      // The count is ITEMS, never a calorie figure (PRODUCT.md red line): what is on the plate.
+      const n = plate.reduce((a, x) => a + x.q, 0);
+      if (logLabel) logLabel.textContent = n ? `Log ${slotName} · ${n} item${n === 1 ? '' : 's'}` : `Log ${slotName}`;
     };
     const renderPlate = () => {
       items.innerHTML = plate.map((x, i) => `
-        <div class="chip-row" style="display:flex;flex-wrap:nowrap;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--hairline-soft)">
-          <span style="flex:1;font-size:14px;font-weight:700">${esc(x.n)} <small style="color:var(--text-3)">· ${esc(x.unit)}</small></span>
+        <div class="fs-item">
+          <span class="fs-item-n">${esc(x.n)} <small>· ${esc(x.unit)}</small></span>
           <span class="chip" data-i="${i}" data-d="-1" role="button" tabindex="0" aria-label="One less ${esc(x.n)}">−</span>
-          <span style="font-size:14px;font-weight:800;width:26px;text-align:center">${x.q}</span>
+          <span class="fs-item-q">${x.q}</span>
           <span class="chip" data-i="${i}" data-d="1" role="button" tabindex="0" aria-label="One more ${esc(x.n)}">+</span>
         </div>`).join('');
       items.querySelectorAll('.chip').forEach(b => b.addEventListener('click', () => {
@@ -114,16 +126,21 @@ export const foodSearch = {
         renderPlate(); renderTotals();
       }));
       renderTotals();
+      // The result rows wear the plate's counts, so re-draw them with it.
+      renderResults(input.value);
     };
     const renderResults = (q) => {
       const hits = DB.filter(x => x.n.toLowerCase().includes(q.toLowerCase())).slice(0, 6);
+      // A food already on the plate shows its count where the + was: the tap visibly landed,
+      // the way a native picker marks what is selected.
+      const qOf = (f) => { const hit = plate.find((y) => y.n === f.n); return hit ? hit.q : 0; };
       results.innerHTML = hits.length ? hits.map((x, i) => `
-        <div class="lrow" data-add="${DB.indexOf(x)}" style="padding:12px 16px">
-          <div class="lic">${icon('plus', 16)}</div>
+        <div class="lrow" data-add="${DB.indexOf(x)}" role="button" tabindex="0" aria-label="Add ${esc(x.n)}${qOf(x) ? `, ${qOf(x)} on your plate` : ''}">
+          ${qOf(x) ? `<div class="lic fs-in">${qOf(x)}</div>` : `<div class="lic">${icon('plus', 16)}</div>`}
           <div class="lm"><div class="lt">${esc(x.n)}</div><div class="ls">${esc(x.unit)}${S.planStyle.showMacros ? ` · ${x.p}g protein` : ''}${S.planStyle.showCalories ? ` · ${x.kc} kcal` : ''}</div></div>
         </div>`).join('')
-        : `<div style="padding:14px 16px;font-size:var(--t-sm);font-weight:600;color:var(--text-3);line-height:1.5">No match for that. Snap a photo instead. It reads anything.
-            <button class="btn ghost sm" id="fs-to-cam" style="width:auto;padding:0 16px;margin-top:10px;display:flex;align-items:center;gap:6px">${icon('camera', 15)} Take a photo</button></div>`;
+        : `<div class="fs-nomatch">No match for that. These are common foods; for anything else a photo or the nutrition label reads best.
+            <button class="btn ghost sm fs-to-cam" id="fs-to-cam">${icon('camera', 15)} Take a photo</button></div>`;
       // Direct door to the camera, not a sentence pointing at one: the router only wires
       // data-go at render time, so this post-paint button carries its own tap.
       const toCam = results.querySelector('#fs-to-cam');
@@ -147,7 +164,6 @@ export const foodSearch = {
 
     // "Clear" was rendered but never wired (router only wires data-go/data-act at render
     // time) — the third instance of this bug class. Plate is local UI state only.
-    const clear = root.querySelector('#fs-clear');
     if (clear) clear.addEventListener('click', () => { plate.length = 0; renderPlate(); });
 
     input.addEventListener('input', () => renderResults(input.value));
