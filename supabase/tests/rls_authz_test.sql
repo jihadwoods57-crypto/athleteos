@@ -3685,8 +3685,8 @@ update public.feature_flags set kill_switch = false where name = 'verified_commi
 -- ---- the clock, pure ----
 select _ok(rollcall_closes_at('morning_roll_call', '2026-09-01T10:05:00Z'::timestamptz, '2026-09-01T10:00:00Z'::timestamptz, null::timestamptz) = '2026-09-01T10:30:00Z'::timestamptz,
   '0212: a wake-up with no ends_at closes 30 minutes after the WAKE-UP time');
-select _ok(rollcall_opens_at('morning_roll_call', '2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:05:00Z'::timestamptz, 360::smallint, null::smallint) = '2026-09-01T10:00:00Z'::timestamptz,
-  '0212: a wake-up opens AT its time, not before');
+select _ok(rollcall_opens_at('morning_roll_call', '2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:05:00Z'::timestamptz, 360::smallint, null::smallint) = '2026-09-01T09:50:00Z'::timestamptz,
+  '0212 (0242): a wake-up opens 10 minutes before its time (was: AT its time)');
 select _ok(rollcall_opens_at('practice', '2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:05:00Z'::timestamptz, 360::smallint, null::smallint) = '2026-09-01T09:05:00Z'::timestamptz,
   '0212: every other type keeps the hour-before rule');
 
@@ -4235,6 +4235,265 @@ select _ok(_try($q$delete from meal_views$q$) <> 'ok' or (select count(*) from m
 select _superuser();
 select _ok((select count(*) from meal_views) = 2, '0229: exactly the two legitimate rows exist');
 delete from meal_views;
+
+-- ================================================================ 0242: roll call rebuilt (part A)
+-- The team board every athlete on a roll call can read (and nobody else), the coach's history,
+-- the 10-minute open, and the assigned arrival inside the one night budget of the ceiling.
+-- Reuses the 0138 cast: team T1, coach_1 (staff), coach_2 (stranger), athletes e1 / e2,
+-- athlete B (T2, a stranger), commitment ccccdddd-...-c1. Hand-timed relative to now().
+select _superuser();
+select set_config('request.jwt.claim.sub', '', false);
+update public.feature_flags set kill_switch = false where name = 'verified_commitments';
+
+-- ---- the open, pure ----
+select _ok(rollcall_opens_at('morning_roll_call', '2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:05:00Z'::timestamptz, 360::smallint, null::smallint) = '2026-09-01T09:50:00Z'::timestamptz,
+  '0242: a wake-up opens 10 minutes before its start');
+select _ok(rollcall_opens_at('morning_roll_call', '2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:05:00Z'::timestamptz, 360::smallint, 350::smallint) = '2026-09-01T09:50:00Z'::timestamptz
+       and rollcall_opens_at('morning_roll_call', '2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:05:00Z'::timestamptz, 360::smallint, 360::smallint) = '2026-09-01T10:00:00Z'::timestamptz,
+  '0242: an explicit opens_min still wins over the 10-minute default');
+select _ok(rollcall_opens_at('practice', '2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:05:00Z'::timestamptz, 360::smallint, null::smallint) = '2026-09-01T09:05:00Z'::timestamptz,
+  '0242: every other type keeps the hour-before rule');
+
+-- ---- the team board fixture: today's roll call started 20 min ago, grace 5, closes in 10 ----
+-- e1 answered on time (on_standard, first up); e2 has not answered (pending). Every other T1
+-- response on the instance is excused so the counts are exact.
+update commitments set opens_min = null, location_id = null where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+update commitment_instances set starts_at = now() - interval '20 minutes', respond_by_at = now() - interval '15 minutes',
+       ends_at = null, arrive_by_at = null, status = 'scheduled', skipped = false
+ where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date;
+create temp table _rc_b as
+  select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date;
+grant select on _rc_b to authenticated, anon;
+select _ok((select count(*) from _rc_b) = 1, '0242: (fixture) today''s roll call exists');
+insert into commitment_responses (instance_id, athlete_id)
+  select (select id from _rc_b), a from unnest(array['eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2']::uuid[]) a
+  on conflict do nothing;
+update commitment_responses set status = 'excused', acknowledged_at = null, arrived_at = null
+ where instance_id = (select id from _rc_b)
+   and athlete_id not in ('eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2');
+update commitment_responses set status = 'acknowledged', acknowledged_at = now() - interval '18 minutes', ack_source = 'app',
+       arrived_at = null, sync_review = false, review_resolution = null, device_tapped_at = null
+ where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+update commitment_responses set status = 'pending', acknowledged_at = null, ack_source = null,
+       arrived_at = null, sync_review = false, review_resolution = null, device_tapped_at = null
+ where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+
+-- ---- who may read it ----
+select _as('eeee0000-0000-0000-0000-0000000000e2');   -- a responder who has NOT answered yet
+select _ok(_try($f$ select rollcall_team_board((select id from _rc_b)) $f$) = 'ok',
+  '0242: an athlete on the roll call can read the team board');
+select _ok((select jsonb_array_length(rollcall_team_board((select id from _rc_b))->'rows')) >= 2,
+  '0242: an athlete on the roll call sees the whole team, not only their own row');
+select _ok(not exists (
+             select 1 from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r, jsonb_object_keys(r) k
+              where k in ('lat','lng','latitude','longitude','accuracy_m','device_tapped_at','dispute_note','excused_reason','review_note','correction_note'))
+           and not (rollcall_team_board((select id from _rc_b)) ?| array['lat','lng']),
+  '0242: the board carries no coordinates and no private notes');
+select _ok((select array_agg(k order by k) from jsonb_object_keys(rollcall_team_board((select id from _rc_b))->'rows'->0) k)
+           = array['acknowledged_at','arrival_verdict','arrived_at','athlete_id','avatar_path','name','place','verdict'],
+  '0242: a board row is exactly the roster-safe fields');
+select _as('bbbbbbbb-0000-0000-0000-000000000002');   -- athlete B, on T2
+select _ok(_try($f$ select rollcall_team_board((select id from _rc_b)) $f$) like 'denied%not_authorized%',
+  '0242: an athlete on another team cannot read the board');
+select _as('22222222-0000-0000-0000-000000000002');   -- coach_2, stranger
+select _ok(_try($f$ select rollcall_team_board((select id from _rc_b)) $f$) like 'denied%not_authorized%',
+  '0242: a stranger coach cannot read the board');
+select _as('99999999-0000-0000-0000-000000000009');   -- rando
+select _ok(_try($f$ select rollcall_team_board(gen_random_uuid()) $f$) <> 'ok',
+  '0242: an unknown instance is refused');
+select _as('11111111-0000-0000-0000-000000000001');   -- coach_1, staff (not a responder)
+select _ok(_try($f$ select rollcall_team_board((select id from _rc_b)) $f$) = 'ok',
+  '0242: staff read the board of their own roll call');
+-- e5 was removed from T1 in the 0140 section: a stale response row must not reopen the board
+select _superuser();
+insert into commitment_responses (instance_id, athlete_id, status)
+  values ((select id from _rc_b), 'eeee0000-0000-0000-0000-0000000000e5', 'excused')
+  on conflict (instance_id, athlete_id) do update set status = 'excused';
+select _ok(not exists (select 1 from team_members where athlete_id = 'eeee0000-0000-0000-0000-0000000000e5' and status = 'active'),
+  '0242: (fixture) e5 is off the team and holds a response row');
+select _as('eeee0000-0000-0000-0000-0000000000e5');
+select _ok(_try($f$ select rollcall_team_board((select id from _rc_b)) $f$) like 'denied%not_authorized%',
+  '0242: an athlete removed from the team cannot read the board through an old response row');
+
+-- ---- what it says ----
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+create temp table _rc_bj as select rollcall_team_board((select id from _rc_b)) as j;
+select _superuser();
+select _ok((select j->'rows'->0->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1'
+               and (j->'rows'->0->>'place')::int = 1
+               and j->'rows'->0->>'verdict' = 'on_standard' from _rc_bj),
+  '0242: the first one up leads the board, place 1, on standard');
+select _ok((select r->>'verdict' = 'pending' and jsonb_typeof(r->'place') = 'null' and jsonb_typeof(r->'acknowledged_at') = 'null'
+              from _rc_bj, jsonb_array_elements(j->'rows') r where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2'),
+  '0242: an athlete not up yet is pending with no place');
+select _ok((select (j->>'up')::int = 1 and (j->>'total')::int = 2 and (j->>'arrived')::int = 0 from _rc_bj),
+  '0242: up / total count the team, and an excused athlete leaves the total');
+select _ok((select coalesce(bool_and(r->>'verdict' = 'excused'), true) from _rc_bj, jsonb_array_elements(j->'rows') r
+             where r->>'athlete_id' not in ('eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2')),
+  '0242: an excused athlete still appears, marked excused');
+select _ok((select j->>'title' = 'Morning Roll Call' and j->>'coach_name' = 'Coach One'
+               and j->>'asks_arrival' = 'false' and jsonb_typeof(j->'location_name') = 'null'
+               and (j->>'closes_at')::timestamptz = (j->>'starts_at')::timestamptz + interval '30 minutes'
+               and (select bool_and(jsonb_typeof(r->'arrival_verdict') = 'null') from jsonb_array_elements(j->'rows') r)
+             from _rc_bj),
+  '0242: the header reads title, coach, close; with no place there is no arrival verdict');
+select _ok((select jsonb_typeof(r->'avatar_path') = 'null' from _rc_bj, jsonb_array_elements(j->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242: no uploaded picture, no avatar path');
+insert into storage.objects (bucket_id, name, owner) values ('avatars', 'eeee0000-0000-0000-0000-0000000000e2/avatar.jpg', 'eeee0000-0000-0000-0000-0000000000e2');
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok((select r->>'avatar_path' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') = 'eeee0000-0000-0000-0000-0000000000e2/avatar.jpg',
+  '0242: an uploaded picture is the avatars object path');
+select _superuser();   -- storage refuses a direct delete; the suite's rollback removes the object
+drop table _rc_bj;
+
+-- ---- arrival: a place on the roll call, arrive by the start, 10 minutes of grace ----
+insert into commitment_locations (id, team_id, name, lat, lng, created_by)
+  values ('cccc0242-0000-0000-0000-0000000000a1', '77777777-1111-0000-0000-000000000001', 'Weight Room', 28.6, -81.2,
+          '11111111-0000-0000-0000-000000000001');
+update commitments set location_id = 'cccc0242-0000-0000-0000-0000000000a1', arrival_grace_min = 10
+ where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+update commitment_instances set arrive_by_at = starts_at where id = (select id from _rc_b);
+update commitment_responses set arrived_at = now() - interval '15 minutes'   -- 5 min after arrive-by: on standard
+ where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+update commitment_responses set arrived_at = now() - interval '5 minutes'    -- 15 min after arrive-by: late
+ where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+create temp table _rc_bj as select rollcall_team_board((select id from _rc_b)) as j;
+select _superuser();
+select _ok((select j->>'asks_arrival' = 'true' and j->>'location_name' = 'Weight Room' and (j->>'arrived')::int = 2 from _rc_bj),
+  '0242: a roll call with a place asks for arrival and names the place');
+select _ok((select r->>'arrival_verdict' from _rc_bj, jsonb_array_elements(j->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1') = 'on_standard'
+       and (select r->>'arrival_verdict' from _rc_bj, jsonb_array_elements(j->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') = 'late',
+  '0242: arrival inside the grace is on standard, after it is late');
+select _ok((select coalesce(bool_and(r->>'arrival_verdict' = 'excused'), true) from _rc_bj, jsonb_array_elements(j->'rows') r
+             where r->>'athlete_id' not in ('eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2')),
+  '0242: an excused athlete''s arrival is excused, never missed');
+drop table _rc_bj;
+update commitment_responses set arrived_at = null
+ where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+select _ok((select r->>'arrival_verdict' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') = 'pending',
+  '0242: not arrived before the close is pending');
+update commitment_instances set starts_at = now() - interval '40 minutes', respond_by_at = now() - interval '35 minutes',
+       arrive_by_at = now() - interval '40 minutes' where id = (select id from _rc_b);
+select _ok((select r->>'arrival_verdict' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') = 'missed',
+  '0242: not arrived after the close is missed');
+update commitments set location_id = null where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+delete from commitment_locations where id = 'cccc0242-0000-0000-0000-0000000000a1';
+-- today's roll call is still OPEN for the history below (it must not count as a morning yet)
+update commitment_instances set starts_at = now() - interval '20 minutes', respond_by_at = now() - interval '15 minutes',
+       arrive_by_at = null where id = (select id from _rc_b);
+
+-- ---- history: six past mornings, one skipped, hand-built for e1 and e2 only ----
+-- (k = days ago)  e1                      e2
+--   1             on time (first up)      missed
+--   2             on time (first up)      excused: leaves the denominator
+--   3             late                    on time (first up)
+--   4             on time (first up)      on time
+--   5             missed                  on time (first up)
+--   6             SKIPPED DAY: never a morning, whatever its rows say (e1 "answered" it)
+-- Every morning starts exactly k days before now(), and now() is fixed for the whole suite
+-- (one transaction), so the window edges are deterministic at any hour.
+delete from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on < current_date;
+insert into commitment_instances (id, commitment_id, occurs_on, starts_at, respond_by_at, status, skipped)
+  select ('cccc0242-0000-0000-0000-00000000000' || k)::uuid, 'ccccdddd-0000-0000-0000-0000000000c1', current_date - k,
+         now() - make_interval(days => k), now() - make_interval(days => k) + interval '5 minutes',
+         case when k = 6 then 'cancelled' else 'scheduled' end, k = 6
+    from generate_series(1, 6) k;
+insert into commitment_responses (instance_id, athlete_id, status, acknowledged_at, ack_source)
+  select ('cccc0242-0000-0000-0000-00000000000' || v.k)::uuid, v.a::uuid, v.st,
+         case when v.off is null then null else now() - make_interval(days => v.k) + make_interval(mins => v.off) end,
+         case when v.off is null then null else 'app' end
+    from (values
+      (1, 'eeee0000-0000-0000-0000-0000000000e1', 'acknowledged', 2),
+      (1, 'eeee0000-0000-0000-0000-0000000000e2', 'missed',       null),
+      (2, 'eeee0000-0000-0000-0000-0000000000e1', 'acknowledged', 1),
+      (2, 'eeee0000-0000-0000-0000-0000000000e2', 'excused',      null),
+      (3, 'eeee0000-0000-0000-0000-0000000000e1', 'acknowledged', 12),
+      (3, 'eeee0000-0000-0000-0000-0000000000e2', 'acknowledged', 3),
+      (4, 'eeee0000-0000-0000-0000-0000000000e1', 'acknowledged', 1),
+      (4, 'eeee0000-0000-0000-0000-0000000000e2', 'acknowledged', 4),
+      (5, 'eeee0000-0000-0000-0000-0000000000e1', 'missed',       null),
+      (5, 'eeee0000-0000-0000-0000-0000000000e2', 'acknowledged', 2),
+      (6, 'eeee0000-0000-0000-0000-0000000000e1', 'acknowledged', 1),
+      (6, 'eeee0000-0000-0000-0000-0000000000e2', 'missed',       null)
+    ) v(k, a, st, off)
+  on conflict (instance_id, athlete_id) do update
+    set status = excluded.status, acknowledged_at = excluded.acknowledged_at, ack_source = excluded.ack_source;
+
+select _as('11111111-0000-0000-0000-000000000001');   -- coach_1, staff
+select _ok(_try($f$ select rollcall_history('ccccdddd-0000-0000-0000-0000000000c1', 30) $f$) = 'ok',
+  '0242: staff read the history');
+create temp table _rc_hj as select rollcall_history('ccccdddd-0000-0000-0000-0000000000c1', 30) as j;
+create temp table _rc_hj2 as select rollcall_history('ccccdddd-0000-0000-0000-0000000000c1', 2) as j;
+create temp table _rc_hj4 as select rollcall_history('ccccdddd-0000-0000-0000-0000000000c1', 4) as j;
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select rollcall_history('ccccdddd-0000-0000-0000-0000000000c1', 30) $f$) like 'denied%not_authorized%',
+  '0242: an athlete cannot read the history');
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok(_try($f$ select rollcall_history('ccccdddd-0000-0000-0000-0000000000c1', 30) $f$) like 'denied%not_authorized%',
+  '0242: a stranger coach cannot read the history');
+select _superuser();
+select _ok((select j ? 'team_on_time_pct' and j ? 'team_trend' and jsonb_typeof(j->'athletes') = 'array' from _rc_hj)
+       and (select array_agg(k order by k) from _rc_hj, jsonb_object_keys(j->'athletes'->0) k)
+           = array['athlete_id','avatar_path','first_up','late','missed','mornings','name','on_time','on_time_pct','streak','trend'],
+  '0242: the history carries exactly the agreed keys');
+select _ok((select (a->>'mornings')::int = 5 and (a->>'on_time')::int = 3 and (a->>'late')::int = 1 and (a->>'missed')::int = 1
+               and (a->>'on_time_pct')::int = 60 and (a->>'streak')::int = 2
+              from _rc_hj, jsonb_array_elements(j->'athletes') a where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242: e1: 5 mornings (the skipped day and today''s open one are not mornings), 3 on time, streak 2');
+select _ok((select (a->>'mornings')::int = 4 and (a->>'on_time')::int = 3 and (a->>'missed')::int = 1
+               and (a->>'on_time_pct')::int = 75 and (a->>'streak')::int = 0
+              from _rc_hj, jsonb_array_elements(j->'athletes') a where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2'),
+  '0242: e2: an excused morning leaves the denominator; a miss yesterday means no streak');
+select _ok((select (a->>'first_up')::int from _rc_hj, jsonb_array_elements(j->'athletes') a
+             where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1') = 3
+       and (select (a->>'first_up')::int from _rc_hj, jsonb_array_elements(j->'athletes') a
+             where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') = 2,
+  '0242: first up counts the mornings an athlete answered before everyone else');
+select _ok((select (j->>'team_on_time_pct')::int = 67 from _rc_hj),
+  '0242: the team rate is every on-time morning over every morning (6 of 9)');
+select _ok((select j->'athletes'->0->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1' from _rc_hj),
+  '0242: the history leads with the athlete who most needs the coach (lowest rate first)');
+select _ok((select (a->>'mornings')::int from _rc_hj2, jsonb_array_elements(j->'athletes') a
+             where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1') = 2,
+  '0242: the window bounds the history (2 days = 2 mornings)');
+-- 4 days: the midpoint is 2 days ago. e1 recent half = day 1 (on time, 100%); early half = days
+-- 2, 3, 4 (on, late, on: 67%). Over 30 days every morning is in the recent half: no trend.
+select _ok((select (a->>'trend')::int from _rc_hj4, jsonb_array_elements(j->'athletes') a
+             where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1') = 33
+       and (select jsonb_typeof(a->'trend') from _rc_hj, jsonb_array_elements(j->'athletes') a
+             where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1') = 'null',
+  '0242: trend is the recent half''s on-time rate minus the early half''s, null without both');
+drop table _rc_hj4;
+drop table _rc_hj;
+drop table _rc_hj2;
+delete from commitment_instances where id::text like 'cccc0242-%';
+drop table _rc_b;
+
+-- ---- the night ceiling counts an assigned arrival ----
+-- No nutrition evidence, so the ceiling is (check-in slot) + (night 8 if earned): 18 on an
+-- ordinary day, 10 once the night is assigned, +8 once it is earned.
+delete from days where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and date between current_date - 3 and current_date;
+insert into days (athlete_id, date, meals, checkin, quick_added, score) values
+  ('eeee0000-0000-0000-0000-0000000000e1', current_date,     '{}', '{"submitted":true,"arrival":{"assigned":true,"verdict":"missed"}}', '[]', 100),
+  ('eeee0000-0000-0000-0000-0000000000e1', current_date - 1, '{}', '{"arrival":{"assigned":true,"verdict":"on_standard"}}', '[]', 100),
+  ('eeee0000-0000-0000-0000-0000000000e1', current_date - 2, '{}', '{"submitted":true,"arrival":{"assigned":true,"verdict":"late"}}', '[]', 100),
+  ('eeee0000-0000-0000-0000-0000000000e1', current_date - 3, '{}', '{"submitted":true,"arrival":{"assigned":true,"verdict":"pending"}}', '[]', 100);
+select _ok((select score from days where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and date = current_date) = 10,
+  '0242 ceiling: a missed arrival is assigned and earns nothing: the check-in slot shrinks to 10');
+select _ok((select score from days where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and date = current_date - 1) = 8,
+  '0242 ceiling: an on-time arrival earns the night''s 8 on its own');
+select _ok((select score from days where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and date = current_date - 2) = 18,
+  '0242 ceiling: a late arrival earns the night part too (10 + 8)');
+select _ok((select score from days where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and date = current_date - 3) = 18,
+  '0242 ceiling: a pending arrival is not assigned: an ordinary day');
+delete from days where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and date between current_date - 3 and current_date;
 
 -- ================================================================ scoreboard
 select _superuser();
