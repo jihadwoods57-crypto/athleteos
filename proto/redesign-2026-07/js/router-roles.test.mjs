@@ -239,11 +239,34 @@ assert.strictEqual(navFor(OPERATOR, undefined), 'coach');
   // Every screen that declares subs must declare them as strings that its own router can route.
   for (const [route, mod] of Object.entries(screens)) {
     if (!mod || !Array.isArray(mod.subs)) continue;
-    assert.ok(mod.subs.every((s) => typeof s === 'string' && s && !s.includes('/')),
+    // One exception: a strip over ONE record pairs `<id>` with `<id>/<view>` (the roll-call board
+    // and its Your day). A path is allowed only when its head is itself a declared sub.
+    assert.ok(mod.subs.every((s) => typeof s === 'string' && s && (!s.includes('/') || mod.subs.includes(s.split('/')[0]))),
       `${route}.subs must be plain sub keys, never paths`);
     assert.strictEqual(new Set(mod.subs).size, mod.subs.length,
       `${route}.subs must not repeat a key, or two tabs share an index and the travel direction is a coin flip`);
   }
+}
+
+/* ---------------- a two-segment sub: the roll-call board and Your day ----------------
+   Team <-> Your day are siblings over one instance: `rollcall-board/<id>` and
+   `rollcall-board/<id>/day`. lateralStep once read only the first path segment, so Team -> Your
+   day was a push (a back-stack entry and a second entrance after a swipe) and Your day -> Team
+   left a dead Back. Lateral means location.replace and no stack entry: Back from either leaves. */
+{
+  const st = await import('./state.js');
+  st.RT.authRole = 'athlete';
+  globalThis.location.hash = '#rollcall-board/abc';
+  const board = screens['rollcall-board'];
+  assert.deepStrictEqual(board.subs, ['abc', 'abc/day'], 'the board pairs the instance with its day');
+  assert.strictEqual(lateralStep('rollcall-board', 'abc', 'rollcall-board/abc/day'), 1, 'Team -> Your day is sideways');
+  globalThis.location.hash = '#rollcall-board/abc/day';
+  assert.strictEqual(lateralStep('rollcall-board', 'abc/day', 'rollcall-board/abc'), -1, 'Your day -> Team is sideways');
+  assert.strictEqual(lateralStep('rollcall-board', 'abc/day', 'rollcall-board/abc/day'), 0, 're-tapping Your day is not travel');
+  assert.strictEqual(lateralStep('rollcall-board', 'abc', 'rollcall-board/other/day'), 0, 'another instance is never a sibling');
+  st.RT.authRole = 'coach';
+  assert.strictEqual(lateralStep('rollcall-board', 'abc', 'rollcall-board/abc/day'), 0, 'a coach has no Your day strip');
+  st.RT.authRole = null; globalThis.location.hash = '';
 }
 
 console.log('router role matrix: all assertions passed');

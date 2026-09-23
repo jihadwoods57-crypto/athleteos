@@ -210,8 +210,10 @@ export function boardHtml(model, { coach = false, when = '' } = {}) {
   const isLate = m.me && m.me.verdict === 'late';
   const myRow = !coach && m.selfId ? g.up.concat(g.late).find((r) => r.athlete_id === m.selfId) : null;
   const myTime = myRow ? clock(arrivalMode ? myRow.arrived_at : myRow.acknowledged_at) : '';
+  // The athlete's own place sits on the count row's right edge (one callout, not a pill of its
+  // own): green on time, amber late. Once they are placed it replaces the clock line there.
   const you = !coach && m.me && m.me.place
-    ? `<p class="rb-you"><span class="status-pill ${isLate ? 'a' : 'g'}">You're ${esc(ordinal(m.me.place))}${arrivalMode ? ' here' : ''}${myTime ? ` · ${esc(myTime)}` : ''}${isLate ? ' · Late' : ''}</span></p>`
+    ? `<span class="rb-you ${isLate ? 'a' : 'g'}">You're ${esc(ordinal(m.me.place))}${arrivalMode ? ' here' : ''}${myTime ? ` · ${esc(myTime)}` : ''}${isLate ? ' · Late' : ''}</span>`
     : '';
   const nobody = m.closed ? 'Nobody checked in' : arrivalMode ? 'Nobody is here yet' : 'Nobody is up yet';
   // First up gets their own face beside the words: the one teammate the whole board calls out.
@@ -226,11 +228,11 @@ export function boardHtml(model, { coach = false, when = '' } = {}) {
     ? `<p class="rb-here"><span class="rb-hn2">${m.arrivedCount}</span> of ${m.total} here${where ? ` · ${esc(where)}` : ''}</p>`
     : '';
   // `when` is the screen's clock line ("Closes 6:30"), set on the count's right edge.
-  const aside = when ? `<span class="rb-when">${esc(when)}</span>` : '';
+  const aside = you || (when ? `<span class="rb-when">${esc(when)}</span>` : '');
   const count = arrivalMode
     ? `<div class="rb-countrow"><p class="rb-count"><span class="rb-n">${m.upCount}</span> of ${m.total} here</p>${aside}</div>${where ? `<p class="rb-here">${esc(where)}</p>` : ''}`
     : `<div class="rb-countrow"><p class="rb-count"><span class="rb-n">${m.upCount}</span> of ${m.total} up</p>${aside}</div>`;
-  const hero = `<div class="rb-hero">${count}${firstLine}${here}${you}</div>`;
+  const hero = `<div class="rb-hero">${count}${firstLine}${here}</div>`;
   const kinds = ['up', 'late', 'waiting', 'missed', 'excused', 'unverified'];
   const empty = kinds.every((k) => !(g[k] && g[k].length))
     ? '<p class="rb-empty">No one is on this roll call yet.</p>' : '';

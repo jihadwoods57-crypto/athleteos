@@ -392,7 +392,10 @@ function currentScroll() { const vp = document.getElementById('viewport'); retur
  * targets; return ±1 where it should have returned 0 and a real detail screen stops being
  * reachable by Back at all. Neither throws, and neither shows up in a screenshot. */
 export function lateralStep(curRoute, curSub, target) {
-  const [root, sub] = target.split('/');
+  // The whole rest of the path is the sub: the roll-call board's siblings are `<id>` and
+  // `<id>/day`, and reading only the first segment made Team -> Your day a push.
+  const [root, ...rest] = target.split('/');
+  const sub = rest.join('/');
   if (root !== curRoute || !sub) return 0;
   const mod = modOf(curRoute);
   const subs = mod && Array.isArray(mod.subs) ? mod.subs : null;

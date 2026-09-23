@@ -93,6 +93,35 @@ test('athlete, window open and not answered: I’m Up is the one primary action'
   assert.doesNotMatch(screen.render({ sub: 'i1' }), /data-rb-ack/);
 });
 
+test('I’m Up in flight: a live repaint draws a disabled Saving…, never a second live button', async () => {
+  const cd = await import('./commitment-data.js');
+  const rows = BOARD.rows.map((r) => (r.athlete_id === 'm' ? { ...r, acknowledged_at: null, verdict: 'pending', place: null } : r));
+  cd.seedTeamBoardForHarness('i4', { ...BOARD, instance_id: 'i4', rows });
+  const st = await import('./state.js'); st.RT.userId = 'm'; st.RT.authRole = 'athlete';
+  const mod = await import('./screens/rollcall-board.js');
+  mod.markAckBusy('i4', true);
+  const busy = mod.default.render({ sub: 'i4' });
+  assert.doesNotMatch(busy, /data-rb-ack="/, 'no tappable I’m Up while the write is in flight');
+  assert.match(busy, /data-rb-ack-busy disabled[^>]*>Saving…</);
+  mod.markAckBusy('i4', false);
+  assert.match(mod.default.render({ sub: 'i4' }), /data-rb-ack="i4"/, 'settled: the button is back');
+});
+
+test('a lost reply never reads “Didn’t save” when the server has the answer', async () => {
+  const { ackLanded } = await import('./screens/rollcall-board.js');
+  assert.equal(ackLanded('2026-09-23T10:01:00Z', null, 'm'), true, 'a stamp is a landing');
+  assert.equal(ackLanded(null, BOARD, 'm'), true, 'the server row says up: it landed');
+  assert.equal(ackLanded(null, BOARD, 'v'), false, 'the server row says pending: it did not');
+  assert.equal(ackLanded(null, null, 'm'), false, 'no board, no claim');
+});
+
+test('Override: never the coach Home’s today slot, never a blind preload, and a plain missing-record line', () => {
+  const src = readFileSync(join(JS, 'screens', 'rollcall-board.js'), 'utf8');
+  assert.doesNotMatch(src, /\bloadBoard\(/, 'loadBoard owns coach Home’s today slot; use loadBoardFor');
+  assert.doesNotMatch(src, /responseIdFor\(id, ''/, 'a lookup for athlete "" never matches and fetches every mount');
+  assert.match(src, /Couldn’t find this athlete’s roll call record\. Open it from Home\./);
+});
+
 test('a place asked and not arrived offers I’m here; arrival mode counts who is here', async () => {
   const cd = await import('./commitment-data.js');
   const rows = [

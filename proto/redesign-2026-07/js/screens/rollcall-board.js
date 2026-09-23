@@ -29,7 +29,7 @@ import { backHead, esc, skeletonRows, emptyState, errorState, sayStatus } from '
 import { boardModel, boardHtml, boardMode, ordinal } from '../team-board.js';
 import {
   VC, loadTeamBoard, subscribeTeamBoard, invalidateTeamBoard, ackCommitment, ackRefusal,
-  remindMissing, pingAthlete, setResponse, loadMine, loadBoard, todayISO,
+  remindMissing, pingAthlete, setResponse, loadMine, loadBoardFor, todayISO,
 } from '../commitment-data.js';
 import { ROLLCALL_OPEN_BEFORE_MIN, opensAtOf } from '../commitments.js';
 import { RT, S, act, liveWeights } from '../state.js';
@@ -74,6 +74,20 @@ function dayWord(iso) {
    keyed by instance so one morning's note never paints onto another. */
 const HERE_NOTE = new Map();   // id -> { text, error }
 const ACK_NOTE = new Map();    // id -> text
+/* An I'm Up write in flight, per instance. A live repaint during the await would otherwise draw a
+   fresh, ENABLED button under the athlete's thumb (a second tap, a second write). While busy the
+   button renders as "Saving…", disabled, whatever repaints. */
+const ACK_BUSY = new Set();
+/** Test and harness seam: mark an instance's I'm Up as in flight (or not). */
+export function markAckBusy(id, on = true) { if (on) ACK_BUSY.add(id); else ACK_BUSY.delete(id); }
+
+/** Did the answer land? The write's own stamp says yes; without one, the SERVER's row decides
+ *  (a lost reply to a write that committed must never read "Didn't save"). */
+export function ackLanded(stamp, board, selfId) {
+  if (stamp) return true;
+  const r = board && Array.isArray(board.rows) && selfId ? board.rows.find((x) => x && x.athlete_id === selfId) : null;
+  return !!(r && (r.acknowledged_at || r.verdict === 'on_standard' || r.verdict === 'late' || r.verdict === 'review'));
+}
 /* Faces already up at the last paint, per instance: the ones not in here arrived while the
    athlete watched and get the arrival motion. Never replays on a same-route repaint. */
 const SEEN = new Map();
@@ -167,9 +181,9 @@ export function dayHtml({ items = [], message = '', coachName = '', fromTime = '
       + `<blockquote class="rb-bubble">${esc(message)}</blockquote></figure>`
     : '';
   const bank = banked
-    ? `<div class="rb-banked${banked.late ? ' late' : ''}"><span class="rb-bk-t"><span class="rb-bk-k">Roll call banked</span>`
-      + `<span class="rb-bk-s">${esc(banked.words || '')}${banked.late ? ', half credit' : ''}</span></span>`
-      + `<span class="rb-bk-n">+${esc(banked.points)}</span></div>`
+    ? `<p class="rb-banked${banked.late ? ' late' : ''}"><span class="rb-bk-k">Roll call banked</span>`
+      + ` · <span class="rb-bk-s">${esc(banked.words || '')}${banked.late ? ', half credit' : ''}</span>`
+      + ` <span class="rb-bk-n">+${esc(banked.points)}</span></p>`
     : pendingLine ? `<p class="rb-bk-wait">${esc(pendingLine)}</p>` : '';
   const breakfastOpen = open.some((i) => i.id === 'breakfast' && i.state !== 'overdue');
   const list = open.length
@@ -204,7 +218,10 @@ function athleteActionHtml(board, id, a, mine) {
   const note = ACK_NOTE.get(id);
   const here = HERE_NOTE.get(id);
   let out = '';
-  if (a.canAck) {
+  if (ACK_BUSY.has(id)) {
+    out += '<button type="button" class="btn primary rb-up" data-rb-ack-busy disabled aria-busy="true">Saving…</button>'
+      + '<p class="rb-line" id="rb-ack-say" role="status" aria-live="polite">Checking you in</p>';
+  } else if (a.canAck) {
     const line = note ? note
       : a.late ? `Late now. It still counts for half until ${clock(board.closes_at)}.`
       : `On time until ${clock(board.respond_by_at || board.starts_at)}`;
@@ -282,6 +299,7 @@ function sheetKey(e) { if (e.key === 'Escape') closeSheet(SHEET_OPENER); }
 /* The coach's response row for one athlete (commitment_board, 0216): Override needs its id and the
    team board never carries one. Loaded on demand from the coach's own board for that day. */
 async function responseIdFor(id, athleteId, board) {
+  if (!athleteId) return null;
   const find = () => {
     const inst = VC.instance(id);
     const r = inst && Array.isArray(inst.rows) ? inst.rows.find((x) => x && x.athlete_id === athleteId) : null;
@@ -294,7 +312,9 @@ async function responseIdFor(id, athleteId, board) {
   const bid = bookId();
   if (!bid) return null;
   const day = board && at(board.starts_at) != null ? dateKey(new Date(at(board.starts_at))) : todayISO();
-  try { await loadBoard(bid, CD.kind, day, true); } catch { /* the caller says so */ }
+  // loadBoardFor, never loadBoard: the latter owns the coach Home's TODAY slot, and a board opened
+  // for another day would repaint Home with that day's roster.
+  try { await loadBoardFor(bid, CD.kind, day, true); } catch { /* the caller says so */ }
   rid = find();
   return rid;
 }
@@ -362,6 +382,8 @@ function openSheet(root, id, athleteId, opener, repaint) {
   sheet.querySelectorAll('[data-go]').forEach((n) => n.addEventListener('click', () => closeSheet(null)));
   const titleEl = sheet.querySelector('#rb-sheet-t'); if (titleEl) { try { titleEl.focus({ preventScroll: true }); } catch { /* no focus */ } }
   const say = sheet.querySelector('#rb-sh-say');
+  // Look this athlete's record up now, so Mark on standard does not wait on a fetch.
+  if (canOverride) void responseIdFor(id, athleteId, board);
 
   const one = sheet.querySelector('#rb-nudge-one');
   if (one) one.addEventListener('click', async () => {
@@ -387,7 +409,9 @@ function openSheet(root, id, athleteId, opener, repaint) {
     if (!why) { sayStatus(say, 'Give a reason. It goes on the record.', { error: true }); if (input) input.focus(); return; }
     save.disabled = true; save.textContent = 'Saving…';
     const rid = await responseIdFor(id, athleteId, board);
-    const done = rid ? await setResponse(rid, 'acknowledged', why) : false;
+    // No record is not a network blip: retrying cannot find it, so say what can.
+    if (!rid) { save.disabled = false; save.textContent = 'Mark on standard'; sayStatus(say, 'Couldn’t find this athlete’s roll call record. Open it from Home.', { error: true }); return; }
+    const done = await setResponse(rid, 'acknowledged', why);
     if (!done) { save.disabled = false; save.textContent = 'Mark on standard'; sayStatus(say, 'Couldn’t save. Try again.', { error: true }); return; }
     closeSheet(opener);
     invalidateTeamBoard(id);
@@ -454,7 +478,7 @@ export default {
       if (!prev || !live) return;
       for (const aid of now) {
         if (prev.has(aid)) continue;
-        const av = live.querySelector(`.rb-av[data-avatar-uid="${CSS.escape(aid)}"]`);
+        const av = live.querySelector(`.rb-tile .rb-av[data-avatar-uid="${CSS.escape(aid)}"]`);
         const tile = av && av.closest('.rb-tile');
         if (tile) tile.classList.add('rb-new');
       }
@@ -500,7 +524,12 @@ export default {
     // is on my_commitments, which a lock-screen launch may not have read yet.
     if (!coach && !VC.instance(id)) loadMine(true).then(() => { if (root.isConnected) paint(); }, () => {});
     // The coach's response ids, for Override, loaded quietly ahead of the first tap.
-    if (coach && b0) void responseIdFor(id, '', b0);
+    // Warm only when the coach's day board is not cached yet; the sheet looks up the real athlete.
+    if (coach && b0 && !(VC.instance(id) && Array.isArray(VC.instance(id).rows))) {
+      const bid = bookId();
+      const day = at(b0.starts_at) != null ? dateKey(new Date(at(b0.starts_at))) : todayISO();
+      if (bid) loadBoardFor(bid, CD.kind, day).catch(() => {});
+    }
 
     const onFg = () => { if (root.isConnected) loadTeamBoard(id, true).then(() => paint()); };
     window.addEventListener('onstd:foreground', onFg);
@@ -518,20 +547,29 @@ export default {
       if (!t) return;
 
       const ack = t.closest('[data-rb-ack]');
-      if (ack && !ack.disabled) {
-        const label = ack.textContent;
+      if (ack && !ack.disabled && !ACK_BUSY.has(id)) {
+        ACK_BUSY.add(id);
+        ACK_NOTE.delete(id);
         ack.disabled = true; ack.textContent = 'Saving…';
         let stamp = null;
         try { stamp = await ackCommitment(id); } catch { stamp = null; }
         if (!stamp) {
+          // Before saying it failed, ask the server: the write may have landed and only its answer
+          // been lost. A refusal (closed, not open, cancelled) is a decided answer and needs no check.
           const why = ackRefusal(id);
-          ACK_NOTE.set(id, why === 'closed' ? 'This roll call has closed.' : why === 'not_open' ? 'It isn’t open yet.' : why === 'cancelled' ? 'Your coach cancelled this one.' : 'Didn’t save. Check your signal and tap again.');
-          buzz('error');
-          ack.disabled = false; ack.textContent = label;
-          sayStatus(live.querySelector('#rb-ack-say'), ACK_NOTE.get(id), { error: true });
-          return;
+          let fresh = null;
+          if (!why) { invalidateTeamBoard(id); try { fresh = await loadTeamBoard(id, true); } catch { fresh = null; } }
+          if (!why && ackLanded(null, fresh, RT.userId)) {
+            const r = fresh.rows.find((x) => x && x.athlete_id === RT.userId);
+            stamp = (r && r.acknowledged_at) || new Date().toISOString();
+          } else {
+            ACK_NOTE.set(id, why === 'closed' ? 'This roll call has closed.' : why === 'not_open' ? 'It isn’t open yet.' : why === 'cancelled' ? 'Your coach cancelled this one.' : 'Didn’t save. Check your signal and tap again.');
+            buzz('error');
+            ACK_BUSY.delete(id);
+            paint();
+            return;
+          }
         }
-        ACK_NOTE.delete(id);
         buzz('success');
         try { if (navigator.vibrate) navigator.vibrate(10); } catch { /* no-op */ }
         const row = VC.instance(id) || {};
@@ -548,7 +586,7 @@ export default {
           });
         } catch { /* the board still counts it */ }
         invalidateTeamBoard(id);
-        await loadTeamBoard(id, true);
+        try { await loadTeamBoard(id, true); } finally { ACK_BUSY.delete(id); }
         paint();
         // The day score hears the answer the way Home's publish does (wakeup + arrival parts).
         loadMine(true).then((rows) => {
