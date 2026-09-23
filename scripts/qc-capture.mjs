@@ -360,6 +360,21 @@ const SHOTS = [
   { g: 'coach', name: 'coach-wakeup-more', seed: 'coachIdentity', route: 'coach-wakeup-edit', at: [20, 10], book: 'team',
     act: `const m = document.querySelector('#wk-more'); if (m) m.click(); await new Promise((r) => setTimeout(r, 300));` },
   { g: 'coach', name: 'wakeup-morning', seed: 'coachIdentity', route: 'wakeup-morning', at: [7, 10], book: 'team' },
+  // ONE WAY IN (roll call rebuilt, Task 11). The three shots above are retired routes now: each
+  // must land on the rebuilt screen (coach-wakeup-edit -> the setup, wakeup-morning -> the board on
+  // the misses). These prove the doors and the cold deep links: a tap on the coach Home card and
+  // the create menu's Roll call, an old roll-call/<id> push before the row is cached (the board's
+  // skeleton, never the old detail), the same link once the row resolves, and an old coach link.
+  { g: 'rollcall', name: 'rc-door-coach-home', seed: 'coachIdentity', route: 'coach-home', at: [6, 12], book: 'team',
+    pre: rbSeed({ now: [6, 12], mode: 'wake' }),
+    act: `const c = document.querySelector('.wk-homecard[data-go]'); if (c) c.click(); await new Promise((r) => setTimeout(r, 900)); `, actMs: 900 },
+  { g: 'rollcall', name: 'rc-door-create', seed: 'coachIdentity', route: 'coach-create', at: [20, 10], book: 'team',
+    act: `const rows = [...document.querySelectorAll('[data-go]')]; const r = rows.find((x) => /Roll call/.test(x.textContent)); if (r) r.click(); await new Promise((r) => setTimeout(r, 900));`, actMs: 900 },
+  { g: 'rollcall', name: 'rc-old-link-cold', seed: 'dayMorning', route: 'roll-call/rc-not-cached', at: [6, 12] },
+  { g: 'rollcall', name: 'rc-old-link-resolves', seed: 'dayMorning', route: 'roll-call/rb-cold', at: [6, 12],
+    act: rbSeed({ now: [6, 12], mode: 'wake' }).split("'rb-shot'").join("'rb-cold'") + ` window.__render(); await new Promise((r) => setTimeout(r, 900));`, actMs: 900 },
+  { g: 'rollcall', name: 'rc-old-link-coach', seed: 'coachIdentity', route: 'coach-commitments/rb-shot', at: [6, 12], book: 'team',
+    pre: rbSeed({ now: [6, 12], mode: 'wake' }) },
   { g: 'coach', name: 'coach-plan', seed: 'coachIdentity', route: 'coach-plan', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'coach-profile', seed: 'coachIdentity', route: 'coach-profile', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'copilot', seed: 'coachIdentity', route: 'copilot', at: [20, 10], book: 'team' },
@@ -547,6 +562,7 @@ const AUDIT_JS = `(() => {
   }
 
   out.textLen = (document.body.innerText || '').replace(/\\s+/g, ' ').trim().length;
+  out.landed = String(location.hash || '');
   out.head = (document.body.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 110);
   // de-dupe + cap so one repeated component doesn't drown the report
   const uniq = (arr, k) => { const s = new Set(); return arr.filter((x) => { const v = k(x); if (s.has(v)) return false; s.add(v); return true; }); };

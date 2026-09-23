@@ -67,11 +67,12 @@ export function receiptHtml(receipt, esc, points) {
   const tail = receipt.late
     ? `Answered late.${banked}`
     : (receipt.placed ? `${receipt.placed} of the squad up.${banked}` : `Answered.${banked}`);
-  /* A door only when there is something behind it. #wakeup-squad reads the coach's board, which an
-     athlete never has, so for an athlete it opens on "Nothing to show yet" every time. Placement
-     is the one signal that proves squad rows were present, so it is what gates the link. */
-  const door = receipt.placed ? ' data-go="wakeup-squad" role="button" tabindex="0"'
-    : receipt.instanceId ? ` data-go="roll-call/${esc(receipt.instanceId)}" role="button" tabindex="0"` : '';
+  /* A door only when there is something behind it. The morning's team board (roll call rebuilt,
+     2026-09-23) is where the squad lives now, for every athlete, so an instance id opens it
+     straight (roll-call/<id> would only hand over to it). #wakeup-squad reads the coach's board,
+     which an athlete never has; it is kept only for a receipt with placement and no id. */
+  const door = receipt.instanceId ? ` data-go="rollcall-board/${esc(receipt.instanceId)}" role="button" tabindex="0"`
+    : receipt.placed ? ' data-go="wakeup-squad" role="button" tabindex="0"' : '';
   return `<div class="wk-receipt${receipt.late ? ' late' : ''}"${door}>
     <span class="wk-rc-t">Up at ${t}</span>
     <span class="wk-rc-s">${esc(tail)}</span>

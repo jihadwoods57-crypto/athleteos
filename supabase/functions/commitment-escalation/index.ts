@@ -319,7 +319,9 @@ Deno.serve(async (req: Request) => {
         ...(pc.subtitle ? { subtitle: pc.subtitle } : {}),
         body: pc.body,
         data: {
-          route: `roll-call/${r.instance_id}`, code,
+          // A wake-up opens its team board (roll call rebuilt, 2026-09-23); roll-call/<id> still
+          // works on older pushes (the proto hands it over before painting).
+          route: isRollCall ? `rollcall-board/${r.instance_id}` : `roll-call/${r.instance_id}`, code,
           action_label: code ? LATE_ACTION_LABEL : null, from_coach: false,
           // Android: turns the card red and switches its chronometer from counting down to
           // counting up past the deadline. See modules/rollcall-live.
@@ -344,6 +346,7 @@ Deno.serve(async (req: Request) => {
   // One "who's up" push per instance whose commitment opted in. Built from rollcall_digest so the
   // coach never has to count replies; the tap deep-links to that instance's board.
   const coachInstances = [...new Set(rows.filter((r) => r.config?.notify_coach_on_miss).map((r) => r.instance_id))];
+  const wakeInsts = new Set(rows.filter((r) => r.type === 'morning_roll_call').map((r) => r.instance_id));
   let digests = 0;
   for (const instId of coachInstances) {
     const { data: digest } = await svc.rpc('rollcall_digest', { p_instance: instId });
@@ -382,7 +385,9 @@ Deno.serve(async (req: Request) => {
         // the instance id — so until now the one deep link this whole escalation existed to deliver
         // landed a coach nowhere. `coach_code` rides alongside so the lock-screen actions can spend
         // it without a session (roll-call-coach).
-        data: { route: `coach-commitments/${instId}`, coach_code: coachCode },
+        // A wake-up's digest opens its team board (roll call rebuilt, 2026-09-23); a plain
+        // commitment keeps the coach's commitments board.
+        data: { route: wakeInsts.has(instId) ? `rollcall-board/${instId}` : `coach-commitments/${instId}`, coach_code: coachCode },
         // Only offer the buttons when a code was actually minted — a category with no credential
         // behind it would draw "Nudge them" and then do nothing when pressed.
         categoryId: coachCode ? COACH_DIGEST_CATEGORY : undefined,

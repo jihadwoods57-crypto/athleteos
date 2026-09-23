@@ -45,6 +45,41 @@ import { weekdayDate } from './fmt-date.js';
    ================================================================================ */
 export const ROLLCALL_OFF = false;
 
+/* ================================================================================
+   ONE WAY IN (roll call rebuilt, 2026-09-23). The rebuilt screens own the roll call: the live
+   board (rollcall-board/<instanceId>), setup (rollcall-new[/<commitmentId>]), the week
+   (rollcall-week/<commitmentId>) and history. These live here, in the boot graph's pure module,
+   so every door (Home cards, the bell, local notifications, the retired routes' redirects) asks
+   the same question the same way without importing a lazy screen.
+   ================================================================================ */
+
+/* The mark rollcall-setup.js leaves on an arrival-only roll call (upsert_commitment stores
+   `escalation` as given). A Practice with a place made in the general composer has none. */
+export const ROLLCALL_MARK = 'rollcall';
+/* The non-morning types an arrival-only roll call can be (rollcall-setup.js ARRIVAL_KINDS). */
+export const ROLLCALL_ARRIVAL_TYPES = ['practice', 'strength', 'team_meeting', 'class'];
+
+/** A standing commitment (a RULE row) the roll call screens own: every wake-up, and an
+ *  arrival-only row the setup screen made (it carries the mark and a place). */
+export const isRollcall = (r) => !!r && (r.type === 'morning_roll_call'
+  || (!!r.location_id && ROLLCALL_ARRIVAL_TYPES.includes(r.type)
+      && !!(r.escalation && typeof r.escalation === 'object' && r.escalation[ROLLCALL_MARK] === true)));
+
+/** The team board for one instance. `view` is '' | 'day' | 'missed' (path subs, never a query). */
+export const boardRoute = (instanceId, view = '') =>
+  `rollcall-board/${instanceId}${view ? `/${view}` : ''}`;
+
+/** Where an ATHLETE's wake-up row opens: the board for today's morning or an earlier one, the
+ *  detail screen for tomorrow's preview (it explains this phone's alarm for that morning) and for
+ *  every other commitment type. `today` is the phone's YYYY-MM-DD. */
+export function athleteRollcallRoute(row, today) {
+  const id = row && row.instance_id;
+  if (!id) return null;
+  const boardable = !ROLLCALL_OFF && row.type === 'morning_roll_call'
+    && (!row.occurs_on || !today || String(row.occurs_on) <= String(today));
+  return boardable ? boardRoute(id) : `roll-call/${id}`;
+}
+
 export const TYPE_LABEL = {
   morning_roll_call: 'Roll call',
   practice:          'Practice',
@@ -832,6 +867,9 @@ export function commitmentReminders(rows, todayISO) {
         at: Math.max(0, anchor - n),
         instanceId: r.instance_id,
         instance_id: r.instance_id,
+        // The door the notification opens (notify-plan.js): a wake-up opens its team board.
+        type: r.type || null,
+        occurs_on: r.occurs_on,
         title: (r.title && String(r.title).trim()) || TYPE_LABEL[r.type] || 'Commitment',
         body: r.respond_by_min != null
           ? `Respond by ${fmtMin(r.respond_by_min)}.`

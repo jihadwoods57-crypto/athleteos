@@ -289,7 +289,10 @@ Deno.serve(async (req: Request) => {
       // The tap lands on the commitment itself, not Home — the last inch of the loop. `code` lets
       // a lock-screen action button ack without opening the app; empty when the secret isn't set.
       data: {
-        route: `roll-call/${d.instance_id}`, code, action_label: d.action_label, from_coach: c.fromCoach,
+        // A wake-up opens its team board (roll call rebuilt, 2026-09-23); every other commitment
+        // its detail. Older pushes' roll-call/<id> is handed over by the proto before it paints.
+        route: d.type === 'morning_roll_call' ? `rollcall-board/${d.instance_id}` : `roll-call/${d.instance_id}`,
+        code, action_label: d.action_label, from_coach: c.fromCoach,
         // Read on Android by RollCallPresentationDelegate (modules/rollcall-live) to turn this into
         // an alarm-grade notification: a countdown the OS ticks to `rc_deadline`, the alarm
         // category, the state colour, and an Android 16 Live Update promotion until `rc_closes`.

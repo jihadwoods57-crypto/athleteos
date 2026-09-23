@@ -44,7 +44,7 @@ import {
   VC, loadCommitments, loadLocations, saveCommitment, savePlace, loadUpcoming, setInstanceSchedule,
   notifyScheduleChange, loadRollcallHistory, todayISO, shiftISO,
 } from '../commitment-data.js';
-import { ROLLCALL_OFF } from '../commitments.js';
+import { ROLLCALL_OFF, ROLLCALL_MARK, isRollcall } from '../commitments.js';
 import {
   wakeupPayload, windowCells, windowLabel, hhmm, minOf, daysLabel, canSchedule,
   GRACES, CLOSE_CHOICES, CLOSE_DEFAULT_MIN, PRESETS,
@@ -73,7 +73,7 @@ const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 /* The mark this screen leaves on every roll call it writes (upsert_commitment stores `escalation`
    as given, unknown keys included). A Practice with a place made in the general composer carries
    its own close, dwell, link and reminders; this screen must never claim it and write over them. */
-export const ROLLCALL_MARK = 'rollcall';
+export { ROLLCALL_MARK };
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const isMin = (v) => typeof v === 'number' && isFinite(v);
@@ -251,9 +251,8 @@ export function seedSetupForHarness(partial) { DRAFT = { ...blankSetup(), ...(pa
 const ruleOf = (id) => (id ? (VC.commitments || []).find((r) => r && r.id === id) || null : null);
 /** A roll call this module can open: every wake-up, and an arrival-only row THIS screen made
  *  (carries the mark). Exported for the tests. */
-export const isRollcall = (r) => !!r && (r.type === 'morning_roll_call'
-  || (!!r.location_id && ARRIVAL_KINDS.some((k) => k.type === r.type)
-      && !!(r.escalation && typeof r.escalation === 'object' && r.escalation[ROLLCALL_MARK] === true)));
+/* One definition, in commitments.js, so the doors (coach Home, Commitments) ask it too. */
+export { isRollcall };
 
 function draftFor(sub) {
   if (!sub) {

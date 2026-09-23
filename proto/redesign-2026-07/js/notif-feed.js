@@ -80,15 +80,20 @@ const KIND_ROUTE = {
   weight_logged: (s) => (SUFFIX_OK(s) ? `coach-athlete/${s}` : null),   // coach: the athlete's day
   checkin_logged: (s) => (SUFFIX_OK(s) ? `coach-athlete/${s}` : null),
   training_logged: (s) => (SUFFIX_OK(s) ? `coach-athlete/${s}` : null),
-  rollcall_answered: (s) => (SUFFIX_OK(s) ? `coach-commitments/${s}` : null),
+  // Only a wake-up answer writes this row, so it opens that morning's team board (roll call
+  // rebuilt, 2026-09-23), the same place the push has opened since release 1 of the rebuild.
+  rollcall_answered: (s) => (SUFFIX_OK(s) ? `rollcall-board/${s}` : null),
   athlete_message: (s) => (SUFFIX_OK(s) ? `coach-meal/${s}` : null),    // coach: the conversation
   athlete_closing: (s) => (SUFFIX_OK(s) ? `coach-athlete/${s}` : null), // coach: who is about to be late
   miss_digest: () => 'coach-home',
-  // The COACH board, not `roll-call/` — that route is the ATHLETE detail screen, and router.js's
+  // The COACH's door, not `roll-call/` — that route is the ATHLETE detail screen, and router.js's
   // mirror guard bounces a known coach off any athlete-nav screen back to their dashboard, losing
-  // the instance id on the way. This row is only ever written for coaches (0145), so it has always
-  // pointed at a door its only reader could not walk through.
-  commitment_escalation: (s) => (SUFFIX_OK(s) ? `coach-commitments/${s}` : null), // coach: who's still out
+  // the instance id on the way. This row is only ever written for coaches (0145).
+  // The team board opened on the misses (roll call rebuilt, 2026-09-23): the same route the
+  // closing-summary PUSH carries (commitment-escalation logic.ts summaryRoute), so the bell row and
+  // the banner for one morning open one screen. A digest for a plain commitment (no place, not a
+  // wake-up) is handed back to its own board by rollcall-board.js's redirect.
+  commitment_escalation: (s) => (SUFFIX_OK(s) ? `rollcall-board/${s}/missed` : null), // coach: who's still out
   join_approved: () => 'home',
   join_request: () => 'coach-inbox',                                     // coach: approve/decline lives there
   digest: () => 'coach-insights',                                        // coach: the full weekly read

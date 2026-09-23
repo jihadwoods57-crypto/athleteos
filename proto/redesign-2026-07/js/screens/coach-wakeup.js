@@ -165,11 +165,14 @@ export function wakeupPayload(d, owner, kind, tz) {
  *  clears the draft and replaces itself with the composer. */
 export const coachWakeupNew = {
   nav: 'operator', tab: 'home', transient: true,
+  /* RETIRED (roll call rebuilt, 2026-09-23): one way in, rollcall-new. Kept as a route so an old
+     link still lands; the router asks this before painting, so nothing of this screen shows. */
+  redirect() { return ROLLCALL_OFF ? 'coach-home' : 'rollcall-new'; },
   render() { if (ROLLCALL_OFF) return ''; newWakeup(); return ''; },
   // Switched off (see ROLLCALL_OFF): the menu entry that led here is gone, so the only way in is
   // a restored hash or an old deep link. Send those home rather than into a composer whose save
   // the server would refuse.
-  mount() { location.replace(ROLLCALL_OFF ? '#coach-home' : '#coach-wakeup-edit'); },
+  mount() { location.replace(ROLLCALL_OFF ? '#coach-home' : '#rollcall-new'); },
 };
 
 /** The whole composer, replaced by one honest screen while the feature is off. */
@@ -191,6 +194,13 @@ const field = (label, control, hint) => `
 
 export const coachWakeupEdit = {
   nav: 'operator', tab: 'home', transient: true,
+  /* RETIRED (roll call rebuilt, 2026-09-23): the rebuilt setup edits a roll call by id. A draft
+     loaded by editWakeup carries that id; with none this was always a new roll call. Switched off,
+     the honest switched-off screen below still renders. */
+  redirect() {
+    if (ROLLCALL_OFF) return null;
+    return DRAFT && DRAFT.id ? `rollcall-new/${DRAFT.id}` : 'rollcall-new';
+  },
   render() {
     const back = CD.kind === 'practice' ? 'trainer' : 'coach-home';
     if (ROLLCALL_OFF) return switchedOffScreen(back);

@@ -706,6 +706,20 @@ function render(opts) {
     location.hash = '#' + routeForRole(RT.authRole);
     return;
   }
+  /* A RETIRED ROUTE HANDS OVER BEFORE IT PAINTS (roll call rebuilt, 2026-09-23). A module may
+     declare `redirect({ sub })`: the route it has been replaced by, or null to render itself.
+     Asked here, before a byte of the old screen reaches #device, so an old deep link (a push from
+     last week, a restored hash) lands on the new screen with no frame of the retired one. Replace,
+     not push: Back from the new screen goes where the athlete came from, never to the alias.
+     NAV_DIR is still unconsumed, so the arrival keeps the direction of the tap that caused it. */
+  if (!denied && typeof mod.redirect === 'function') {
+    let to = null;
+    try { to = mod.redirect({ sub }); } catch { to = null; }
+    if (to && to !== full) {
+      try { location.replace('#' + to); } catch { location.hash = '#' + to; }
+      return;
+    }
+  }
   // A tab ROOT stamps the active tab (covers boot deep-links and role switches); every other
   // screen inherits the ORIGIN tab from the stack, so a detail opened from Profile keeps
   // Profile lit (spec §10.4). mod.tab remains the fallback for direct/deep links.

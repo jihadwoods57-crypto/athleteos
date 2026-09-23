@@ -8,7 +8,7 @@
 import { S, RT } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc, errorState, emptyState } from '../components.js';
-import { morningReadiness, commitmentStreak, wakeupHistory, wakeupSummary, VERDICT } from '../commitments.js';
+import { morningReadiness, commitmentStreak, wakeupHistory, wakeupSummary, VERDICT, athleteRollcallRoute } from '../commitments.js';
 import { loadMineRange, todayISO, shiftISO } from '../commitment-data.js';
 import { WAKEUP_SHIFT } from '../plan-style.js';
 
@@ -57,7 +57,7 @@ function wakeupSection(rows, loading) {
           : x.at ? `${x.at}${x.verdict === VERDICT.LATE && x.lateMin ? ` · ${x.lateMin} min late` : ''}`
           : x.verdict === VERDICT.MISSED ? `No answer by ${x.due}` : '';
         return `
-        <div class="lrow wk-hist" data-go="roll-call/${esc(x.instance_id)}">
+        <div class="lrow wk-hist" data-go="${esc(athleteRollcallRoute({ ...x, type: 'morning_roll_call' }, today))}">
           <div class="lm"><div class="lt">${esc(dayLabel(x.occurs_on, today))}</div><div class="ls">${esc(sub)}</div></div>
           <span class="status-pill ${cls}">${esc(label)}</span>
         </div>`;

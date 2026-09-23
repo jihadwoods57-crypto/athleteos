@@ -12,9 +12,9 @@
    never "Missed", and always offers a way to say so. */
 import { icon } from '../icons.js';
 import { track, EVENTS } from '../analytics.js';
-import { backHead, esc } from '../components.js';
+import { backHead, esc, skeletonRows } from '../components.js';
 import { fmtMin } from '../requirements.js';
-import { deriveCommitment, TYPE_LABEL, fmtAt, offsetFor, VERDICT, wakeupPhase, deadlineOf, closesAtOf, opensAtOf, graceMinOf, sourceOf, SOURCE } from '../commitments.js';
+import { deriveCommitment, TYPE_LABEL, fmtAt, offsetFor, VERDICT, wakeupPhase, deadlineOf, closesAtOf, opensAtOf, graceMinOf, sourceOf, SOURCE, athleteRollcallRoute, boardRoute } from '../commitments.js';
 import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal, subscribeMine, todayISO } from '../commitment-data.js';
 import { pushTokenState, RT, S, act } from '../state.js';
 import { wakeAlarmState } from '../wake-alarms.js';
@@ -51,10 +51,10 @@ function stageStrip(d) {
 /** The live card for Home. Returns '' when the commitment isn't visible yet (before it opens,
  *  or after the coach cancelled it) — Home renders nothing rather than an empty shell. */
 /** A wake-up for today (or earlier) lives on the team board now; tomorrow's preview keeps the
- *  detail screen, which is where this phone's alarm for that morning is explained. */
+ *  detail screen, which is where this phone's alarm for that morning is explained. The rule is
+ *  commitments.js athleteRollcallRoute, shared with every other door. */
 function boardFor(row) {
-  if (!row || row.type !== 'morning_roll_call') return false;
-  return !row.occurs_on || String(row.occurs_on) <= todayISO();
+  return !!row && !!row.instance_id && athleteRollcallRoute(row, todayISO()) === boardRoute(row.instance_id);
 }
 
 export function commitmentCard(d) {
@@ -535,6 +535,17 @@ function wakeupDetail(row, d) {
     <input class="input" id="vc-dispute-note" maxlength="200" placeholder="What actually happened? (optional)" aria-label="What actually happened" autocomplete="off">
     <button class="btn ghost wk-dispute-btn" id="vc-dispute">Something wrong? Tell your coach</button>` : `
     <div class="wk-gap"></div><div class="ts wk-center">Reported. Your coach can see this and correct it.</div>`) : ''}
+  ${/* Tomorrow's preview is the one wake-up this screen still shows (the rest open the board).
+        Once its window is open it is never a dead end: the board is where the morning is. */''}
+  ${phase !== 'before' ? `
+    <div class="wk-gap"></div>
+    <section class="card rows">
+      <div class="lrow" data-go="${esc(boardRoute(row.instance_id))}" role="button" tabindex="0">
+        <div class="lic">${icon('users', 15)}</div>
+        <div class="lm"><div class="lt">See the team board</div><div class="ls">Who’s up, who’s late, first up</div></div>
+        ${icon('chevron', 14, 'class="ic-chevron"')}
+      </div>
+    </section>` : ''}
   ${howItWorks(row, clock, d)}
   <div class="wk-foot"></div>`;
 }
@@ -579,6 +590,14 @@ export function resolveState(sub, m = RESOLVE) {
 
 export default {
   tab: 'home',
+  /* Today's wake-up (or an earlier one) is the team board now (roll call rebuilt, 2026-09-23).
+     The router asks this before it paints, so an old push or a restored hash never shows a frame
+     of this screen for it. An id that is not cached yet renders the skeleton below, and the
+     repaint after loadMine asks again. */
+  redirect({ sub }) {
+    const row = VC.instance(sub);
+    return boardFor(row) ? boardRoute(row.instance_id) : null;
+  },
   render({ sub }) {
     const row = VC.instance(sub);
     if (!row) {
@@ -594,8 +613,10 @@ export default {
         <div style="height:12px"></div>
         <button class="btn ghost" data-go="home" style="width:100%">Back to home</button>`;
       }
-      return `${backHead('Check-in', 'Loading…', 'home')}
-      <section class="card pad"><div class="ts">Loading your check-in…</div></section>`;
+      /* The same skeleton the team board draws while it loads: almost every link into this route
+         is a roll call that will hand over to the board the moment the row resolves, so the
+         handover reads as the board filling in, not as one screen replaced by another. */
+      return `${backHead('Roll call', 'Loading…', 'home')}${skeletonRows(4, 'Loading your check-in')}`;
     }
     const d = deriveCommitment(row, new Date().toISOString());
     if (row.type === 'morning_roll_call') return wakeupDetail(row, d);
@@ -660,9 +681,9 @@ export default {
   },
 
   mount(root, { sub }) {
-    // Today's wake-up is the team board now (roll call rebuilt, 2026-09-23). replace(), not a
-    // push: Back from the board returns where the athlete came from, never to this screen.
-    if (boardFor(VC.instance(sub))) { location.replace(`#rollcall-board/${sub}`); return; }
+    // Belt and braces for a render the router did not start (the redirect above is the path):
+    // replace(), not a push, so Back from the board never returns to this screen.
+    if (boardFor(VC.instance(sub))) { location.replace(`#${boardRoute(sub)}`); return; }
     if (!VC.instance(sub) && shouldResolve(sub)) {
       // Settle on BOTH outcomes: a rejection that left `pending` set would strand the screen
       // on "Loading…" with no attempt ever allowed again.

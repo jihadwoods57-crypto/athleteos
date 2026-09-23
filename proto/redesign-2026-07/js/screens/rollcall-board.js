@@ -367,7 +367,7 @@ function openSheet(root, id, athleteId, opener, repaint) {
         <input class="input" id="rb-ovr-why" maxlength="120" autocomplete="off" placeholder="Reason (required)">
         <button type="button" class="btn primary" id="rb-ovr-save">Mark on standard</button>
       </div>` : ''}
-      ${review ? `<button type="button" class="sheet-row" data-go="coach-commitments/${esc(id)}"><span class="si">${icon('clock', 20)}</span><span class="st"><span class="t">Resolve the late tap</span><span class="s">Accept their phone’s time or keep it late</span></span>${icon('chevron', 16)}</button>` : ''}
+      ${review ? `<button type="button" class="sheet-row" data-go="coach-commitments/${esc(id)}/review"><span class="si">${icon('clock', 20)}</span><span class="st"><span class="t">Resolve the late tap</span><span class="s">Accept their phone’s time or keep it late</span></span>${icon('chevron', 16)}</button>` : ''}
       <p class="rb-sh-say" id="rb-sh-say" role="status" aria-live="polite"></p>
       <button type="button" class="cancel" data-rb-close>Close</button>
     </div>`;
@@ -435,6 +435,18 @@ export default {
     return id ? [id, `${id}/day`] : null;
   },
   resolveSub(sub) { const p = parseSub(sub); return p.view === 'day' ? `${p.id}/day` : p.id; },
+  /* The bell's `commitment_escalation` row opens here for every instance it names, and a coach can
+     turn on miss digests for a plain commitment too (a study hall with no place). That is not a
+     roll call: the board would score it as a wake-up. When a cached row says so, hand it to its
+     own screen before painting (router.js redirect). An uncached id stays: the board is right for
+     every roll call, and a plain commitment's bell row is opened from an app that has its board. */
+  redirect({ sub }) {
+    const { id } = parseSub(sub);
+    const row = id ? VC.instance(id) : null;
+    if (!row || !row.type || row.type === 'morning_roll_call') return null;
+    if (row.location_id || row.asks_arrival || row.location_name) return null;   // an arrival board
+    return isOperator() ? `coach-commitments/${id}/list` : `roll-call/${id}`;
+  },
 
   render({ sub }) {
     const { id, view } = parseSub(sub);
