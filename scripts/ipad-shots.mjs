@@ -158,6 +158,9 @@ for (const [width, height, label] of VIEWPORTS) {
       if (want && seeded !== want) { await page.evaluate(want === 'coach' ? SEED_COACH : SEED_ATHLETE); seeded = want; }
       if (pg.board) await page.evaluate(SEED_BOARD);
       if (pg.rs) await page.evaluate(SEED_RS);
+      // A coach reaches these from Home. The rail lights the ORIGIN tab (router: a non-root screen
+      // inherits NAV.tab), so jumping here straight from the Inbox page would light Inbox.
+      if (pg.rs) { await page.evaluate(() => { location.hash = '#coach-home'; }); await page.waitForTimeout(500); }
       await page.evaluate((h) => { location.hash = h; }, pg.hash);
       await page.waitForTimeout(900);
       try { await page.evaluate(() => document.fonts.ready); } catch { /* fine */ }

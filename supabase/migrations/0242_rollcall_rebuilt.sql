@@ -184,7 +184,7 @@ language plpgsql stable security definer set search_path = public as $$
 declare
   c commitments; v_now timestamptz := now();
   v_days int := greatest(1, least(coalesce(p_days, 30), 90));
-  v_from timestamptz; v_mid timestamptz; v_out jsonb;
+  v_from timestamptz; v_mid timestamptz; v_out jsonb; v_arr boolean;
 begin
   if not vc_enabled() then raise exception 'Verified Commitments is currently switched off'; end if;
   select * into c from commitments where id = p_commitment;
@@ -193,6 +193,11 @@ begin
   end if;
   v_from := v_now - make_interval(days => v_days);
   v_mid  := v_now - make_interval(hours => v_days * 12);   -- the window's midpoint, for the trend
+  -- ARRIVAL ONLY (the board's mode 'arrival': any non-morning type with a place) is scored on the
+  -- ARRIVAL verdict (rollcall_arrival_verdict) and its arrival time; a wake-up (with or without a
+  -- place) keeps the wake-up verdict. An arrival-only roll call has no acknowledgement to score, so
+  -- the wake-up verdict read every athlete as missed. (Task 10 fix round 1.)
+  v_arr := c.location_id is not null and c.type <> 'morning_roll_call';
 
   with occ as (
     -- a MORNING: closed, not cancelled, not skipped, inside the window
@@ -200,13 +205,24 @@ begin
      where i.commitment_id = p_commitment
        and i.status <> 'cancelled' and not coalesce(i.skipped, false)
        and i.starts_at >= v_from and i.starts_at <= v_now
-       and v_now > coalesce(rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at),
-                            i.respond_by_at, i.starts_at)
+       and case when v_arr
+             -- decided once arrive-by + grace (and any close) has passed: the arrival rule's missed
+             then v_now > greatest(
+                    coalesce(rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at),
+                             coalesce(i.arrive_by_at, i.starts_at) + make_interval(mins => c.arrival_grace_min::int)),
+                    coalesce(i.arrive_by_at, i.starts_at) + make_interval(mins => c.arrival_grace_min::int))
+             else v_now > coalesce(rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at),
+                                   i.respond_by_at, i.starts_at) end
   ), v as (
-    select r.athlete_id, o.id as instance_id, o.starts_at, r.acknowledged_at,
-      rollcall_verdict(r.status, r.acknowledged_at, coalesce(o.respond_by_at, o.starts_at),
-        rollcall_closes_at(c.type, o.respond_by_at, o.starts_at, o.ends_at), v_now,
-        r.ack_source, r.sync_review, r.review_resolution) as verdict
+    select r.athlete_id, o.id as instance_id, o.starts_at,
+      -- `acknowledged_at` is the moment that counts: the arrival for arrival only (first HERE)
+      case when v_arr then r.arrived_at else r.acknowledged_at end as acknowledged_at,
+      case when v_arr
+        then rollcall_arrival_verdict(r.status, r.arrived_at, coalesce(o.arrive_by_at, o.starts_at),
+               c.arrival_grace_min::int, rollcall_closes_at(c.type, o.respond_by_at, o.starts_at, o.ends_at), v_now)
+        else rollcall_verdict(r.status, r.acknowledged_at, coalesce(o.respond_by_at, o.starts_at),
+               rollcall_closes_at(c.type, o.respond_by_at, o.starts_at, o.ends_at), v_now,
+               r.ack_source, r.sync_review, r.review_resolution) end as verdict
     from occ o join commitment_responses r on r.instance_id = o.id
   ), m as (
     -- only decided mornings count; first up = the earliest answer that counts on that morning

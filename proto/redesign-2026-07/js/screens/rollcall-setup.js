@@ -70,6 +70,10 @@ const ARRIVAL_GRACE_DEFAULT = 10;
 const ARRIVAL_DEFAULT_MIN = 930;      // 3:30 PM, an afternoon practice
 const BOTH_GAP_MIN = 45;              // up at 6:00, at the weight room by 6:45
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+/* The mark this screen leaves on every roll call it writes (upsert_commitment stores `escalation`
+   as given, unknown keys included). A Practice with a place made in the general composer carries
+   its own close, dwell, link and reminders; this screen must never claim it and write over them. */
+export const ROLLCALL_MARK = 'rollcall';
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const isMin = (v) => typeof v === 'number' && isFinite(v);
@@ -86,6 +90,8 @@ export function blankSetup() {
     escalation: { breakthrough: true, notify_coach_on_miss: true, alarm: true },
     location_id: null, place: null, arrive_by_min: null, arrival_grace_min: ARRIVAL_GRACE_DEFAULT,
     active: true, timezone: null, change: false,
+    // What a saved row carries that these four answers never ask about; kept as it was on an edit.
+    keep: {},
   };
 }
 
@@ -107,6 +113,8 @@ export function draftFromRule(row, locations = []) {
     arrival_type: morning ? 'practice' : arrivalType(row.type),
     title: morning ? (row.title || '') : '',
     saved_title: morning ? '' : (row.title || ''),
+    // A coach's own title on an arrival-only row survives the edit; the automatic "At <place>" follows the place.
+    title_custom: !morning && !!row.title && !/^At /.test(row.title),
     message: row.message || '', action_label: row.action_label || '',
     audience_kind: row.audience_kind || 'team', audience_value: row.audience_value || null,
     repeat_days: Array.isArray(row.repeat_days) ? row.repeat_days.map(Number) : [],
@@ -118,6 +126,11 @@ export function draftFromRule(row, locations = []) {
     arrive_by_min: isMin(row.arrive_by_min) ? row.arrive_by_min : null,
     arrival_grace_min: agrace,
     active: row.active !== false, timezone: row.timezone || null,
+    keep: {
+      reminder_offsets_min: Array.isArray(row.reminder_offsets_min) ? row.reminder_offsets_min.map(Number) : null,
+      min_dwell_min: isMin(row.min_dwell_min) ? row.min_dwell_min : null,
+      linked_commitment_id: row.linked_commitment_id || null,
+    },
     // Anything off the defaults opens "Change", so nothing that is set is hidden.
     change: grace !== 5 || closeAfter !== CLOSE_DEFAULT_MIN || agrace !== ARRIVAL_GRACE_DEFAULT || !!row.message,
   };
@@ -128,13 +141,14 @@ export function draftFromRule(row, locations = []) {
 export function setupPayload(d, owner, kind, tz) {
   const mode = MODE_KEYS.includes(d.mode) ? d.mode : 'wake';
   const agrace = clamp(isMin(d.arrival_grace_min) ? d.arrival_grace_min : ARRIVAL_GRACE_DEFAULT, 0, 120);
+  const keep = d.keep || {};
   if (mode === 'arrival') {
     const by = clamp(isMin(d.arrive_by_min) ? Math.round(d.arrive_by_min) : (isMin(d.starts_min) ? d.starts_min : ARRIVAL_DEFAULT_MIN), 0, 1439);
     const name = placeName(d);
     return {
       id: d.id || undefined,
       type: arrivalType(d.arrival_type),
-      title: (name ? `At ${name}` : (d.saved_title || '').trim() || 'Check-in').slice(0, 60),
+      title: ((d.title_custom && (d.saved_title || '').trim()) || (name ? `At ${name}` : (d.saved_title || '').trim() || 'Check-in')).slice(0, 60),
       message: (d.message || '').trim() || null,
       action_label: (d.action_label || '').trim() || null,
       audience_kind: d.audience_kind, audience_value: d.audience_value || null,
@@ -143,9 +157,10 @@ export function setupPayload(d, owner, kind, tz) {
       // phone arms the place two hours ahead (my_armable_geofences) and missed is arrive-by + grace.
       starts_min: by, respond_by_min: null, opens_min: null, ends_min: null,
       location_id: d.location_id || null, arrive_by_min: by, arrival_grace_min: agrace,
-      min_dwell_min: null, linked_commitment_id: null,
-      reminder_offsets_min: [15, 5],
-      escalation: { ...(d.escalation || {}), alarm: false },
+      min_dwell_min: keep.min_dwell_min != null ? keep.min_dwell_min : null,
+      linked_commitment_id: keep.linked_commitment_id || null,
+      reminder_offsets_min: keep.reminder_offsets_min && keep.reminder_offsets_min.length ? keep.reminder_offsets_min : [15, 5],
+      escalation: { ...(d.escalation || {}), alarm: false, [ROLLCALL_MARK]: true },
       active: d.active !== false,
       team_id: kind === 'practice' ? null : owner,
       practice_id: kind === 'practice' ? owner : null,
@@ -154,6 +169,10 @@ export function setupPayload(d, owner, kind, tz) {
   }
   const p = wakeupPayload(d, owner, kind, tz);
   p.arrival_grace_min = agrace;
+  p.escalation = { ...p.escalation, [ROLLCALL_MARK]: true };
+  // The wake-up's reminders follow its grace (wakeupPayload); a dwell or a link set elsewhere stays.
+  if (keep.min_dwell_min != null) p.min_dwell_min = keep.min_dwell_min;
+  if (keep.linked_commitment_id) p.linked_commitment_id = keep.linked_commitment_id;
   if (mode === 'both') {
     p.location_id = d.location_id || null;
     p.arrive_by_min = isMin(d.arrive_by_min) ? clamp(Math.round(d.arrive_by_min), 0, 1439) : null;
@@ -192,7 +211,18 @@ export function setupLine(d) {
   const days = daysLabel(d.repeat_days);
   const at = placeName(d) || 'the place';
   if (d.mode === 'arrival') return `${days} by ${fmtMin(isMin(d.arrive_by_min) ? d.arrive_by_min : ARRIVAL_DEFAULT_MIN)} at ${at}.`;
+  if (d.mode === 'both') {
+    const by = isMin(d.arrive_by_min) ? d.arrive_by_min : Math.min(1439, d.starts_min + BOTH_GAP_MIN);
+    return `${days}: up at ${fmtMin(d.starts_min)}, at ${at} by ${fmtMin(by)}.`;
+  }
   return `${days} at ${fmtMin(d.starts_min)}, ${who(d)}.`;
+}
+
+/** The window as one plain line, each beat in its meaning's colour, no boxes:
+ *  "On standard until 6:05 AM · late until 6:30 AM · missed after". */
+export function windowPlain(d) {
+  const c = windowCells(d);
+  return `<span class="g">On standard until ${esc(c[1].at)}</span> · <span class="a">late until ${esc(c[2].at)}</span> · <span class="r">missed after</span>`;
 }
 
 /** The defaults behind "Change", said once. */
@@ -202,19 +232,28 @@ export function windowLine(d) {
     return `On time until ${fmtMin(Math.min(1439, by + agraceOf(d)))}, missed if they aren’t there by then.`;
   }
   const c = windowCells(d);
-  return `On standard until ${c[1].at}, missed at ${c[2].at}.`;
+  return `${d.mode === 'both' ? 'Wake-up: on' : 'On'} standard until ${c[1].at}, missed at ${c[2].at}.`;
 }
 
 /* ---------------------------------------------------------------- the draft */
 
 let DRAFT = null;
+const NOT_ROLLCALL = { notRollcall: true };
+/* A Start in flight. Read at render: a repaint while saveCommitment is out draws a disabled
+   "Saving…", never a fresh live button under the coach's thumb. */
+let SAVING = false;
+/** Test and harness seam. */
+export function markSavingForHarness(on) { SAVING = !!on; }
 /** Harness and test seam: start the setup screen from this draft (merged over a blank one). */
 export function seedSetupForHarness(partial) { DRAFT = { ...blankSetup(), ...(partial || {}) }; }
 
 /** The rule behind an id, from the book's loaded commitments. */
 const ruleOf = (id) => (id ? (VC.commitments || []).find((r) => r && r.id === id) || null : null);
-/** A roll call this module can open: a wake-up, or an arrival-only kind with a place. */
-const isRollcall = (r) => !!r && (r.type === 'morning_roll_call' || (!!r.location_id && ARRIVAL_KINDS.some((k) => k.type === r.type)));
+/** A roll call this module can open: every wake-up, and an arrival-only row THIS screen made
+ *  (carries the mark). Exported for the tests. */
+export const isRollcall = (r) => !!r && (r.type === 'morning_roll_call'
+  || (!!r.location_id && ARRIVAL_KINDS.some((k) => k.type === r.type)
+      && !!(r.escalation && typeof r.escalation === 'object' && r.escalation[ROLLCALL_MARK] === true)));
 
 function draftFor(sub) {
   if (!sub) {
@@ -224,6 +263,7 @@ function draftFor(sub) {
   if (DRAFT && DRAFT.id === sub) return DRAFT;
   const rule = ruleOf(sub);
   if (!rule) return null;
+  if (!isRollcall(rule)) return NOT_ROLLCALL;
   DRAFT = draftFromRule(rule, VC.locations || []);
   return DRAFT;
 }
@@ -285,8 +325,8 @@ function whereBlock(d, canMap) {
     const size = isMin(d.place.radius_m) ? `${Math.round(d.place.radius_m)} m around it` : 'Saved place';
     place = `<div class="rs-place">
       <span class="lic" aria-hidden="true">${icon('pin', 18)}</span>
-      <div class="lm"><div class="lt">${esc(d.place.name || 'Saved place')}</div><div class="ls">${esc(size)}${d.place.address ? ` · ${esc(d.place.address)}` : ''}</div></div>
-      <button type="button" class="rs-change rs-place-x" data-rs-replace>Pick another</button>
+      <div class="lm"><div class="lt">${esc(d.place.name || 'Saved place')}</div><div class="ls">${esc(size)}${d.place.address ? ` · ${esc(d.place.address)}` : ''}</div>
+        <button type="button" class="rs-change rs-place-x" data-rs-replace>Pick another</button></div>
     </div>`;
   } else {
     const saved = (VC.locations || []).filter((l) => l && l.id && l.name);
@@ -312,9 +352,7 @@ function changePanel(d) {
   const wake = d.mode !== 'arrival';
   const place = d.mode !== 'wake';
   return `<section class="card pad wk-form rs-more" id="rs-more" ${d.change ? '' : 'hidden'}>
-    ${wake ? `<div class="wk-win" role="img" aria-label="${esc(windowLabel(d))}">
-      ${windowCells(d).map((c) => `<div class="wk-win-c ${c.tone}"><b>${esc(c.at)}</b><span>${esc(c.label)}</span></div>`).join('')}
-    </div>
+    ${wake ? `<p class="rs-win" aria-label="${esc(windowLabel(d))}">${windowPlain(d)}</p>
     ${field('Grace',
       `<div class="wk-chips wk-chips-fit" role="radiogroup" aria-labelledby="rs-grace-l">
         ${GRACES.map((g) => radioChip(d.grace_min === g, g === 0 ? 'None' : `${g}m`, `data-rs-grace="${g}"`)).join('')}
@@ -362,7 +400,7 @@ function setupHtml(d, back) {
     ${d.mode !== 'wake' ? whereBlock(d, canMap) : ''}
     <div class="rs-window"><p class="rs-window-t">${esc(windowLine(d))}</p><button type="button" class="rs-change" aria-expanded="${d.change ? 'true' : 'false'}" aria-controls="rs-more">${d.change ? 'Done' : 'Change'}</button></div>
     ${changePanel(d)}
-    <div class="action-bar rs-bar"><button type="button" class="btn primary" id="rs-save">${editing ? 'Save changes' : 'Start roll call'}</button><p class="rs-err" id="rs-err" role="status" aria-live="polite"></p></div>`;
+    <div class="action-bar rs-bar"><button type="button" class="btn primary" id="rs-save"${SAVING ? ' disabled aria-busy="true"' : ''}>${SAVING ? 'Saving…' : editing ? 'Save changes' : 'Start roll call'}</button><p class="rs-err" id="rs-err" role="status" aria-live="polite"></p></div>`;
 }
 
 function notForRole(back) {
@@ -387,6 +425,9 @@ export const rollcallNew = {
     if (ROLLCALL_OFF) return `${backHead('Roll call', 'Switched off', back)}${emptyState({ icon: 'sun', title: 'The roll call is off right now', body: 'Nobody is being asked to check in. Every roll call you already ran is kept.' })}`;
     if (!canSchedule()) return notForRole(back);
     const d = draftFor(sub);
+    if (d === NOT_ROLLCALL) {
+      return `${backHead('Edit', '', back)}${emptyState({ icon: 'clock', title: 'This one isn’t a roll call', body: 'It was set up in Commitments, with its own close and reminders. Edit it there so nothing is lost.', action: { go: 'coach-commit-manage', label: 'Open Commitments' } })}`;
+    }
     if (!d) {
       if (VC.commitmentsError) return `${backHead('Edit roll call', '', back)}${errorState({ title: 'This roll call didn’t load', retryId: 'rs-retry' })}`;
       return `${backHead('Edit roll call', 'Loading…', back)}${skeletonRows(4, 'Loading the roll call')}`;
@@ -412,7 +453,7 @@ export const rollcallNew = {
     if (retry) retry.addEventListener('click', async () => { retry.disabled = true; if (owner) await loadCommitments(owner, CD.kind, true); rerender(); });
 
     const d = draftFor(sub);
-    if (!d) return;
+    if (!d || d === NOT_ROLLCALL) return;
     const val = (sel) => { const el = root.querySelector(sel); return el ? el.value : null; };
     /* Read what the coach typed back into the draft BEFORE any repaint: a repaint rebuilds every
        input from the draft, and a message typed and not captured would vanish. */
@@ -501,23 +542,34 @@ export const rollcallNew = {
 
     const save = root.querySelector('#rs-save');
     if (save) save.addEventListener('click', async () => {
-      if (save.disabled) return;
+      if (save.disabled || SAVING) return;
       capture();
       const errEl = root.querySelector('#rs-err');
       const problem = setupErrors(d);
       if (problem) { sayStatus(errEl, problem, { error: true }); return; }
       const own = bookId();
       if (!own) { sayStatus(errEl, 'Your team isn’t loaded yet. Try again in a moment.', { error: true }); return; }
-      const label = save.textContent;
-      save.disabled = true; save.textContent = d.id ? 'Saving…' : 'Starting…';
+      SAVING = true;
+      save.disabled = true; save.setAttribute('aria-busy', 'true'); save.textContent = 'Saving…';
       const tz = d.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
       const payload = setupPayload(d, own, CD.kind, tz);
-      const id = await saveCommitment(payload);
-      if (!id) { save.disabled = false; save.textContent = label; sayStatus(errEl, 'Couldn’t save. Check your connection and try again.', { error: true }); return; }
+      let id = null;
+      try { id = await saveCommitment(payload); } catch { id = null; }
+      if (!id) {
+        SAVING = false;
+        // A repaint during the write may have replaced the button: find the live one.
+        const live = document.querySelector('#rs-save');
+        if (live) { live.disabled = false; live.removeAttribute('aria-busy'); live.textContent = d.id ? 'Save changes' : 'Start roll call'; }
+        sayStatus(document.querySelector('#rs-err') || errEl, 'Couldn’t save. Check your connection and try again.', { error: true });
+        return;
+      }
       track(EVENTS.VC_SCHEDULED, { type: payload.type, audience: d.audience_kind, hasLocation: !!payload.location_id, wakeup: d.mode !== 'arrival', mode: d.mode, grace: d.grace_min, hasMessage: !!(d.message || '').trim() });
-      DRAFT = null;
-      try { RT.vcCommitments = await loadCommitments(own, CD.kind, true); } catch { /* the week screen loads it */ }
+      // Leave FIRST, with the draft still whole (a repaint now shows the form, never a blank one),
+      // then refresh. The saved draft carries its id, so the next New starts clean.
+      d.id = id;
       location.replace(`#rollcall-week/${id}`);
+      SAVING = false;
+      loadCommitments(own, CD.kind, true).then((rows) => { RT.vcCommitments = rows; }, () => {});
     });
   },
 };
@@ -525,6 +577,31 @@ export const rollcallNew = {
 /* ---------------------------------------------------------------- the week */
 
 const compact = (min) => fmtMin(min).replace(/ (AM|PM)$/, '');
+
+/** Today's date (YYYY-MM-DD) on the roll call's own clock, not the phone's: a coach travelling two
+ *  time zones west must still see Tuesday's 6:00 as Tuesday. Falls back to the phone's date. */
+export function todayIn(tz, nowMs = Date.now()) {
+  if (!tz) return todayISO();
+  try {
+    const p = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(nowMs));
+    const g = (t) => (p.find((x) => x.type === t) || {}).value;
+    return `${g('year')}-${g('month')}-${g('day')}`;
+  } catch { return todayISO(); }
+}
+/** Minutes past midnight now, on that same clock. */
+export function nowMinIn(tz, nowMs = Date.now()) {
+  try {
+    const p = new Intl.DateTimeFormat('en-GB', { timeZone: tz || undefined, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(nowMs));
+    const g = (t) => Number((p.find((x) => x.type === t) || {}).value);
+    return g('hour') * 60 + g('minute');
+  } catch { const d = new Date(nowMs); return d.getHours() * 60 + d.getMinutes(); }
+}
+/** Why a move to `min` cannot happen, or null. Today's morning cannot move to a time already gone. */
+export function moveProblem(day, min, tz, nowMs = Date.now()) {
+  if (min == null) return 'Pick a time.';
+  if (day && day.today && min <= nowMinIn(tz, nowMs)) return 'That time has already passed today. Pick a later time, or cancel this morning.';
+  return null;
+}
 const dayOf = (iso) => new Date(`${iso}T12:00:00`);
 
 /** Seven days from today, each with its occurrence (or none), moved / skipped / started. */
@@ -593,7 +670,11 @@ function weekSub(rule) {
 }
 
 /** The first roll call in the book, for a bare #rollcall-week / #rollcall-history. */
-const firstRollcall = () => (VC.commitments || []).find((r) => isRollcall(r) && r.active !== false) || (VC.commitments || []).find(isRollcall) || null;
+const firstRollcall = () => {
+  const all = (VC.commitments || []).filter(isRollcall);
+  const live = all.filter((r) => r.active !== false);
+  return live.find((r) => r.type === 'morning_roll_call') || live[0] || all.find((r) => r.type === 'morning_roll_call') || all[0] || null;
+};
 
 function noRollcallYet(title, back) {
   return `${backHead(title, '', back)}${emptyState({ icon: 'sun', title: 'No roll call yet', body: 'Set one up in four answers: time, days, who and the alarm.', action: { go: 'rollcall-new', label: 'Set one up' } })}`;
@@ -613,7 +694,7 @@ export const rollcallWeek = {
       return `${backHead('Roll call', 'Loading…', back)}${skeletonRows(3, 'Loading the roll call')}`;
     }
     const rows = VC.upcomingFor(sub);
-    const today = todayISO();
+    const today = todayIn(rule.timezone);
     const strip = rows
       ? `${weekStrip(rows, today)}<p class="rw-note">${esc(weekNote(rows, today))}</p>`
       : WEEK.forId === sub && WEEK.failed
@@ -629,7 +710,7 @@ export const rollcallWeek = {
       ${strip}
       <div class="card rows list rw-links">
         ${todayRow ? link(`rollcall-board/${todayRow.instance_id}`, 'users', 'Today’s board', morning ? 'Who is up, live' : 'Who is here, live') : ''}
-        ${morning ? link(`rollcall-history/${rule.id}`, 'bars', 'History', 'Who is reliable over the last 30 days') : ''}
+        ${link(`rollcall-history/${rule.id}`, 'bars', 'History', 'Who is reliable over the last 30 days')}
         ${link(`rollcall-new/${rule.id}`, 'edit', 'Edit roll call', morning ? 'Time, days, who, alarm and place' : 'Place, time, days and who')}
       </div>`;
   },
@@ -673,7 +754,8 @@ export const rollcallWeek = {
 function openDaySheet(root, commitmentId, instanceId, opener, rerender) {
   if (overlayOpen()) return;
   const rows = VC.upcomingFor(commitmentId) || [];
-  const x = weekDays(rows, todayISO()).find((d) => d.row && d.row.instance_id === instanceId);
+  const tz = (ruleOf(commitmentId) || {}).timezone;
+  const x = weekDays(rows, todayIn(tz)).find((d) => d.row && d.row.instance_id === instanceId);
   if (!x) return;
   const rule = x.row.rule_starts_min != null ? x.row.rule_starts_min : x.min;
   const state = x.skipped ? `Cancelled. Usually ${fmtMin(rule)}.`
@@ -728,7 +810,8 @@ function openDaySheet(root, commitmentId, instanceId, opener, rerender) {
   const move = sheet.querySelector('#rw-move');
   if (move) move.addEventListener('click', () => {
     const m = minOf((sheet.querySelector('#rw-time') || {}).value);
-    if (m == null) { sayStatus(say, 'Pick a time.', { error: true }); return; }
+    const no = moveProblem(x, m, tz);
+    if (no) { sayStatus(say, no, { error: true }); return; }
     if (m === x.min) { closeWeekSheet(opener); return; }
     write(move, m === rule ? { resetTime: true } : { startsMin: m }, 'Moving…');
   });

@@ -4109,7 +4109,8 @@ button.rb-tile:active { background: var(--surface-2); }
 .rs-place .lm { flex: 1; min-width: 0; }
 .rs-place .lt { font-size: var(--t-md); font-weight: 800; color: var(--text); overflow-wrap: anywhere; }
 .rs-place .ls { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
-.rs-place-x { align-self: center; }
+.rs-place { align-items: flex-start; }
+.rs-place .rs-place-x { display: inline-flex; align-items: center; padding: 0; margin-top: var(--s1); }
 .rs-saved { margin-bottom: var(--s3); }
 .rs-map { width: 100%; }
 .rs-nomap { margin: 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.45; }
@@ -4122,7 +4123,14 @@ button.rb-tile:active { background: var(--surface-2); }
 .rs-change { flex: none; min-height: 44px; min-width: 44px; padding: 0 var(--s2); background: none; border: 0; color: var(--blue-bright); font-family: var(--font); font-size: var(--t-sm); font-weight: 800; cursor: pointer; }
 .rs-more { margin-top: var(--s2); }
 .rs-more[hidden] { display: none; }
-.rs-more .wk-win { margin-top: 0; }
+.rs-win { margin: 0 0 var(--s3); font-size: var(--t-sm); font-weight: 700; line-height: 1.5; font-variant-numeric: tabular-nums; text-wrap: pretty; }
+.rs-win .g { color: var(--green-bright); }
+.rs-win .a { color: var(--amber-bright); }
+.rs-win .r { color: var(--red-bright); }
+/* Wide layouts: a time field is a time field, never a 1100px bar. */
+.rs-form .wk-time, .rs-where .wk-time, .rw-move-row .wk-time { max-width: 320px; }
+.rs-mode { max-width: 440px; }
+.rs-mode-s { max-width: 440px; }
 .rs-more .wk-presets .chip { max-width: 100%; height: auto; min-height: 44px; padding-top: var(--s2); padding-bottom: var(--s2); white-space: normal; text-align: left; }
 .rs-more .wk-msg { height: auto; min-height: 112px; }
 .rs-bar { display: flex; flex-direction: column; gap: var(--s2); }
@@ -4175,6 +4183,7 @@ button.rw-cell:active { transform: scale(var(--press-btn)); }
 .rh-h.a { color: var(--amber-bright); }
 .rh-hn { font-size: var(--t-xs); font-weight: 700; letter-spacing: 0; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .rh-row { cursor: default; gap: var(--s3); }
+.rh-row .ls { text-wrap: pretty; }
 .rh-av { width: 40px; height: 40px; border-radius: var(--r-pill); background: var(--surface-3); color: var(--text-2); display: grid; place-items: center; font-size: var(--t-xs); font-weight: 800; flex: none; overflow: hidden; }
 .rh-bar { display: block; margin-top: var(--s1h); }
 .rh-row .rh-rate { flex: none; min-width: 48px; text-align: right; font-size: var(--t-md); }

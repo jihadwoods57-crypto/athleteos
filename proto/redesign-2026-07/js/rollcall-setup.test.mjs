@@ -203,3 +203,77 @@ test('routes: rollcall-new, rollcall-week and rollcall-history are lazy, from on
   assert.doesNotMatch(src, /rollcall-(new|week|history)\/[^'"`]*\?/, 'path subs, never query strings');
   assert.match(src, /export default rollcallWeek/);
 });
+
+/* ---------------- fix round 1 ---------------- */
+
+test('only marked arrival rows are roll calls; an edit carries what the four answers never ask', async () => {
+  const { isRollcall, setupPayload, draftFromRule, ROLLCALL_MARK } = await import('./screens/rollcall-setup.js');
+  const general = { id: 'g1', type: 'practice', location_id: 'l1', starts_min: 900, arrive_by_min: 915, escalation: { breakthrough: true } };
+  assert.equal(isRollcall(general), false, 'a Practice with a place from the general composer is not claimed');
+  assert.equal(isRollcall({ ...general, escalation: { [ROLLCALL_MARK]: true } }), true);
+  assert.equal(isRollcall({ id: 'w', type: 'morning_roll_call' }), true, 'every wake-up is a roll call');
+  // Everything this screen writes is marked, both kinds.
+  const { blankSetup } = await import('./screens/rollcall-setup.js');
+  assert.equal(setupPayload(blankSetup(), 't', 'team', 'UTC').escalation[ROLLCALL_MARK], true);
+  // An edit keeps the stored reminders, dwell, link and the coach's own title.
+  const row = { id: 'a1', type: 'strength', title: 'Morning lift', location_id: 'l1', starts_min: 405, arrive_by_min: 405,
+    reminder_offsets_min: [30], min_dwell_min: 20, linked_commitment_id: 'c9', repeat_days: [1], escalation: { [ROLLCALL_MARK]: true } };
+  const p = setupPayload(draftFromRule(row, [{ id: 'l1', name: 'Weight room', radius_m: 150 }]), 't', 'team', 'UTC');
+  assert.deepEqual(p.reminder_offsets_min, [30]);
+  assert.equal(p.min_dwell_min, 20);
+  assert.equal(p.linked_commitment_id, 'c9');
+  assert.equal(p.title, 'Morning lift', 'a coach’s own title survives');
+  const auto = setupPayload(draftFromRule({ ...row, title: 'At Old gym' }, [{ id: 'l1', name: 'Weight room', radius_m: 150 }]), 't', 'team', 'UTC');
+  assert.equal(auto.title, 'At Weight room', 'the automatic title follows the place');
+  const wake = setupPayload(draftFromRule({ id: 'w1', type: 'morning_roll_call', starts_min: 360, respond_by_min: 365, min_dwell_min: 5, linked_commitment_id: 'c8', repeat_days: [1] }), 't', 'team', 'UTC');
+  assert.equal(wake.min_dwell_min, 5);
+  assert.equal(wake.linked_commitment_id, 'c8');
+});
+
+test('editing an unmarked practice refuses and points at Commitments; a bare week prefers the wake-up', async () => {
+  const st = await import('./state.js'); st.RT.authRole = 'coach';
+  const cd = await import('./commitment-data.js');
+  cd.seedCommitmentsForHarness([{ id: 'g2', type: 'practice', location_id: 'l1', starts_min: 900, escalation: {} }], []);
+  const mod = await import('./screens/rollcall-setup.js');
+  const html = mod.rollcallNew.render({ sub: 'g2' });
+  assert.match(html, /isn’t a roll call/);
+  assert.doesNotMatch(html, /id="rs-save"/);
+});
+
+test('Start in flight: any repaint draws a disabled Saving…, never a live Start', async () => {
+  const st = await import('./state.js'); st.RT.authRole = 'coach';
+  const mod = await import('./screens/rollcall-setup.js');
+  mod.seedSetupForHarness({});
+  mod.markSavingForHarness(true);
+  const busy = mod.rollcallNew.render({ sub: '' });
+  assert.match(busy, /id="rs-save" disabled aria-busy="true">Saving…</);
+  assert.doesNotMatch(busy, /Start roll call</);
+  mod.markSavingForHarness(false);
+  assert.match(mod.rollcallNew.render({ sub: '' }), /id="rs-save">Start roll call</);
+  // Leave first, refresh after: the draft is never nulled before the navigation.
+  const src = readFileSync(join(JS, 'screens', 'rollcall-setup.js'), 'utf8');
+  const save = src.slice(src.indexOf('SAVING = true;'));
+  assert.ok(save.indexOf('location.replace(') < save.indexOf('loadCommitments(own'), 'navigate before the refresh');
+  assert.doesNotMatch(save.slice(0, save.indexOf('location.replace(')), /DRAFT = null/);
+});
+
+test('both: the header names the place and the window line says Wake-up; the Change window is one plain line', async () => {
+  const { setupLine, windowLine, windowPlain, blankSetup } = await import('./screens/rollcall-setup.js');
+  const d = { ...blankSetup(), mode: 'both', location_id: 'l', place: { name: 'Weight room' }, arrive_by_min: 405 };
+  assert.equal(setupLine(d), 'Monday to Friday: up at 6:00 AM, at Weight room by 6:45 AM.');
+  assert.match(windowLine(d), /^Wake-up: on standard until 6:05 AM, missed at 6:30 AM\.$/);
+  const plain = windowPlain(blankSetup());
+  assert.match(plain, /On standard until 6:05 AM<\/span> · <span class="a">late until 6:30 AM<\/span> · <span class="r">missed after/);
+  assert.doesNotMatch(plain, /wk-win-c/);
+});
+
+test('the week runs on the roll call’s clock, and today cannot move to a time already gone', async () => {
+  const { todayIn, nowMinIn, moveProblem } = await import('./screens/rollcall-setup.js');
+  const t = Date.parse('2026-09-23T02:30:00Z');           // 10:30 PM on the 22nd in New York
+  assert.equal(todayIn('America/New_York', t), '2026-09-22');
+  assert.equal(todayIn('UTC', t), '2026-09-23');
+  assert.equal(nowMinIn('America/New_York', t), 22 * 60 + 30);
+  assert.match(moveProblem({ today: true }, 21 * 60, 'America/New_York', t), /already passed today/);
+  assert.equal(moveProblem({ today: true }, 23 * 60, 'America/New_York', t), null);
+  assert.equal(moveProblem({ today: false }, 60, 'America/New_York', t), null, 'another day can move anywhere');
+});

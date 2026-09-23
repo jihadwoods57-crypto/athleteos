@@ -4666,6 +4666,43 @@ select _ok((select (a->>'trend')::int from _rc_hj4, jsonb_array_elements(j->'ath
 drop table _rc_hj4;
 drop table _rc_hj;
 drop table _rc_hj2;
+
+-- ---- history, ARRIVAL ONLY (Task 10 fix round 1): scored on the arrival verdict ----
+-- The same six mornings, now a Practice at the Weight Room with arrive-by at each start (grace 10).
+-- Arrivals:  e1  day 1 +2m (on time, first here), day 3 +25m (late), day 4 never (missed)
+--            e2  day 1 +5m (on time), day 3 +1m (on time, first here), day 4 +3m (on time, first here)
+-- Their old acknowledgements are left in place: an arrival-only history must ignore them.
+insert into commitment_locations (id, team_id, name, lat, lng, created_by)
+  values ('cccc0242-0000-0000-0000-0000000000a3', '77777777-1111-0000-0000-000000000001', 'Weight Room', 28.6, -81.2,
+          '11111111-0000-0000-0000-000000000001');
+update commitments set type = 'practice', location_id = 'cccc0242-0000-0000-0000-0000000000a3', arrival_grace_min = 10
+ where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+update commitment_instances set arrive_by_at = starts_at where id::text like 'cccc0242-%';
+update commitment_responses set arrived_at = null where instance_id::text like 'cccc0242-%';
+update commitment_responses r set arrived_at = i.starts_at + make_interval(mins => v.off)
+  from commitment_instances i, (values
+    (1, 'eeee0000-0000-0000-0000-0000000000e1', 2), (3, 'eeee0000-0000-0000-0000-0000000000e1', 25),
+    (1, 'eeee0000-0000-0000-0000-0000000000e2', 5), (3, 'eeee0000-0000-0000-0000-0000000000e2', 1),
+    (4, 'eeee0000-0000-0000-0000-0000000000e2', 3)) v(k, a, off)
+ where i.id = ('cccc0242-0000-0000-0000-00000000000' || v.k)::uuid and r.instance_id = i.id and r.athlete_id = v.a::uuid;
+-- day 2 and day 5 carry no arrivals at all; e2 day 2 is excused
+-- today's roll call is moved to later today, so it is not a decided morning under the arrival rule
+update commitment_instances set starts_at = now() + interval '1 hour', respond_by_at = now() + interval '65 minutes'
+ where id = (select id from _rc_b);
+select _as('11111111-0000-0000-0000-000000000001');
+create temp table _rc_ha as select rollcall_history('ccccdddd-0000-0000-0000-0000000000c1', 30) as j;
+select _superuser();
+select _ok((select (a->>'on_time')::int = 1 and (a->>'late')::int = 1 and (a->>'missed')::int = 3
+               and (a->>'mornings')::int = 5 and (a->>'first_up')::int = 1
+              from _rc_ha, jsonb_array_elements(j->'athletes') a where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 arrival history: e1 is scored on arrivals (1 on time, 1 late, 3 missed), not on old acknowledgements');
+select _ok((select (a->>'on_time')::int = 3 and (a->>'missed')::int = 1 and (a->>'mornings')::int = 4
+               and (a->>'first_up')::int = 2
+              from _rc_ha, jsonb_array_elements(j->'athletes') a where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2'),
+  '0242 arrival history: e2 on time 3 of 4 (excused leaves the denominator), first here twice');
+drop table _rc_ha;
+update commitments set type = 'morning_roll_call', location_id = null where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+delete from commitment_locations where id = 'cccc0242-0000-0000-0000-0000000000a3';
 delete from commitment_instances where id::text like 'cccc0242-%';
 drop table _rc_b;
 
