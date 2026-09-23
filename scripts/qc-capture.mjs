@@ -40,6 +40,23 @@ const rcSeed = (startedMinAgo) => `const cd = await import('./js/commitment-data
     status: 'pending', verdict: 'pending', acknowledged_at: null, instance_status: 'scheduled' };
   cd.seedMineForHarness([row], day);`;
 const TODAY = '2026-07-23';
+/** The composer's bottom bar (composer upgrade, 2026-09-23). `dictOn` stands in for the native
+ *  speech module through dictation.js's harness seam, so the mic shows as it does on a phone that
+ *  can dictate; `toEnd` rests the thread on its newest message, where the bar is flush with the
+ *  bottom edge. `listen` taps the mic and plays a live transcript and a voice level into the box.
+ *  qc-capture cannot raise a real keyboard: these are the resting and listening states only. */
+const dictOn = `const dm = await import('./js/dictation.js');
+  await dm.setDictationBackendForHarness({ available: async () => ({ available: true, onDevice: true }),
+    start: async () => ({ ok: true, onDevice: true }), stop() {}, abort() {} });`;
+const toEnd = `await new Promise((r) => setTimeout(r, 250));
+  const vp = document.querySelector('.viewport'); if (vp) { vp.style.scrollBehavior = 'auto'; vp.scrollTop = vp.scrollHeight; }`;
+const listen = `const mic = document.querySelector('.chat-dock .composer .mic, .composer.at-end .mic');
+  if (!mic) console.error('composer shot: no .mic in the dock');
+  else { mic.click(); await new Promise((r) => setTimeout(r, 60));
+    window.__onDictation({ type: 'text', text: 'two eggs, turkey bacon and a bowl of oatmeal with', final: false });
+    window.__onDictation({ type: 'level', value: 0.55 }); }`;
+const typed = `const box = document.querySelector('.chat-dock .composer textarea');
+  if (box) { box.value = 'Was the rice portion right?'; box.dispatchEvent(new Event('input', { bubbles: true })); }`;
 /** The team board (roll call rebuilt, 2026-09-23), seeded through the harness seams on the frozen
  *  clock: twelve athletes, the signed-in athlete ('seed-athlete') 4th at 6:01. `o.now` is the
  *  shot's clock; anyone whose tap is after it is not up yet, and once the board has closed the
@@ -279,6 +296,20 @@ const SHOTS = [
   // The PAST-meal conversation — where a follow-up notification lands. Never captured before,
   // so it was the one thread surface still rendering 'Coach' with a hardcoded letter for a face.
   { g: 'meal', name: 'meal-view', seed: 'dayMidday', route: 'meal-view/meal-seed-lunch', at: [21, 5] },
+
+  // The bottom bar of all four threads (composer upgrade, 2026-09-23): one flush bar, the mic in
+  // send's slot, send once there is text, and the listening state. Run: `node scripts/qc-capture.mjs
+  // composer --themes dark,light`.
+  { g: 'composer', name: 'composer-meal', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9], act: `${dictOn} ${toEnd}` },
+  { g: 'composer', name: 'composer-meal-listening', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9], act: `${dictOn} ${toEnd} ${listen}` },
+  { g: 'composer', name: 'composer-meal-typed', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9], act: `${dictOn} ${toEnd} ${typed}` },
+  { g: 'composer', name: 'composer-meal-nomic', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9], act: toEnd },
+  { g: 'composer', name: 'composer-past', seed: 'dayMidday', route: 'meal-view/meal-seed-lunch', at: [21, 5], act: `${dictOn} ${toEnd}` },
+  { g: 'composer', name: 'composer-past-listening', seed: 'dayMidday', route: 'meal-view/meal-seed-lunch', at: [21, 5], act: `${dictOn} ${toEnd} ${listen}` },
+  { g: 'composer', name: 'composer-chat', seed: 'dayMidday', route: 'nutrition-chat', at: [13, 30], act: `${dictOn} ${toEnd}` },
+  { g: 'composer', name: 'composer-chat-listening', seed: 'dayMidday', route: 'nutrition-chat', at: [13, 30], act: `${dictOn} ${toEnd} ${listen}` },
+  { g: 'composer', name: 'composer-coach', seed: 'coachIdentity', route: 'coach-meal/meal-seed-lunch', at: [20, 10], book: 'team', act: `${dictOn} ${toEnd}` },
+  { g: 'composer', name: 'composer-coach-listening', seed: 'coachIdentity', route: 'coach-meal/meal-seed-lunch', at: [20, 10], book: 'team', act: `${dictOn} ${toEnd} ${listen}` },
 
   // athlete — the rest of the day
   { g: 'athlete2', name: 'weight', seed: 'dayMorning', route: 'weight', at: [7, 10] },

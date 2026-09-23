@@ -17,6 +17,11 @@ import { initGestures, gestureActive, afterGesture } from './gestures.js';
 // search box and a profile field, and #device outlives every render() so this is wired once here
 // rather than in seven mounts. Inert until something focusable is actually focused.
 initKeyboard();
+// Same shape for the composer's microphone (2026-09-23): one set of delegated listeners for every
+// conversation box, and html.can-dictate only once the native shell says recognition can run.
+// Loaded lazily (lint:boot): nothing needs it before the first frame, and the mic stays hidden
+// until it has asked the native side anyway.
+import('./dictation.js').then((m) => m.initDictation()).catch(() => { /* no mic, the box still works */ });
 // The wide-screen tier (iPad): html[data-layout] is set here once and kept current on rotate and
 // Split View resize. A tier change re-lays the shell out; render() reads it for the panes.
 initLayout(() => { if (window.__render) window.__render(); });

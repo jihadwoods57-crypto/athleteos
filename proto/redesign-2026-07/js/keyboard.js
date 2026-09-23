@@ -298,7 +298,9 @@ function fitComposer(ta) {
   if (bar) bar.classList.toggle('has-text', ta.value.trim().length > 0);
   // A box that just grew by a line pushes the end of the conversation down; keep it resting on
   // the keys. Unforced, so a reader who scrolled up to quote something is not yanked back.
-  if (openNow && bar && bar.classList.contains('at-end')) scrollThreadToEnd(bar);
+  // Keyboard or not: dictation (js/dictation.js) fills and grows the box with the keys down, and
+  // the docked bar would otherwise grow up over the newest message.
+  if (bar && bar.classList.contains('at-end')) scrollThreadToEnd(bar);
 }
 
 /* Typing fires `input`, but clearing the box after a send (`input.value = ''`, in seven screens)
