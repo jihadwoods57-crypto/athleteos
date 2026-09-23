@@ -9,7 +9,7 @@ import 'react-native-url-polyfill/auto';
 import { AppState } from 'react-native';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
-import { secureStorage } from './secureStorage';
+import { secureStorage, defaultAuthStorageKey, migrateKeychainAccessibility } from './secureStorage';
 
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY?.trim();
@@ -37,6 +37,9 @@ export const supabase: SupabaseClient<Database> | null = isSupabaseConfigured
         // Encrypted at rest via the OS keychain (security audit L1); web falls back to
         // AsyncStorage inside the adapter. See secureStorage.ts.
         storage: secureStorage,
+        // Named explicitly, with the SAME value supabase-js derives by default (so no existing
+        // session moves), because the keychain migration below needs to know which key it is.
+        storageKey: defaultAuthStorageKey(url as string),
         persistSession: true,
         autoRefreshToken: true,
         // React Native has no URL bar; the OAuth/redirect detection web uses
@@ -50,11 +53,23 @@ export const supabase: SupabaseClient<Database> | null = isSupabaseConfigured
 // timer can stall while the app is backgrounded and the access token silently expires, forcing a
 // surprise re-auth. The documented Supabase/RN fix: run the refresher only while the app is active.
 // Inert when unconfigured (supabase is null) and a no-op in node tests (AppState is stubbed).
+//
+// The same foreground moment runs the one-time keychain migration (secureStorage.ts): sessions
+// written by older builds used the iOS default class, which a region wake with the phone LOCKED
+// cannot read, so the walk-in check-in went out anonymous and recorded nothing. It needs the phone
+// unlocked, which 'active' implies; it is idempotent, and a failure simply retries next time.
+function migrateSessionKeychain(): void {
+  if (!url) return;
+  void migrateKeychainAccessibility([defaultAuthStorageKey(url)]).catch(() => undefined);
+}
 if (supabase) {
   AppState.addEventListener('change', (state) => {
-    if (state === 'active') supabase.auth.startAutoRefresh();
-    else supabase.auth.stopAutoRefresh();
+    if (state === 'active') {
+      supabase.auth.startAutoRefresh();
+      migrateSessionKeychain();
+    } else supabase.auth.stopAutoRefresh();
   });
+  if (AppState.currentState === 'active') migrateSessionKeychain();
 }
 
 /** Narrow `supabase` to non-null. Throws if called while unconfigured — only use

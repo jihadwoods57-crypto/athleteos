@@ -27,8 +27,8 @@
  */
 import { supabase } from '../supabase';
 import {
-  selectArmable, toRegions, arrivalArgs, handleRegionEvent, GEOFENCE_TASK, GEOFENCE_CAP,
-  type ArmableInstance, type PositionFix, type RpcFn,
+  armingPlan, arrivalArgs, handleRegionEvent, GEOFENCE_TASK, GEOFENCE_CAP,
+  type PositionFix, type RpcFn,
 } from './geofence';
 
 export type PermissionState = 'always' | 'when_in_use' | 'denied' | 'undetermined' | 'unavailable';
@@ -100,9 +100,13 @@ export async function requestPermission(wantBackground: boolean): Promise<Permis
 /* ---------------------------------------------------------------- arming */
 
 /** Fetch what is armable right now (server-side window + consent check live in
- *  my_armable_geofences, migration 0139) and hand the OS exactly that set. */
+ *  my_armable_geofences, migration 0139) and hand the OS exactly that set.
+ *
+ *  A failed fetch KEEPS the regions already armed (armingPlan): a network blip at 5:30 AM must not
+ *  leave the athlete unseen at 5:43. `kept: true` tells the caller nothing changed. Only a
+ *  successful answer with nothing in its window disarms; sign-out disarms via LOCATION_DISARM. */
 export async function refreshGeofences(nowMs: number = Date.now()): Promise<{
-  armed: number; capped: number; state: PermissionState;
+  armed: number; capped: number; state: PermissionState; kept?: boolean;
 }> {
   const state = await getPermissionState();
   if (state !== 'always' || !Location || !supabase) {
@@ -110,26 +114,26 @@ export async function refreshGeofences(nowMs: number = Date.now()): Promise<{
     await disarmAll();
     return { armed: 0, capped: 0, state };
   }
-  let rows: ArmableInstance[] = [];
+  let answer: { data?: unknown; error?: unknown; thrown?: boolean };
   try {
-    const { data } = await supabase.rpc('my_armable_geofences', { p_limit: GEOFENCE_CAP });
-    rows = Array.isArray(data) ? (data as ArmableInstance[]) : [];
+    answer = await supabase.rpc('my_armable_geofences', { p_limit: GEOFENCE_CAP });
   } catch {
-    rows = [];
+    answer = { thrown: true };
   }
-  const armable = selectArmable(rows, nowMs);
+  const plan = armingPlan(answer, nowMs);
+  if (plan.action === 'keep') return { armed: 0, capped: 0, state, kept: true };
+  if (plan.action === 'disarm') {
+    await disarmAll();
+    return { armed: 0, capped: 0, state };
+  }
   try {
-    if (!armable.length) {
-      await disarmAll();
-      return { armed: 0, capped: 0, state };
-    }
-    await Location.startGeofencingAsync(GEOFENCE_TASK, toRegions(armable));
+    await Location.startGeofencingAsync(GEOFENCE_TASK, plan.regions);
   } catch {
-    return { armed: 0, capped: Math.max(0, rows.length - armable.length), state };
+    return { armed: 0, capped: plan.capped, state };
   }
   // A non-zero `capped` is reported so the UI can TELL the athlete which commitments need a tap,
   // rather than leaving them silently unverified.
-  return { armed: armable.length, capped: Math.max(0, rows.length - armable.length), state };
+  return { armed: plan.regions.length, capped: plan.capped, state };
 }
 
 export async function disarmAll(): Promise<void> {

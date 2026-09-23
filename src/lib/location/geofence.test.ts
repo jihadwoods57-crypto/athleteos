@@ -2,7 +2,9 @@
    The pure half of the location layer, which is the half worth testing: everything that decides
    WHAT the OS is asked to watch, and when it stops being watched. The Expo/OS calls themselves are
    a thin wrapper around this. */
-import { selectArmable, GEOFENCE_CAP, toRegions, ARM_LEAD_MS, ARM_TAIL_MS, handleRegionEvent } from './geofence';
+import {
+  selectArmable, GEOFENCE_CAP, toRegions, ARM_LEAD_MS, ARM_TAIL_MS, handleRegionEvent, armingPlan, MAX_TRUSTED_ACCURACY_M,
+} from './geofence';
 import type { ArmableInstance } from './geofence';
 
 const at = (startsAt: string, over: Partial<ArmableInstance> = {}): ArmableInstance => ({
@@ -133,6 +135,24 @@ describe('handleRegionEvent', () => {
     expect(rpc.mock.calls[0][1]).toMatchObject({ p_accuracy_m: null });
   });
 
+  /* The server forgives at most 75 m of the phone's stated error. A reading worse than that can
+     land "unverified, N m away" on someone the OS has already placed inside the region, so the
+     geofence path reports the region match instead. */
+  test('a reading less accurate than the server pad cap (75 m) is replaced by the region match', async () => {
+    expect(MAX_TRUSTED_ACCURACY_M).toBe(75);
+    const rpc = okRpc();
+    const poor = { coords: { latitude: 28.61, longitude: -81.2, accuracy: 180 } };
+    expect(await handleRegionEvent({ eventType: 'enter', region: { identifier: 'inst-1' } }, { rpc, position: async () => poor })).toBe('region_match');
+    expect(rpc).toHaveBeenCalledWith('verify_arrival_at', { p_instance: 'inst-1', p_source: 'geofence', p_lat: null, p_lng: null, p_accuracy_m: null });
+  });
+
+  test('a reading at exactly 75 m accuracy is still sent (the server can pad it fully)', async () => {
+    const rpc = okRpc();
+    const edge = { coords: { latitude: 28.6, longitude: -81.2, accuracy: 75 } };
+    expect(await handleRegionEvent({ eventType: 'enter', region: { identifier: 'inst-1' } }, { rpc, position: async () => edge })).toBe('arrival');
+    expect(rpc.mock.calls[0][1]).toMatchObject({ p_lat: 28.6, p_accuracy_m: 75 });
+  });
+
   test('an Exit event records the departure and takes no reading', async () => {
     const rpc = okRpc();
     const position = jest.fn();
@@ -160,5 +180,43 @@ describe('handleRegionEvent', () => {
     await expect(handleRegionEvent({ eventType: 'exit', region: { identifier: 'inst-1' } }, { rpc, position: async () => fix })).resolves.toBe('failed');
     const refused = jest.fn().mockResolvedValue({ data: null, error: { message: 'not_authorized' } });
     await expect(handleRegionEvent({ eventType: 'enter', region: { identifier: 'inst-1' } }, { rpc: refused, position: async () => fix })).resolves.toBe('failed');
+  });
+});
+
+/* What refreshGeofences does with the server's answer. A network blip must not tear down regions
+   that are already armed: the athlete walking in at 5:43 AM would simply not be seen. Only a
+   SUCCESSFUL empty answer (nothing is in its window) disarms; sign-out disarms through
+   LOCATION_DISARM. */
+describe('armingPlan', () => {
+  const soon = at('2026-07-22T09:30:00Z');
+
+  test('an error from my_armable_geofences keeps whatever is armed', () => {
+    expect(armingPlan({ data: null, error: { message: 'Network request failed' } }, NOW)).toEqual({ action: 'keep' });
+  });
+
+  test('a throw (no response at all) keeps whatever is armed', () => {
+    expect(armingPlan({ thrown: true }, NOW)).toEqual({ action: 'keep' });
+  });
+
+  test('a malformed (non-array) answer is treated like an error, not like "nothing to arm"', () => {
+    expect(armingPlan({ data: { oops: 1 }, error: null }, NOW)).toEqual({ action: 'keep' });
+  });
+
+  test('a successful empty list disarms', () => {
+    expect(armingPlan({ data: [], error: null }, NOW)).toEqual({ action: 'disarm' });
+  });
+
+  test('a successful list with nothing inside its window disarms', () => {
+    expect(armingPlan({ data: [at('2026-07-22T20:00:00Z')], error: null }, NOW)).toEqual({ action: 'disarm' });
+  });
+
+  test('a successful list arms the selection and reports what the cap left out', () => {
+    const plan = armingPlan({ data: [soon], error: null }, NOW);
+    expect(plan).toEqual({ action: 'arm', regions: toRegions([soon]), capped: 0 });
+    const many = Array.from({ length: 18 }, (_, i) => at(new Date(NOW + (i + 1) * 60_000).toISOString()));
+    const capped = armingPlan({ data: many, error: null }, NOW);
+    expect(capped.action).toBe('arm');
+    expect(capped.action === 'arm' && capped.regions).toHaveLength(GEOFENCE_CAP);
+    expect(capped.action === 'arm' && capped.capped).toBe(2);
   });
 });

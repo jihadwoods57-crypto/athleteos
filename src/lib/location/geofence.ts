@@ -105,6 +105,27 @@ export function toRegions(instances: ArmableInstance[]): Region[] {
 
 export const GEOFENCE_TASK = 'onstandard-commitment-geofence';
 
+/** What refreshGeofences should do with my_armable_geofences' answer. */
+export type ArmingPlan =
+  | { action: 'keep' }
+  | { action: 'disarm' }
+  | { action: 'arm'; regions: Region[]; capped: number };
+
+/** Pure. A failed or malformed answer (network blip, server error, a throw) KEEPS whatever is
+ *  already armed: tearing regions down on a blip would leave the athlete walking in at 5:43 AM
+ *  unseen until the next successful refresh. Only a SUCCESSFUL answer with nothing inside its
+ *  window disarms. Sign-out disarms separately (LOCATION_DISARM). */
+export function armingPlan(
+  answer: { data?: unknown; error?: unknown; thrown?: boolean },
+  nowMs: number,
+): ArmingPlan {
+  if (answer.thrown || answer.error || !Array.isArray(answer.data)) return { action: 'keep' };
+  const rows = answer.data as ArmableInstance[];
+  const armable = selectArmable(rows, nowMs);
+  if (!armable.length) return { action: 'disarm' };
+  return { action: 'arm', regions: toRegions(armable), capped: Math.max(0, rows.length - armable.length) };
+}
+
 /* ---------------------------------------------------------------- one reading, one report */
 
 /** The shape of a position fix, as expo-location's getCurrentPositionAsync returns it. */
@@ -122,6 +143,11 @@ export type ArrivalArgs = {
   p_lng: number | null;
   p_accuracy_m: number | null;
 };
+
+/** The server forgives at most this much of the phone's stated error (0242: least(accuracy, 75)).
+ *  On the geofence path a reading WORSE than this is not sent: the OS has already placed the phone
+ *  inside the region, and a poor fix could only turn that into "unverified, N m away". */
+export const MAX_TRUSTED_ACCURACY_M = 75;
 
 /** The geofence report when no reading could be taken: the OS matched the armed region. The
  *  server accepts null coordinates from the geofence source only. */
@@ -178,8 +204,9 @@ const isExit = (t: unknown) => t === EXIT || t === 'exit';
  *
  *  ENTER tries ONE reading and sends it to verify_arrival_at (source 'geofence'), where the server
  *  measures it. If there is no reading (iOS refused a fix in the background wake, it timed out, or
- *  it was not a real position), the OS region match itself is reported: verify_arrival_at with
- *  null coordinates, which the server accepts from the geofence source only.
+ *  it was not a real position) or the reading is less accurate than MAX_TRUSTED_ACCURACY_M, the OS
+ *  region match itself is reported: verify_arrival_at with null coordinates, which the server
+ *  accepts from the geofence source only.
  *
  *  EXIT reports the bare crossing to record_departure (0208) and takes no reading. The server
  *  decides what a departure means (a re-entry erases it; the grace absorbs indoor wobble), and
@@ -192,7 +219,8 @@ export async function handleRegionEvent(event: RegionEvent, deps: RegionEventDep
     if (isEnter(event.eventType)) {
       let fix: PositionFix | null | undefined = null;
       try { fix = await deps.position(); } catch { fix = null; }
-      const args = arrivalArgs(instanceId, 'geofence', fix);
+      let args = arrivalArgs(instanceId, 'geofence', fix);
+      if (args && args.p_accuracy_m != null && args.p_accuracy_m > MAX_TRUSTED_ACCURACY_M) args = null;
       const { error } = await deps.rpc('verify_arrival_at', args ?? regionMatchArgs(instanceId));
       if (error) return 'failed';
       return args ? 'arrival' : 'region_match';
