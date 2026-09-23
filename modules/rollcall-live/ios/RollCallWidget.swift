@@ -33,6 +33,9 @@ struct RollCallLiveActivity: Widget {
       RollCallLockScreenView(context: context)
         .activityBackgroundTint(Color.black.opacity(0.55))
         .activitySystemActionForegroundColor(.white)
+        // The card body's tap opens that morning's team board (ProtoApp maps this URL to
+        // #rollcall-board/<id>). The I'm Up button keeps its own intent.
+        .widgetURL(URL(string: "onstandard://roll-call/\(context.attributes.instanceId)"))
     } dynamicIsland: { context in
       let palette = RollCallPalette(phase: RollCallPhase.from(context.state.phase))
       return DynamicIsland {
@@ -55,6 +58,7 @@ struct RollCallLiveActivity: Widget {
       } minimal: {
         Image(systemName: palette.symbol).foregroundStyle(palette.ink)
       }
+      .widgetURL(URL(string: "onstandard://roll-call/\(context.attributes.instanceId)"))
     }
   }
 
