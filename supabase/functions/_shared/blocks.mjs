@@ -24,6 +24,31 @@ export async function blockersOf(svc, senderId, recipientIds) {
   }
 }
 
+/** How many devices each id has, for answering a blocked recipient EXACTLY like a delivered one
+ *  (I1): the sender must never be able to tell. A read error answers 0 for everyone. */
+export async function deviceCounts(svc, ids) {
+  const out = new Map();
+  const want = [...new Set((Array.isArray(ids) ? ids : []).filter(Boolean).map(String))];
+  if (!svc || !want.length) return out;
+  try {
+    const { data } = await svc.from('device_tokens').select('user_id').in('user_id', want);
+    for (const r of Array.isArray(data) ? data : []) out.set(String(r.user_id), (out.get(String(r.user_id)) || 0) + 1);
+  } catch { /* zero devices reads as a normal in-app-only delivery */ }
+  return out;
+}
+
+/** Total devices across `ids`. */
+export function sumDevices(counts, ids) {
+  let n = 0;
+  for (const id of ids || []) n += counts.get(String(id)) || 0;
+  return n;
+}
+
+/** Log a suppression on the server only. The response never carries it (I1). */
+export function logBlocked(fn, count) {
+  if (count > 0) console.log(JSON.stringify({ evt: 'push_blocked', fn, count }));
+}
+
 /** `ids` without the ones in `blockers`, order kept. Pure. */
 export function withoutBlockers(ids, blockers) {
   const b = blockers instanceof Set ? blockers : new Set(blockers || []);

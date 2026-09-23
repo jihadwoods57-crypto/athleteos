@@ -11,7 +11,7 @@ import { sanitizeBulkPayload, aggregateBulkResults } from './logic.mjs';
 // used to read `r.ok` and report the whole chunk as delivered, which is how an unconfigured APNs
 // key stayed invisible for months. sendExpoPushAndPrune reads the tickets and retires dead ones.
 import { sendExpoPushAndPrune } from '../_shared/expo-push.mjs';
-import { blockersOf, withoutBlockers } from '../_shared/blocks.mjs';
+import { blockersOf, withoutBlockers, deviceCounts, sumDevices, logBlocked } from '../_shared/blocks.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -200,7 +200,11 @@ Deno.serve(async (req) => {
     // already skipped their feed row).
     const blocked0 = await blockersOf(svc0, callerId, athleteIds);
     const targets0 = withoutBlockers(athleteIds.filter((id) => !optedOut0.has(id)), blocked0);
-    if (!targets0.length) return json({ ok: true, pushed: 0 }, 200, cors);
+    if (!targets0.length) {
+      const b0 = athleteIds.filter((id) => blocked0.has(id));
+      logBlocked('send-push:announcement', b0.length);
+      return json({ ok: true, pushed: sumDevices(await deviceCounts(svc0, b0), b0) }, 200, cors);
+    }
 
     // NOTE: no `notifications` insert here — post_announcement already wrote every feed row.
     // This branch is push-only; writing here would double-deliver.
@@ -210,7 +214,11 @@ Deno.serve(async (req) => {
     const body0 = (ann.body ?? '').slice(0, 300);
     const out0 = await sendExpoPushAndPrune(
       tokens0.map((to) => ({ to, title: title0, body: body0, sound: 'default' })), svc0);
-    return json({ ok: true, pushed: out0.sent, failed: out0.failed, errors: out0.errors }, 200, cors);
+    // I1: a recipient who blocked the coach reads, to the coach, exactly like a delivery.
+    const blockedIds0 = athleteIds.filter((id) => blocked0.has(id) && !optedOut0.has(id));
+    logBlocked('send-push:announcement', blockedIds0.length);
+    const ghost0 = sumDevices(await deviceCounts(svc0, blockedIds0), blockedIds0);
+    return json({ ok: true, pushed: out0.sent + ghost0, failed: out0.failed, errors: out0.errors }, 200, cors);
   }
 
   // ---------- operator bulk nudge (athlete_ids mode) ----------
@@ -316,10 +324,14 @@ Deno.serve(async (req) => {
       })));
     } catch { /* the nudge already landed; the queue-clear row stays best-effort, as it was client-side */ }
 
+    const blockedIds3 = targets3.filter((id) => blocked3.has(id) && !dedupedSet3.has(id) && !optedOut3.has(id));
+    logBlocked('send-push:bulk', blockedIds3.length);
+    const ghost3 = await deviceCounts(svc3, blockedIds3);
     for (const id of targets3) {
       if (dedupedSet3.has(id)) { results.push({ athlete_id: id, pushed: 0, devices: 0, deduped: true }); continue; }
       if (optedOut3.has(id)) { results.push({ athlete_id: id, pushed: 0, devices: 0, suppressed: 'notifications_off' }); continue; }
-      if (blocked3.has(id)) { results.push({ athlete_id: id, pushed: 0, devices: 0, suppressed: 'blocked' }); continue; }
+      // I1: indistinguishable from a delivery. The reason lives in the server log only.
+      if (blocked3.has(id)) { const d = ghost3.get(id) || 0; results.push({ athlete_id: id, pushed: d, devices: d }); continue; }
       const devices = (tokByUser.get(id) ?? []).length;
       results.push({ athlete_id: id, pushed: acceptedFor(id), devices });
     }
@@ -366,7 +378,8 @@ Deno.serve(async (req) => {
     // Block (0244): a coach who blocked this athlete hears nothing from them.
     const blocked2 = await blockersOf(svc2, athleteId2, coachIds0);
     const coachIds = withoutBlockers(coachIds0, blocked2);
-    if (!coachIds.length) return json({ ok: true, pushed: 0, coaches: 0 }, 200, cors);
+    logBlocked('send-push:to_coach', coachIds0.length - coachIds.length);
+    if (!coachIds.length) return json({ ok: true, pushed: 0, coaches: coachIds0.length }, 200, cors);
 
     // Durable in-app record for every coach (the unread item), regardless of push urgency.
     await svc2.from('notifications').insert(coachIds.map((id) => ({
@@ -413,7 +426,8 @@ Deno.serve(async (req) => {
         }
       }
     }
-    return json({ ok: true, pushed, coaches: coachIds.length, ...(pushErrors.length ? { errors: pushErrors } : {}) }, 200, cors);
+    // I1: the count is the whole staff list, blocked or not, so the athlete learns nothing.
+    return json({ ok: true, pushed, coaches: coachIds0.length, ...(pushErrors.length ? { errors: pushErrors } : {}) }, 200, cors);
   }
 
   const athleteId = payload.athlete_id;
@@ -445,7 +459,10 @@ Deno.serve(async (req) => {
     const { data: meS } = await caller.auth.getUser();
     const senderId = meS?.user?.id;
     if (senderId && (await blockersOf(svc, senderId, [athleteId])).has(String(athleteId))) {
-      return json({ ok: true, pushed: 0, suppressed: 'blocked' }, 200, cors);
+      // I1: answered exactly like a delivery to their phones; the reason stays in the server log.
+      logBlocked('send-push:single', 1);
+      const d = (await deviceCounts(svc, [athleteId])).get(String(athleteId)) || 0;
+      return json({ ok: true, pushed: d, devices: d }, 200, cors);
     }
   }
 

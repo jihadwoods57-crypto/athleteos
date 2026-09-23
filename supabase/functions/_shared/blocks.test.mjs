@@ -7,7 +7,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { blockersOf, withoutBlockers } from './blocks.mjs';
+import { blockersOf, withoutBlockers, deviceCounts, sumDevices } from './blocks.mjs';
 
 const svcReturning = (data, error = null) => {
   const calls = [];
@@ -31,6 +31,13 @@ test('fails open: an error or no service client blocks nothing (the thread itsel
   assert.equal(none.calls.length, 0, 'no recipients, no read');
 });
 
+test('deviceCounts answers a blocked recipient with their real device count', async () => {
+  const svc = { from: () => ({ select: () => ({ in: async () => ({ data: [{ user_id: 'a' }, { user_id: 'a' }, { user_id: 'b' }] }) }) }) };
+  const m = await deviceCounts(svc, ['a', 'b', 'c']);
+  assert.equal(sumDevices(m, ['a', 'c']), 2);
+  assert.equal((await deviceCounts({ from: () => { throw new Error('x'); } }, ['a'])).size, 0);
+});
+
 test('withoutBlockers keeps order and drops only blockers', () => {
   assert.deepEqual(withoutBlockers(['a', 'b', 'c'], new Set(['b'])), ['a', 'c']);
   assert.deepEqual(withoutBlockers(['a'], []), ['a']);
@@ -42,10 +49,15 @@ test('every sender that speaks for a person drops the people who blocked them', 
   const sp = src('send-push');
   assert.match(sp, /const blocked0 = await blockersOf\(svc0, callerId, athleteIds\)/, 'announcements');
   assert.match(sp, /const blocked3 = await blockersOf\(svc3, callerId3, targets3\)/, 'bulk nudge');
-  assert.match(sp, /suppressed: 'blocked'/, 'bulk nudge reports it');
+  // I1: nothing in any response says 'blocked'; a blocked recipient reads like a delivery.
+  assert.doesNotMatch(sp, /suppressed: 'blocked'/);
+  assert.doesNotMatch(src('roll-call-coach'), /'blocked'/);
+  assert.match(sp, /results\.push\(\{ athlete_id: id, pushed: d, devices: d \}\)/);
+  assert.match(sp, /return json\(\{ ok: true, pushed: d, devices: d \}, 200, cors\)/);
+  assert.match(sp, /coaches: coachIds0\.length/);
   assert.match(sp, /const blocked2 = await blockersOf\(svc2, athleteId2, coachIds0\)/, 'athlete to coach');
   assert.match(sp, /await blockersOf\(svc, senderId, \[athleteId\]\)/, 'coach to one athlete');
-  assert.match(src('meal-chat'), /blockersOf\(service, mealRow\.athlete_id,/, 'the coach flag');
+  assert.doesNotMatch(src('meal-chat'), /flagBlocked/, 'a safety flag gets past a block (M4)');
   const rc = src('roll-call-coach');
   assert.equal((rc.match(/await blockersOf\(svc, coachId,/g) || []).length, 2, 'roll call notice and nudge');
 });
