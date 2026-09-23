@@ -22,13 +22,41 @@
    test below reads BOTH signals so neither platform needs its own branch anywhere else.
 
    Desktop (the 402px frame at :8124) has no keyboard: overlap is 0, nothing shrinks, `kb-open`
-   never sets, and every rule below stays inert. */
+   never sets, and every rule below stays inert.
+
+   ===== ONE MOTION (2026-09-23) =====
+   Founder: "when i press 'ask about this meal' to pull up the keyboard, that transition isn't
+   smooth. It's glitchy." Three separate things moved, at three different moments:
+     1. WKWebView's own reveal scrolled the whole WebView up the instant the keys started to
+        rise (its UIScrollView, which no amount of `overflow: hidden` stops), and pinShell() could
+        only undo it a frame later: the page jumped up and snapped back.
+     2. The shell only learned the keyboard's height from a visualViewport `resize`, which WebKit
+        delivers once the keys have ARRIVED. So the keys slid up over the composer first, and the
+        app shrank afterwards, over its own 220ms: the composer's move came second.
+     3. reveal() scrolled the conversation to the end twice, once against the still-tall box and
+        again 260ms later once it had shrunk. That second scroll was a third, visible move.
+   Plus, on the meal page, the dock's padding, its sticky offset and the "Back to Home" foot all
+   switched in one frame on `kb-open`.
+   Now: the native shell (src/proto/ProtoApp.tsx) forwards iOS's keyboardWillShow/WillHide, which
+   carry the final height and the animation's duration, BEFORE the keys move, through
+   window.__nativeKeyboard. The shell starts shrinking on the same frame the keys start rising,
+   over the same duration, on the keyboard's own curve (--kb-ms / --kb-ease). The WebView's own
+   scroll is disabled natively (scrollEnabled={false} on iOS), so there is no shove to undo. And
+   a conversation that was resting on its newest message is held there EVERY FRAME of that
+   motion (followKeyboard) instead of being scrolled once before and once after. The
+   visualViewport path below still runs; with the native numbers in, it agrees and moves nothing. */
 
 let started = false;
 let restH = 0;      // window.innerHeight with no keyboard — the app's full height
 let kb = 0;         // px of the layout viewport the keyboard is covering (0 on Android)
 let openNow = false;
 let frame = 0;
+/* The native shell's word on the keyboard, when there is one: px covered, or null before the first
+   event (web, desktop, or an Android shell, which resizes the WebView instead). Authoritative over
+   visualViewport while set, because it arrives at the START of the keys' animation. */
+let nativeKb = null;
+let kbMs = 250;     // the current keyboard animation's duration (iOS reports it; 250 is its usual)
+let dropTimer = 0;
 
 /* Fields that raise a keyboard. Buttons, checkboxes and the composer's own hidden file input are
    <input> too, and focusing them must not resize the app. */
@@ -113,7 +141,53 @@ let settle = 0;
 function reveal() {
   revealAt();
   clearTimeout(settle);
-  settle = setTimeout(revealAt, 260);
+  settle = setTimeout(revealAt, kbMs + 20);
+}
+
+/** Should the conversation stay resting on its newest message while the app changes height?
+ *  Yes when the box being typed in ENDS a conversation, or when the reader was already at the end
+ *  (within 120px, the same slack scrollThreadToEnd gives the thread poll). A reader scrolled up
+ *  into an older message is left exactly where they are: only the bar moves for them. Pure, and
+ *  exported for keyboard-motion.test.mjs. */
+export function shouldHoldEnd({ atEndComposer = false, scrollTop = 0, scrollHeight = 0, clientHeight = 0 } = {}) {
+  if (atEndComposer) return true;
+  return scrollHeight - clientHeight - scrollTop <= 120;
+}
+
+/* The follow: for the length of the keyboard's own animation, every frame, a conversation that was
+   resting on its newest message is put back on it. The shell is shrinking (or growing) under it on
+   a CSS transition, so its scroll range changes every frame; pinning each frame is what makes the
+   newest message ride the top of the keys in the SAME motion as the bar, instead of the old
+   scroll-now-and-again-in-260ms, which was the third move in the founder's report. */
+let followUntil = 0;
+let followRaf = 0;
+function followKeyboard() {
+  pinShell();
+  const el = document.activeElement;
+  const vp = (el && el.closest && el.closest('.viewport')) || document.querySelector('.viewport');
+  if (!vp) return;
+  const atEndComposer = !!(el && el.closest && el.closest('.composer.at-end'));
+  // Any OTHER field (the food search at the top of its screen, a profile form) is only ever lifted
+  // clear of the keys once they land, never carried to the end: that is revealAt()'s rule.
+  if (isField(el) && !atEndComposer) { if (openNow) reveal(); return; }
+  const hold = shouldHoldEnd({
+    atEndComposer, scrollTop: vp.scrollTop, scrollHeight: vp.scrollHeight, clientHeight: vp.clientHeight,
+  });
+  if (!hold) return;
+  followUntil = performance.now() + kbMs + 80;
+  cancelAnimationFrame(followRaf);
+  const step = () => {
+    if (!vp.isConnected) return;
+    pinShell();
+    vp.scrollTo({ top: vp.scrollHeight, behavior: 'instant' });
+    if (performance.now() < followUntil) followRaf = requestAnimationFrame(step);
+  };
+  step();
+}
+
+function publishKb(px) {
+  kb = px;
+  document.documentElement.style.setProperty('--kb', `${kb}px`);
 }
 
 function sync() {
@@ -124,17 +198,40 @@ function sync() {
   // Android would never detect a keyboard again.
   if (!focused) restH = Math.max(restH, window.innerHeight);
 
-  const over = overlap();
+  // A keyboard with nothing focused cannot exist for long. If the native "will hide" were ever
+  // lost, the shell would stay short (see native-pickers-collapse-the-shell); give focus a moment
+  // to move to the next field, then let the shell have its height back.
+  clearTimeout(dropTimer);
+  if (nativeKb && !focused) {
+    dropTimer = setTimeout(() => { if (!isField(document.activeElement)) { nativeKb = 0; schedule(); } }, 800);
+  }
+
+  const over = nativeKb != null ? nativeKb : overlap();
   // Either signal counts. iOS keeps `over` positive for the whole close animation, which is what
   // keeps the tab bar from stepping back in over a keyboard that is still on screen.
   const open = over > 0 || (focused && restH - window.innerHeight > 60);
 
   const moved = over !== kb;
-  if (moved) { kb = over; document.documentElement.style.setProperty('--kb', `${kb}px`); }
+  if (moved) publishKb(over);
   const flipped = open !== openNow;
   if (flipped) { openNow = open; document.body.classList.toggle('kb-open', open); }
-  if (open && (flipped || moved)) reveal();
+  if (flipped || moved) followKeyboard();
   if (open || focused) pinShell();
+}
+
+/* The native shell's keyboard channel (ProtoApp.tsx injects the call). `px` is how much of the
+   WebView the keys will cover once they land, `ms` how long iOS will take to get them there.
+   Handled NOW, not on the next frame: this call is the head start the whole motion depends on. */
+function nativeKeyboard(px, ms) {
+  const h = Math.max(0, Math.round(Number(px) || 0));
+  const d = Math.round(Number(ms));
+  if (d > 0 && d < 1000) {
+    kbMs = d;
+    document.documentElement.style.setProperty('--kb-ms', `${d}ms`);
+  }
+  nativeKb = h > 60 ? h : 0;
+  if (frame) { cancelAnimationFrame(frame); frame = 0; }
+  sync();
 }
 
 function schedule() { if (!frame) frame = requestAnimationFrame(sync); }
@@ -230,6 +327,9 @@ export function initKeyboard() {
   if (started || typeof window === 'undefined' || typeof document === 'undefined') return;
   started = true;
   restH = window.innerHeight;
+  // The native shell calls this from keyboardWillShow / keyboardWillHide (ProtoApp.tsx). On the
+  // web, and on a shell that predates it, nothing ever calls it and visualViewport carries on.
+  window.__nativeKeyboard = nativeKeyboard;
 
   document.addEventListener('input', (e) => { if (isComposerBox(e.target)) fitComposer(e.target); });
   // Enter SENDS in a conversation (the return key reads Send, enterkeyhint), which is what every
@@ -269,7 +369,13 @@ export function initKeyboard() {
      dismissed in a way that reports no resize, an interrupted animation — --kb keeps its last value
      and the shell stays short with no way back. Returning to the app re-measures unconditionally,
      so a stuck shell can always be recovered by leaving and coming back. */
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { restH = 0; schedule(); } });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    restH = 0;
+    // Coming back with nothing focused means no keyboard, whatever the last native word was.
+    if (nativeKb && !isField(document.activeElement)) nativeKb = 0;
+    schedule();
+  });
   window.addEventListener('pageshow', schedule);
   // Capture, because `scroll` does not bubble and the box being shoved is `.screen`, not the
   // window. Cheap: pinShell only writes to elements that have actually been moved.

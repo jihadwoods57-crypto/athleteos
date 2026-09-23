@@ -58,15 +58,20 @@ body {
 /* How much of the app the soft keyboard is covering. js/keyboard.js keeps it honest; it is 0
    everywhere the keyboard is not up, including every desktop browser. */
 :root { --kb: 0px; }
+/* The keyboard's own motion (2026-09-23). --kb-ms is the duration iOS reports for THIS show or
+   hide (keyboard.js writes it from the native keyboardWillShow/WillHide); 250ms is its usual.
+   --kb-ease approximates the keys' own curve (UIKit's private curve 7: a fast start that settles
+   long), so the shell shortening and the keys rising read as one object, not a chase. */
+:root { --kb-ms: 250ms; --kb-ease: cubic-bezier(0.38, 0.7, 0.125, 1); }
 
 /* ===== Device frame (realistic iPhone) ===== */
 .device {
   width: 402px;
   height: 872px;
   /* The shell RESIZES with the keyboard instead of being scrolled out from under it (see the
-     header comment in js/keyboard.js). ~220ms is the iOS keyboard's own slide, so the app
+     header comment in js/keyboard.js), over the keyboard's own duration and curve, so the app
      shortening and the keys arriving read as one motion rather than two events. */
-  transition: height 220ms var(--ease-out);
+  transition: height var(--kb-ms) var(--kb-ease);
   border-radius: var(--r-pill);
   padding:var(--s3);
   background: linear-gradient(160deg, #20293b, #0a0f1a 60%);

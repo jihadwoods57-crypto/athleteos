@@ -2,13 +2,14 @@
 // Pixel-perfect by construction (it IS the proto's HTML/CSS). Native bridges (camera, push,
 // haptics, secure store, auth) layer on in later phases via the postMessage router.
 import React from 'react';
-import { ActivityIndicator, BackHandler, Linking, Platform, StyleSheet, Text, View, AppState } from 'react-native';
+import { ActivityIndicator, BackHandler, Dimensions, Keyboard, Linking, Platform, StyleSheet, Text, View, AppState } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import * as SecureStore from 'expo-secure-store';
 import Constants from 'expo-constants';
 import { ensureProtoExtracted, PROTO_ROOT_DIR } from './protoBundle';
 import { PROTO_VERSION } from './protoVersion';
 import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
+import { keyboardOverlap } from './keyboardOverlap';
 import { authenticateBiometric } from '../lib/auth/biometrics';
 import { parseInviteCode } from '../lib/inviteLink';
 import { rollCallRouteFromUrl } from '../lib/rollCallLink';
@@ -327,6 +328,29 @@ export function ProtoApp() {
     return () => sub.remove();
   }, []);
 
+  // The keyboard, told to the page BEFORE it moves (composer upgrade, 2026-09-23). iOS announces
+  // the keys with their final frame and the animation's duration; the proto (js/keyboard.js)
+  // otherwise only learns the height from a visualViewport resize once the keys have arrived, so the
+  // keys slid up over the composer first and the app shrank after them: the "glitchy" transition.
+  // Forwarded here, the shell starts shrinking on the same beat as the keys, over the same time.
+  // iOS only: Android resizes the WebView itself (softwareKeyboardLayoutMode resize) and needs none.
+  React.useEffect(() => {
+    if (Platform.OS !== 'ios') return;
+    const tell = (e: Parameters<typeof keyboardOverlap>[0] & { duration?: number }) => {
+      const ref = webviewRef.current;
+      if (!ref) return;
+      const px = keyboardOverlap(e, Dimensions.get('window').height);
+      const ms = Math.round(Number(e.duration) || 0);
+      ref.injectJavaScript(`window.__nativeKeyboard && window.__nativeKeyboard(${px}, ${ms}); true;`);
+    };
+    const subs = [
+      Keyboard.addListener('keyboardWillShow', tell),
+      Keyboard.addListener('keyboardWillHide', tell),
+      Keyboard.addListener('keyboardWillChangeFrame', tell),
+    ];
+    return () => subs.forEach((s) => s.remove());
+  }, []);
+
   if (locked === null) {
     return (
       <Center>
@@ -409,6 +433,14 @@ export function ProtoApp() {
         // (2026-09-03); Messages has no such bar, and neither does any composer here — Send is the
         // return key (enterkeyhint) and the pill has its own button. iOS-only prop; Android has no bar.
         hideKeyboardAccessoryView
+        // iOS: the WebView's OWN scroll view never moves (composer upgrade, 2026-09-23). The page is
+        // one screen tall and scrolls inside .viewport; the only thing this outer scroll view ever
+        // did was let WebKit shove the whole app up to "reveal" a focused composer, which the
+        // proto then had to snap back a frame later (the jump in the founder's report). With it
+        // off, react-native-webview pins its bounds natively on every scroll callback. Inner
+        // overflow scrollers are separate scroll views and are unaffected. Android keeps the
+        // default: it resizes the WebView for the keyboard and has no such shove.
+        scrollEnabled={Platform.OS !== 'ios'}
         bounces={false}
         overScrollMode="never"
         // No pinch-zoom, no double-tap-zoom — the UI is an app, not a page you can scale. iOS is
