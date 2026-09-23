@@ -50,3 +50,32 @@ const COPY = {
 export function dictationMessage(code) {
   return COPY[code] || COPY.failed;
 }
+
+/* THE PAGE'S SESSION LEDGER (fix round 1, 2026-09-23). Every tap of a mic opens a session with its
+   own id; the native side tags every event with it, and only the CURRENT session's events are
+   let through. Stop-then-tap-again, one box's mic then another's, and leaving the screen each
+   retire the old id at once, so a late word or a late `end` from the recognizer the athlete has
+   already left can never write into, or close, the session they are in now. Pure; the DOM half
+   is dictation.js. */
+export function createSessions() {
+  let seq = 0;
+  let cur = null; // { sid, key, stopping }
+  return {
+    /** A new session for box `key`. `retire` is the id of the one it replaces (to abort), or null. */
+    begin(key) {
+      const retire = cur ? cur.sid : null;
+      seq += 1;
+      cur = { sid: `d${seq}`, key: String(key || ''), stopping: false };
+      return { sid: cur.sid, retire };
+    },
+    current() { return cur ? { ...cur } : null; },
+    /** Is this event for the session the page is in? */
+    accepts(ev) { return !!(cur && ev && ev.sid === cur.sid); },
+    /** The athlete tapped stop: the session stays open for its last words and its end. */
+    stopping(sid) { if (cur && cur.sid === sid) cur.stopping = true; },
+    /** The session's own end (or the page giving up on it). False for any other id. */
+    end(sid) { if (cur && cur.sid === sid) { cur = null; return true; } return false; },
+    /** Leave whatever is open (a send, a navigation, backgrounding); returns its id to abort. */
+    leave() { const sid = cur ? cur.sid : null; cur = null; return sid; },
+  };
+}

@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { composerMode, splitAtCaret, mergeDictation, dictationMessage } from './dictation-state.js';
+import { composerMode, splitAtCaret, mergeDictation, dictationMessage, createSessions } from './dictation-state.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SRC = readFileSync(join(HERE, 'dictation.js'), 'utf8');
@@ -66,12 +66,56 @@ test('dictation never sends, and typing, sending or leaving ends it', () => {
   assert.ok(!/\.send['"]?\)\.click\(|requestSubmit|\.click\(\)/.test(SRC), 'dictation.js never presses send');
   assert.match(SRC, /addEventListener\('input'[\s\S]{0,120}abort\(\)/, 'typing ends dictation');
   assert.match(SRC, /t\.closest\('\.send, \.ai-ask'\)[\s\S]{0,80}abort\(\)/, 'sending ends dictation, keeping what is on screen');
-  assert.match(SRC, /addEventListener\('hashchange', abort\)/, 'leaving the screen ends it');
-  assert.match(SRC, /if \(document\.hidden\) abort\(\)/, 'leaving the app ends it');
+  assert.match(SRC, /addEventListener\('hashchange', leaveAll\)/, 'leaving the screen ends it');
+  assert.match(SRC, /if \(document\.hidden\) leaveAll\(\)/, 'leaving the app ends it');
+  assert.match(SRC, /const leaveAll = \(\) => \{[\s\S]{0,260}api\(\)\.abort\(\)/, 'even with nothing on the page, leaving tells the native side to abort');
 });
 
 test('the mic shows only when the native side says recognition can run', () => {
   assert.match(SRC, /classList\.toggle\('can-dictate', !!\(st && st\.available\)\)/);
   assert.match(SRC, /window\.OnStandardNative[\s\S]{0,60}n\.dictation/, 'feature-detected, so an old binary without the bridge call keeps it hidden');
   assert.match(ROUTER, /import\('\.\/dictation\.js'\)\.then\(\(m\) => m\.initDictation\(\)\)/, 'wired once, lazily, from the router');
+});
+
+/* Fix round 1 (review I-1): every session has an id, and only the current id's events get through.
+   The native half of the same sequences is src/lib/voice/nativeSpeech.test.ts ("sessions never cross"). */
+test('stop, then an immediate restart: the old session\'s late words and late end are dropped', () => {
+  const s = createSessions();
+  const first = s.begin('meal-msg');
+  assert.deepEqual(first, { sid: 'd1', retire: null });
+  s.stopping('d1');
+  const second = s.begin('meal-msg');
+  assert.deepEqual(second, { sid: 'd2', retire: 'd1' }, 'the stop still finishing is retired, by id');
+  assert.equal(s.accepts({ sid: 'd1', type: 'text', text: 'late' }), false);
+  assert.equal(s.end('d1'), false, 'd1\'s end cannot close d2');
+  assert.equal(s.current().sid, 'd2');
+  assert.equal(s.accepts({ sid: 'd2', type: 'text', text: 'rice' }), true);
+});
+
+test('one box\'s mic, then another\'s: the second box owns every event from then on', () => {
+  const s = createSessions();
+  s.begin('meal-msg');
+  const b = s.begin('nc-msg');
+  assert.equal(b.retire, 'd1');
+  assert.equal(s.current().key, 'nc-msg');
+  assert.equal(s.accepts({ sid: 'd1', type: 'end' }), false);
+  assert.equal(s.accepts({ sid: 'd2', type: 'end' }), true);
+  assert.equal(s.end('d2'), true);
+  assert.equal(s.current(), null);
+});
+
+test('navigating away while listening: the session is left, and nothing of it gets through after', () => {
+  const s = createSessions();
+  s.begin('mv-msg');
+  assert.equal(s.leave(), 'd1', 'leaving hands back the id to abort');
+  assert.equal(s.accepts({ sid: 'd1', type: 'text', text: 'late' }), false);
+  assert.equal(s.accepts({ type: 'end' }), false, 'an event with no id is never accepted');
+  assert.equal(s.leave(), null);
+});
+
+test('the page asks for the device\'s language and tags start/stop/abort with the session id', () => {
+  assert.match(SRC, /b\.start\(deviceLang\(\), sid\)/);
+  assert.match(SRC, /api\(\)\.stop\(active\.sid\)/);
+  assert.match(SRC, /api\(\)\.abort\(sid \|\| active\.sid\)/);
+  assert.match(SRC, /!sessions\.accepts\(ev\)/, 'events are filtered by id before anything is applied');
 });

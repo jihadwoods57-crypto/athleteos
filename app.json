@@ -34,7 +34,7 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "So your arrival counts even when the app is closed, OnStandard checks you in when you walk into the place your coach set. It only watches that place during the check-in window, and never shares where you are.",
         "NSLocationAlwaysUsageDescription": "So your arrival counts even when the app is closed, OnStandard checks you in when you walk into the place your coach set. It only watches that place during the check-in window, and never shares where you are.",
         "NSMicrophoneUsageDescription": "OnStandard uses the microphone only when you tap the mic in a chat, so you can say your message instead of typing it. Nothing is recorded or kept: your words become text you can edit before you send.",
-        "NSSpeechRecognitionUsageDescription": "When you tap the mic in a chat, OnStandard turns what you say into text in the message box. It works on your iPhone when it can, and nothing is sent until you check the text and tap Send."
+        "NSSpeechRecognitionUsageDescription": "When you tap the mic in a chat, OnStandard turns what you say into text in the message box. It works on your device when it can; otherwise your voice goes to Apple's speech service to be turned into text. Nothing is sent to anyone until you check the text and tap Send."
       },
       "privacyManifests": {
         "NSPrivacyTracking": false,

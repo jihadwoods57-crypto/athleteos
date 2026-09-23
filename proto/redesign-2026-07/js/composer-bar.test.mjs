@@ -58,8 +58,14 @@ test('the dock is the last thing on the meal, past-meal and coach screens', () =
   assert.match(meal.slice(0, meal.indexOf('`;')), /\$\{discussion\}<\/div>$/, 'meal: ${discussion} closes the screen');
   const past = SCREENS.past.slice(SCREENS.past.indexOf('return `<div class="meal-screen">${backHead(M.dish'));
   assert.match(past.slice(0, past.indexOf('`;')), /\$\{discussion\}<\/div>$/, 'past meal: ${discussion} closes the screen');
-  // Coach: the dock closes .disc, and .disc closes the screen (the private notes moved above it).
-  assert.match(SCREENS.coach, /<div class="chat-dock disc-dock dock-end">[\s\S]{0,600}?<\/div>\n    <\/section>\n    <\/div>`;/);
+  // Coach: the dock closes .disc. After it come only the private notes, hidden unless there are
+  // notes or the coach opened the note box, and OUTSIDE the section so the sticky bar's range ends
+  // above them (review I-2: inside it, the bar covered the note box being typed in).
+  assert.match(SCREENS.coach, /<div class="chat-dock disc-dock dock-end">[\s\S]{0,600}?<\/div>\n    <\/section>\n[\s\S]{0,700}?<div class="cm-after">/);
+  const after = SCREENS.coach.slice(SCREENS.coach.indexOf('<div class="cm-after">'));
+  assert.match(after, /<div id="cm-notes-wrap"\$\{notes\.length \? '' : ' hidden'\}>/, 'notes hidden when there are none');
+  assert.match(after, /<div id="cm-note-box" hidden/, 'the note box hidden until opened');
+  assert.match(CSS, /\.cm-after:has\(> :not\(\[hidden\]\)\) \{ padding-bottom:/);
 });
 
 test('the exit is the header back control, not a slab under the box', () => {
@@ -91,17 +97,17 @@ test('the note line under the box takes no room while empty', () => {
 
 test('a conversation box carries a mic in send\'s slot; a search box does not', () => {
   const box = composer({ inputId: 'x', sendId: 'y', placeholder: 'Ask', atEnd: true });
-  const mic = box.indexOf('class="mic"');
+  const mic = box.indexOf('class="cmp-mic"');
   const send = box.indexOf('class="send"');
   assert.ok(mic > box.indexOf('<textarea') && mic < send, 'mic sits inside the pill, just before send');
   assert.match(box, /aria-label="Dictate a message"/);
-  assert.ok(!composer({ inputId: 's', placeholder: 'Search foods' }).includes('class="mic"'), 'the food search has no mic');
+  assert.ok(!composer({ inputId: 's', placeholder: 'Search foods' }).includes('class="cmp-mic"'), 'the food search has no mic');
 });
 
 test('the mic shows only where dictation can run, and trades places with send', () => {
-  assert.match(CSS, /\.composer \.mic \{\s*display: none;/, 'hidden by default (web, old binaries)');
-  assert.match(CSS, /html\.can-dictate \.composer\.at-end:not\(\.has-text\):not\(\.has-photo\) \.mic,/);
+  assert.match(CSS, /\.composer \.cmp-mic \{\s*display: none;/, 'hidden by default (web, old binaries)');
+  assert.match(CSS, /html\.can-dictate \.composer\.at-end:not\(\.has-text\):not\(\.has-photo\) \.cmp-mic,/);
   assert.match(CSS, /html\.can-dictate \.composer\.at-end:not\(\.has-text\):not\(\.has-photo\) \.send,/);
-  assert.match(CSS, /html\.can-dictate \.composer\.listening \.mic \{ background: var\(--blue\)/, 'listening is the selected blue');
-  assert.ok((FOCUS.match(/\.composer \.mic,/g) || []).length === 2, 'the 30px mic keeps the 44px hit area');
+  assert.match(CSS, /html\.can-dictate \.composer\.cmp-listening \.cmp-mic \{ background: var\(--blue\)/, 'listening is the selected blue');
+  assert.ok((FOCUS.match(/\.composer \.cmp-mic,/g) || []).length === 2, 'the 30px mic keeps the 44px hit area');
 });

@@ -703,7 +703,7 @@ export function composer({
   // built before the speech module, it stays display:none and the box is exactly what it was.
   // js/dictation.js owns the taps (one delegated listener), so no screen wires anything.
   const micEl = dictate
-    ? `<button type="button" class="mic" aria-label="Dictate a message" aria-pressed="false">${icon('mic', 19)}<span class="mic-stop" aria-hidden="true"></span></button>`
+    ? `<button type="button" class="cmp-mic" aria-label="Dictate a message" aria-pressed="false">${icon('mic', 19)}<span class="cmp-mic-stop" aria-hidden="true"></span></button>`
     : '';
   const idAttr = inputId ? ` id="${inputId}"` : '';
   const common = ` placeholder="${esc(placeholder)}" aria-label="${esc(inputLabel)}"${autocompleteOff ? ' autocomplete="off"' : ''}`;

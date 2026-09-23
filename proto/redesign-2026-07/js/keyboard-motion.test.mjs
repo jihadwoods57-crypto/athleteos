@@ -37,7 +37,11 @@ test('a reader at (or within 120px of) the end stays at the end; one reading old
 
 test('the shell takes the keyboard from the native side, before the keys move', () => {
   assert.match(KB, /window\.__nativeKeyboard = nativeKeyboard/, 'keyboard.js installs the native channel');
-  assert.match(KB, /const over = nativeKb != null \? nativeKb : overlap\(\)/, 'native height wins over visualViewport while present');
+  assert.match(KB, /let over = nativeKb != null \? nativeKb : overlap\(\)/, 'native height leads over visualViewport while present');
+  // Review M-1: native keyboard frames are in screen coordinates, wrong for an iPad window in Stage
+  // Manager; once the keys have landed, the browser's measure may correct the height upward.
+  assert.match(KB, /performance\.now\(\) - nativeAt > kbMs \+ 80\) over = Math\.max\(over, overlap\(\)\)/);
+  assert.match(KB, /recheck = setTimeout\(schedule, kbMs \+ 120\)/);
   assert.match(SHELL, /keyboardWillShow/);
   assert.match(SHELL, /keyboardWillHide/);
   assert.match(SHELL, /window\.__nativeKeyboard && window\.__nativeKeyboard\(/, 'ProtoApp.tsx forwards the keyboard to the page');

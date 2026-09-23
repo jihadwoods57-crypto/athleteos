@@ -57,6 +57,8 @@ let frame = 0;
 let nativeKb = null;
 let kbMs = 250;     // the current keyboard animation's duration (iOS reports it; 250 is its usual)
 let dropTimer = 0;
+let nativeAt = 0;   // when the native side last spoke (performance.now())
+let recheck = 0;
 
 /* Fields that raise a keyboard. Buttons, checkboxes and the composer's own hidden file input are
    <input> too, and focusing them must not resize the app. */
@@ -206,7 +208,12 @@ function sync() {
     dropTimer = setTimeout(() => { if (!isField(document.activeElement)) { nativeKb = 0; schedule(); } }, 800);
   }
 
-  const over = nativeKb != null ? nativeKb : overlap();
+  // The native height leads (it arrives before the keys move). Once the keys have landed, the
+  // browser's own measure may correct it UPWARD while a field is focused: the native number is in
+  // SCREEN coordinates, which is wrong for a window that does not start at the top of the screen
+  // (iPad Stage Manager, Slide Over), and there it can read 0 with the keys covering the composer.
+  let over = nativeKb != null ? nativeKb : overlap();
+  if (nativeKb != null && focused && performance.now() - nativeAt > kbMs + 80) over = Math.max(over, overlap());
   // Either signal counts. iOS keeps `over` positive for the whole close animation, which is what
   // keeps the tab bar from stepping back in over a keyboard that is still on screen.
   const open = over > 0 || (focused && restH - window.innerHeight > 60);
@@ -230,8 +237,12 @@ function nativeKeyboard(px, ms) {
     document.documentElement.style.setProperty('--kb-ms', `${d}ms`);
   }
   nativeKb = h > 60 ? h : 0;
+  nativeAt = performance.now();
   if (frame) { cancelAnimationFrame(frame); frame = 0; }
   sync();
+  // Look again once the keys have landed, for the correction above.
+  clearTimeout(recheck);
+  recheck = setTimeout(schedule, kbMs + 120);
 }
 
 function schedule() { if (!frame) frame = requestAnimationFrame(sync); }

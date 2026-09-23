@@ -50,11 +50,12 @@ const dictOn = `const dm = await import('./js/dictation.js');
     start: async () => ({ ok: true, onDevice: true }), stop() {}, abort() {} });`;
 const toEnd = `await new Promise((r) => setTimeout(r, 250));
   const vp = document.querySelector('.viewport'); if (vp) { vp.style.scrollBehavior = 'auto'; vp.scrollTop = vp.scrollHeight; }`;
-const listen = `const mic = document.querySelector('.chat-dock .composer .mic, .composer.at-end .mic');
-  if (!mic) console.error('composer shot: no .mic in the dock');
+const listen = `const mic = document.querySelector('.chat-dock .composer .cmp-mic, .composer.at-end .cmp-mic');
+  if (!mic) console.error('composer shot: no .cmp-mic in the dock');
   else { mic.click(); await new Promise((r) => setTimeout(r, 60));
-    window.__onDictation({ type: 'text', text: 'two eggs, turkey bacon and a bowl of oatmeal with', final: false });
-    window.__onDictation({ type: 'level', value: 0.55 }); }`;
+    const sid = (await import('./js/dictation.js')).currentDictationSid();
+    window.__onDictation({ sid, type: 'text', text: 'two eggs, turkey bacon and a bowl of oatmeal with', final: false });
+    window.__onDictation({ sid, type: 'level', value: 0.55 }); }`;
 const typed = `const box = document.querySelector('.chat-dock .composer textarea');
   if (box) { box.value = 'Was the rice portion right?'; box.dispatchEvent(new Event('input', { bubbles: true })); }`;
 /** The team board (roll call rebuilt, 2026-09-23), seeded through the harness seams on the frozen

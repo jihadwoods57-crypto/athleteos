@@ -82,6 +82,29 @@ meal** (coach account, an athlete's meal).
     Expected: the same behaviour; the keyboard on Android resizes the app on its own, so step 1.2 is
     judged the same way (one motion, header still).
 
+## 2b. Added after review (fix round 1)
+
+1. **Stop, then an immediate re-tap.** Tap the mic, say two words, tap stop, and within a second
+   tap the mic again and say "rice". Then tap stop.
+   Expected: only "rice" arrives after the re-tap (nothing late from the first session), the second
+   session listens normally, and after the final stop the orange microphone dot in the status bar
+   CLEARS within about a second. An orange dot that stays on with an idle mic is a fail.
+2. **One box, then another.** On the full chat, tap the mic, then go back to the meal page and tap
+   its mic straight away. Expected: the second listens; the orange dot clears when you stop it.
+3. **Coach private note.** Coach account, a meal, ⋯ > Private note, type three lines.
+   Expected: the note box is fully visible above the keys the whole time, never under the
+   "Comment on this meal" bar.
+4. **Another language.** Settings > General > Language & Region: set iPhone Language to Spanish,
+   dictate in Spanish. Expected: Spanish text. Switch back afterwards.
+5. **iPad, Stage Manager.** With Stage Manager on and OnStandard in a window that does not touch the
+   bottom of the screen, tap a thread's box. Expected: the bar ends up above the keys once they
+   land (it may arrive a beat late there: the native keyboard frame is in screen coordinates, so the
+   page corrects from its own measure after the animation).
+6. **iPad with a trackpad or mouse attached.** Open a meal thread in portrait and landscape.
+   Expected: the app fills the screen (no desktop-style phone frame). If a phone frame appears and
+   its bottom cannot be scrolled to, report it: with the WebView's outer scroll off on iOS, that
+   layout has no way to scroll (review M-3; a pre-existing layout gap, made visible by this change).
+
 ## 3. An older build
 
 On a phone still on the build before this branch, install the OTA that carries this proto.

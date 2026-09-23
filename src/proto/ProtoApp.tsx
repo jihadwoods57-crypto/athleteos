@@ -98,6 +98,8 @@ export function ProtoApp() {
   // presenter it calls: a pending pick is rendered as the full-screen PlacePicker, and whatever the
   // coach does (Save or Cancel) settles the page's promise. pickRequest allows one at a time.
   const [mapPick, setMapPick] = React.useState<{ initial: PickInitial | null } | null>(null);
+  const mapPickOpen = React.useRef(false);
+  mapPickOpen.current = !!mapPick;
   const mapPickResolve = React.useRef<((p: Place | null) => void) | null>(null);
   React.useEffect(() => {
     setMapPresenter((initial) => new Promise<Place | null>((res) => {
@@ -340,6 +342,9 @@ export function ProtoApp() {
     const tell = (e: Parameters<typeof keyboardOverlap>[0] & { duration?: number }) => {
       const ref = webviewRef.current;
       if (!ref) return;
+      // A native text field over the page (the coach's map search) raises the keys, not the
+      // page's composer: the hidden page must not shrink for it.
+      if (mapPickOpen.current) return;
       const px = keyboardOverlap(e, Dimensions.get('window').height);
       const ms = Math.round(Number(e.duration) || 0);
       ref.injectJavaScript(`window.__nativeKeyboard && window.__nativeKeyboard(${px}, ${ms}); true;`);
