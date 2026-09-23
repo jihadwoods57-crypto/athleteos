@@ -4080,7 +4080,7 @@ export const coachMeal = {
       const meal0 = mealById(sub);
       const context = {
         meal: meal0 ? { type: meal0.type, protein: meal0.protein, kcal: meal0.kcal, quality: meal0.quality } : {},
-        thread: threadMessages(MC && MC.comments).slice(-6).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
+        thread: threadMessages(MC && MC.comments).slice(-6).map((c) => ({ role: c.role, senderId: c.author_id || null, text: String(c.text).slice(0, 300) })),
       };
       const r = await roles.draftMealReplies(sub, context, athleteContextForMeal(meal0).athlete);
       if (DRAFTS.mealId !== sub) return; // stale — coach navigated away/on before this resolved

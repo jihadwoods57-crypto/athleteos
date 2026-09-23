@@ -51,7 +51,7 @@ import { hydrateAvatars } from '../avatar.js';
 import { wireTapback } from '../tapback.js';
 import { openImageViewer } from '../image-viewer.js';
 import { openMembersSheet } from '../members-sheet.js';
-import { ensureAiConsent, isConsentSkip, noteAiConsentRequired } from '../ai-consent.js';
+import { ensureAiConsent, isConsentSkip, noteAiConsentRequired, aiMinorPending, AI_MINOR_LINE } from '../ai-consent.js';
 
 /** The line when the AI stays quiet because AI replies are off (0243). */
 const AI_OFF_REPLY_NC = 'AI replies are off, so the AI Nutritionist stays quiet. Your message is posted. Turn AI on in Privacy on your Profile.';
@@ -606,7 +606,7 @@ export default {
       if (!mealId) return;
       lastAsk = { text, mealId, turn };
       // AI CONSENT (0243): ask the first time; after a Not now the AI stays quiet, said plainly.
-      if (!(await ensureAiConsent(RT.userId, { role: 'athlete' }))) { setNote(AI_OFF_REPLY_NC); return; }
+      if (!(await ensureAiConsent(RT.userId, { role: 'athlete' }))) { setNote(aiMinorPending(RT.userId) ? `Your message is posted. ${AI_MINOR_LINE}` : AI_OFF_REPLY_NC); return; }
       const meal = mealById(STATE.meals, mealId);
       // Visible from the moment it is asked, not after two fetches (2026-09-22).
       setTyping(true);
@@ -639,7 +639,7 @@ export default {
           day: { proteinSoFar: dp.proteinSoFar, proteinTarget: dp.proteinTarget, mealsRemaining: dp.mealsRemaining },
           recentMeals: recentAscending.map((m) => ({ type: m.type, protein: m.protein, kcal: m.kcal, quality: m.quality, date: m.day_date })),
           // Identity-preserving transcript (ai-thread.js) — see the note in meal.js.
-          thread: turn ? turn.thread : threadMessages(STATE.comments).slice(-20).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
+          thread: turn ? turn.thread : threadMessages(STATE.comments).slice(-20).map((c) => ({ role: c.role, senderId: c.author_id || null, text: String(c.text).slice(0, 300) })),
           usualMeals: suggestItems(),
         });
         const c = typeof window !== 'undefined' ? window.sb : null;
@@ -667,7 +667,7 @@ export default {
         setTyping(false);
         // Same verdict, reached server-side: the AI was not addressed, so it stays quiet.
         if (data && data.silent) return;
-        if (isConsentSkip(data)) { noteAiConsentRequired(RT.userId); setNote(AI_OFF_REPLY_NC); return; }
+        if (isConsentSkip(data)) { noteAiConsentRequired(RT.userId); setNote(aiMinorPending(RT.userId) ? `Your message is posted. ${AI_MINOR_LINE}` : AI_OFF_REPLY_NC); return; }
         if (error || !data || data.error) {
           // The vendored supabase-js throws FunctionsHttpError on any non-2xx, so `data` is null
           // and the function's JSON error body never reaches it — parse it off error.context,

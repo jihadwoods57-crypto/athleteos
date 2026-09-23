@@ -276,7 +276,7 @@ test('meal-chat loads the dossier for the MEAL OWNER on every turn, athlete and 
   assert.match(src, /viewer: !coachMode \? 'self' : body\?\.askerNoun === 'parent' \? 'guardian' : 'staff'/);
   assert.match(src, /positionWords,/);
   // The dossier lives in ctxBlock, and ctxBlock opens BOTH the coach_ask turn and the athlete turn.
-  assert.match(src, /const ctxBlock = `Context \(deterministic, computed by the app\):\\n\$\{JSON\.stringify\(context\)\}\$\{\s*dossier \? /);
+  assert.match(src, /const ctxBlock = `Context \(deterministic, computed by the app\):\\n\$\{JSON\.stringify\(promptContext\)\}\$\{\s*dossier \? /);
   const userTurn = src.slice(src.indexOf('const userTurn = coachAsk'));
   assert.match(userTurn, /^const userTurn = coachAsk\s*\? `\$\{ctxBlock\}/);
   assert.ok((userTurn.slice(0, 8000).match(/\$\{ctxBlock\}/g) || []).length >= 4, 'coach_ask, support, correction and athlete turns');
