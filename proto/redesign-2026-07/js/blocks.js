@@ -21,8 +21,9 @@ export async function blockUser(id) {
   const sb = client();
   if (!sb || !RT.userId) return { ok: false };
   try {
-    const { error } = await sb.from('user_blocks').upsert({ blocker_id: RT.userId, blocked_id: k }, { onConflict: 'blocker_id,blocked_id', ignoreDuplicates: true });
-    return { ok: !error };
+    // insert, not upsert: the table grants insert/select/delete only, and a repeat is a 23505.
+    const { error } = await sb.from('user_blocks').insert({ blocker_id: RT.userId, blocked_id: k });
+    return { ok: !error || error.code === '23505' };
   } catch { return { ok: false }; }
 }
 
@@ -51,8 +52,7 @@ export async function syncBlocks() {
     for (const id of server) if (!act.isMuted(id)) act.muteUser(id);
     const localOnly = (RT.mutedUsers || []).filter((id) => id && !server.has(String(id)) && id !== RT.userId);
     if (localOnly.length) {
-      await sb.from('user_blocks').upsert(localOnly.map((id) => ({ blocker_id: RT.userId, blocked_id: id })),
-        { onConflict: 'blocker_id,blocked_id', ignoreDuplicates: true });
+      for (const id of localOnly) await sb.from('user_blocks').insert({ blocker_id: RT.userId, blocked_id: id });
     }
   } catch { /* the cache still hides; the next open tries again */ }
 }

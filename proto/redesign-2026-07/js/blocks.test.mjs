@@ -19,7 +19,7 @@ function fakeSb(serverRows = []) {
   const rows = new Set(serverRows);
   const ops = [];
   const table = {
-    upsert: async (v) => { ops.push(['upsert', v]); (Array.isArray(v) ? v : [v]).forEach((r) => rows.add(r.blocked_id)); return { error: null }; },
+    insert: async (v) => { ops.push(['insert', v]); (Array.isArray(v) ? v : [v]).forEach((r) => rows.add(r.blocked_id)); return { error: null }; },
     delete: () => ({ eq: () => ({ eq: async (_c, id) => { ops.push(['delete', id]); rows.delete(id); return { error: null }; } }) }),
     select: () => ({ eq: async () => ({ data: [...rows].map((id) => ({ blocked_id: id })), error: null }) }),
   };
@@ -32,7 +32,7 @@ test('Block hides at once (cache) and is stored on the server; Unblock undoes bo
   const sb = fakeSb(); window.sb = sb;
   await B.blockUser('coach');
   assert.equal(act.isMuted('coach'), true);
-  assert.deepEqual(sb.ops[0], ['upsert', { blocker_id: 'me', blocked_id: 'coach' }]);
+  assert.deepEqual(sb.ops[0], ['insert', { blocker_id: 'me', blocked_id: 'coach' }]);
   await B.unblockUser('coach');
   assert.equal(act.isMuted('coach'), false);
   assert.deepEqual(sb.ops[1], ['delete', 'coach']);
