@@ -19,6 +19,7 @@ import { hydrateAvatars } from './avatar.js';
 import { overlayOpen } from './overlay-guard.js';
 import { act } from './state.js';
 import * as roles from './roles.js';
+import { blockUser, unblockUser, syncBlocks } from './blocks.js';
 
 let overlay = null;
 let opener = null;   // the element that opened the sheet; focus returns to it on close
@@ -50,6 +51,16 @@ function onKey(e) {
   }
 }
 
+/** After a sync, bring every row's Block button in line with the cache. */
+function repaintBlocks(el) {
+  el.querySelectorAll('[data-ms-mute]').forEach((b) => {
+    const on = act.isMuted(b.getAttribute('data-ms-mute'));
+    b.textContent = on ? 'Blocked' : 'Block';
+    b.classList.toggle('danger', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+}
+
 /** Open the sheet on a participant list (see chat-view.participantList). */
 export function openMembersSheet(members, ctx = {}) {
   const list = Array.isArray(members) ? members.filter(Boolean) : [];
@@ -65,24 +76,25 @@ export function openMembersSheet(members, ctx = {}) {
     // "You" is the athlete's own row: naming their role back at them is noise, so it says what
     // it is. Everyone else gets the plain-English sentence about what they can see.
     const sub = p.self ? 'This is your log' : meta.access;
-    /* Report and Mute live on the person, not the bubble (App Store Guideline 1.2: user-generated
+    /* Report and Block live on the person, not the bubble (App Store Guideline 1.2: user-generated
        content needs a way to report it and to block who posted it). The bubbles carry no message
        id and this sheet already knows exactly who is in the conversation, so this is the honest
-       place for both. Mute is immediate and device-local (state.js muteUser; layoutThread drops
-       the author everywhere). Report opens a reason row and lands in content_reports (0227). */
+       place for both. Block (0244, G-R3) hides them here at once and is stored on the server,
+       which hides their messages, their announcements and their pushes to you on every device.
+       Report opens a reason row and lands in content_reports (0227), which alerts a person (0245). */
     const person = p.kind !== 'ai' && !p.self && p.id;
     const muted = person && act.isMuted(p.id);
     const acts = person ? `
         <span class="ms-acts">
           <button type="button" class="btn ghost sm" data-ms-report="${esc(p.id)}" aria-label="Report ${esc(p.name)}">Report</button>
-          <button type="button" class="btn ghost sm${muted ? ' danger' : ''}" data-ms-mute="${esc(p.id)}" aria-pressed="${muted}" aria-label="${muted ? `Unmute ${esc(p.name)}` : `Mute ${esc(p.name)}`}">${muted ? 'Muted' : 'Mute'}</button>
+          <button type="button" class="btn ghost sm${muted ? ' danger' : ''}" data-ms-mute="${esc(p.id)}" aria-pressed="${muted}" aria-label="${muted ? `Unblock ${esc(p.name)}` : `Block ${esc(p.name)}`}">${muted ? 'Blocked' : 'Block'}</button>
         </span>` : '';
     return `
       <div class="ms-row" data-ms-uid="${esc(p.id || '')}">
         <span class="ms-av ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}"${p.kind !== 'ai' && p.id ? ` data-avatar-uid="${esc(p.id)}"` : ''}>${p.kind === 'ai' ? icon(meta.ic, 16) : `<span data-avatar-fallback>${esc(initialsFor(p.name))}</span>`}</span>
         <span class="ms-txt">
           <span class="ms-name">${esc(p.name)}</span>
-          <span class="ms-kind">${icon(meta.ic, 12, 'style="vertical-align:-2px;margin-right:1px"')} ${esc(p.self ? 'Athlete' : meta.noun)} · ${esc(muted ? 'Muted on this phone' : sub)}</span>
+          <span class="ms-kind">${icon(meta.ic, 12, 'style="vertical-align:-2px;margin-right:1px"')} ${esc(p.self ? 'Athlete' : meta.noun)} · ${esc(muted ? 'Blocked. You won’t see or hear from them' : sub)}</span>
         </span>${acts}
       </div>`;
   }).join('');
@@ -96,11 +108,13 @@ export function openMembersSheet(members, ctx = {}) {
         <button class="ms-x" aria-label="Close">×</button>
       </div>
       <div class="ms-list">${rows}</div>
-      <div class="ms-foot">Anyone connected to your plan (coaches, trainers, parents, dietitians) appears here. Nobody else can read this.</div>
+      <div class="ms-foot">Anyone connected to your plan (coaches, trainers, parents, dietitians) appears here. Nobody else can read this. Blocking someone hides their messages and stops their notifications to you; they are not told.</div>
     </div>`;
 
   document.body.appendChild(el);
   overlay = el;
+  // Blocks made on another phone land here; mutes from before blocks were stored go up (0244).
+  void syncBlocks().then(() => { if (overlay === el) repaintBlocks(el); });
   hydrateAvatars(el);   // faces answer "who can read this" faster than monograms (0206)
   requestAnimationFrame(() => el.classList.add('on'));
   document.addEventListener('keydown', onKey);
@@ -118,10 +132,12 @@ export function openMembersSheet(members, ctx = {}) {
     const reason = ev.target && ev.target.closest && ev.target.closest('[data-ms-reason]');
     if (mute) {
       const id = mute.getAttribute('data-ms-mute');
-      if (act.isMuted(id)) act.unmuteUser(id); else act.muteUser(id);
+      // The cache flips inside block/unblock before the server answers, so the repaint is instant.
+      const done = act.isMuted(id) ? unblockUser(id) : blockUser(id);
       close();
       try { window.__render && window.__render(); } catch { /* repaint is best-effort */ }
-      openMembersSheet(list);
+      openMembersSheet(list, ctx);
+      void done;
       return;
     }
     if (report) {

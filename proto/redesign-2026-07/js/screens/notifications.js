@@ -16,7 +16,7 @@ function notif(n, read) {
       <div class="nb">${esc(n.body)}</div>
       ${/* An announcement is a coach's free text on an athlete's screen (Guideline 1.2): it needs
             a way to report it. Straight into the safety queue, which is human-read and urgent. */''}
-      ${n.level === 'info' && !isOperator() ? '<button type="button" class="btn ghost xs nf-report" data-report-announcement>Report</button>' : ''}
+      ${n.level === 'info' && !isOperator() ? `<span class="nf-acts"><button type="button" class="btn ghost xs nf-report" data-report-announcement>Report</button>${n.kind === 'announcement' && n.id ? `<button type="button" class="btn ghost xs nf-report" data-block-announcement="${esc(String(n.id))}">Block sender</button>` : ''}</span>` : ''}
     </div>
     ${/* The chevron follows the ROUTE, not the read state (2026-09-07 audit). It used to render
           only on read rows, so the newest and most actionable notifications — the unread ones,
@@ -47,7 +47,19 @@ export default {
   get nav() { return roleNav(); },
   tab: 'home',
   async mount(root) {
-    if (root) root.addEventListener('click', (e) => {
+    if (root) root.addEventListener('click', async (e) => {
+      /* Block (0244, G-R3): the coach behind an announcement, found by the server. Their future
+         announcements and pushes stop; they are not told. */
+      const blk = e.target.closest && e.target.closest('[data-block-announcement]');
+      if (blk) {
+        e.stopPropagation();
+        blk.disabled = true; blk.textContent = 'Blocking…';
+        const { blockAnnouncementAuthor } = await import('../blocks.js');
+        const r = await blockAnnouncementAuthor(blk.getAttribute('data-block-announcement'));
+        blk.textContent = r.ok ? 'Blocked' : 'Couldn’t block. Try again';
+        blk.disabled = r.ok;
+        return;
+      }
       const b = e.target.closest && e.target.closest('[data-report-announcement]');
       if (!b) return;
       e.stopPropagation();

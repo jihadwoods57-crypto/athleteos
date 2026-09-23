@@ -191,5 +191,5 @@ test('muting everyone leaves an empty paint, which is the case the renderers mus
   assert.equal(visibleThread(msgs, [COACH]).length, 0);
   assert.equal(layoutThread(msgs, { muted: [COACH] }).length, 0);
   // The one sentence they all show for it — copy changes here change every thread at once.
-  assert.equal(MUTED_HIDDEN_NOTE, 'Messages from people you muted are hidden.');
+  assert.equal(MUTED_HIDDEN_NOTE, 'Messages from people you blocked are hidden.');
 });

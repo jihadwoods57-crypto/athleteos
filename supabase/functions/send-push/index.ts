@@ -11,6 +11,7 @@ import { sanitizeBulkPayload, aggregateBulkResults } from './logic.mjs';
 // used to read `r.ok` and report the whole chunk as delivered, which is how an unconfigured APNs
 // key stayed invisible for months. sendExpoPushAndPrune reads the tickets and retires dead ones.
 import { sendExpoPushAndPrune } from '../_shared/expo-push.mjs';
+import { blockersOf, withoutBlockers } from '../_shared/blocks.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -195,7 +196,10 @@ Deno.serve(async (req) => {
     const optedOut0 = new Set((prefs0 ?? [])
       .filter((p: { notifications_opt_out?: boolean }) => p.notifications_opt_out === true)
       .map((p: { id: string }) => p.id));
-    const targets0 = athleteIds.filter((id) => !optedOut0.has(id));
+    // Block (0244): an athlete who blocked the posting coach gets no push (post_announcement
+    // already skipped their feed row).
+    const blocked0 = await blockersOf(svc0, callerId, athleteIds);
+    const targets0 = withoutBlockers(athleteIds.filter((id) => !optedOut0.has(id)), blocked0);
     if (!targets0.length) return json({ ok: true, pushed: 0 }, 200, cors);
 
     // NOTE: no `notifications` insert here — post_announcement already wrote every feed row.
@@ -264,7 +268,9 @@ Deno.serve(async (req) => {
         .map((p: { id: string }) => p.id));
     } catch { /* fail-open */ }
 
-    const live3 = targets3.filter((id) => !dedupedSet3.has(id) && !optedOut3.has(id));
+    // Block (0244): an athlete who blocked this coach gets no bell row and no push.
+    const blocked3 = await blockersOf(svc3, callerId3, targets3);
+    const live3 = targets3.filter((id) => !dedupedSet3.has(id) && !optedOut3.has(id) && !blocked3.has(id));
 
     // Durable bell rows first — they land even for a zero-device athlete (in-app only).
     if (live3.length) {
@@ -313,6 +319,7 @@ Deno.serve(async (req) => {
     for (const id of targets3) {
       if (dedupedSet3.has(id)) { results.push({ athlete_id: id, pushed: 0, devices: 0, deduped: true }); continue; }
       if (optedOut3.has(id)) { results.push({ athlete_id: id, pushed: 0, devices: 0, suppressed: 'notifications_off' }); continue; }
+      if (blocked3.has(id)) { results.push({ athlete_id: id, pushed: 0, devices: 0, suppressed: 'blocked' }); continue; }
       const devices = (tokByUser.get(id) ?? []).length;
       results.push({ athlete_id: id, pushed: acceptedFor(id), devices });
     }
@@ -352,10 +359,13 @@ Deno.serve(async (req) => {
     const { data: owners } = practiceIds.length
       ? await svc2.from('practices').select('owner_id').in('id', practiceIds)
       : { data: [] as Array<{ owner_id: string }> };
-    const coachIds = [...new Set([
+    const coachIds0 = [...new Set([
       ...(staff ?? []).map((s: { staff_id: string }) => s.staff_id),
       ...(owners ?? []).map((o: { owner_id: string }) => o.owner_id),
     ])].filter((id) => !!id && id !== athleteId2).slice(0, 12);
+    // Block (0244): a coach who blocked this athlete hears nothing from them.
+    const blocked2 = await blockersOf(svc2, athleteId2, coachIds0);
+    const coachIds = withoutBlockers(coachIds0, blocked2);
     if (!coachIds.length) return json({ ok: true, pushed: 0, coaches: 0 }, 200, cors);
 
     // Durable in-app record for every coach (the unread item), regardless of push urgency.
@@ -428,6 +438,16 @@ Deno.serve(async (req) => {
   if (viewErr || allowed !== true) return json({ error: 'not authorized for this athlete' }, 403, cors);
 
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+  // 1a) Block (0244): an athlete who blocked the caller gets no bell row and no push. The caller
+  // is told only that nothing was sent, never why.
+  {
+    const { data: meS } = await caller.auth.getUser();
+    const senderId = meS?.user?.id;
+    if (senderId && (await blockersOf(svc, senderId, [athleteId])).has(String(athleteId))) {
+      return json({ ok: true, pushed: 0, suppressed: 'blocked' }, 200, cors);
+    }
+  }
 
   // 1b) Idempotency guard: a retried client call or a double-tap on the same nudge button
   // should not double-deliver. Skip if this athlete already got a 'nudge' in the last 2 minutes —

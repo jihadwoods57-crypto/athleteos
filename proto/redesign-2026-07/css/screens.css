@@ -4457,3 +4457,4 @@ html[data-layout] .aicsheet { place-items: center; }
 .np-alarm .btn { width: auto; padding: 0 var(--s4); }
 .np-acts .btn { min-height: 44px; }
 .np-go { background: var(--blue-surface); color: var(--blue-bright); }
+.nf-acts{display:flex;flex-wrap:wrap;gap:var(--s2)}

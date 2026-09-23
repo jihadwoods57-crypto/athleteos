@@ -36,6 +36,7 @@ import { parseAction, parseAthlete, httpStatusForCoach, nudgeBody, scheduleNotic
 // Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
 // refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
 import { sendExpoPush } from '../_shared/expo-push.mjs';
+import { blockersOf, withoutBlockers } from '../_shared/blocks.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -147,7 +148,9 @@ Deno.serve(async (req: Request) => {
       occurs_on?: string; today?: string; skipped?: boolean; starts_min?: number | null; athlete_ids?: string[];
     };
     if (!s.ok) return fail(s.reason ?? 'db_error');
-    const who = Array.isArray(s.athlete_ids) ? s.athlete_ids : [];
+    // Block (0244): an athlete who blocked this coach gets no notice from them.
+    const who = withoutBlockers(Array.isArray(s.athlete_ids) ? s.athlete_ids : [],
+      await blockersOf(svc, coachId, Array.isArray(s.athlete_ids) ? s.athlete_ids : []));
     if (!who.length) return json({ ok: true, action: 'schedule', targeted: 0, pushed: 0 });
     const { data: stoks } = await svc
       .from('device_tokens').select('token,user_id').in('user_id', who);
@@ -187,7 +190,9 @@ Deno.serve(async (req: Request) => {
   };
   if (!c.ok) return fail(c.reason ?? 'db_error');
 
-  const targets = Array.isArray(c.athlete_ids) ? c.athlete_ids : [];
+  // Block (0244): an athlete who blocked this coach is not nudged by them.
+  const targets = withoutBlockers(Array.isArray(c.athlete_ids) ? c.athlete_ids : [],
+    await blockersOf(svc, coachId, Array.isArray(c.athlete_ids) ? c.athlete_ids : []));
   // Everyone answered between the digest and the tap. A real success with nothing to send — the
   // coach must not be told this failed, and the cooldown has legitimately been spent.
   if (!targets.length) return json({ ok: true, action: 'nudge', targeted: 0, pushed: 0 });

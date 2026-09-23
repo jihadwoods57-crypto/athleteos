@@ -52,6 +52,7 @@ import {
 // refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
 import { sendExpoPush } from '../_shared/expo-push.mjs';
 import { missingConsent, consentSkipBody } from '../_shared/ai-consent.mjs';
+import { blockersOf, withoutBlockers } from '../_shared/blocks.mjs';
 
 // Per-surface override first: one shared ANTHROPIC_MODEL meant chat could not move tiers
 // without dragging vision with it. Unset -> unchanged.
@@ -1284,9 +1285,12 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
         const { data: tm } = await service.from('team_members')
           .select('team_id').eq('athlete_id', mealRow.athlete_id).eq('status', 'active').limit(1).maybeSingle();
         if (tm?.team_id) {
-          const { data: staff } = await service.from('team_staff')
+          const { data: staff0 } = await service.from('team_staff')
             .select('staff_id').eq('team_id', tm.team_id).eq('status', 'active').limit(5);
-          for (const st of (staff ?? []) as Array<{ staff_id: string }>) {
+          // Block (0244): a coach who blocked this athlete is not flagged by them.
+          const flagBlocked = await blockersOf(service, mealRow.athlete_id, ((staff0 ?? []) as Array<{ staff_id: string }>).map((s) => s.staff_id));
+          const staff = ((staff0 ?? []) as Array<{ staff_id: string }>).filter((s) => !flagBlocked.has(String(s.staff_id)));
+          for (const st of staff) {
             await service.from('notifications').insert({
               user_id: st.staff_id, kind: `meal_flag:${mealId}`,
               title: flagTitle,
