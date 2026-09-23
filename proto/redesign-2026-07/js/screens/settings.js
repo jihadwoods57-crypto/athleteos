@@ -10,7 +10,7 @@ import * as roles from '../roles.js';
 import { planById } from '../pricing.js';
 import { armReplay } from '../tour.js';
 import { normalizePressure } from '../ob-helpers.js';
-import { PHOTO_PRIVACY, ROLLCALL_BOARD_PRIVACY, SQUAD_PRIVACY, AI_PROVIDER } from '../privacy-copy.js';
+import { PHOTO_PRIVACY, ROLLCALL_BOARD_PRIVACY, AI_PROVIDER } from '../privacy-copy.js';
 import { aiConsentCached, refreshAiConsent, ensureAiConsent } from '../ai-consent.js';
 import { ROLLCALL_OFF } from '../commitments.js';
 import { notifyPrimerHtml, wireNotifyPrimer, notifyPermission } from '../notify-permission.js';
@@ -384,7 +384,7 @@ export const privacy = {
       const sharing = RT.shareSquadScore === true;
       rows.push({
         ic: 'grid', t: 'Teammates', pill: 'Limited access',
-        s: SQUAD_PRIVACY,
+        s: 'Your score only if you opt in. Your team sees roll call answers',
         detail: [
           ['Can see', sharing
             ? 'Your name and daily score number on the Squad board, and your roll call answers on the roll call board.'
