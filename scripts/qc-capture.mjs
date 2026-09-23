@@ -26,7 +26,6 @@ import { sbStubSource, ROSTER_ATHLETES, BOOK_CLIENTS } from '../web/landing-src/
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const BASE = 'http://localhost:8799/index.html';
 
 /** One seeded wake-up row, `startedMinAgo` minutes into its window on the page's own clock. */
 const rcSeed = (startedMinAgo) => `const cd = await import('./js/commitment-data.js');
@@ -41,6 +40,57 @@ const rcSeed = (startedMinAgo) => `const cd = await import('./js/commitment-data
     status: 'pending', verdict: 'pending', acknowledged_at: null, instance_status: 'scheduled' };
   cd.seedMineForHarness([row], day);`;
 const TODAY = '2026-07-23';
+/** The team board (roll call rebuilt, 2026-09-23), seeded through the harness seams on the frozen
+ *  clock: twelve athletes, the signed-in athlete ('seed-athlete') 4th at 6:01. `o.now` is the
+ *  shot's clock; anyone whose tap is after it is not up yet, and once the board has closed the
+ *  not-up are missed (the server's rule, applied here because the seed stands in for the server).
+ *  `o.me` 'open' leaves the athlete unanswered; `o.mode` is the board's mode. */
+const rbSeed = (o) => `const cd = await import('./js/commitment-data.js');
+  const O = ${JSON.stringify(o)};
+  const T = (h, m) => new Date(2026, 6, 23, h, m, 0).toISOString();
+  const now = T(O.now[0], O.now[1]);
+  const arrival = O.mode === 'arrival';
+  const closed = !arrival && Date.parse(now) > Date.parse(T(6, 30));
+  const P = [
+    ['r1', 'DeShawn Cole', 5, 52, 'on_standard', 6, 31], ['r2', 'Andre Wells', 5, 57, 'on_standard', 6, 38],
+    ['r3', 'Jaylen Brooks', 6, 0, 'on_standard', null, null], ['seed-athlete', 'Marcus Reed', 6, 1, 'on_standard', 6, 41],
+    ['r5', 'Kofi Owusu', 6, 2, 'on_standard', 6, 44], ['r6', 'Luis Soto', 6, 3, 'on_standard', null, null],
+    ['r7', 'Ben Price', 6, 4, 'on_standard', 6, 40], ['r8', 'Chris James', 6, 5, 'on_standard', null, null],
+    ['r9', 'Tyrek Malone', 6, 8, 'late', 6, 57], ['r10', 'Tommy Vargas', null, null, 'pending', null, null],
+    ['r11', 'Ray Gomez', null, null, 'pending', null, null], ['r12', 'Eli Walker', null, null, 'pending', null, null],
+  ];
+  const meOpen = O.me === 'open';
+  const byT = arrival ? T(15, 30) : T(6, 45);
+  let place = 0;
+  const rows = P.map(([id, name, h, m, v, ah, am]) => {
+    let ack = h == null ? null : T(h, m);
+    if (ack && Date.parse(ack) > Date.parse(now)) ack = null;
+    if (id === 'seed-athlete' && meOpen) ack = null;
+    let verdict = ack ? v : (closed ? 'missed' : 'pending');
+    if (arrival) { ack = null; verdict = 'pending'; }
+    // Arrival-only runs in the afternoon: the same spread, moved to 3:00 to 3:45.
+    let arr = ah == null ? null : (arrival ? T(ah + 9, am - 30 < 0 ? am + 30 : am - 30) : T(ah, am));
+    if (arr && Date.parse(arr) > Date.parse(now)) arr = null;
+    if (id === 'seed-athlete' && meOpen) arr = null;
+    const av = O.mode === 'wake' ? null
+      : arr ? (Date.parse(arr) > Date.parse(byT) + 600000 ? 'late' : 'on_standard')
+      : id === 'r6' ? 'unverified' : 'pending';
+    return { athlete_id: id, name, avatar_path: null, acknowledged_at: ack, arrived_at: arr,
+      verdict, arrival_verdict: av, place: (verdict === 'on_standard' || verdict === 'late') ? ++place : null };
+  });
+  const board = { instance_id: 'rb-shot', title: arrival ? 'Stadium walkthrough' : 'Morning Roll Call', coach_name: 'Coach Brooks',
+    mode: O.mode, starts_at: arrival ? T(15, 0) : T(6, 0), respond_by_at: arrival ? null : T(6, 5),
+    closes_at: arrival ? null : T(6, 30), arrive_by_at: O.mode === 'wake' ? null : byT,
+    asks_arrival: O.mode !== 'wake', location_name: O.mode === 'wake' ? null : (arrival ? 'Bright House Stadium' : 'Lincoln Weight Room'),
+    rows };
+  cd.seedTeamBoardForHarness('rb-shot', board);
+  const me = rows.find((r) => r.athlete_id === 'seed-athlete');
+  cd.seedMineForHarness([{ instance_id: 'rb-shot', type: arrival ? 'practice' : 'morning_roll_call', title: board.title,
+    message: 'Up and at it. Lift at 7, be early. Protein at breakfast.', action_label: 'I’m Up', coach_name: 'Coach Brooks',
+    occurs_on: '2026-07-23', starts_at: board.starts_at, respond_by_at: board.respond_by_at, closes_at: board.closes_at,
+    opens_at: arrival ? null : T(5, 50), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    status: me.acknowledged_at ? 'acknowledged' : 'pending', acknowledged_at: me.acknowledged_at, verdict: me.verdict,
+    instance_status: 'scheduled' }], '2026-07-23');`;
 const ROOT = process.cwd();
 
 /* ---------------- args ---------------- */
@@ -50,6 +100,9 @@ const flag = (name, def) => {
   return i === -1 ? def : argv[i + 1];
 };
 const has = (name) => argv.includes('--' + name);
+// --serve N: the port the proto server listens on (default 8799). A worktree runs its own server
+// on another port, so a capture renders THAT tree's proto rather than whichever checkout owns 8799.
+const BASE = `http://localhost:${Number(flag('serve', 8799)) || 8799}/index.html`;
 const THEMES = String(flag('themes', 'dark')).split(',').map((s) => s.trim()).filter(Boolean);
 const WIDTHS = String(flag('widths', '390')).split(',').map((s) => Number(s.trim())).filter(Boolean);
 const OUT_DIR = join(ROOT, 'qc', flag('out', 'transformation'));
@@ -94,6 +147,19 @@ const SHOTS = [
     const later = document.querySelector('[data-wf-later]'); if (later) later.click();`, actMs: 1200 },
   { g: 'athlete', name: 'wake-face', seed: 'dayMorning', route: 'home', at: [6, 2],
     act: rcSeed(-2) + ` const wf = await import('./js/wake-face.js'); wf.showWakeFace(row);`, actMs: 900 },
+  // The team board and Your day (roll call rebuilt, Task 9): the athlete 4th with the window still
+  // open, the athlete before answering (I'm Up is the one primary), their day, the coach's live
+  // board and a face's sheet, the closed board with its misses, the both-parts board with the
+  // place per face, and an arrival-only board (I'm here is the action).
+  { g: 'rollcall', name: 'rollcall-board-athlete', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [6, 12], pre: rbSeed({ now: [6, 12], mode: 'wake' }) },
+  { g: 'rollcall', name: 'rollcall-board-athlete-open', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [6, 3], pre: rbSeed({ now: [6, 3], mode: 'wake', me: 'open' }) },
+  { g: 'rollcall', name: 'rollcall-board-day', seed: 'dayOpen', route: 'rollcall-board/rb-shot/day', at: [6, 12], pre: rbSeed({ now: [6, 12], mode: 'wake' }) },
+  { g: 'rollcall', name: 'rollcall-board-coach', seed: 'coachIdentity', route: 'rollcall-board/rb-shot', at: [6, 12], book: 'team', pre: rbSeed({ now: [6, 12], mode: 'wake' }) },
+  { g: 'rollcall', name: 'rollcall-board-coach-sheet', seed: 'coachIdentity', route: 'rollcall-board/rb-shot', at: [6, 12], book: 'team', pre: rbSeed({ now: [6, 12], mode: 'wake' }),
+    act: `const f = document.querySelector('[data-rb-athlete="r10"]'); if (f) f.click();`, actMs: 700 },
+  { g: 'rollcall', name: 'rollcall-board-closed', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [6, 45], pre: rbSeed({ now: [6, 45], mode: 'wake' }) },
+  { g: 'rollcall', name: 'rollcall-board-both', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [6, 42], pre: rbSeed({ now: [6, 42], mode: 'both' }) },
+  { g: 'rollcall', name: 'rollcall-board-arrival', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [15, 26], pre: rbSeed({ now: [15, 26], mode: 'arrival', me: 'open' }) },
   // The "Day N locked." stamp: a body-level overlay, so it is captured by rendering Home with the
   // lock unacknowledged. Every other athlete seed marks it seen, or it would appear over whichever
   // screen rendered first and make the contact sheet nondeterministic.
@@ -465,7 +531,7 @@ if (ALL) {
 // Positional args are name filters. Skip anything that is a flag or a flag's value, then split
 // on commas so `qc-capture.mjs home,meal` matches both rather than looking for one literal
 // "home,meal" screen.
-const flagValues = new Set(['themes', 'widths', 'out', 'scroll-to', 'port', 'shard', 'scroll-by'].map((f) => flag(f, null)).filter(Boolean));
+const flagValues = new Set(['themes', 'widths', 'out', 'scroll-to', 'port', 'shard', 'scroll-by', 'serve'].map((f) => flag(f, null)).filter(Boolean));
 const nameFilter = argv
   .filter((a) => !a.startsWith('--') && !flagValues.has(a))
   .flatMap((a) => a.split(',').map((s) => s.trim()).filter(Boolean));

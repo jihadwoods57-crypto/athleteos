@@ -214,8 +214,15 @@ function settle(row, at) {
   e.innerHTML = answeredHtml(row, at, deps && deps.points ? Number(deps.points()) : 0);
   e.classList.add('answered');
   try { if (deps && deps.buzz) deps.buzz('success'); } catch { /* no-op */ }
-  e.addEventListener('click', hideWakeFace, { once: true });
-  setTimeout(() => { if (el() === e) hideWakeFace(); }, WAKE_FACE_LINGER_MS);
+  // Then the team board (roll call rebuilt, 2026-09-23): the athlete just got up, and the board is
+  // where they see who else is. A tap goes now; otherwise it goes when the moment has lingered.
+  const toBoard = () => {
+    if (el() !== e) return;
+    hideWakeFace();
+    try { if (typeof location !== 'undefined' && row && row.instance_id) location.hash = `#rollcall-board/${row.instance_id}`; } catch { /* no router here */ }
+  };
+  e.addEventListener('click', toBoard, { once: true });
+  setTimeout(toBoard, WAKE_FACE_LINGER_MS);
   try { if (deps && deps.onAnswered) deps.onAnswered(row.instance_id); } catch { /* no-op */ }
 }
 

@@ -15,7 +15,7 @@ import { track, EVENTS } from '../analytics.js';
 import { backHead, esc } from '../components.js';
 import { fmtMin } from '../requirements.js';
 import { deriveCommitment, TYPE_LABEL, fmtAt, offsetFor, VERDICT, wakeupPhase, deadlineOf, closesAtOf, opensAtOf, graceMinOf, sourceOf, SOURCE } from '../commitments.js';
-import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal, subscribeMine } from '../commitment-data.js';
+import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal, subscribeMine, todayISO } from '../commitment-data.js';
 import { pushTokenState, RT, S, act } from '../state.js';
 import { wakeAlarmState } from '../wake-alarms.js';
 
@@ -50,9 +50,19 @@ function stageStrip(d) {
 
 /** The live card for Home. Returns '' when the commitment isn't visible yet (before it opens,
  *  or after the coach cancelled it) — Home renders nothing rather than an empty shell. */
+/** A wake-up for today (or earlier) lives on the team board now; tomorrow's preview keeps the
+ *  detail screen, which is where this phone's alarm for that morning is explained. */
+function boardFor(row) {
+  if (!row || row.type !== 'morning_roll_call') return false;
+  return !row.occurs_on || String(row.occurs_on) <= todayISO();
+}
+
 export function commitmentCard(d) {
   if (!d || !d.visible) return '';
   const id = esc(d.instance_id || '');
+  // A wake-up opens the team board (roll call rebuilt, 2026-09-23); everything else keeps its
+  // detail screen. `go` is already escaped (id is).
+  const go = boardFor(d) ? `rollcall-board/${id}` : `roll-call/${id}`;
 
   if (d.collapsed) {
     /* An answer queued OFFLINE (commitment-data.js patchLocal sets pendingSync) is recorded on
@@ -60,7 +70,7 @@ export function commitmentCard(d) {
        a promise the app could not keep: the server stamps its own time when the queue drains and
        may rule it late or put it under review. Neutral until it lands. */
     if (d.pendingSync && d.type === 'morning_roll_call') {
-      return `<div class="xrow-item" data-go="roll-call/${id}">
+      return `<div class="xrow-item" data-go="${go}">
       <div class="xico sm muted">${icon('clock', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">Answered on this phone · sends when you reconnect</div></div>
@@ -72,7 +82,7 @@ export function commitmentCard(d) {
     // this, "Mark complete" quietly upgraded an amber card to a clean green one while the score
     // still withheld the arrival weight.
     if (d.stage === 'completed' && d.presence === 'left_early') {
-      return `<div class="xrow-item warn" data-go="roll-call/${id}">
+      return `<div class="xrow-item warn" data-go="${go}">
       <div class="xico sm gold">${icon('clock', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}</div></div>
@@ -82,7 +92,7 @@ export function commitmentCard(d) {
     // A LATE wake-up answer (0211) keeps its receipt amber and says how late: it counts as an
     // answer, and it is never dressed as an on-time one.
     if (d.stage === 'acknowledged' && d.verdict === VERDICT.LATE) {
-      return `<div class="xrow-item warn" data-go="roll-call/${id}">
+      return `<div class="xrow-item warn" data-go="${go}">
       <div class="xico sm gold">${icon('clock', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}</div></div>
@@ -91,7 +101,7 @@ export function commitmentCard(d) {
     }
     // A delayed-sync tap waiting on the coach (0212): neither green nor amber.
     if (d.stage === 'review') {
-      return `<div class="xrow-item" data-go="roll-call/${id}">
+      return `<div class="xrow-item" data-go="${go}">
       <div class="xico sm muted">${icon('clock', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)} · Your coach will review it</div></div>
@@ -99,7 +109,7 @@ export function commitmentCard(d) {
     </div>`;
     }
     if (d.stage === 'acknowledged' && d.source === SOURCE.OVERRIDE) {
-      return `<div class="xrow-item green" data-go="roll-call/${id}">
+      return `<div class="xrow-item green" data-go="${go}">
       <div class="xico sm green">${icon('check', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}</div></div>
@@ -111,7 +121,7 @@ export function commitmentCard(d) {
     const excused = d.stage === 'excused';
     const pill = d.stage === 'completed' ? 'Completed' : excused ? 'Excused'
       : d.type === 'morning_roll_call' ? 'On Standard' : 'Checked in';
-    return `<div class="xrow-item ${excused ? '' : 'green'}" data-go="roll-call/${id}">
+    return `<div class="xrow-item ${excused ? '' : 'green'}" data-go="${go}">
       <div class="xico sm" style="${excused ? 'background:var(--surface-2);color:var(--text-3)' : 'background:var(--green-surface);color:var(--green-bright)'}">${icon('check', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}</div></div>
@@ -121,7 +131,7 @@ export function commitmentCard(d) {
 
   // The last 15 minutes before the open (0212): the card is there, the button is not.
   if (d.stage === 'upcoming') {
-    return `<div class="xrow-item" data-go="roll-call/${id}">
+    return `<div class="xrow-item" data-go="${go}">
       <div class="xico sm blue">${icon('sun', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}${d.coach_name ? esc(` · ${d.coach_name}`) : ''}</div></div>
@@ -160,7 +170,7 @@ export function commitmentCard(d) {
   // "Couldn't verify" are opposite claims: one is evidence, the other is the absence of it, and
   // an athlete must never read the second as the first. The word "missed" appears in neither.
   if (d.stage === 'left_early') {
-    return `<div class="xrow-item warn" data-go="roll-call/${id}">
+    return `<div class="xrow-item warn" data-go="${go}">
       <div class="xico sm gold">${icon('clock', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)} · Counts unless corrected</div></div>
@@ -181,7 +191,7 @@ export function commitmentCard(d) {
     // A CLOSED wake-up with no answer is the one place the word "missed" is earned (0211): the
     // deadline passed, the late window passed, and the record says so. Red, not amber.
     const wakeMissed = !un && d.type === 'morning_roll_call';
-    return `<div class="xrow-item${un ? '' : wakeMissed ? ' red' : ' warn'}" data-go="roll-call/${id}">
+    return `<div class="xrow-item${un ? '' : wakeMissed ? ' red' : ' warn'}" data-go="${go}">
       <div class="xico sm" style="${un ? 'background:var(--surface-2);color:var(--text-3)' : wakeMissed ? 'background:var(--red-surface);color:var(--red)' : 'background:var(--amber-surface);color:var(--amber-bright)'}">${icon(un ? 'shield' : 'bolt', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(sub)}</div></div>
@@ -330,7 +340,7 @@ export function mountCommitmentCard(root, rerender) {
         kind: `rollcall_answered:${id}`,
         title: `${(S.athlete && S.athlete.first) || 'Your athlete'} answered the roll call`,
         body: `${row.title || 'Roll call'} · Tap to see who is in.`,
-        route: `coach-commitments/${id}`,
+        route: `rollcall-board/${id}`,
       });
       if (at) track(EVENTS.VC_ACKNOWLEDGED, {
         type: row.type,
@@ -369,7 +379,8 @@ export function mountCommitmentCard(root, rerender) {
     // No leading slash: router.js:86 parses the hash with `raw.split('/')`, so `#/roll-call/<id>`
     // yields an empty route name and silently falls back to Home. The static `data-go` paths in
     // this same file (:53, :66) already use the correct form.
-    location.hash = `#roll-call/${el.getAttribute('data-vc-open')}`;
+    const vid = el.getAttribute('data-vc-open');
+    location.hash = boardFor(VC.instance(vid)) ? `#rollcall-board/${vid}` : `#roll-call/${vid}`;
   }));
 }
 
@@ -649,6 +660,9 @@ export default {
   },
 
   mount(root, { sub }) {
+    // Today's wake-up is the team board now (roll call rebuilt, 2026-09-23). replace(), not a
+    // push: Back from the board returns where the athlete came from, never to this screen.
+    if (boardFor(VC.instance(sub))) { location.replace(`#rollcall-board/${sub}`); return; }
     if (!VC.instance(sub) && shouldResolve(sub)) {
       // Settle on BOTH outcomes: a rejection that left `pending` set would strand the screen
       // on "Loading…" with no attempt ever allowed again.

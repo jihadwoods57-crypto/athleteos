@@ -119,7 +119,7 @@ export function boardModel(board, selfId, nowISO) {
     upCount: counted.length,
     total: rows.filter((r) => r.verdict !== 'excused').length,
     arrivedCount: rows.filter((r) => r.arrived_at && r.verdict !== 'excused').length,
-    firstUp: firstRow ? { name: names[firstRow.athlete_id], time: clock(firstRow[key]) } : null,
+    firstUp: firstRow ? { id: firstRow.athlete_id, name: names[firstRow.athlete_id], fullName: String(firstRow.name || ''), time: clock(firstRow[key]) } : null,
     me: mine ? { place: placeOf(mine), verdict: myVerdict } : null,
     groups, closed, asksArrival: !!b.asks_arrival || arrival, selfId: selfId || null, names, places,
     info: {
@@ -202,26 +202,34 @@ function group(label, rows, kind, m, coach) {
  *  Override from it); an athlete's faces are not controls, and their own tile is marked `.me`.
  *  In 'arrival' mode the board counts "here" instead of "up". Every name goes through esc; no
  *  coordinate is ever in a board row's rendered fields. */
-export function boardHtml(model, { coach = false } = {}) {
+export function boardHtml(model, { coach = false, when = '' } = {}) {
   const m = model || boardModel(null, null, null);
   const g = m.groups;
   const arrivalMode = m.mode === 'arrival';
   // The athlete's own place, in the one pill: green on time, amber late (a real warning).
   const isLate = m.me && m.me.verdict === 'late';
+  const myRow = !coach && m.selfId ? g.up.concat(g.late).find((r) => r.athlete_id === m.selfId) : null;
+  const myTime = myRow ? clock(arrivalMode ? myRow.arrived_at : myRow.acknowledged_at) : '';
   const you = !coach && m.me && m.me.place
-    ? `<p class="rb-you"><span class="status-pill ${isLate ? 'a' : 'g'}">You're ${esc(ordinal(m.me.place))}${arrivalMode ? ' here' : ''}${isLate ? ' · Late' : ''}</span></p>`
+    ? `<p class="rb-you"><span class="status-pill ${isLate ? 'a' : 'g'}">You're ${esc(ordinal(m.me.place))}${arrivalMode ? ' here' : ''}${myTime ? ` · ${esc(myTime)}` : ''}${isLate ? ' · Late' : ''}</span></p>`
     : '';
   const nobody = m.closed ? 'Nobody checked in' : arrivalMode ? 'Nobody is here yet' : 'Nobody is up yet';
+  // First up gets their own face beside the words: the one teammate the whole board calls out.
+  const firstFace = m.firstUp && m.firstUp.id
+    ? `<span class="rb-av sm" data-avatar-uid="${esc(m.firstUp.id)}" aria-hidden="true"><span data-avatar-fallback>${esc(initialsOf(m.firstUp.fullName || m.firstUp.name, '?'))}</span></span>`
+    : '';
   const firstLine = m.firstUp
-    ? `<p class="rb-first">${arrivalMode ? 'First here' : 'First up'}: ${esc(m.firstUp.name)} · ${esc(m.firstUp.time)}</p>`
-    : `<p class="rb-first">${nobody}</p>`;
+    ? `<p class="rb-first">${firstFace}<span>${arrivalMode ? 'First here' : 'First up'}: ${esc(m.firstUp.name)} · ${esc(m.firstUp.time)}</span></p>`
+    : `<p class="rb-first none">${nobody}</p>`;
   const where = m.info && m.info.locationName ? m.info.locationName : '';
   const here = m.asksArrival && !arrivalMode
     ? `<p class="rb-here"><span class="rb-hn2">${m.arrivedCount}</span> of ${m.total} here${where ? ` · ${esc(where)}` : ''}</p>`
     : '';
+  // `when` is the screen's clock line ("Closes 6:30"), set on the count's right edge.
+  const aside = when ? `<span class="rb-when">${esc(when)}</span>` : '';
   const count = arrivalMode
-    ? `<p class="rb-count"><span class="rb-n">${m.upCount}</span> of ${m.total} here</p>${where ? `<p class="rb-here">${esc(where)}</p>` : ''}`
-    : `<p class="rb-count"><span class="rb-n">${m.upCount}</span> of ${m.total} up</p>`;
+    ? `<div class="rb-countrow"><p class="rb-count"><span class="rb-n">${m.upCount}</span> of ${m.total} here</p>${aside}</div>${where ? `<p class="rb-here">${esc(where)}</p>` : ''}`
+    : `<div class="rb-countrow"><p class="rb-count"><span class="rb-n">${m.upCount}</span> of ${m.total} up</p>${aside}</div>`;
   const hero = `<div class="rb-hero">${count}${firstLine}${here}${you}</div>`;
   const kinds = ['up', 'late', 'waiting', 'missed', 'excused', 'unverified'];
   const empty = kinds.every((k) => !(g[k] && g[k].length))
