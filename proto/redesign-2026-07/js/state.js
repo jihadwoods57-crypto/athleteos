@@ -3905,6 +3905,8 @@ export const act = {
   async deleteAccount() {
     const sb = window.sb;
     let serverOk = false;
+    // G-R4: revoke Sign in with Apple first; it never blocks the deletion.
+    try { if (sb && RT.userId) await Promise.race([sb.functions.invoke('delete-account', { body: {} }), new Promise((r) => setTimeout(r, 8000))]); } catch { /* go on */ }
     try { if (sb && RT.userId) { const { error } = await sb.rpc('delete_account', {}); serverOk = !error; } } catch { /* fall through to local wipe */ }
     await this._disarmLocation();   // the account is gone; its geofences must not outlive it
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
