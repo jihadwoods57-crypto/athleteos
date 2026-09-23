@@ -7,11 +7,14 @@ import { STATUS_META, runsOn, tasksTrustworthy, isMealSlot } from './status.js';
 /* Buckets in display order; `cls` is the .dot / .seg accent. */
 export const COUNT_BUCKETS = [
   { key: 'onStandard', cls: 'g', label: 'on standard', statuses: ['on_standard'] },
-  { key: 'attention', cls: 'a', label: 'need attention', statuses: ['due_soon', 'below_standard', 'needs_review'] },
+  { key: 'attention', cls: 'a', label: 'need attention', one: 'needs attention', statuses: ['due_soon', 'below_standard', 'needs_review'] },
   { key: 'overdue', cls: 'r', label: 'overdue', statuses: ['overdue'] },
   { key: 'noActivity', cls: 'd', label: 'no activity', statuses: ['no_activity'] },
   { key: 'excused', cls: 'd', label: 'excused', statuses: ['excused'] },
 ];
+
+/** The bucket's words for a count: "1 needs attention", "2 need attention". */
+export const bucketLabel = (b, n) => (n === 1 && b.one ? b.one : b.label);
 
 /** Required items due by now (or done early) and how many are in, for ONE athlete, from the
  *  STANDARD, not the rows that exist (C-M1). An unprovable non-meal item on a legacy row is left

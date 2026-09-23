@@ -3,7 +3,7 @@ import { icon } from '../icons.js';
 import { backHead, esc, errorState, skeletonRows, emptyState } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, entriesFor, getScope, scopeFilter } from '../coach-data.js';
-import { teamCounts, COUNT_BUCKETS } from '../team-count.js';
+import { teamCounts, COUNT_BUCKETS, bucketLabel } from '../team-count.js';
 
 /* nav:'operator'. Load whichever book the signed-in role owns (see coach-home.js). */
 const loadMyBook = (force) => loadBook(force, bookKindFor(RT.authRole));
@@ -264,7 +264,7 @@ export const coachInsights = {
     // Recurring standing-bar motif — the same signature language as Home, so Insights opens
     // on the team's real shape at a glance before the sentences explain it.
     const seg = (cls, n) => n ? `<span class="seg ${cls}" style="flex:${n}"></span>` : '';
-    const leg = (bk) => c[bk.key] ? `<span class="it"><span class="dot ${bk.cls}"></span><b>${c[bk.key]}</b> ${bk.label}</span>` : '';
+    const leg = (bk) => c[bk.key] ? `<span class="it"><span class="dot ${bk.cls}"></span><b>${c[bk.key]}</b> ${bucketLabel(bk, c[bk.key])}</span>` : '';
     const lineDot = (l) => /overdue/i.test(l) ? 'r' : /no activity/i.test(l) ? 'd' : /below|due soon|review/i.test(l) ? 'a' : /leads/i.test(l) ? 'g' : 'b';
     /* One block, not two. The standing bar used to be its own eyebrow ("Where the team stands")
        over its own card, and that card held nothing but a 12px bar and a legend — a heading and a

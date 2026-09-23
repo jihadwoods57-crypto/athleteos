@@ -1879,7 +1879,7 @@ export const coachInbox = {
         const bline = (color, html) => `<div class="l"><span class="dot" style="background:${color}"></span><span>${html}</span></div>`;
         if (c.overdue) lines.push(bline(statusColor({ key: 'overdue' }), `<b>${c.overdue} overdue</b>. ${names('overdue')}.`));
         if (c.noActivity) lines.push(bline(statusColor({ key: 'no_activity' }), `<b>${c.noActivity} no activity</b> yet today. ${names('no_activity')}.`));
-        if (c.attention) lines.push(bline(statusColor({ key: 'below_standard' }), `<b>${c.attention} need attention</b>: below standard, due soon or waiting on review.`));
+        if (c.attention) lines.push(bline(statusColor({ key: 'below_standard' }), `<b>${c.attention} ${c.attention === 1 ? 'needs' : 'need'} attention</b>: below standard, due soon or waiting on review.`));
         if (top) lines.push(bline(scoreColor(top.score), `<b>${esc(top.name)}</b> leads the day at ${top.score}.`));
         briefing = lines.join('') || `<div class="l"><span>Quiet so far. Logs land here as they come in.</span></div>`;
       }

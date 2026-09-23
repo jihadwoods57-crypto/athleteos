@@ -9,7 +9,7 @@ import { buildPriorities } from '../priority.js';
 import { nudgePreset, nudgeResultCopy } from '../nudge-presets.js';
 import { PLANS } from '../ob2.js';
 import { teamPulse, statusLabel } from '../status.js';
-import { teamCounts, COUNT_BUCKETS } from '../team-count.js';
+import { teamCounts, COUNT_BUCKETS, bucketLabel } from '../team-count.js';
 import { scoreColor } from '../score-band.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
 import { paintBoard } from './coach-commitments.js';
@@ -416,7 +416,7 @@ function pulseCard(entries) {
   /* Each count is a door (2026-09-22): "2 overdue" is the question a coach opens Home to answer,
      and the answer is WHO, which lives on the roster. A tap opens the roster already filtered to
      exactly the statuses this count added up, so the number and the list can never disagree. */
-  const leg = (b) => c[b.key] ? `<button type="button" class="it co-leg-go" data-roster-status="${b.statuses.join(',')}" data-roster-label="${esc(cap(b.label))}" aria-label="${c[b.key]} ${b.label}. Open the roster filtered to them"><span class="dot ${b.cls}"></span><b>${c[b.key]}</b> ${b.label}</button>` : '';
+  const leg = (b) => c[b.key] ? `<button type="button" class="it co-leg-go" data-roster-status="${b.statuses.join(',')}" data-roster-label="${esc(cap(b.label))}" aria-label="${c[b.key]} ${bucketLabel(b, c[b.key])}. Open the roster filtered to them"><span class="dot ${b.cls}"></span><b>${c[b.key]}</b> ${bucketLabel(b, c[b.key])}</button>` : '';
   const delta = p.deltaVsYesterday;
   const dCls = delta == null ? 'muted' : delta > 0 ? 'g' : delta < 0 ? 'r' : 'muted';
   const dTxt = delta == null ? 'First day of data' : delta === 0 ? 'Even with yesterday'
@@ -424,7 +424,7 @@ function pulseCard(entries) {
   const scored = c.scored;
   const have = p.avg != null;
   const t = have ? tier(p.avg) : null;
-  const legendWords = COUNT_BUCKETS.filter(b => c[b.key]).map(b => `${c[b.key]} ${b.label}`).join(', ');
+  const legendWords = COUNT_BUCKETS.filter(b => c[b.key]).map(b => `${c[b.key]} ${bucketLabel(b, c[b.key])}`).join(', ');
   /* Requirements are totalled from each athlete's STANDARD (required items due by now x rostered
      athletes, excused left out), never from the day rows that happen to exist. The old sum put
      "15 of 15 requirements in today" beside two overdue athletes (review pass C-M1). */
