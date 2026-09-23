@@ -115,15 +115,11 @@ export function storeQuote(offers, planId, cadence) {
   return q && typeof q.priceString === 'string' && q.priceString.trim() ? q : null;
 }
 
-/** A store amount in its own currency, or null if this runtime cannot format it. */
-function money(n, currency, whole = false) {
+/** A store amount in its own currency, or null if this runtime cannot format it. Only the
+    fallback for a missing pricePerMonthString; every other store amount is the store's string. */
+function money(n, currency) {
   if (!Number.isFinite(n) || !currency) return null;
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: 'currency', currency,
-      ...(whole ? { maximumFractionDigits: 0, minimumFractionDigits: 0 } : {}),
-    }).format(n);
-  } catch { return null; }
+  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(n); } catch { return null; }
 }
 
 const UNIT_WORD = { DAY: 'day', WEEK: 'week', MONTH: 'month', YEAR: 'year' };
@@ -143,14 +139,19 @@ export function trialLabel(trial) {
  *   saving        annual against 12 × monthly, else null
  *   trial         '14 days' when a free trial applies, else ''
  *   fromStore     true when the numbers came from the store
- * With a store answer the trial shows ONLY when the store says this account is eligible
- * (trialEligible === true): an Apple ID that already used its trial is charged on day one, and
- * "free for 14 days" would be a false disclosure. Unknown eligibility shows no trial; the store
- * sheet will still give it to anyone who has it, so the screen can only under-promise.
- * With no store the catalog trial shows: nothing on that screen can be bought, so it describes
- * the plan rather than this buyer.
+ * The trial shows ONLY when the store says this account is eligible (trialEligible === true):
+ * an Apple ID that already used its trial is charged on day one, and "free for 14 days" would
+ * be a false disclosure. Unknown eligibility shows no trial; the store sheet will still give it
+ * to anyone who has it, so the screen can only under-promise.
+ *
+ * `storeLive` (review of 2026-09-23, I1): the store can transact, so a buy button is on screen.
+ * If its price read then failed, timed out or left this product out, the catalog amount is all
+ * there is, but the catalog TRIAL is not printed: nothing says this buyer is eligible, and
+ * "Try it free … No charge today" over a sheet that charges today breaks 3.1.2. The catalog
+ * trial shows only where nothing can be bought (storeLive false: a browser, an old build), where
+ * it describes the plan rather than this buyer.
  */
-export function quote(p, cadence, offers) {
+export function quote(p, cadence, offers, { storeLive = false } = {}) {
   const annual = cadence === 'annual';
   const q = storeQuote(offers, p.id, cadence);
   if (!q) {
@@ -159,18 +160,17 @@ export function quote(p, cadence, offers) {
       per: annual ? '/yr' : '/mo',
       perMonth: annual ? fmtPrice(effectiveMonthly(p)) : null,
       saving: annual && annualSavings(p) > 0 ? fmtPrice(annualSavings(p)) : null,
-      trial: p.trialDays > 0 ? `${p.trialDays} days` : '',
+      trial: !storeLive && p.trialDays > 0 ? `${p.trialDays} days` : '',
       fromStore: false,
     };
   }
-  let perMonth = null, saving = null;
+  /* The saving is NOT printed from the store's numbers: this runtime can only format it in the
+     WebView's locale, which put "save €44" next to "219,99 €" (review Minor 3). The Save N% chip
+     carries it, computed from the store's own two prices. */
+  let perMonth = null;
+  const saving = null;
   if (annual) {
     perMonth = (typeof q.pricePerMonthString === 'string' && q.pricePerMonthString) || money(q.price / 12, q.currencyCode);
-    const m = storeQuote(offers, p.id, 'monthly');
-    if (m && m.currencyCode === q.currencyCode && Number.isFinite(m.price) && Number.isFinite(q.price)) {
-      const s = Math.round(m.price * 12 - q.price);
-      if (s > 0) saving = money(s, q.currencyCode, true);
-    }
   }
   return {
     amount: q.priceString, per: annual ? '/yr' : '/mo', perMonth, saving,
@@ -190,12 +190,15 @@ export function savePercent(p, offers) {
 
 /** The plain, up-front auto-renewal terms a compliant checkout must show BEFORE purchase
     (FTC / state auto-renewal law). Cancellation is store-managed for IAP. */
-export function disclosure(p, cadence, offers) {
-  const qt = quote(p, cadence, offers);
+export function disclosure(p, cadence, offers, opts = {}) {
+  const qt = quote(p, cadence, offers, opts);
   const trial = qt.trial ? `Free for ${qt.trial}, then ` : '';
+  // A live store whose price read failed: the catalog figure is US dollars, and the buyer's own
+  // price is the one the store sheet shows. Say so rather than let the dollar figure stand alone.
+  const local = opts.storeLive && !qt.fromStore ? ` Shown in US dollars; your price in ${storeName()} shows before you confirm.` : '';
   if (cadence === 'annual') {
     const eff = qt.perMonth ? ` (${qt.perMonth}/mo)` : '';
-    return `${trial}${qt.amount}/year${eff}. Auto-renews yearly until canceled in ${storeName()}.`;
+    return `${trial}${qt.amount}/year${eff}. Auto-renews yearly until canceled in ${storeName()}.${local}`;
   }
-  return `${trial}${qt.amount}/month. Auto-renews monthly until canceled in ${storeName()}.`;
+  return `${trial}${qt.amount}/month. Auto-renews monthly until canceled in ${storeName()}.${local}`;
 }

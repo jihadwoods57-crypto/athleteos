@@ -438,8 +438,8 @@ const steps = [
       return `
       <div class="ob2-covered">
         <div class="halo"><div class="core">${icon('bowl', 34)}</div></div>
-        <div class="ob-title">Your athlete code.</div>
-        <div class="ob-sub">Send it to the team group chat. Athletes join in a minute and their next meal lands in your queue.</div>
+        <div class="ob-title">${code ? 'Your athlete code.' : 'One step left.'}</div>
+        <div class="ob-sub">${code ? 'Send it to the team group chat. Athletes join in a minute and their next meal lands in your queue.' : 'Your team needs to be created before there is a code to share.'}</div>
       </div>
       ${code ? `
       <div class="code-boxes fit">${code.split('').map((ch) => `<div class="cb filled">${esc(ch)}</div>`).join('')}</div>

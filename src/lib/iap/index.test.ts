@@ -244,6 +244,12 @@ describe('iap seam: offerings for the paywall', () => {
     expect(stub.checkTrialOrIntroductoryPriceEligibility).not.toHaveBeenCalled();
   });
 
+  it('keys a Google Play "product:basePlan" identifier by the product id the proto asks for', async () => {
+    const stub = makeStub({ getOfferings: jest.fn().mockResolvedValue(offerings(product(`${ANNUAL}:p1y`))) });
+    const res = await loadWired(stub).getConsumerOfferings(UID);
+    expect(res.ok && Object.keys(res.products)).toEqual([ANNUAL]);
+  });
+
   it('reports a store failure as an error, never as an empty price list', async () => {
     const stub = makeStub({ getOfferings: jest.fn().mockRejectedValue({ code: '10', message: 'offline' }) });
     await expect(loadWired(stub).getConsumerOfferings(UID)).resolves.toEqual({ ok: false, reason: 'error', message: 'offline' });

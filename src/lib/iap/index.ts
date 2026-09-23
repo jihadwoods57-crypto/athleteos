@@ -212,13 +212,16 @@ export async function getConsumerOfferings(appUserId: string): Promise<Offerings
     for (const offering of pools) {
       for (const pkg of offering?.availablePackages ?? []) {
         const p = pkg?.product;
-        if (!p || !p.identifier || products[p.identifier]) continue;
+        // Google Play names a subscription "productId:basePlanId"; the proto keys by the product
+        // id alone (review Minor 4), or Android would never match and always print the catalog.
+        const id = String(p?.identifier || '').split(':')[0];
+        if (!p || !id || products[id]) continue;
         if (typeof p.priceString !== 'string' || !p.priceString) continue;
         const intro = p.introPrice;
         const trial = intro && Number(intro.price) === 0 && Number(intro.periodNumberOfUnits) > 0
           ? { count: Number(intro.periodNumberOfUnits), unit: String(intro.periodUnit || '') }
           : null;
-        products[p.identifier] = {
+        products[id] = {
           priceString: p.priceString,
           price: Number(p.price),
           currencyCode: String(p.currencyCode || ''),

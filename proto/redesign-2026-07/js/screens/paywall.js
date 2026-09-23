@@ -20,14 +20,24 @@ import { CONSUMER_PLANS, planById, productId, quote, savePercent, disclosure, st
 // iapReady: null = not checked yet, true/false = native store can transact.
 // offers: the store's localized prices keyed by product id (roles.iapOfferings), or null when the
 // store has not answered; null prints the pricing.js catalog, exactly as before (G-R7).
-let UI = { cadence: 'annual', planId: 'individual', busy: false, iapReady: null, probing: false, status: null, offers: null };
+let UI = { cadence: 'annual', planId: 'individual', busy: false, iapReady: null, probing: false, status: null, offers: null, offersFor: null };
 /** Test seam only (store-copy.test.mjs renders the screen in each store state). */
 export const paywallState = UI;
+/* Price options for quote()/disclosure(): the store can transact, so a missing store price must
+   not fall back to the catalog TRIAL (review 2026-09-23, I1). */
+const priceOpts = () => ({ storeLive: UI.iapReady === true });
+/* Store answers belong to the account that asked (review Minor 10). Trial eligibility is per
+   Apple ID and app user: on a shared phone, a sign-out and sign-in must not inherit the last
+   person's "free for 2 weeks". A different user resets the probe, which asks again. */
+function forgetOtherAccount() {
+  if (UI.offersFor === (RT.userId || null)) return;
+  Object.assign(UI, { offers: null, offersFor: RT.userId || null, iapReady: null, probing: false, status: null, busy: false });
+}
 
 function planCard(p) {
   const selected = p.id === UI.planId;
   // The store's localized numbers when it answered, the catalog otherwise (pricing.js quote()).
-  const qt = quote(p, UI.cadence, UI.offers);
+  const qt = quote(p, UI.cadence, UI.offers, priceOpts());
   // Annual states each plan's REAL saving, not just the headline chip: the number that closes
   // the sale is the one specific to the card being read.
   const sub = UI.cadence === 'annual'
@@ -71,10 +81,10 @@ function ctaState() {
   // The trial is named only when it applies to THIS buyer (store-eligible, or the catalog when
   // there is no store answer), and "No charge today" rides only on a trial: an Apple ID that has
   // used its trial is charged on confirm, and telling it otherwise is a false disclosure (G-R7).
-  const qt = quote(p, UI.cadence, UI.offers);
+  const qt = quote(p, UI.cadence, UI.offers, priceOpts());
   const label = qt.trial ? `Try it free for ${esc(qt.trial)}` : `Subscribe to ${esc(p.name)}`;
   return `<button class="btn primary" id="pw-buy" style="width:100%">${label}</button>
-    <div class="pw-note">${esc(disclosure(p, UI.cadence, UI.offers))}${qt.trial ? ' No charge today.' : ''}</div>`;
+    <div class="pw-note">${esc(disclosure(p, UI.cadence, UI.offers, priceOpts()))}${qt.trial ? ' No charge today.' : ''}</div>`;
 }
 
 // The checking beat used to render the disabled "Checking the store…" button alone — header,
@@ -118,6 +128,7 @@ function statusBanner() {
 export default {
   tab: 'progress',
   render() {
+    forgetOtherAccount();
     // The chip is DERIVED from the catalog: annual is now a literal App Store price point rather
     // than a percentage (pricing.js, 2026-09-21), so the only honest way to print a percentage is
     // to compute it from the two numbers actually charged. It reads 17% today and follows the
@@ -239,12 +250,18 @@ export default {
       if (UI.probing) return;
       UI.probing = true;
       const probe = roles.iapAvailable();
+      /* The price read starts WITH the probe, not after it (review Minor 5), so the checking beat
+         is bounded by one 4s cap rather than two in a row. iapOfferings is capped at 4s itself
+         and answers null on any failure, on a store that cannot transact, or on a bridge that
+         predates it. The prices land BEFORE the cards paint, so a buyer outside the US never
+         sees dollars flash and then change. */
+      const asker = RT.userId || null;
+      const offersP = roles.iapOfferings(RT.userId);
       const ready = await Promise.race([probe,
         new Promise((resolve) => setTimeout(() => resolve(false), 4000))]);
-      // A store that can transact is asked for its own prices BEFORE the cards paint, so a buyer
-      // outside the US never sees dollars flash and then change. iapOfferings is capped at 4s
-      // and answers null on any failure or on a bridge that predates it; null prints the catalog.
-      if (ready === true) UI.offers = await roles.iapOfferings(RT.userId);
+      if (ready === true) UI.offers = await offersP;
+      if (asker !== (RT.userId || null)) return;   // the account changed mid-probe; render re-asks
+      UI.offersFor = asker;
       UI.iapReady = ready;
       if (window.__render) window.__render();
       probe.then(async (ok) => {

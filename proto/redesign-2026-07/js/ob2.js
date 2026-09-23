@@ -494,7 +494,9 @@ export function wireTeamCreateRetry(root, prefix) {
   btn.addEventListener('click', async () => {
     if (btn.disabled) return;
     const o = ob();
-    const name = ((o.coach || {}).teamName || o.teamName || '').trim();
+    // The sign-up path falls back to 'My Team' (state.js persistCoachOnboarding), and this screen
+    // has no name field, so the retry must too (review Minor 7).
+    const name = ((o.coach || {}).teamName || o.teamName || '').trim() || 'My Team';
     btn.disabled = true;
     if (status) status.textContent = 'Creating your team…';
     const r = await act.createTeamNow(name);

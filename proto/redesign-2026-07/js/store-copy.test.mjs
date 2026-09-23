@@ -170,10 +170,11 @@ test('quote(): the store string when the store answered, the catalog when it did
   assert.equal(store.perMonth, '18,33 €');
   assert.equal(store.trial, '2 weeks');
   assert.equal(store.fromStore, true);
-  const cat = pricing.quote(ind, 'annual', null);
+  const cat = pricing.quote(ind, 'annual', null);          // no store at all: the catalog describes the plan
   assert.equal(cat.amount, '$199.99');
   assert.equal(cat.trial, '14 days');
   assert.equal(cat.fromStore, false);
+  assert.equal(store.saving, null, 'the store saving is not formatted in the WebView locale (review Minor 3)');
   assert.equal(pricing.savePercent(ind, EUR), Math.round(((21.99 * 12 - 219.99) / (21.99 * 12)) * 100));
   assert.equal(pricing.savePercent(ind, null), 17);
 });
@@ -187,10 +188,21 @@ test('quote(): no trial line unless the store says THIS account is eligible', ()
   }
 });
 
+test('quote(): a live store with no price for this product claims no trial (review I1)', () => {
+  const ind = pricing.planById('individual');
+  for (const offers of [null, {}, { onstandard_family_annual: EUR.onstandard_family_annual }]) {
+    const qt = pricing.quote(ind, 'annual', offers, { storeLive: true });
+    assert.equal(qt.trial, '', 'nothing says this buyer is eligible, so no trial is claimed');
+    const d = pricing.disclosure(ind, 'annual', offers, { storeLive: true });
+    assert.doesNotMatch(d, /free/i);
+    assert.match(d, /Shown in US dollars; your price in .* shows before you confirm\./);
+  }
+});
+
 test('paywall on iOS with a live store: localized prices, the trial only when eligible', () => {
   const UI = paywallMod.paywallState;
   const render = () => withPlatform('ios', () => paywallMod.default.render());
-  Object.assign(UI, { iapReady: true, offers: EUR, cadence: 'annual', planId: 'individual', status: null, busy: false });
+  Object.assign(UI, { iapReady: true, offers: EUR, offersFor: RT.userId || null, cadence: 'annual', planId: 'individual', status: null, busy: false });
   let html = render();
   assert.match(html, /219,99 €/);
   assert.doesNotMatch(html, /\$199\.99|\$19\.99/, 'a store answer must replace every catalog dollar');
@@ -209,15 +221,50 @@ test('paywall on iOS with a live store: localized prices, the trial only when el
   html = render();
   assert.doesNotMatch(text(html), /Try it free|No charge today/, 'an Apple ID that used its trial is charged on confirm');
 
-  UI.offers = null;                             // store up, price read failed: today's behaviour
+  // Store up, but the price read failed or timed out (review I1): the catalog amount stands, with
+  // a line saying it is US dollars, and NO trial and no "No charge today".
+  UI.offers = null;
   html = render();
   assert.match(html, /\$199\.99/);
+  assert.doesNotMatch(text(html), /Try it free|No charge today|Free for/, 'no store answer means no trial claim');
+  assert.match(text(html), /Subscribe to Individual/);
+  assert.match(text(html), /Shown in US dollars/);
+
+  // Store up, and one product missing from the offerings: the missing plan gets no trial either.
+  UI.offers = { onstandard_family_annual: EUR.onstandard_family_annual, onstandard_family_monthly: EUR.onstandard_family_monthly };
+  html = render();
+  assert.doesNotMatch(text(html), /Try it free|No charge today|Free for/, 'a product the store left out claims no trial');
+  assert.match(text(html), /Subscribe to Individual/);
 
   UI.iapReady = false;                          // old binary: update, never a dead paywall
   html = render();
   assert.match(text(html), /Update OnStandard to join/);
   assert.doesNotMatch(html, PRICE);
   Object.assign(UI, { iapReady: null, offers: null });
+});
+
+test('store answers do not survive a change of account (review Minor 10)', () => {
+  const UI = paywallMod.paywallState;
+  const was = RT.userId;
+  Object.assign(UI, { iapReady: true, offers: EUR, offersFor: 'someone-else', planId: 'individual', cadence: 'annual' });
+  RT.userId = 'me';
+  const html = withPlatform('ios', () => paywallMod.default.render());
+  assert.equal(UI.offers, null);
+  assert.equal(UI.iapReady, null, 'the probe runs again for the new account');
+  assert.doesNotMatch(text(html), /Try it free|219,99/);
+  RT.userId = was;
+  Object.assign(UI, { iapReady: null, offers: null, offersFor: null });
+});
+
+test('the plan-gated verified-profile copy only renders behind its own flag (review Minor 9)', () => {
+  /* FREE_KEEPS says the recruiting card is free, which is true while
+     VERIFIED_PROFILE_REQUIRES_PLAN is unset. The one screen that says otherwise must stay behind
+     that flag; if it is ever flipped, pricing.js's sentences change in the same change. */
+  const src = code('screens', 'verified-profile.js');
+  const i = src.indexOf('rides with the Individual plan');
+  assert.ok(i > 0);
+  assert.match(src.slice(Math.max(0, i - 200), i), /if \(st\.requiresPlan && !st\.paid\)/);
+  assert.match(pricing.FREE_KEEPS, /recruiting card/);
 });
 
 /* ---- one sentence for what membership buys, one name for the Terms --------------------------- */

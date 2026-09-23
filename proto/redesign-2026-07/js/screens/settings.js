@@ -447,7 +447,9 @@ function renewLine(sub, operator = false) {
     /* A coach or trainer on the free preview is not an athlete being upsold the monthly report
        (App Review pass 2026-09-23, C-B6). Their preview gates the write tools, which is what the
        plan wall on Home says too; the athlete sentence here contradicted it. */
-    if (operator) return 'Free preview. Your roster and inbox stay readable; a plan unlocks assigning, nudging, announcing and standards.';
+    /* Worded to be true in every preview state (review Minor 1): during the preview the write
+       tools ARE on, so it says what happens when it ends rather than what a plan "unlocks". */
+    if (operator) return 'No paid plan on this account. Your roster and inbox always stay readable; once a free preview ends, assigning, nudging, announcing and standards need a plan.';
     const by = coveredBy();
     // Say plainly that there is nothing to pay. A trainer-funded client who thinks they owe a
     // second subscription is exactly the confusion this whole model exists to remove.
@@ -525,11 +527,16 @@ export const billing = {
       </div>
     </section>` : paid ? `
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" id="bill-manage" role="button" tabindex="0">
+      ${/* An iOS Team subscriber has nothing to tap here (review Minor 2): a static row that says
+            so, not a chevron that only prints a refusal. */''}
+      ${teamPlan && !canOpenExternalCheckout() ? `<div class="lrow">
         <div class="lic">${icon('creditCard', 18)}</div>
-        <div class="lm"><div class="lt">Manage subscription</div><div class="ls">${teamPlan ? (canOpenExternalCheckout() ? 'Change plan, card, or cancel in the Stripe portal' : 'Not managed in the app') : `Change plan or cancel in ${storeName()}`}</div></div>
+        <div class="lm"><div class="lt">Your Team plan</div><div class="ls">Not managed in the app</div></div>
+      </div>` : `<div class="lrow" id="bill-manage" role="button" tabindex="0">
+        <div class="lic">${icon('creditCard', 18)}</div>
+        <div class="lm"><div class="lt">Manage subscription</div><div class="ls">${teamPlan ? 'Change plan, card, or cancel in the Stripe portal' : `Change plan or cancel in ${storeName()}`}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
-      </div>
+      </div>`}
       ${teamPlan ? '' : `<div class="lrow" id="bill-restore" role="button" tabindex="0">
         <div class="lic">${icon('rotate', 17)}</div>
         <div class="lm"><div class="lt">Restore purchases</div><div class="ls">Moved devices? Restore your membership</div></div>
@@ -563,8 +570,9 @@ export const billing = {
     if (manage) manage.addEventListener('click', async () => {
       // A Stripe-rail plan manages in the Stripe portal; IAP manages in the store. Same row.
       if (BILL.sub && BILL.sub.tier === 'team') {
-        // The iOS build does not open the Stripe portal (store-policy.js, Guideline 3.1.3(b)).
-        if (!canOpenExternalCheckout()) { if (msg) msg.textContent = 'Team plans aren’t sold or managed in the app.'; return; }
+        // The iOS build does not open the Stripe portal (store-policy.js, 3.1.3(c)); the row is
+        // not rendered there, and this guard keeps it that way if it ever is.
+        if (!canOpenExternalCheckout()) return;
         if (msg) msg.textContent = 'Opening your billing portal…';
         const p = await roles.openBillingPortal();
         if (p.ok) { if (window.OnStandardNative?.openUrl) window.OnStandardNative.openUrl(p.url); else location.href = p.url; if (msg) msg.textContent = ''; }
