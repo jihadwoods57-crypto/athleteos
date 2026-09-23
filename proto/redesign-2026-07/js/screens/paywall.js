@@ -7,32 +7,38 @@
    Honest by construction: the store rail may not be live yet (browser/preview, or before the
    founder wires react-native-purchases + store products). When it isn't, the CTA reads
    "Available at launch" — never a dead button — and the always-working sponsor-code path is
-   right there. The numbers a member unlocks are the written coaching, never the athlete's stats. */
+   right there. What a member unlocks is stated once, in pricing.js (MEMBERSHIP_ADDS): the written
+   monthly report, never the athlete's stats. Prices are the store's own when it answers. */
 import { isIOSApp } from '../store-policy.js';
 import { backHead, esc } from '../components.js';
 import { icon } from '../icons.js';
 import { RT } from '../state.js';
 import * as roles from '../roles.js';
 import { track, EVENTS } from '../analytics.js';
-import { CONSUMER_PLANS, planById, productId, cadencePriceParts, effectiveMonthly, annualSavings, fmtPrice, disclosure, storeName } from '../pricing.js';
+import { CONSUMER_PLANS, planById, productId, quote, savePercent, disclosure, storeName, ENTITLEMENT_LINE, restoreUnavailableLine } from '../pricing.js';
 
 // iapReady: null = not checked yet, true/false = native store can transact.
-let UI = { cadence: 'annual', planId: 'individual', busy: false, iapReady: null, probing: false, status: null };
+// offers: the store's localized prices keyed by product id (roles.iapOfferings), or null when the
+// store has not answered; null prints the pricing.js catalog, exactly as before (G-R7).
+let UI = { cadence: 'annual', planId: 'individual', busy: false, iapReady: null, probing: false, status: null, offers: null };
+/** Test seam only (store-copy.test.mjs renders the screen in each store state). */
+export const paywallState = UI;
 
 function planCard(p) {
   const selected = p.id === UI.planId;
-  const parts = cadencePriceParts(p, UI.cadence);
-  // Annual states each plan's REAL dollar saving (annualSavings), not just the headline chip:
-  // the number that closes the sale is the one specific to the card being read.
+  // The store's localized numbers when it answered, the catalog otherwise (pricing.js quote()).
+  const qt = quote(p, UI.cadence, UI.offers);
+  // Annual states each plan's REAL saving, not just the headline chip: the number that closes
+  // the sale is the one specific to the card being read.
   const sub = UI.cadence === 'annual'
-    ? `${fmtPrice(effectiveMonthly(p))}/mo · billed yearly · save ${fmtPrice(annualSavings(p))}`
+    ? [qt.perMonth ? `${qt.perMonth}/mo` : '', 'billed yearly', qt.saving ? `save ${qt.saving}` : ''].filter(Boolean).join(' · ')
     : 'billed monthly';
   const seat = p.seatLimit ? `<span class="status-pill b" style="margin-left:6px">Up to ${p.seatLimit}</span>` : '';
   return `
   <div class="pw-plan${selected ? ' on' : ''}" data-pw-plan="${p.id}" role="button" tabindex="0" aria-pressed="${selected}">
     <div class="pw-plan-top">
       <div class="pw-plan-name">${esc(p.name)}${seat}</div>
-      <div class="pw-plan-price"><span class="n">${parts.amount}</span><span class="per">${parts.per}</span></div>
+      <div class="pw-plan-price"><span class="n">${esc(qt.amount)}</span><span class="per">${qt.per}</span></div>
     </div>
     <div class="pw-plan-sub">${esc(sub)}</div>
     <div class="pw-plan-blurb">${esc(p.blurb)}</div>
@@ -62,9 +68,13 @@ function ctaState() {
     const notBuyable = isIOSApp() ? 'Update the app to join' : 'Join in the OnStandard app';
     return `<button class="btn primary" disabled>${UI.iapReady === null ? 'Checking the store…' : notBuyable}</button>`;
   }
-  const label = p.trialDays > 0 ? `Start ${p.trialDays}-day free trial` : `Start ${esc(p.name)}`;
+  // The trial is named only when it applies to THIS buyer (store-eligible, or the catalog when
+  // there is no store answer), and "No charge today" rides only on a trial: an Apple ID that has
+  // used its trial is charged on confirm, and telling it otherwise is a false disclosure (G-R7).
+  const qt = quote(p, UI.cadence, UI.offers);
+  const label = qt.trial ? `Try it free for ${esc(qt.trial)}` : `Subscribe to ${esc(p.name)}`;
   return `<button class="btn primary" id="pw-buy" style="width:100%">${label}</button>
-    <div class="pw-note">${esc(disclosure(p, UI.cadence))} No charge today.</div>`;
+    <div class="pw-note">${esc(disclosure(p, UI.cadence, UI.offers))}${qt.trial ? ' No charge today.' : ''}</div>`;
 }
 
 // The checking beat used to render the disabled "Checking the store…" button alone — header,
@@ -93,7 +103,7 @@ function statusBanner() {
   if (!s) return '';
   if (s.kind === 'ok') {
     return `<div class="sidebox" style="margin-top:10px"><div class="req-icon g s38">${icon('check', 18)}</div>
-      <div><div class="tt">You're a member</div><div class="ts">Premium is unlocked. Your report and Deep Dive are ready.</div></div></div>`;
+      <div><div class="tt">You're a member</div><div class="ts">Your written monthly report is unlocked.</div></div></div>`;
   }
   if (s.kind === 'error') {
     return `<div style="color:var(--red);font-size:13px;font-weight:600;margin-top:10px;text-align:center">${esc(s.message || "Something went wrong. You weren't charged.")}</div>`;
@@ -112,9 +122,10 @@ export default {
     // than a percentage (pricing.js, 2026-09-21), so the only honest way to print a percentage is
     // to compute it from the two numbers actually charged. It reads 17% today and follows the
     // catalog if either figure moves, instead of advertising a stale 30.
+    // From the store's two prices when it answered (pricing.js savePercent), else the catalog.
     const ind = planById('individual');
-    const savePct = ind ? Math.round((annualSavings(ind) / (ind.monthly * 12)) * 100) : 0;
-    return `${backHead('Membership', 'Unlock the written coaching', 'progress')}
+    const savePct = ind ? savePercent(ind, UI.offers) : 0;
+    return `${backHead('Membership', 'The written monthly report', 'progress')}
 
     ${/* THE STATE LEADS (2026-09-07 audit). When the store rail is not wired, this screen used to
           open with a live cadence switch and a row of selectable plan cards, and only told you that
@@ -177,14 +188,14 @@ export default {
           cannot-buy state and the post-purchase state all showed none. Real anchors to the real
           documents: the router hands http(s) hrefs to the system browser (router.js), and the
           old "Privacy Policy" target was #privacy, the who-sees-what settings screen. */''}
-    <div class="pw-note pw-legal"><a class="link" href="https://onstandard.app/terms" target="_blank" rel="noopener">Terms of Use</a> · <a class="link" href="https://onstandard.app/privacy" target="_blank" rel="noopener">Privacy Policy</a></div>
+    <div class="pw-note pw-legal"><a class="link" href="https://onstandard.app/terms" target="_blank" rel="noopener">Terms of Service</a> · <a class="link" href="https://onstandard.app/privacy" target="_blank" rel="noopener">Privacy Policy</a></div>
 
     <div style="text-align:center;margin-top:14px">
       <button class="btn ghost sm" id="pw-restore" style="width:auto;padding:0 18px">Restore purchases</button>
     </div>
 
     <div style="height:12px"></div>
-    <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);padding:0 20px;line-height:1.4">Your stats are always yours. Membership adds the written coaching, not the numbers. Cancel anytime in ${storeName()}.</div>
+    <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);padding:0 20px;line-height:1.4">${ENTITLEMENT_LINE} Cancel anytime in ${storeName()}.</div>
     <div style="height:14px"></div>
     `;
   },
@@ -212,7 +223,7 @@ export default {
       // (throw, undefined, bridge error). The last one must never claim "nothing to restore":
       // that reads as a verdict about the account when nothing was actually checked.
       if (res && res.ok) UI.status = { kind: 'ok' };
-      else if (res && res.reason === 'unavailable') UI.status = { kind: 'info', message: 'Purchases restore once memberships are live.' };
+      else if (res && res.reason === 'unavailable') UI.status = { kind: 'info', message: restoreUnavailableLine() };
       else if (res && res.ok === false && res.reason !== 'error') UI.status = { kind: 'info', message: 'Nothing to restore on this account.' };
       else UI.status = { kind: 'error', message: "Couldn't check. Nothing changed. Try again." };
       if (window.__render) window.__render();
@@ -228,11 +239,18 @@ export default {
       if (UI.probing) return;
       UI.probing = true;
       const probe = roles.iapAvailable();
-      UI.iapReady = await Promise.race([probe,
+      const ready = await Promise.race([probe,
         new Promise((resolve) => setTimeout(() => resolve(false), 4000))]);
+      // A store that can transact is asked for its own prices BEFORE the cards paint, so a buyer
+      // outside the US never sees dollars flash and then change. iapOfferings is capped at 4s
+      // and answers null on any failure or on a bridge that predates it; null prints the catalog.
+      if (ready === true) UI.offers = await roles.iapOfferings(RT.userId);
+      UI.iapReady = ready;
       if (window.__render) window.__render();
-      probe.then((ok) => {
-        if (ok !== UI.iapReady) { UI.iapReady = ok; if (window.__render) window.__render(); }
+      probe.then(async (ok) => {
+        if (ok === UI.iapReady) return;
+        if (ok === true && !UI.offers) UI.offers = await roles.iapOfferings(RT.userId);
+        UI.iapReady = ok; if (window.__render) window.__render();
       }, () => {});
       return;   // __render() above re-runs mount on the fresh DOM; wiring twice double-fires.
     }

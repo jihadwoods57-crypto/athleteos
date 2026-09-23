@@ -10,7 +10,7 @@ import { buildMonthPayload } from '../monthly.js';
 import { track, EVENTS } from '../analytics.js';
 import { monthYear, shortDate, longDate } from '../fmt-date.js';
 import { shareScoreCard } from '../share-card.js';
-import { planById, disclosure } from '../pricing.js';
+import { ENTITLEMENT_LINE } from '../pricing.js';
 import { tierFor } from '../score-band.js';
 
 /* The month's average is a score: score face, tier colour (lead ruling 2026-09-22). */
@@ -119,17 +119,12 @@ function baseStatsBlock(report) {
 function lockedCard(payload, period) {
   const report = payload || {};
   const monthWord = esc(monthLabel(period)).split(' ')[0];
-  // Priced from the one catalog (js/pricing.js), never hardcoded: the paywall, onboarding and
-  // this line must all quote the same number or one of them is lying.
-  // The paywall's OWN disclosure, word for word (pricing.js disclosure(), the annual cadence the
-  // paywall opens on, plus its "No charge today."). This line used to lead with the monthly
-  // equivalent and promise "No card today", which an Apple free trial is not: the Apple ID's
-  // payment method is on file from the start. What the athlete reads here is what the store
-  // sheet will charge them, and it is the same sentence the paywall prints (2026-09-22).
-  const plan = planById('individual');
-  const trialLine = plan
-    ? `${plan.name}: ${disclosure(plan, 'annual')} No charge today.`
-    : 'Individual: free trial first. No charge today.';
+  /* NO PRICE ON THIS CARD (App Review pass 2026-09-23, G-R7 / A-M3). It printed the catalog's
+     US-dollar disclosure and "Start free trial" above a button that opens the paywall, not the
+     store: a price and a trial promise with no purchase behind them, in dollars in every
+     storefront, to Apple IDs that may have used their trial already. The paywall prints the
+     store's own price and the trial only when this buyer is eligible; this card says what the
+     membership adds and sends them there. */
   return `
   <section class="card pad">
     <div class="bigstat score"><span class="n ${avgInk(report.avgScore)}">${report.avgScore != null ? report.avgScore : '—'}</span><span class="d">Average score</span></div>
@@ -158,12 +153,11 @@ function lockedCard(payload, period) {
   <div style="height:16px"></div>
   <h2 class="eyebrow">Unlock the full report</h2>
   <section class="card pad">
-    <button class="btn primary" id="mr-trial" style="width:100%">Start free trial</button>
-    <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);margin-top:8px;line-height:1.4">${esc(trialLine)}</div>
+    <button class="btn primary" id="mr-trial" style="width:100%">See membership</button>
   </section>
 
   <div style="height:14px"></div>
-  <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);padding:0 20px;line-height:1.4">Your stats are always yours. Premium adds the written coaching, not the numbers.</div>
+  <div style="text-align:center;font-size:11.5px;font-weight:600;color:var(--text-3);padding:0 20px;line-height:1.4">${esc(ENTITLEMENT_LINE)}</div>
   <div style="height:10px"></div>
   `;
 }

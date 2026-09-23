@@ -148,7 +148,7 @@ export default {
       ${row('feedback', 'message', 'Request a feature', 'Or report a bug, or ask us anything')}
       ${ext('mailto:support@onstandard.app', 'mail', 'Support email', 'support@onstandard.app')}
       ${row('privacy', 'eye', 'Privacy &amp; your data', 'Who sees what · download your data')}
-      ${ext('https://onstandard.app/terms', 'clipboard', 'Terms and conditions', 'The full agreement')}
+      ${ext('https://onstandard.app/terms', 'clipboard', 'Terms of Service', 'The full agreement')}
       ${ext('https://onstandard.app/privacy', 'lock', 'Privacy policy', 'What we collect and why')}
       ${ext('https://instagram.com/onstandard', 'camera', 'Instagram', '@onstandard')}
       ${ext('https://x.com/onstandard', 'external', 'X', '@onstandard')}

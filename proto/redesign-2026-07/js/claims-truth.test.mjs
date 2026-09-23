@@ -84,8 +84,10 @@ test('the purchase-step fine print does not promise an in-app cancel we cannot h
   assert.doesNotMatch(src, /Cancel anytime in Settings/i,
     'consumer plans are store-managed IAP; settings.js deep-links to the store rather than '
     + 'rendering a cancel button, so promising one in Settings is a promise the app cannot keep');
-  assert.match(src, /Cancel anytime in the \$\{storeName\}/,
-    'the fine print should name the store that actually holds the subscription');
+  // Since 2026-09-23 the onboarding step sells nothing at all (store-copy.test.mjs pins it), so
+  // the renewal sentence lives on the paywall only, and names the store from pricing.js.
+  assert.match(stripComments(read('pricing.js')), /until canceled in \$\{storeName\(\)\}/,
+    'the disclosure should name the store that actually holds the subscription');
 });
 
 /* ---- 3. one plan, one set of promises -------------------------------------------------------- */

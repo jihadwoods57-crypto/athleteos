@@ -1,5 +1,5 @@
 import { S, RT, act, roleNav, roleProfileRoute, liveWeightPct } from '../state.js';
-import { canOpenExternalCheckout, storeNotice } from '../store-policy.js';
+import { canOpenExternalCheckout, storeNotice, TEAM_PLANS_NOT_SOLD, teamPlanShows } from '../store-policy.js';
 import { icon } from '../icons.js';
 import { mapPressure } from '../exec.js';
 import { normalizePrefs } from '../notify-plan.js';
@@ -7,7 +7,7 @@ import { normalizeCoachPrefs } from '../coach-notify-plan.js';
 import { backHead, esc, emptyState, errorState, skeletonRows } from '../components.js';
 import { STYLE_KEYS, styleLabel } from '../plan-style.js';
 import * as roles from '../roles.js';
-import { planById } from '../pricing.js';
+import { planById, storeName, storeSubscriptionsUrl, ENTITLEMENT_LINE, restoreUnavailableLine } from '../pricing.js';
 import { armReplay } from '../tour.js';
 import { normalizePressure } from '../ob-helpers.js';
 
@@ -442,25 +442,27 @@ function planLabel(sub) {
   if (p) return p.name;
   return sub.tier === 'team' ? 'Team' : 'Premium';
 }
-function renewLine(sub) {
+function renewLine(sub, operator = false) {
   if (!isPaid(sub)) {
+    /* A coach or trainer on the free preview is not an athlete being upsold the monthly report
+       (App Review pass 2026-09-23, C-B6). Their preview gates the write tools, which is what the
+       plan wall on Home says too; the athlete sentence here contradicted it. */
+    if (operator) return 'Free preview. Your roster and inbox stay readable; a plan unlocks assigning, nudging, announcing and standards.';
     const by = coveredBy();
     // Say plainly that there is nothing to pay. A trainer-funded client who thinks they owe a
     // second subscription is exactly the confusion this whole model exists to remove.
     if (by === 'trainer') return 'Included with your coaching. Nothing to pay here: your membership lasts as long as your plan with your trainer.';
     if (by === 'sponsor') return 'A sponsor covers your premium access. Nothing to pay while it lasts.';
-    return 'You have the free plan. Your stats are always yours; membership adds the written coaching.';
+    return `You have the free plan. ${ENTITLEMENT_LINE}`;
   }
   const when = sub.current_period_end ? (() => { try { return new Date(sub.current_period_end).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }); } catch { return ''; } })() : '';
   if (sub.status === 'past_due') return `Payment issue: update your payment method in the store to keep premium${when ? ` (grace ends ${when})` : ''}.`;
   if (sub.cancel_at_period_end) return when ? `Cancels ${when}. You keep premium until then.` : 'Set to cancel at period end.';
   return when ? `Renews ${when}.` : 'Active.';
 }
-function storeSubUrl() {
-  return /android/i.test(navigator.userAgent || '')
-    ? 'https://play.google.com/store/account/subscriptions'
-    : 'https://apps.apple.com/account/subscriptions';
-}
+/* The store is named by pricing.js, the one helper that knows which shell this is (A Polish 6);
+   this screen used to guess it from the user agent. */
+const storeSubUrl = storeSubscriptionsUrl;
 
 export const billing = {
   tab: 'profile',
@@ -505,7 +507,7 @@ export const billing = {
     <section class="card pad">
       <div class="bigstat"><span class="n" style="font-size:26px">${esc(planLabel(sub))}</span><span class="d">${premium ? 'Your plan' : 'Current plan'}</span></div>
       <div style="height:6px"></div>
-      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.45">${esc(renewLine(sub))}</div>
+      <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.45">${esc(renewLine(sub, operator))}</div>
       ${usage}
       ${premium ? `<div style="height:8px"></div><span class="status-pill g">Premium unlocked</span>` : ''}
     </section>
@@ -525,7 +527,7 @@ export const billing = {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" id="bill-manage" role="button" tabindex="0">
         <div class="lic">${icon('creditCard', 18)}</div>
-        <div class="lm"><div class="lt">Manage subscription</div><div class="ls">${teamPlan ? 'Change plan, card, or cancel in the Stripe portal' : `Change plan or cancel in the ${/android/i.test(navigator.userAgent || '') ? 'Play Store' : 'App Store'}`}</div></div>
+        <div class="lm"><div class="lt">Manage subscription</div><div class="ls">${teamPlan ? (canOpenExternalCheckout() ? 'Change plan, card, or cancel in the Stripe portal' : 'Not managed in the app') : `Change plan or cancel in ${storeName()}`}</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
       ${teamPlan ? '' : `<div class="lrow" id="bill-restore" role="button" tabindex="0">
@@ -538,7 +540,7 @@ export const billing = {
       <button class="btn primary" id="bill-upsell-pro" style="width:100%">See plans · free 14-day trial</button>
       <div style="height:10px"></div>
       <div style="font-size:12px;font-weight:600;color:var(--text-3);line-height:1.5;text-align:center">Every plan counts <b>active</b> athletes only; idle seats are free.</div>
-    </section>` : storeNotice('Team and practice plans are set up from your account on the web, not inside the app.', 'Whatever is already active shows here.')) : `
+    </section>` : storeNotice(TEAM_PLANS_NOT_SOLD, teamPlanShows('here'))) : `
     <section class="card pad">
       <button class="btn primary" id="bill-upsell" style="width:100%">See membership plans</button>
       <div style="height:10px"></div>
@@ -562,7 +564,7 @@ export const billing = {
       // A Stripe-rail plan manages in the Stripe portal; IAP manages in the store. Same row.
       if (BILL.sub && BILL.sub.tier === 'team') {
         // The iOS build does not open the Stripe portal (store-policy.js, Guideline 3.1.3(b)).
-        if (!canOpenExternalCheckout()) { if (msg) msg.textContent = 'Your Team plan is managed from your account on the web, not inside the app.'; return; }
+        if (!canOpenExternalCheckout()) { if (msg) msg.textContent = 'Team plans aren’t sold or managed in the app.'; return; }
         if (msg) msg.textContent = 'Opening your billing portal…';
         const p = await roles.openBillingPortal();
         if (p.ok) { if (window.OnStandardNative?.openUrl) window.OnStandardNative.openUrl(p.url); else location.href = p.url; if (msg) msg.textContent = ''; }
@@ -580,7 +582,7 @@ export const billing = {
       if (msg) msg.textContent = 'Restoring…';
       const res = await roles.restoreConsumerPurchases(RT.userId);
       if (res && res.ok) { if (msg) { msg.style.color = 'var(--green-bright)'; msg.textContent = 'Membership restored.'; } BILL.loaded = false; loadBilling(); }
-      else if (msg) { msg.style.color = 'var(--text-3)'; msg.textContent = res && res.reason === 'unavailable' ? 'Purchases restore once memberships are live.' : 'Nothing to restore on this account.'; }
+      else if (msg) { msg.style.color = 'var(--text-3)'; msg.textContent = res && res.reason === 'unavailable' ? restoreUnavailableLine() : 'Nothing to restore on this account.'; }
     });
   },
 };
@@ -1043,18 +1045,20 @@ export const deleteAccount = {
         const failed = !!(sub && sub.error);
         if (!failed && !isPaid(sub)) return;
         const team = !failed && sub.tier === 'team';
-        const store = /android/i.test(navigator.userAgent || '') ? 'Play Store' : 'App Store';
-        const manageLabel = team ? 'Open the billing portal' : `Manage it in the ${store}`;
+        /* A Team plan on iOS: no portal link and no place named (3.1.3(c), 2026-09-23). The
+           account owner still needs to know deleting does not stop the bill, and support can end it. */
+        const teamIOS = team && !canOpenExternalCheckout();
+        const manageLabel = team ? 'Open the billing portal' : `Manage it in ${storeName()}`;
         subNote.innerHTML = `
         <div class="sidebox">
           <div class="req-icon a s38">${icon('creditCard', 17)}</div>
           <div><div class="tt">${failed ? 'Paying for a membership?' : team ? 'Your Team plan keeps billing' : 'Your membership keeps billing'}</div>
-          <div class="ts">Deleting your account does not cancel it. <span class="link" id="del-sub-manage" role="button" tabindex="0" style="font-weight:700">${manageLabel}</span> first.</div></div>
+          <div class="ts">${teamIOS ? 'Deleting your account does not cancel it. Write to support@onstandard.app and we’ll end it first.' : `Deleting your account does not cancel it. <span class="link" id="del-sub-manage" role="button" tabindex="0" style="font-weight:700">${manageLabel}</span> first.`}</div></div>
         </div>`;
         const manage = subNote.querySelector('#del-sub-manage');
+        if (!manage) return;
         const go = async () => {
           if (team) {
-            if (!canOpenExternalCheckout()) { if (status) status.textContent = 'Your Team plan is managed from your account on the web, not inside the app.'; return; }
             const p = await roles.openBillingPortal();
             if (p.ok) { if (window.OnStandardNative?.openUrl) window.OnStandardNative.openUrl(p.url); else location.href = p.url; }
             else if (status) { status.textContent = p.error || 'Could not open the billing portal.'; }

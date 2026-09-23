@@ -24,7 +24,7 @@ import { icon } from '../icons.js';
 import { esc } from '../components.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, scale10, countStat, mirrorCard,
-  phoneCard, testimonial, planCard, paywallVariant, PLANS,
+  phoneCard, testimonial, paywallVariant, consumerStartBody, CONSUMER_START_TITLE,
   capture, ob, gateCta, structureStep, commitContinue,
 } from '../ob2.js';
 import { mealDemoSteps } from '../ob2-meal.js';
@@ -484,31 +484,16 @@ const steps = [
       if (b) b.addEventListener('click', finishToApp);
     } },
 
+  /* The same promise-nothing start step as the athlete flow (ob2.js consumerStartBody, App Review
+     pass 2026-09-23): no price, no trial, no plan ladder above a button that opens no store. */
   { id: 'plans', ch: 4, noFoot: true,
     when: () => paywallVariant('client') !== 'trainer_covered',
-    title: () => 'Pick your plan.',
+    title: () => CONSUMER_START_TITLE,
     sub: () => 'Today’s plan is ready. Your trainer connection is one code away.',
-    body: (o) => `
-      <div class="ob2-plans" data-obkey="plan">
-        ${PLANS.individual.map((p) => planCard({ ...p, on: (o.plan || 'individual') === p.id })).join('')}
-      </div>
-      <div class="ob2-scan-note">Nothing is charged today. You’re starting on the free preview either way.</div>
-      <div class="ob-foot" style="margin-top:auto">
-        <button class="btn primary" id="ob2-finish">Start free, no card today</button>
-        <div class="ob-textlink" role="button" data-go="obf/connect">I have a code</div>
-      </div>`,
+    body: () => consumerStartBody({ codeRoute: 'obf/connect', ctaId: 'ob2-finish' }),
     mount(root) {
-      /* Card selection is wired by the engine (data-obkey="plan") — intent capture only,
-         the checkout rail is go-live gated. Default intent: Individual. */
-      if (!ob().plan) capture({ plan: 'individual' });
-      track(EVENTS.PAYWALL_VIEWED, { variant: paywallVariant('client') });
-      root.querySelectorAll('.ob2-plan[data-val]').forEach((el) => el.addEventListener('click',
-        () => track(EVENTS.PLAN_SELECTED, { plan: el.getAttribute('data-val') })));
       const b = root.querySelector('#ob2-finish');
-      if (b) b.addEventListener('click', () => {
-        track(EVENTS.TRIAL_STARTED, { plan: ob().plan || 'individual' });
-        finishToApp();
-      });
+      if (b) b.addEventListener('click', finishToApp);
     } },
 ];
 

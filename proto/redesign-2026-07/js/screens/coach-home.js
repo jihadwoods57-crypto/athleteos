@@ -17,7 +17,7 @@ import { allowedCreateKeys } from '../staff-access.js';
 import { paintStandardsBoard } from './coach-connected.js';
 import { openRosterFiltered } from './coach-roster.js';
 import { maybeStartTour } from '../tour.js';
-import { canOpenExternalCheckout } from '../store-policy.js';
+import { canOpenExternalCheckout, TEAM_PLANS_NOT_SOLD } from '../store-policy.js';
 
 /* This screen is nav:'operator' — it renders for a coach's team AND a trainer's practice, so it
    must load whichever book the signed-in role owns. Calling loadCoachRoster() here would fetch
@@ -1070,21 +1070,22 @@ function planCard() {
   }
   /* The iOS build sells no Stripe plan (store-policy.js, Guideline 3.1.1): the countdown stays,
      honestly, but nothing here invites a purchase — no trial promise, no plan link, no button.
-     A statement of where the account is managed is the line 3.1.3(b) draws. */
+     Since 2026-09-23 it also names no PLACE a plan is bought ("set up from your account on the
+     web" was a pointer, 3.1.1); it states only that team plans are not sold in the app. */
   const web = canOpenExternalCheckout();
   if (a.entitled) {
     const soon = daysLeft != null && daysLeft <= 3;
     return `<div class="sidebox pw-pre${web ? ' tap' : ''}${soon ? ' warn' : ''}"${web ? ' data-go="plan-upgrade" role="button"' : ''}>
       <div class="req-icon ${soon ? 'a' : 'b'} s38">${icon('clock', 17)}</div>
       <div class="pw-body"><div class="tt">Your free preview ends ${when}</div>
-      <div class="ts">${web ? 'Pick a plan before then and nothing changes. The first plan starts with a 14-day free trial.' : 'Your roster, activity and inbox stay readable after that. Team plans are set up from your account on the web.'}</div></div>
+      <div class="ts">${web ? 'Pick a plan before then and nothing changes. The first plan starts with a 14-day free trial.' : `Your roster, activity and inbox stay readable after that. ${TEAM_PLANS_NOT_SOLD}`}</div></div>
       ${web ? icon('chevron', 16, 'class="req-chev"') : ''}
     </div>`;
   }
   return `<div class="sidebox pw-pre ended">
     <div class="req-icon a s38">${icon('lock', 17)}</div>
     <div class="pw-body"><div class="tt">Your free preview has ended</div>
-    <div class="ts">Your roster, activity and inbox are all still here to read. Assigning, nudging, announcing and setting standards need a plan${web ? '' : ', which is set up from your account on the web'}.</div>
+    <div class="ts">Your roster, activity and inbox are all still here to read. Assigning, nudging, announcing and setting standards need a plan.${web ? '' : ` ${TEAM_PLANS_NOT_SOLD}`}</div>
     ${web ? '<button class="btn primary sm pw-cta" data-go="plan-upgrade">Choose a plan</button>' : ''}</div>
   </div>`;
 }

@@ -12,7 +12,9 @@ import { icon } from '../icons.js';
 import { esc, copyText } from '../components.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, simChip, mirrorCard, countStat, chatSim,
-  phoneCard, testimonial, planCard, PLANS, capture, ob, gateCta, structureStep, commitContinue,
+  phoneCard, PLANS, capture, ob, gateCta, structureStep, commitContinue,
+  operatorPlanTitle, operatorPlanSub, operatorPlanCards, operatorStartLabel, OPERATOR_WEB_FINE,
+  adultDobSteps,
 } from '../ob2.js';
 import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
 import { SAMPLE_MEAL } from '../ob2-meal.js';
@@ -191,6 +193,10 @@ const steps = [
       sync();
     },
   },
+  /* The adult age gate every other operator door carries (App Review pass 2026-09-23, C-B1). A
+     nutrition professional reads clients' meal photos and records, which is the reason coach,
+     trainer and dietitian are gated; this fourth door was missed. */
+  ...adultDobSteps({ R: 'obn', next: 'clients', who: 'Nutrition professional' }),
   {
     id: 'clients', ch: 0, cta: 'Continue',
     title: () => 'How many clients do you carry?',
@@ -477,24 +483,6 @@ const steps = [
 
   /* ================= ch4 · Start ================= */
   {
-    id: 'proof', ch: 4, cta: 'Continue',
-    title: () => 'What it looks like in a practice.',
-    sub: () => 'Illustrative, not actual customers yet.',
-    body: () => `
-      <!-- LAUNCH PLACEHOLDERS: realistic sample testimonials. The founder swaps these
-           for real customer quotes before go-live. Not real people. -->
-      ${testimonial({
-        quote: 'I went from two full evenings of log reading to about forty minutes on flags. Nobody lost attention; the quiet clients finally got more of it.',
-        name: 'Renata', role: 'Sports dietitian · 24 clients', initials: 'R',
-        stat: '6 hrs', statKey: 'back / week',
-      })}
-      ${testimonial({
-        quote: 'The corrections are the difference. My clients’ records read like I reviewed every meal. Because I did, just not from scratch.',
-        name: 'Marcus', role: 'Nutrition coach', initials: 'M',
-        stat: '31', statKey: 'clients',
-      })}`,
-  },
-  {
     /* Account BEFORE the seat picker (2026-07-23). This flow used to price the seat first —
        the only one of the six that did — which put a number in front of a professional before
        anything was saved. `obn` is in router AUTH_ROUTES, so a freshly signed-in pro is not
@@ -569,17 +557,18 @@ const steps = [
   {
     id: 'plans', ch: 4, noFoot: true, next: () => null,
     back: 'trainer', /* no un-creating the account — back exits to the dashboard */
-    title: () => 'Pick your seat.',
-    sub: () => 'Nothing charges today. Billing turns on at launch, and you can change plans anytime.',
+    /* Platform-aware like the other three operator doors (App Review pass 2026-09-23, C-R1). This
+       step rendered Solo $99 and Professional $179, a trial tag and "Billing turns on at launch"
+       on iOS, where no Stripe plan may be sold and "at launch" is pre-release copy. */
+    title: () => operatorPlanTitle('Pick your seat.'),
+    sub: () => operatorPlanSub('Start free. You can change plans anytime.'),
     body: (o) => {
       const sel = o.plan || 'pro_solo';
       return `
-      <div class="ob2-plans" data-obkey="plan">
-        ${PLANS.seat.map((p) => planCard({ ...p, on: p.id === sel })).join('')}
-      </div>
-      <div class="ob2-scan-note">Both seats include the review queue, corrections, trends, and flags from day one.</div>
+      ${operatorPlanCards(PLANS.seat, (p) => p.id === sel,
+        `<div class="ob2-scan-note">Both seats include the review queue, corrections, trends, and flags from day one. ${OPERATOR_WEB_FINE}</div>`)}
       <div class="ob-foot" style="margin-top:auto">
-        <button class="btn primary" id="obn-start" data-go="trainer">Start free, no card today</button>
+        <button class="btn primary" id="obn-start" data-go="trainer">${operatorStartLabel()}</button>
         <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;margin-top:12px">Your review queue is ready for its first client.</div>
       </div>`;
     },

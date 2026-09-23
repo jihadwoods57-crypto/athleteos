@@ -29,6 +29,18 @@ export const isIOSApp = () => typeof window !== 'undefined' && window.__PLATFORM
 /** May this build open a Stripe Checkout or the Stripe billing portal? */
 export const canOpenExternalCheckout = () => !isIOSApp();
 
+/* TEAM PLANS ON iOS: 3.1.3(c), AND NO POINTER ANYWHERE (controller ruling, 2026-09-23).
+   Team, practice and program plans are sold to organizations, not in the app. The iOS build used
+   to say they were "set up from your account on the web", which outside the US storefront is a
+   pointer to another purchasing mechanism (3.1.1) and is exactly the line App Review quotes back.
+   So the iOS copy states a fact and names NO place: no "web", no URL, no "Pick a plan" that
+   cannot be fulfilled. These two strings are the only way the iOS build describes it; the
+   store-copy test pins every plan surface to them. */
+export const TEAM_PLANS_NOT_SOLD = 'Team plans aren’t sold in the app.';
+/** `where` is where an active plan would appear: "here" on the plan screens, a screen name
+    elsewhere. */
+export const teamPlanShows = (where = 'here') => `If your program has a plan, it shows ${where}.`;
+
 /* The one sentence the iOS build says instead. No URL, no "cheaper", no verb aimed at a
    browser: a statement of fact about where the account is managed, which is the line 3.1.3(b)
    draws. `what` names the thing so the sentence is not the same on every screen. */

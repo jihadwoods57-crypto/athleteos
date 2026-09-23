@@ -25,10 +25,10 @@ import { dobFromParts, ageOn, normalizePressure, showConfirmPending } from '../o
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { track, EVENTS } from '../analytics.js';
-import { planById as consumerPlan } from '../pricing.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, scale10, meter, mirrorCard, simChip, countStat,
-  phoneCard, testimonial, planCard, paywallVariant, PLANS, capture, structureStep, commitContinue,
+  phoneCard, testimonial, paywallVariant, capture, structureStep, commitContinue,
+  consumerStartBody, CONSUMER_START_TITLE,
 } from '../ob2.js';
 import { mealDemoSteps } from '../ob2-meal.js';
 import { styleForStructureAnswer, styleLabel } from '../plan-style.js';
@@ -549,73 +549,18 @@ const steps = [
     },
   },
   {
+    /* The route keeps its name (oba/plans) so resume crumbs and the funnel keep working, but the
+       step no longer sells anything: see consumerStartBody in ob2.js (App Review pass 2026-09-23,
+       A-R1). It used to render a price ladder, a trial tag and a renewal sentence above a button
+       that opened no store. The athlete starts on the free tier; #paywall is where membership is
+       bought, with the store sheet, the legal links and Restore. */
     id: 'plans', ch: 4, noFoot: true, next: () => null,
     when: () => paywallVariant('athlete') !== 'team_covered',
-    title: () => 'Pick your plan',
-    sub: () => 'The trial opens everything. Nothing charges today.',
-    /* Annual-first, mirroring src/core/pricing.ts (revenue build 2026-07-04): annual is the
-       framed default (saves ~2 months), one trust cue sits right above the price, and the
-       auto-renew terms are disclosed on-screen. Selection is captured to RT.ob.{plan,cadence}
-       as intent — billing is still go-live gated, nothing charges today. */
-    body: (o) => {
-      const cad = o.cadence || 'annual';
-      const plan = o.plan || PLANS.individual[0].id;
-      return `
-      <div class="ob2-cadence" role="tablist" aria-label="Billing period">
-        <button class="cad ${cad === 'annual' ? 'on' : ''}" data-cad="annual" role="tab" aria-selected="${cad === 'annual'}">Annual<small>Save 30%</small></button>
-        <button class="cad ${cad === 'monthly' ? 'on' : ''}" data-cad="monthly" role="tab" aria-selected="${cad === 'monthly'}">Monthly</button>
-      </div>
-      <div class="ob2-plans" id="ob-plans">
-        ${PLANS.individual.map((p) => planCard({ ...p, cadence: cad, on: plan === p.id })).join('')}
-      </div>
-      <div style="height:16px"></div>
-      <div class="ob-foot" style="margin-top:auto">
-        <button id="ob-start" class="btn primary">Start free, no card today</button>
-        <div class="ob2-fine" id="ob-fine"></div>
-        <div class="ob-textlink" style="padding-top:10px" data-go="${R}/connect">I have a code</div>
-        <div class="ob2-scan-note">Today's standard is live. One photo starts it.</div>
-      </div>`;
-    },
+    title: () => CONSUMER_START_TITLE,
+    sub: () => 'Today’s standard is live. One photo starts it.',
+    body: () => consumerStartBody({ codeRoute: `${R}/connect`, ctaId: 'ob-start' }),
     mount(root) {
-      const o = () => (RT.ob || {});
-      const cad = () => o().cadence || 'annual';
-      const plan = () => o().plan || PLANS.individual[0].id;
-      /* THE TRIAL DISCLOSURE IS READ FROM THE CATALOG, NEVER TYPED (founder audit 2026-09-14).
-         This said "Free for 7 days" while the plan card directly above it said "14-day free
-         trial" and pricing.js has carried trialDays: 14 since the rails were unified on
-         2026-09-08. One screen, two trial lengths, on the purchase step, in the sentence that
-         exists to satisfy FTC auto-renewal disclosure.
-         It also promised cancellation "in Settings", which this app deliberately cannot do:
-         consumer plans are store-managed IAP, and settings.js says so out loud ("we never
-         render a cancel button we can't honor") and deep-links to the store instead. */
-      const storeName = /android/i.test(navigator.userAgent || '') ? 'Play Store' : 'App Store';
-      const fineFor = (c) => {
-        const cat = consumerPlan(plan());
-        const days = cat && cat.trialDays > 0 ? cat.trialDays : 0;
-        const free = days ? `Free for ${days} days, then the ${c === 'annual' ? 'yearly' : 'monthly'} price. ` : `The ${c === 'annual' ? 'yearly' : 'monthly'} price. `;
-        return `${free}Cancel anytime in the ${storeName} before it renews.`;
-      };
-      const render = () => {
-        const list = root.querySelector('#ob-plans');
-        list.innerHTML = PLANS.individual.map((p) => planCard({ ...p, cadence: cad(), on: plan() === p.id })).join('');
-        list.querySelectorAll('.ob2-plan').forEach((el) => el.addEventListener('click', () => { capture({ plan: el.dataset.val }); track(EVENTS.PLAN_SELECTED, { plan: el.dataset.val, cadence: cad() }); render(); }));
-        root.querySelectorAll('.ob2-cadence .cad').forEach((b) => {
-          const on = b.dataset.cad === cad();
-          b.classList.toggle('on', on); b.setAttribute('aria-selected', on);
-        });
-        root.querySelector('#ob-fine').textContent = fineFor(cad());
-      };
-      root.querySelectorAll('.ob2-cadence .cad').forEach((b) => b.addEventListener('click', () => { capture({ cadence: b.dataset.cad }); render(); }));
-      /* Exposure: fire the moment the paywall is on screen — the report's non-negotiable for honest funnel math. */
-      track(EVENTS.PAYWALL_VIEWED, { variant: paywallVariant('athlete'), cadence: cad() });
-      render();
-      root.querySelector('#ob-start').addEventListener('click', () => {
-        /* Lock in the framed defaults if the user never tapped. Intent only — billing is go-live gated. */
-        if (!o().plan) capture({ plan: PLANS.individual[0].id });
-        if (!o().cadence) capture({ cadence: 'annual' });
-        track(EVENTS.TRIAL_STARTED, { plan: plan(), cadence: cad() });
-        goDestination();
-      });
+      root.querySelector('#ob-start').addEventListener('click', goDestination);
     },
   },
 ];

@@ -20,8 +20,9 @@ import { esc, copyText } from '../components.js';
 import { setMyTeamCode } from '../roles.js';
 import {
   defineFlow, saveProgressStep, choiceGrid, chipRow, simChip, mirrorCard, countStat,
-  phoneCard, testimonial, planCard, PLANS, capture, ob, gateCta, structureStep, commitContinue,
-  operatorPlanTitle, operatorPlanSub, operatorPlanCards,
+  phoneCard, PLANS, capture, ob, gateCta, structureStep, commitContinue,
+  operatorPlanTitle, operatorPlanSub, operatorPlanCards, operatorStartLabel, OPERATOR_WEB_FINE,
+  teamCreateFailedBody, wireTeamCreateRetry,
   adultDobSteps,
 } from '../ob2.js';
 import { SAMPLE_MEAL } from '../ob2-meal.js';
@@ -372,24 +373,6 @@ const steps = [
 
   /* ================= ch4 · Start ================= */
   {
-    id: 'proof', ch: 4, cta: 'Continue',
-    title: () => 'What it looks like in a program.',
-    sub: () => 'Illustrative, not actual customers yet.',
-    body: () => `
-      <!-- LAUNCH PLACEHOLDERS: realistic sample testimonials. The founder swaps these
-           for real customer quotes before go-live. Not real people. -->
-      ${testimonial({
-        quote: 'I stopped guessing which athletes were underfueling. The queue hands me the ten plates that matter before morning lift.',
-        name: 'Dana', role: 'Sports RD · 78 athletes', initials: 'D',
-        stat: '10 min', statKey: 'to clear the flags',
-      })}
-      ${testimonial({
-        quote: 'Travel weekends used to be a black hole. Now the plates come back from the road with reads already on them.',
-        name: 'Priya', role: 'Performance dietitian', initials: 'P',
-        stat: '2 teams', statKey: 'one queue',
-      })}`,
-  },
-  {
     id: 'account', ch: 4, noFoot: true,
     title: () => 'Create your account.',
     sub: (o) => (isStaffJoin(o)
@@ -473,14 +456,11 @@ const steps = [
         <div class="ob2-btn-pair"><button class="btn primary sm" id="obd-save">Save code</button></div>
         <div class="ob2-code-status" id="obd-status">Make it yours, e.g. GATORSFUEL. The random code stops working once you save.</div>
       </div>` : `
-      <div class="sidebox">
-        <div class="req-icon b">${icon('clipboard', 17)}</div>
-        <div><div class="tt">We couldn’t create your team</div>
-        <div class="ts">Your account is set up. The team isn’t. Pick a plan, then your dashboard has a <b>Create team</b> button waiting.</div></div>
-      </div>`}`;
+      ${teamCreateFailedBody('obd')}`}`;
     },
     mount(root) {
       const $ = (s) => root.querySelector(s);
+      wireTeamCreateRetry(root, 'obd');
       // Join-failure recovery: correct the code in place and re-run the same persistence rail.
       const retry = $('#obd-join-retry');
       if (retry) {
@@ -546,9 +526,9 @@ const steps = [
     sub: () => operatorPlanSub('Start free. Decide when the roster’s on the board.'),
     body: (o) => `
       ${operatorPlanCards(PLANS.org, (p) => (o.plan ? o.plan === p.id : p.id === 'org_starter'),
-        '<div class="ob2-fine">No card today. You’ll confirm before anything ever charges.</div>')}
+        `<div class="ob2-fine">${OPERATOR_WEB_FINE}</div>`)}
       <div class="ob-foot">
-        <button class="btn primary" id="obd-start" data-go="coach-home">Start free. No card today</button>
+        <button class="btn primary" id="obd-start" data-go="coach-home">${operatorStartLabel()}</button>
       </div>`,
     mount(root) {
       track(EVENTS.PAYWALL_VIEWED, { variant: 'org' });
