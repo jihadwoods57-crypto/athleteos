@@ -3,7 +3,7 @@ import { FILTERED_NOTE } from '../content-filter.js';
 import { openMembersSheet } from '../members-sheet.js';
 import { icon } from '../icons.js';
 import { accentVar, scoreColor, ON_STANDARD, qualityAccent, tierFor } from '../score-band.js';
-import { backHead, titleHead, avatarHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner, copyText, scoreRing, sayStatus } from '../components.js';
+import { backHead, titleHead, avatarHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner, copyText, scoreRing, sayStatus, aiDisclaimer } from '../components.js';
 import { DAYS_SHORT, shortDate, weekdayLong, dateKey } from '../fmt-date.js';
 import { weekBars, calendarWeek, daysBetween } from '../week-bars.js';
 import {
@@ -3428,9 +3428,9 @@ export const coachMeal = {
         <div class="msg ai last">
           <div class="av">${icon('sparkle', 15)}</div>
           <div class="stack"><div class="who">AI Nutritionist · what the ${CD.noun} was told</div>
-          <div class="bubble">${esc(opening)}</div></div>
+          <div class="bubble">${esc(opening)}</div>${aiDisclaimer()}</div>
         </div>` : ''}
-        ${layoutThread(msgs, { muted: RT.mutedUsers, fmtTime: msgClock, fmtDay: msgDay, fmtDayLabel: dayLabelOf }).map((item) => {
+        ${layoutThread(msgs, { muted: RT.mutedUsers, fmtTime: msgClock, fmtDay: msgDay, fmtDayLabel: dayLabelOf }).map((item, _i, all) => {
           if (item.type === 'time') return timeSepHtml(item, esc);
           const c = item.comment;
           /* A filed correction receipt renders as the card, not as a bubble — the same record the
@@ -3464,6 +3464,9 @@ export const coachMeal = {
               ${/* The "Updated analysis" badge is gone (founder ruling: robotic; the athlete
                     thread already dropped it). The quote above still marks what changed. */''}
               <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc)}${bubbleRx.length ? `<span class="rxo">${bubbleRx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+              ${/* G-P8: the AI's first words on the coach's side carry the same "not medical advice"
+                    line the athlete sees on the meal read and in nutrition chat. Once per thread. */''}
+              ${c.role === 'ai' && !(opening && !msgs.some(isAnalysisOpener)) && all.find((it) => it.type !== 'time' && it.comment && it.comment.role === 'ai' && !isCorrectionReceipt(it.comment)) === item ? aiDisclaimer() : ''}
               ${deliveredHtml({ mine, isLast: c === lastMsg })}
             </div>
             ${msgTimeHtml(c, msgClock, esc)}

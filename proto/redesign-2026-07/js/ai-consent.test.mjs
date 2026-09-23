@@ -141,3 +141,11 @@ test('every AI moment asks first', () => {
   }
   assert.match(src('screens/settings.js'), /id="pv-ai"/, 'Privacy has the row to change it');
 });
+
+// G-P8: the coach's side of a meal thread carries the AI disclaimer on the AI's first words.
+test('coach-side thread: the AI disclaimer rides the first AI reply, once', () => {
+  const src = readFileSync(join(JS, 'screens', 'coach.js'), 'utf8');
+  assert.match(src, /import \{[^}]*aiDisclaimer[^}]*\} from '\.\.\/components\.js'/);
+  assert.equal((src.match(/\$\{aiDisclaimer\(\)\}/g) || []).length, 1, 'under the opening');
+  assert.match(src, /it\.comment\.role === 'ai' && !isCorrectionReceipt\(it\.comment\)\) === item \? aiDisclaimer\(\) : ''/);
+});
