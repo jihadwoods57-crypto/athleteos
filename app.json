@@ -24,6 +24,7 @@
       "config": {
         "usesNonExemptEncryption": false
       },
+      "_infoPlist_microphone_comment": "Dictation in the chat composer (2026-09-23): the ONE microphone string in the build. expo-speech-recognition, expo-camera and expo-image-picker all write NSMicrophoneUsageDescription; none of them is given its own value, so each keeps this one instead of Expo's 'Allow $(PRODUCT_NAME) to access your microphone' placeholder (the plugins only fall back to the placeholder when this key is empty). Verify with npx expo config --type introspect.",
       "infoPlist": {
         "NSCameraUsageDescription": "OnStandard uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only.",
         "NSPhotoLibraryUsageDescription": "OnStandard needs photo library access so you can pick an existing meal photo to log and analyze.",
@@ -31,7 +32,9 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "OnStandard uses your location to check you in when you arrive where your coach asked you to be, and to center the map when a coach sets that place. Your location is only checked against that place and is never shared.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "So your arrival counts even when the app is closed, OnStandard checks you in when you walk into the place your coach set. It only watches that place during the check-in window, and never shares where you are.",
-        "NSLocationAlwaysUsageDescription": "So your arrival counts even when the app is closed, OnStandard checks you in when you walk into the place your coach set. It only watches that place during the check-in window, and never shares where you are."
+        "NSLocationAlwaysUsageDescription": "So your arrival counts even when the app is closed, OnStandard checks you in when you walk into the place your coach set. It only watches that place during the check-in window, and never shares where you are.",
+        "NSMicrophoneUsageDescription": "OnStandard uses the microphone only when you tap the mic in a chat, so you can say your message instead of typing it. Nothing is recorded or kept: your words become text you can edit before you send.",
+        "NSSpeechRecognitionUsageDescription": "When you tap the mic in a chat, OnStandard turns what you say into text in the message box. It works on your iPhone when it can, and nothing is sent until you check the text and tap Send."
       },
       "privacyManifests": {
         "NSPrivacyTracking": false,
@@ -183,20 +186,28 @@
         "expo-image-picker",
         {
           "photosPermission": "OnStandard lets you pick an existing meal photo to log and analyze.",
-          "cameraPermission": "OnStandard uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only.",
-          "microphonePermission": false
+          "cameraPermission": "OnStandard uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only."
         }
       ],
       [
         "expo-camera",
         {
-          "_comment": "microphonePermission:false and recordAudioAndroid:false: nothing in the app records audio (the proto calls getUserMedia with audio:false), yet both this plugin and expo-image-picker inject Expo's placeholder NSMicrophoneUsageDescription ('Allow $(PRODUCT_NAME) to access your microphone') and RECORD_AUDIO by default. A boilerplate purpose string for a permission the app never uses is a 5.1.1 rejection on its own. Verify with npx expo config --type introspect.",
+          "_comment": "2026-09-23: the app DOES use the microphone now, for dictation in the chat composer (expo-speech-recognition, below). Until then microphonePermission was false here and on expo-image-picker, because nothing recorded audio and both plugins inject Expo's placeholder mic string ('Allow $(PRODUCT_NAME) to access your microphone'), a 5.1.1 rejection on its own. Neither plugin is given a mic string now: each keeps ios.infoPlist.NSMicrophoneUsageDescription, the one real string. Do NOT set microphonePermission:false again: it DELETES that key (the speech module would then crash the app on the first tap of the mic), and on expo-image-picker it also BLOCKS android.permission.RECORD_AUDIO, which Android dictation needs. recordAudioAndroid stays false: the camera never records audio; RECORD_AUDIO comes from the speech plugin. Verify with npx expo config --type introspect.",
           "cameraPermission": "OnStandard uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only.",
-          "microphonePermission": false,
           "recordAudioAndroid": false
         }
       ],
       "expo-secure-store",
+      [
+        "expo-speech-recognition",
+        {
+          "_comment": "Dictation in every chat composer (2026-09-23). No purpose strings here on purpose: the plugin keeps ios.infoPlist's NSMicrophoneUsageDescription and NSSpeechRecognitionUsageDescription when it is given none, so each string lives in one place. It adds android.permission.RECORD_AUDIO and the <queries> entry for Google's recognition service. The native module ships with a BINARY; the proto hides the mic on any build without it (bridge DICTATION_AVAILABLE).",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox",
+            "com.google.android.as"
+          ]
+        }
+      ],
       [
         "expo-local-authentication",
         {

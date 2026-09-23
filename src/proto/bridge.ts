@@ -33,6 +33,7 @@ import { drainLiveActivityTaps, settleLiveCard } from '../lib/notify/rollcall';
 import { getPushToken } from '../lib/notify';
 import { getFlag } from '../store/flagsStore';
 import { requestMapPick } from '../lib/maps/pickRequest';
+import { dictationStatus, startDictation, stopDictation, abortDictation, type DictationEvent } from '../lib/voice/nativeSpeech';
 
 type Ref = React.RefObject<WebView | null>;
 
@@ -91,6 +92,15 @@ export type BridgeMessage =
   // The only coordinate that crosses the bridge is the one the coach chose on that map (never the
   // device's own position), and nothing on either side logs it. One at a time: a second request while the map is open is refused.
   | { type: 'MAP_PICK'; id: number; initial?: { lat?: number; lng?: number; radius_m?: number; name?: string } }
+  // Dictation in the chat composer (2026-09-23). AVAILABLE answers { available, onDevice,
+  // permission } and never prompts; START prompts the first time and resolves { ok, onDevice } or
+  // { ok:false, code }; the words then stream to the page through window.__onDictation(event)
+  // until an { type:'end' }. STOP lets the recognizer deliver its last words; ABORT drops them.
+  // Only the athlete's own words cross, only to the page, and nothing on either side logs them.
+  | { type: 'DICTATION_AVAILABLE'; id: number }
+  | { type: 'DICTATION_START'; id: number; lang?: string }
+  | { type: 'DICTATION_STOP' }
+  | { type: 'DICTATION_ABORT' }
   | { __log: { level: string; msg: string } };
 
 /** Serialize a value for safe injection into `window.__onNativeResult(id, <here>)`. */
@@ -104,6 +114,11 @@ function safeJson(value: unknown): string {
     out += c < 0x7f ? s[i] : '\\u' + c.toString(16).padStart(4, '0');
   }
   return out;
+}
+
+/** Push one dictation event into the page (window.__onDictation, js/dictation.js). */
+function dictationEvent(ref: Ref, e: DictationEvent) {
+  ref.current?.injectJavaScript(`window.__onDictation && window.__onDictation(${safeJson(e)}); true;`);
 }
 
 function resolve(ref: Ref, id: number, value: unknown, error?: string) {
@@ -436,6 +451,28 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
         resolve(ref, msg.id, { place: null }, String((e as Error)?.message ?? e));
       }
       return true;
+    case 'DICTATION_AVAILABLE':
+      // False on any binary built without expo-speech-recognition (an OTA can land on one), and
+      // the proto keeps the mic hidden.
+      try {
+        resolve(ref, msg.id, await dictationStatus());
+      } catch (e) {
+        resolve(ref, msg.id, { available: false, onDevice: false, permission: 'undetermined' }, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'DICTATION_START':
+      try {
+        resolve(ref, msg.id, await startDictation((ev) => dictationEvent(ref, ev), { lang: msg.lang || undefined }));
+      } catch (e) {
+        resolve(ref, msg.id, { ok: false, code: 'failed' }, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'DICTATION_STOP':
+      stopDictation();
+      return true;
+    case 'DICTATION_ABORT':
+      abortDictation();
+      return true;
     case 'REVIEW_REQUEST': {
       /* Ask the OS to show its rating prompt. Resolves TRUE only when we actually asked.
        *
@@ -560,6 +597,14 @@ export const BRIDGE_SHIM = `
     // The coach's map. pick({ lat, lng, radius_m, name }?) resolves the saved place
     // { name, address, lat, lng, radius_m }, or null when the coach cancels. Rejects only when no
     // map can open ('map-unavailable') or one is already open ('map-busy').
+    // Dictation (composer upgrade, 2026-09-23). available() never prompts; start() does, the first
+    // time. Words arrive at window.__onDictation({ type:'text', text, final }) until { type:'end' }.
+    dictation: {
+      available: function(){ return call('DICTATION_AVAILABLE', {}); },
+      start: function(lang){ return call('DICTATION_START', { lang: String(lang || '') }); },
+      stop: function(){ post({ type: 'DICTATION_STOP' }); },
+      abort: function(){ post({ type: 'DICTATION_ABORT' }); }
+    },
     maps: {
       pick: function(initial){
         return call('MAP_PICK', initial && typeof initial === 'object' ? { initial: initial } : {})

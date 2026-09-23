@@ -41,7 +41,22 @@ jest.mock('../lib/location', () => ({
   REPORTS_PRESENCE: true,
 }));
 
+// The dictation seam is mocked for ROUTING only; its own decisions are tested in
+// src/lib/voice/nativeSpeech.test.ts. The fake start() plays one word and an end through the
+// emitter the bridge hands it, which is how the page receives them.
+jest.mock('../lib/voice/nativeSpeech', () => ({
+  dictationStatus: jest.fn(async () => ({ available: true, onDevice: true, permission: 'undetermined' })),
+  startDictation: jest.fn(async (emit: (e: unknown) => void) => {
+    emit({ type: 'text', text: 'two eggs', final: false });
+    emit({ type: 'end' });
+    return { ok: true, onDevice: true };
+  }),
+  stopDictation: jest.fn(),
+  abortDictation: jest.fn(),
+}));
+
 import { handleBridgeMessage, BRIDGE_SHIM } from './bridge';
+import { stopDictation, abortDictation } from '../lib/voice/nativeSpeech';
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { endLiveActivity } from '../../modules/rollcall-live';
 
@@ -261,5 +276,37 @@ describe('MAP_PICK: the coach draws the check-in bubble', () => {
     expect(BRIDGE_SHIM).toContain("call('MAP_PICK'");
     expect(BRIDGE_SHIM).toMatch(/maps:\s*\{\s*pick: function\(initial\)/);
     expect(BRIDGE_SHIM).toContain('r && r.place ? r.place : null');
+  });
+});
+
+describe('DICTATION_* (composer upgrade, 2026-09-23)', () => {
+  test('AVAILABLE resolves the seam status and never prompts', async () => {
+    const { injected, ref } = fakeRef();
+    expect(await handleBridgeMessage(ref, { type: 'DICTATION_AVAILABLE', id: 51 } as never)).toBe(true);
+    expect(injected[0]).toContain('__onNativeResult(51, {"available":true,"onDevice":true,"permission":"undetermined"}, null)');
+  });
+
+  test('START streams the words into the page through window.__onDictation, then resolves', async () => {
+    const { injected, ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'DICTATION_START', id: 52, lang: 'en-US' } as never);
+    expect(injected[0]).toBe('window.__onDictation && window.__onDictation({"type":"text","text":"two eggs","final":false}); true;');
+    expect(injected[1]).toContain('__onDictation({"type":"end"})');
+    expect(injected[2]).toContain('__onNativeResult(52, {"ok":true,"onDevice":true}, null)');
+  });
+
+  test('STOP and ABORT route to the seam, fire-and-forget', async () => {
+    const { injected, ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'DICTATION_STOP' } as never);
+    await handleBridgeMessage(ref, { type: 'DICTATION_ABORT' } as never);
+    expect(stopDictation).toHaveBeenCalled();
+    expect(abortDictation).toHaveBeenCalled();
+    expect(injected).toEqual([]);
+  });
+
+  test('the shim exposes dictation.available/start/stop/abort', () => {
+    expect(BRIDGE_SHIM).toMatch(/dictation:\s*\{\s*available: function\(\)\{ return call\('DICTATION_AVAILABLE'/);
+    expect(BRIDGE_SHIM).toContain("call('DICTATION_START'");
+    expect(BRIDGE_SHIM).toContain("post({ type: 'DICTATION_STOP' })");
+    expect(BRIDGE_SHIM).toContain("post({ type: 'DICTATION_ABORT' })");
   });
 });

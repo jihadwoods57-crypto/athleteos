@@ -10,6 +10,7 @@ import { ensureProtoExtracted, PROTO_ROOT_DIR } from './protoBundle';
 import { PROTO_VERSION } from './protoVersion';
 import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
 import { keyboardOverlap } from './keyboardOverlap';
+import { abortDictation } from '../lib/voice/nativeSpeech';
 import { authenticateBiometric } from '../lib/auth/biometrics';
 import { parseInviteCode } from '../lib/inviteLink';
 import { rollCallRouteFromUrl } from '../lib/rollCallLink';
@@ -350,6 +351,10 @@ export function ProtoApp() {
     ];
     return () => subs.forEach((s) => s.remove());
   }, []);
+  // A microphone never outlives the page it was dictating into: the shell unmounting (sign-out,
+  // biometric relock) or the WebView dying ends any dictation in progress.
+  React.useEffect(() => () => abortDictation(), []);
+  React.useEffect(() => { if (err) abortDictation(); }, [err]);
 
   if (locked === null) {
     return (

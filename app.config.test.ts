@@ -75,6 +75,32 @@ describe('app.json — iOS App Store compliance', () => {
     expect(opts.motionUsagePermission).toBe(false);
   });
 
+  // Dictation in the chat composer (2026-09-23). App Review rejected a boilerplate microphone
+  // string before, and three plugins (expo-speech-recognition, expo-camera, expo-image-picker) each
+  // write NSMicrophoneUsageDescription, falling back to Expo's placeholder when the key is empty or
+  // deleting it outright on microphonePermission:false. Exactly one real string, kept here, and no
+  // plugin allowed to replace or delete it.
+  it('dictation: one plain microphone string and one speech string, no plugin overriding them', () => {
+    for (const key of ['NSMicrophoneUsageDescription', 'NSSpeechRecognitionUsageDescription']) {
+      const v = ios.infoPlist[key];
+      expect(typeof v).toBe('string');
+      expect(v).not.toMatch(/PRODUCT_NAME|—/);
+      expect(v).toMatch(/tap the mic in a chat/i);
+    }
+    const plugins = appJson.expo.plugins as unknown[];
+    const opts = (name: string) => {
+      const p = plugins.find((x) => Array.isArray(x) && x[0] === name) as [string, Record<string, unknown>] | undefined;
+      return p ? p[1] : undefined;
+    };
+    expect(opts('expo-speech-recognition')).toBeDefined();
+    for (const name of ['expo-speech-recognition', 'expo-camera', 'expo-image-picker']) {
+      // Absent means "keep ios.infoPlist's string"; false would delete it (and, on the picker,
+      // block RECORD_AUDIO); any other string would be a second, competing one.
+      expect(opts(name)?.microphonePermission).toBeUndefined();
+    }
+    expect(opts('expo-speech-recognition')?.speechRecognitionPermission).toBeUndefined();
+  });
+
   it('declares precise location as collected, linked, untracked, for app functionality', () => {
     // One reading is sent to our server on arrival, compared to the coach's place and discarded.
     // It leaves the device inside the athlete's signed-in request and the verdict it produces is
