@@ -6,54 +6,96 @@
  * pushes and nudges to you. RT.mutedUsers stays as the cache, so a message disappears the moment
  * Block is tapped, before any round trip.
  *
+ * THE SERVER IS THE TRUTH (review I5). The cache is rebuilt from the server list on every sync;
+ * the only thing this phone adds is its own PENDING operations (a block or unblock whose write has
+ * not landed yet), kept in a small queue and replayed first. So an unblock made on another phone
+ * sticks here too, and a sync that races an in-flight unblock waits for it instead of re-blocking.
+ * Mutes from before blocks were stored are queued once, as adds.
+ *
  * Loaded on demand (the members sheet, the bell), never at boot.
  */
 import { RT, act } from './state.js';
 
 const client = () => (typeof window !== 'undefined' ? window.sb : null);
+const QKEY = (uid) => `os.blocks.pending.${uid}`;
+const MKEY = (uid) => `os.blocks.migrated.${uid}`;
+let INFLIGHT = Promise.resolve();
 
-/** Block `id`: hidden here at once, then stored on the server. Resolves { ok } (the cache holds
- *  either way; a failed write is retried by the next syncBlocks). */
+function readQueue(uid) {
+  try { const q = JSON.parse(localStorage.getItem(QKEY(uid)) || '[]'); return Array.isArray(q) ? q : []; } catch { return []; }
+}
+function writeQueue(uid, q) {
+  try { if (q.length) localStorage.setItem(QKEY(uid), JSON.stringify(q)); else localStorage.removeItem(QKEY(uid)); } catch { /* no storage */ }
+}
+/** Replace any queued op for `id` with this one. */
+function enqueue(uid, op, id) {
+  writeQueue(uid, [...readQueue(uid).filter((x) => x.id !== id), { op, id }]);
+}
+
+async function send(sb, uid, op, id) {
+  try {
+    if (op === 'add') {
+      // insert, not upsert: the table grants insert/select/delete only, and a repeat is a 23505.
+      const { error } = await sb.from('user_blocks').insert({ blocker_id: uid, blocked_id: id });
+      return !error || error.code === '23505';
+    }
+    const { error } = await sb.from('user_blocks').delete().eq('blocker_id', uid).eq('blocked_id', id);
+    return !error;
+  } catch { return false; }
+}
+
+function run(uid, op, id) {
+  const sb = client();
+  const p = INFLIGHT.then(async () => {
+    if (!sb) { enqueue(uid, op, id); return false; }
+    const ok = await send(sb, uid, op, id);
+    if (ok) writeQueue(uid, readQueue(uid).filter((x) => x.id !== id));
+    else enqueue(uid, op, id);
+    return ok;
+  });
+  INFLIGHT = p.catch(() => false);
+  return p;
+}
+
+/** Block `id`: hidden here at once, then stored on the server (queued if that fails). */
 export async function blockUser(id) {
   const k = String(id || '');
-  if (!k || k === RT.userId) return { ok: false };
+  if (!k || !RT.userId || k === RT.userId) return { ok: false };
   act.muteUser(k);
-  const sb = client();
-  if (!sb || !RT.userId) return { ok: false };
-  try {
-    // insert, not upsert: the table grants insert/select/delete only, and a repeat is a 23505.
-    const { error } = await sb.from('user_blocks').insert({ blocker_id: RT.userId, blocked_id: k });
-    return { ok: !error || error.code === '23505' };
-  } catch { return { ok: false }; }
+  return { ok: await run(RT.userId, 'add', k) };
 }
 
-/** Unblock `id`, here and on the server. */
+/** Unblock `id`: shown again at once, removed on the server (queued if that fails). */
 export async function unblockUser(id) {
   const k = String(id || '');
-  if (!k) return { ok: false };
+  if (!k || !RT.userId) return { ok: false };
   act.unmuteUser(k);
-  const sb = client();
-  if (!sb || !RT.userId) return { ok: false };
-  try {
-    const { error } = await sb.from('user_blocks').delete().eq('blocker_id', RT.userId).eq('blocked_id', k);
-    return { ok: !error };
-  } catch { return { ok: false }; }
+  return { ok: await run(RT.userId, 'remove', k) };
 }
 
-/** Bring the cache and the server into one list: server blocks land on this phone, and a mute
- *  made on this phone before blocks were stored (or while offline) is written to the server. */
+/** Rebuild the cache from the server: replay this phone's pending ops, read the server list, and
+ *  keep only what the server says plus whatever is STILL pending here. */
 export async function syncBlocks() {
   const sb = client();
-  if (!sb || !RT.userId) return;
+  const uid = RT.userId;
+  if (!sb || !uid) return;
+  await INFLIGHT;
+  // One-time: mutes made before blocks were stored become pending adds.
   try {
-    const { data, error } = await sb.from('user_blocks').select('blocked_id').eq('blocker_id', RT.userId);
-    if (error || !Array.isArray(data)) return;
-    const server = new Set(data.map((r) => String(r.blocked_id)));
-    for (const id of server) if (!act.isMuted(id)) act.muteUser(id);
-    const localOnly = (RT.mutedUsers || []).filter((id) => id && !server.has(String(id)) && id !== RT.userId);
-    if (localOnly.length) {
-      for (const id of localOnly) await sb.from('user_blocks').insert({ blocker_id: RT.userId, blocked_id: id });
+    if (localStorage.getItem(MKEY(uid)) !== '1') {
+      for (const id of RT.mutedUsers || []) if (id && id !== uid && !readQueue(uid).some((x) => x.id === id)) enqueue(uid, 'add', String(id));
+      localStorage.setItem(MKEY(uid), '1');
     }
+  } catch { /* no storage: nothing to migrate */ }
+  for (const { op, id } of readQueue(uid)) await run(uid, op, id);
+  await INFLIGHT;
+  try {
+    const { data, error } = await sb.from('user_blocks').select('blocked_id').eq('blocker_id', uid);
+    if (error || !Array.isArray(data) || RT.userId !== uid) return;
+    const list = new Set(data.map((r) => String(r.blocked_id)));
+    for (const { op, id } of readQueue(uid)) { if (op === 'add') list.add(id); else list.delete(id); }
+    for (const id of [...(RT.mutedUsers || [])]) if (!list.has(String(id))) act.unmuteUser(id);
+    for (const id of list) if (!act.isMuted(id)) act.muteUser(id);
   } catch { /* the cache still hides; the next open tries again */ }
 }
 
