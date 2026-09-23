@@ -33,12 +33,32 @@ comment on column public.profiles.ai_consent_at is
 -- This project grants profiles columns explicitly (see 0236). Select only; writes go through the RPC.
 grant select (ai_consent, ai_consent_at) on public.profiles to authenticated;
 
+-- A column grant cannot take away a TABLE-level update privilege, and some stacks carry one on
+-- profiles (self-update policy). So the rule is a trigger: ai_consent / ai_consent_at change only
+-- inside set_ai_consent, which raises a transaction-local flag first. A client update that touches
+-- either column is refused; any other profile edit is untouched.
+create or replace function public.tg_ai_consent_guard()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if (new.ai_consent is distinct from old.ai_consent or new.ai_consent_at is distinct from old.ai_consent_at)
+     and coalesce(current_setting('app.ai_consent_write', true), '') <> 'on'
+     and coalesce(auth.role(), '') <> 'service_role'
+     and current_user not in ('postgres', 'supabase_admin', 'service_role') then
+    raise exception 'ai_consent is set only through set_ai_consent' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+drop trigger if exists ai_consent_guard on public.profiles;
+create trigger ai_consent_guard before update on public.profiles
+  for each row execute function public.tg_ai_consent_guard();
+
 -- ---------------------------------------------------------------- write: own row only
 create or replace function public.set_ai_consent(p_consent boolean)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_uid uuid := auth.uid();
   v_at timestamptz := now();
+  v_n int;
 begin
   if v_uid is null then
     raise exception 'not signed in' using errcode = '42501';
@@ -46,8 +66,11 @@ begin
   if p_consent is null then
     raise exception 'an answer is required' using errcode = '22004';
   end if;
+  perform set_config('app.ai_consent_write', 'on', true);
   update public.profiles set ai_consent = p_consent, ai_consent_at = v_at where id = v_uid;
-  if not found then
+  get diagnostics v_n = row_count;
+  perform set_config('app.ai_consent_write', 'off', true);
+  if v_n = 0 then
     raise exception 'no profile' using errcode = 'P0002';
   end if;
   return jsonb_build_object('ai_consent', p_consent, 'ai_consent_at', v_at);

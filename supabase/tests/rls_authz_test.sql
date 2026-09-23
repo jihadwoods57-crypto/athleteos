@@ -5176,6 +5176,121 @@ delete from commitment_locations where id in (select id from _rc_place);
 drop table _rc_place_next;
 drop table _rc_place;
 
+-- ================================================================ review pass 2026-09-23 (0243-0246)
+-- 0243 AI consent, 0244 Block, 0245 report alerts, 0246 Apple tokens. Private fixtures (fffb…) so
+-- no earlier section can disturb them.
+select _superuser();
+insert into auth.users (id, email) values
+  ('fffb0000-0000-0000-0000-0000000000a1','rp-ath@x.io'),
+  ('fffb0000-0000-0000-0000-0000000000c1','rp-coach@x.io'),
+  ('fffb0000-0000-0000-0000-0000000000e1','rp-other@x.io');
+insert into profiles (id, full_name, email, primary_role) values
+  ('fffb0000-0000-0000-0000-0000000000a1', 'Review Athlete', 'rp-ath@x.io', 'athlete'),
+  ('fffb0000-0000-0000-0000-0000000000c1', 'Review Coach',   'rp-coach@x.io', 'coach'),
+  ('fffb0000-0000-0000-0000-0000000000e1', 'Review Other',   'rp-other@x.io', 'athlete')
+  on conflict (id) do update set full_name = excluded.full_name, email = excluded.email, primary_role = excluded.primary_role;
+insert into teams (id, name, sport, join_code, created_by) values
+  ('fffb0000-1111-0000-0000-000000000001', 'Review Team', 'football', 'RVWB01', 'fffb0000-0000-0000-0000-0000000000c1')
+  on conflict (id) do nothing;
+insert into team_staff (team_id, staff_id, role, status) values
+  ('fffb0000-1111-0000-0000-000000000001', 'fffb0000-0000-0000-0000-0000000000c1', 'head_coach', 'active')
+  on conflict do nothing;
+insert into team_members (team_id, athlete_id, status) values
+  ('fffb0000-1111-0000-0000-000000000001', 'fffb0000-0000-0000-0000-0000000000a1', 'active'),
+  ('fffb0000-1111-0000-0000-000000000001', 'fffb0000-0000-0000-0000-0000000000e1', 'active')
+  on conflict do nothing;
+insert into meals (id, athlete_id, day_date, type, name) values
+  ('fffb0000-e000-0000-0000-00000000d001', 'fffb0000-0000-0000-0000-0000000000a1', current_date, 'dinner', 'Review dinner')
+  on conflict (id) do nothing;
+insert into meal_comments (meal_id, athlete_id, author_id, role, text) values
+  ('fffb0000-e000-0000-0000-00000000d001','fffb0000-0000-0000-0000-0000000000a1','fffb0000-0000-0000-0000-0000000000c1','coach','coach says hi'),
+  ('fffb0000-e000-0000-0000-00000000d001','fffb0000-0000-0000-0000-0000000000a1','fffb0000-0000-0000-0000-0000000000c1','ai','ai answers the coach');
+
+-- 0243: the answer is the person's own, written only through the RPC.
+select _as('fffb0000-0000-0000-0000-0000000000a1');
+select _ok((select ai_consent from profiles where id = 'fffb0000-0000-0000-0000-0000000000a1') is null,
+  '0243: never asked reads as null');
+select _ok(_try($q$select set_ai_consent(true)$q$) = 'ok', '0243: set_ai_consent(true) works for the signed-in person');
+select _ok((select ai_consent from profiles where id = 'fffb0000-0000-0000-0000-0000000000a1') = true
+       and (select ai_consent_at from profiles where id = 'fffb0000-0000-0000-0000-0000000000a1') is not null,
+  '0243: the answer and its time are recorded');
+select _ok(_try($q$update profiles set ai_consent = false where id = 'fffb0000-0000-0000-0000-0000000000a1'$q$) <> 'ok',
+  '0243: no direct write to ai_consent (the RPC is the only door)');
+select _ok(_try($q$select has_ai_consent('fffb0000-0000-0000-0000-0000000000c1')$q$) <> 'ok',
+  '0243: a client cannot ask whether ANOTHER person agreed');
+select _superuser();
+select _ok(has_ai_consent('fffb0000-0000-0000-0000-0000000000a1') = true
+       and has_ai_consent('fffb0000-0000-0000-0000-0000000000c1') = false
+       and has_ai_consent('00000000-0000-0000-0000-00000000dead') = false,
+  '0243: has_ai_consent is true only for an explicit yes; never asked and no profile are no');
+
+-- 0244: Block.
+select _as('fffb0000-0000-0000-0000-0000000000a1');
+select _ok((select count(*) from meal_comments where meal_id = 'fffb0000-e000-0000-0000-00000000d001') = 2,
+  '0244: before a block the athlete sees the coach message and the AI reply');
+select _ok(_try($q$insert into user_blocks (blocker_id, blocked_id) values ('fffb0000-0000-0000-0000-0000000000a1','fffb0000-0000-0000-0000-0000000000c1')$q$) = 'ok',
+  '0244: an athlete can block their coach');
+select _ok(_try($q$insert into user_blocks (blocker_id, blocked_id) values ('fffb0000-0000-0000-0000-0000000000e1','fffb0000-0000-0000-0000-0000000000c1')$q$) <> 'ok',
+  '0244: nobody can write a block on someone else''s behalf');
+select _ok(_try($q$insert into user_blocks (blocker_id, blocked_id) values ('fffb0000-0000-0000-0000-0000000000a1','fffb0000-0000-0000-0000-0000000000a1')$q$) <> 'ok',
+  '0244: you cannot block yourself');
+select _ok((select count(*) from meal_comments where meal_id = 'fffb0000-e000-0000-0000-00000000d001' and role = 'coach') = 0,
+  '0244: the blocked coach''s messages disappear from the blocker''s thread');
+select _ok((select count(*) from meal_comments where meal_id = 'fffb0000-e000-0000-0000-00000000d001' and role = 'ai') = 1,
+  '0244: AI rows are never hidden by a block');
+select _ok(_try($q$select * from blocked_recipients('fffb0000-0000-0000-0000-0000000000c1', array['fffb0000-0000-0000-0000-0000000000a1']::uuid[])$q$) <> 'ok',
+  '0244: blocked_recipients is service-role only');
+select _as('fffb0000-0000-0000-0000-0000000000c1');
+select _ok((select count(*) from user_blocks) = 0, '0244: the blocked person cannot see that they were blocked');
+select _ok((select count(*) from meal_comments where meal_id = 'fffb0000-e000-0000-0000-00000000d001' and role = 'coach') = 1,
+  '0244: the coach still sees their own message');
+select _ok(_try($q$select post_announcement('fffb0000-1111-0000-0000-000000000001', 'team', null, 'Early lift', 'Lift at six tomorrow.')$q$) = 'ok',
+  '0244: the coach can still post an announcement');
+select _superuser();
+select _ok((select count(*) from notifications where user_id = 'fffb0000-0000-0000-0000-0000000000a1' and kind = 'announcement' and title = 'Early lift') = 0
+       and (select count(*) from notifications where user_id = 'fffb0000-0000-0000-0000-0000000000e1' and kind = 'announcement' and title = 'Early lift') = 1,
+  '0244: the announcement skips the athlete who blocked the author, and reaches everyone else');
+select _ok((select array_agg(x) from blocked_recipients('fffb0000-0000-0000-0000-0000000000c1',
+          array['fffb0000-0000-0000-0000-0000000000a1','fffb0000-0000-0000-0000-0000000000e1']::uuid[]) as x)
+       = array['fffb0000-0000-0000-0000-0000000000a1']::uuid[],
+  '0244: blocked_recipients names exactly the recipients who blocked the sender');
+-- block_announcement_author: the OTHER athlete blocks the coach from the announcement row alone.
+select _as('fffb0000-0000-0000-0000-0000000000e1');
+select _ok((select block_announcement_author((select id from notifications where kind = 'announcement' and title = 'Early lift' limit 1))) = true,
+  '0244: an athlete can block the coach behind an announcement they received');
+select _ok((select count(*) from user_blocks where blocked_id = 'fffb0000-0000-0000-0000-0000000000c1') = 1,
+  '0244: that block is theirs');
+select _ok((select block_announcement_author('00000000-0000-0000-0000-00000000beef')) = false,
+  '0244: a notification that is not yours blocks nobody');
+select _as('fffb0000-0000-0000-0000-0000000000a1');
+select _ok(_try($q$delete from user_blocks where blocked_id = 'fffb0000-0000-0000-0000-0000000000c1'$q$) = 'ok',
+  '0244: the blocker can unblock');
+select _ok((select count(*) from meal_comments where meal_id = 'fffb0000-e000-0000-0000-00000000d001' and role = 'coach') = 1,
+  '0244: unblocking brings the messages back');
+
+-- 0245: a report reaches a person.
+select _as('fffb0000-0000-0000-0000-0000000000a1');
+select _try($q$insert into content_reports (reporter_id, subject_id, meal_id, reason, detail) values
+  ('fffb0000-0000-0000-0000-0000000000a1','fffb0000-0000-0000-0000-0000000000c1','fffb0000-e000-0000-0000-00000000d001','harassment','he was rude')$q$);
+select _ok(_try($q$select alert_content_reports('http://127.0.0.1:9/x', 'k')$q$) <> 'ok',
+  '0245: a client cannot fire the alert');
+select _superuser();
+select _ok(alert_content_reports('http://127.0.0.1:9/admin-alert', 'test-key') >= 1,
+  '0245: an open report is sent');
+select _ok((select alerted_at from content_reports where reporter_id = 'fffb0000-0000-0000-0000-0000000000a1' order by created_at desc limit 1) is not null,
+  '0245: and stamped, so it is sent once');
+select _ok(alert_content_reports('http://127.0.0.1:9/admin-alert', 'test-key') = 0,
+  '0245: a second run sends nothing new');
+
+-- 0246: Apple refresh tokens are a credential: service role only.
+select _superuser();
+insert into apple_siwa_tokens (user_id, refresh_token) values ('fffb0000-0000-0000-0000-0000000000a1', 'r.secret');
+select _as('fffb0000-0000-0000-0000-0000000000a1');
+select _ok(_try($q$select count(*) from apple_siwa_tokens$q$) <> 'ok', '0246: not even the owner can read their Apple token');
+select _ok(_try($q$insert into apple_siwa_tokens (user_id, refresh_token) values ('fffb0000-0000-0000-0000-0000000000a1','x')$q$) <> 'ok',
+  '0246: no client can write one');
+select _superuser();
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
