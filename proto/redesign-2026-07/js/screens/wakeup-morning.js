@@ -42,9 +42,12 @@ function needRow(r) {
    import from the connected-standards module. */
 const homeOf = () => (RT.authRole === 'trainer' ? 'trainer' : 'coach-home');
 
-/* Whether today's board has answered once this session, so a cold open says "loading" rather than
-   "no wake-up was set" to a coach who has one. */
-let LOADED = false;
+/* Which book today's board has answered for, so a cold open says "loading" rather than "no wake-up
+   was set" to a coach who has one. Keyed by the book (final review M-2): a module-global boolean
+   survived a sign-out, so the NEXT coach in the same session got "No wake-up was set" with no
+   repaint. '' = settled with no book at all, which is an answer too (never a skeleton forever). */
+let LOADED_FOR = null;
+const loadedNow = () => LOADED_FOR !== null && LOADED_FOR === (bookId() || '');
 
 export default {
   // 'operator', not 'coach': the router admits coach AND trainer under 'operator', and the Home
@@ -64,7 +67,7 @@ export default {
   },
   render() {
     const inst = instanceOf();
-    if (!inst && !LOADED) return `${backHead('Roll call', 'Loading…', homeOf())}${skeletonRows(4, 'Loading this morning')}`;
+    if (!inst && !loadedNow()) return `${backHead('Roll call', 'Loading…', homeOf())}${skeletonRows(4, 'Loading this morning')}`;
     if (!inst) {
       return `${backHead('This morning', '', homeOf())}
       <div class="sidebox">
@@ -143,15 +146,14 @@ export default {
        set" to a coach who has one. book-arrival.test.mjs is the gate that caught it. */
     if (!bookId()) { await loadBook(false, CD.kind); }
     const id = bookId();
-    if (id) {
-      await loadBoard(id, CD.kind);
-      const first = !LOADED;
-      LOADED = true;
-      // The first answer repaints, once: it turns the skeleton into the board (the redirect) or
-      // into the honest empty state. Every later mount would otherwise repaint into itself.
-      if (root.isConnected && first) window.__render();
-      sizeBar();
-    }
+    if (id) await loadBoard(id, CD.kind);
+    const key = id || '';
+    const first = LOADED_FOR !== key;
+    LOADED_FOR = key;
+    // The first answer for THIS book repaints, once: it turns the skeleton into the board (the
+    // redirect) or into the honest empty state. Every later mount would otherwise repaint into itself.
+    if (root.isConnected && first) window.__render();
+    sizeBar();
     /* Delegated on the screen root: #view is replaced on every paint, so a listener bound to a
        row would die with the repaint the load above triggers. */
     root.addEventListener('click', async (e) => {

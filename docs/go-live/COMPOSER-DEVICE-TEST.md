@@ -105,6 +105,17 @@ meal** (coach account, an athlete's meal).
    its bottom cannot be scrolled to, report it: with the WebView's outer scroll off on iOS, that
    layout has no way to scroll (review M-3; a pre-existing layout gap, made visible by this change).
 
+## 2c. Fields outside a thread (final review M-7)
+
+`scrollEnabled={false}` on the iOS WebView removes WebKit's own reveal for EVERY input, so every
+form field now relies on keyboard.js alone. Check two that sit low on the screen:
+
+1. **Sign-in.** Sign out, tap the password field (the lowest field on the screen). Expected: the
+   field sits above the keys while typing; nothing is hidden under them.
+2. **Onboarding.** Start onboarding on a fresh account and tap the lowest field on any step.
+   Expected: the same. Then dismiss the keys: the screen does not jump (a form is never pinned to
+   its end when the keys go away; only a thread is).
+
 ## 3. An older build
 
 On a phone still on the build before this branch, install the OTA that carries this proto.

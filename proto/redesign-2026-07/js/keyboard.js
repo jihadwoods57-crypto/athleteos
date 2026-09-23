@@ -172,6 +172,9 @@ function followKeyboard() {
   // Any OTHER field (the food search at the top of its screen, a profile form) is only ever lifted
   // clear of the keys once they land, never carried to the end: that is revealAt()'s rule.
   if (isField(el) && !atEndComposer) { if (openNow) reveal(); return; }
+  // Holding the end is a THREAD's behaviour (final review M-5). With nothing focused (the keys
+  // going away) on a screen with no conversation dock, a form near its bottom must not be moved.
+  if (!atEndComposer && !document.querySelector('.chat-dock')) return;
   const hold = shouldHoldEnd({
     atEndComposer, scrollTop: vp.scrollTop, scrollHeight: vp.scrollHeight, clientHeight: vp.clientHeight,
   });

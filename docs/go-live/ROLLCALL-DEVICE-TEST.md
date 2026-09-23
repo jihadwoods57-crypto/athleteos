@@ -36,6 +36,10 @@ an option on the athlete phone for steps that call for it.
    Expected: with "Always" location on, the board shows "here" automatically, no app open. The
    coach never sees coordinates, only Arrived (time) / Not arrived.
 6. **Decline "Always"; use "I'm here" instead**, once outside the bubble and once inside it.
+   Before the first tap on a fresh install: the board shows a "Check in with your location" card
+   explaining the one reading BEFORE the phone's own prompt, and the prompt that follows offers
+   While Using (not Always). After While Using, the card offers "Allow Always" with "Not now"
+   beside it and says I'm here works the same without it.
    Expected outside: the app says plainly that you are not at the place (distance, not coordinates)
    and does not check the athlete in. Expected inside: "I'm here" checks the athlete in and the
    board shows "here" within a few seconds.
@@ -139,3 +143,64 @@ concrete check with an expected result; run through these once as part of the sa
 9. **Closing summary push opens on the misses.**
    Check: tapping the coach's closing summary notification opens the board already scrolled or
    filtered to the athletes who were late or missed, not the top of a long, on-time-heavy list.
+
+## Walk-in with the app killed (final fix round, item 1)
+
+The binary declares NO `location` background mode (App Review 2.5.4, 2026-09-18). expo-location
+57.0.19 is patched (`patches/expo-location+57.0.19.patch`, applied by the `postinstall`) so that
+region monitoring arms without that mode: the upstream guard in `startGeofencingAsync` is gone,
+and `allowsBackgroundLocationUpdates` is set only when the mode exists (CoreLocation throws if it
+is set without it). Apple documents region monitoring as working without the mode, relaunching a
+terminated app for a region event once "Always" is granted. This is the one claim in the build
+that no simulator or test can prove. Run it on the athlete iPhone before the build ships.
+
+1. **Always granted, walk-in armed.** On the athlete phone: Profile > Location check-in shows
+   "Walk-in check-in is on". Open the roll call's board once inside its window (this arms the
+   region), then leave the bubble (at least 200 m out).
+   Also check: Settings > Privacy & Security > Location Services > OnStandard reads "Always".
+   Also check: the app did NOT crash on arming (a crash here is the CoreLocation exception the
+   patch removes; it means the patch did not apply on the builder, see step 5).
+2. **Kill the app.** Swipe it away in the app switcher. Lock the phone.
+3. **Walk into the bubble** with the phone locked and the app killed, inside the window.
+   Expected: within a minute or so, the coach's board shows the athlete Arrived, with no app
+   opened on the athlete phone. (iOS may take a little while to notice a region entry; stand
+   inside for 2 minutes before calling it a fail.)
+4. **Walk in again after the window has closed** (the next day, or with the roll call's close
+   passed), app still killed.
+   Expected: nothing is recorded (the region's own window says it is out of time, so the phone
+   sends nothing and drops that region), and the morning that closed stays exactly as it closed.
+5. **If step 1 crashed or step 3 never arrives:** check the EAS build log for
+   `patch-package ... expo-location@57.0.19 ✔`. EAS runs `npm install` on the builder, which runs
+   the `postinstall` script (docs.expo.dev/build-reference/ios-builds: "Run npm install in the
+   project root"); the log line proves the patch applied.
+
+### Fallback if walk-in does not work without the background mode
+
+Asking for "Always" is JavaScript, so this ships by OTA with no new build:
+
+1. In `src/lib/location/geofence.ts` set `WALK_IN = { ios: false, android: true }`.
+2. Ship the OTA (`eas update --environment production`).
+
+Effect on every iPhone that takes it: the app never asks for "Always", never arms a region
+(anything already armed is disarmed on the next foreground), and LOCATION_AVAILABLE tells the proto
+walk-in is off, so the board and the Location check-in screen offer **I'm here only** (While
+Using). The "Always" purpose strings stay in the binary but are never shown. Say so in the App
+Review notes for the next build and drop the Always sentences there.
+
+## Also check (final fix round)
+
+1. **Old build + this OTA.** On a phone still on build 43 (no expo-location, no expo-maps), take
+   the OTA. Expected: the coach's setup shows "Update OnStandard to add a place." instead of the
+   "Also check they're at" door and never opens a map; the athlete's board shows "Update
+   OnStandard to check in by location." instead of I'm here. No crash.
+2. **Denied.** Deny location entirely, then open the board. Expected: the card says location is
+   off and its "Open Settings" button lands on OnStandard's own page in Settings.
+3. **Arrival after the close.** Tap I'm here after the arrival close (the roll call's close and the
+   be-there time plus grace have both passed). Expected: "Check-in for this has closed", nothing
+   changes on the board, and a missed wake-up stays missed.
+4. **Stay signed in across a background wake and a lock-screen tap** (server review M7): let a
+   region wake and a lock-screen I'm Up both happen while the app is closed, then open the app.
+   Expected: still signed in, no "session expired" and no sign-in screen.
+5. **Coaches never see a distance.** On the coach device, open the board and the commitments list
+   for an athlete whose I'm here was too far away. Expected: "Not arrived · place not confirmed",
+   never "N m from <place>". Only the athlete's own phone shows how far away they were.

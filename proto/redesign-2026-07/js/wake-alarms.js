@@ -197,9 +197,21 @@ export function withAckCodes(alarms, mint) {
   if (!mint || mint.ok !== true || !Array.isArray(mint.codes) || !/^https:\/\//i.test(url)) return list;
   const byId = new Map();
   for (const c of mint.codes) {
-    if (c && typeof c.instance_id === 'string' && typeof c.code === 'string' && c.code) byId.set(c.instance_id, c.code);
+    if (c && typeof c.instance_id === 'string' && typeof c.code === 'string' && c.code) byId.set(c.instance_id, c);
   }
-  return list.map((a) => (byId.has(a.instanceId) ? { ...a, ackCode: byId.get(a.instanceId), ackUrl: url } : a));
+  // A code is bound to the window it was minted for (final review M1). The mint is cached for
+  // 30 minutes, so after a coach MOVES a morning in the week strip a re-arm could hand the alarm a
+  // code for the old window: Stop would post it, get 410, and the tap would wait for the app.
+  // Such an alarm arms WITHOUT a code (the app drains the tap), exactly like one never minted.
+  const fits = (c, at) => {
+    const o = Date.parse(c.opens_at || ''); const cl = Date.parse(c.closes_at || '');
+    if (!Number.isFinite(o) || !Number.isFinite(cl) || !Number.isFinite(at)) return true;   // an older mint: as before
+    return at >= o && at <= cl;
+  };
+  return list.map((a) => {
+    const c = byId.get(a.instanceId);
+    return c && fits(c, Number(a.at)) ? { ...a, ackCode: c.code, ackUrl: url } : a;
+  });
 }
 
 /**

@@ -170,6 +170,18 @@ test('each alarm carries its own window code and the URL to post it to', () => {
   assert.equal(out[1].ackUrl, undefined);
 });
 
+test('a code minted for the OLD window is never attached after the coach moved the morning (M1)', () => {
+  // The coach moved i1 from 6:00 to 7:15 inside the mint's 30-minute cache: the cached code's
+  // window (5:50 to 6:30) no longer brackets the alarm, so the alarm arms without it.
+  const moved = alarmsFor([row({ starts_at: new Date(Date.parse('2026-09-12T07:15:00Z')).toISOString() })], NOW);
+  const out = withAckCodes(moved, MINT);
+  assert.equal(out[0].ackCode, undefined);
+  assert.equal(out[0].ackUrl, undefined);
+  // A mint from before windows were carried still attaches, as before.
+  const old = { ...MINT, codes: [{ instance_id: 'i1', code: 'c0de-1' }] };
+  assert.equal(withAckCodes(moved, old)[0].ackCode, 'c0de-1');
+});
+
 test('a failed or odd mint arms every alarm exactly as before', () => {
   const alarms = alarmsFor([row()], NOW);
   for (const bad of [null, undefined, { ok: false }, { ok: true, ack_url: 'http://plain/ack', codes: MINT.codes }, { ok: true, codes: 'x' }]) {
