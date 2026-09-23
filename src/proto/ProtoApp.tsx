@@ -14,12 +14,21 @@ import { parseInviteCode } from '../lib/inviteLink';
 import { runRollCallAck, drainAckQueue, ensureRollCallCategories, rememberRollCallLabel, registerCoachDigestCategory, runCoachAction, drainCoachQueue, registerRollCallBackgroundTask, ensureLiveActivityTokens, drainLiveActivityTaps, takeBoardRoute } from '../lib/notify/rollcall';
 import { routeNotificationResponse } from '../core/rollcall';
 import { installForegroundNotificationHandler } from '../lib/notify/foreground';
+import { registerGeofenceTask } from '../lib/location';
 
 // A notification that arrives while the app is OPEN is shown only if a handler says so, and this
 // app had none — so every push and reminder that landed while someone was looking at the screen
 // was swallowed in silence. Registered here, at module scope, because it has to be in place
 // before the first notification can arrive, which is earlier than any effect runs.
 installForegroundNotificationHandler();
+
+// Verified Commitments (0139, restored 2026-09-23): define the geofence task at MODULE scope, as
+// TaskManager requires, so a region crossing can launch the app in the background and record the
+// arrival even when the WebView isn't alive — which is the whole point, since the athlete this
+// feature serves is the one who hasn't opened the app at 5:43 AM. No-ops on a binary without
+// expo-location, and registers nothing with the OS by itself: regions are only armed once the
+// athlete grants background permission (LOCATION_ARM).
+registerGeofenceTask();
 
 // The app canvas, exactly: --bg in the proto's tokens.css, and the splash backgroundColor in
 // app.json. All three have to be the SAME value or launch shows a hue step — this was #080B0A, a
@@ -141,10 +150,6 @@ export function ProtoApp() {
     const sub = Linking.addEventListener('url', ({ url }) => deliverCode(parseInviteCode(url)));
     return () => sub.remove();
   }, [deliverCode]);
-
-  // Verified Commitments (0139): define the geofence task at startup so a region crossing can wake
-  // the app and record the arrival even when the WebView isn't alive — which is the whole point,
-  // since the athlete this feature serves is the one who hasn't opened the app at 5:43 AM.
 
   // Reminder deep links: an exec reminder ("Dinner closes in 45") carries its in-app route in
   // notification data — tapping it must land the WebView on that exact screen, not Home. The

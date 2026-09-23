@@ -28,6 +28,18 @@ jest.mock('../lib/auth/biometrics', () => ({
   authenticateBiometric: jest.fn(async () => true),
 }));
 
+// The location seam is mocked so the bridge is tested for ROUTING only; the seam's own decisions
+// (one reading, verify_arrival_at, never a bare yes) are tested in src/lib/location.
+jest.mock('../lib/location', () => ({
+  isLocationAvailable: jest.fn(() => true),
+  getPermissionState: jest.fn(async () => 'always'),
+  requestPermission: jest.fn(async (bg: boolean) => (bg ? 'always' : 'when_in_use')),
+  refreshGeofences: jest.fn(async () => ({ armed: 2, capped: 0, state: 'always' })),
+  disarmAll: jest.fn(async () => undefined),
+  checkArrival: jest.fn(async () => ({ within: true, reason: null, distance_m: 40 })),
+  REPORTS_PRESENCE: true,
+}));
+
 import { handleBridgeMessage, BRIDGE_SHIM } from './bridge';
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { endLiveActivity } from '../../modules/rollcall-live';
@@ -143,3 +155,49 @@ test('the proto can reach it: the shim exposes rollcall.acked as a one-way post'
   expect(BRIDGE_SHIM).toContain("type: 'ROLLCALL_ACKED'");
 });
 
+
+/* Location is back (founder 2026-09-23), verified by distance on the server. Five messages; the
+   coach's "use where I'm standing" (LOCATION_PLACE) is NOT restored: coaches pick places on a map. */
+describe('location bridge', () => {
+  const loc = () => jest.requireMock('../lib/location') as Record<string, jest.Mock>;
+
+  test('LOCATION_AVAILABLE reports availability, permission state and presence support', async () => {
+    const { injected, ref } = fakeRef();
+    expect(await handleBridgeMessage(ref, { type: 'LOCATION_AVAILABLE', id: 20 } as never)).toBe(true);
+    expect(injected[0]).toContain('__onNativeResult(20, {"available":true,"state":"always","presence":true}');
+  });
+
+  test('LOCATION_PERMISSION asks for background only when the proto says so', async () => {
+    const { injected, ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'LOCATION_PERMISSION', id: 21, background: true } as never);
+    expect(loc().requestPermission).toHaveBeenLastCalledWith(true);
+    expect(injected[0]).toContain('__onNativeResult(21, "always"');
+    await handleBridgeMessage(ref, { type: 'LOCATION_PERMISSION', id: 22 } as never);
+    expect(loc().requestPermission).toHaveBeenLastCalledWith(false);
+  });
+
+  test('LOCATION_ARM and LOCATION_DISARM reach the seam', async () => {
+    const { injected, ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'LOCATION_ARM', id: 23 } as never);
+    expect(injected[0]).toContain('"armed":2');
+    await handleBridgeMessage(ref, { type: 'LOCATION_DISARM', id: 24 } as never);
+    expect(loc().disarmAll).toHaveBeenCalled();
+    expect(injected[1]).toContain('__onNativeResult(24, true');
+  });
+
+  test('LOCATION_CHECK is the I-am-here tap: checkArrival for that instance, verdict back, no coordinate', async () => {
+    const { injected, ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'LOCATION_CHECK', id: 25, instanceId: 'inst-7' } as never);
+    expect(loc().checkArrival).toHaveBeenCalledWith('inst-7');
+    expect(injected[0]).toContain('"within":true');
+    expect(injected[0]).not.toMatch(/lat|lng|latitude|longitude/);
+  });
+
+  test('the shim exposes location.{available,request,arm,disarm,check} and no place capture', () => {
+    for (const t of ['LOCATION_AVAILABLE', 'LOCATION_PERMISSION', 'LOCATION_ARM', 'LOCATION_DISARM', 'LOCATION_CHECK']) {
+      expect(BRIDGE_SHIM).toContain(t);
+    }
+    expect(BRIDGE_SHIM).toContain('location:');
+    expect(BRIDGE_SHIM).not.toContain('LOCATION_PLACE');
+  });
+});

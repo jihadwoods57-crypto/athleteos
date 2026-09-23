@@ -41,6 +41,49 @@ describe('app.json — iOS App Store compliance', () => {
     }
   });
 
+  // Location is back (founder 2026-09-23): the walk-in check-in and "I'm here". The purpose
+  // strings are what the athlete reads in the iOS prompt and what App Review reads first, so they
+  // must say plainly what the app does with location, and the plugin must not be left to fill in
+  // Expo's placeholder ("Allow $(PRODUCT_NAME) to access your location").
+  it('location purpose strings are present and plain', () => {
+    expect(ios.infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription).toMatch(/check you in when you arrive|checks you in when you walk into/i);
+    expect(ios.infoPlist.NSLocationWhenInUseUsageDescription).toMatch(/checks you in when you arrive/i);
+    expect(ios.infoPlist.UIBackgroundModes).toContain('location');
+    for (const key of ['NSLocationWhenInUseUsageDescription', 'NSLocationAlwaysAndWhenInUseUsageDescription', 'NSLocationAlwaysUsageDescription']) {
+      const v = ios.infoPlist[key];
+      expect(typeof v).toBe('string');
+      expect(v).not.toMatch(/PRODUCT_NAME|—/);
+      expect(v).toMatch(/never shared|never shares/i);
+    }
+    const plugin = (appJson.expo.plugins as unknown[]).find(
+      (p) => Array.isArray(p) && p[0] === 'expo-location',
+    ) as [string, Record<string, unknown>] | undefined;
+    expect(plugin).toBeDefined();
+    const opts = plugin![1];
+    expect(opts.locationWhenInUsePermission).toBe(ios.infoPlist.NSLocationWhenInUseUsageDescription);
+    expect(opts.locationAlwaysAndWhenInUsePermission).toBe(ios.infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription);
+    expect(opts.locationAlwaysPermission).toBe(ios.infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription);
+    expect(opts.isIosBackgroundLocationEnabled).toBe(true);
+    // The plugin writes a placeholder motion string unless told not to; the app reads no motion.
+    expect(opts.motionUsagePermission).toBe(false);
+  });
+
+  it('declares precise location as collected, linked, untracked, for app functionality', () => {
+    // One reading is sent to our server on arrival, compared to the coach's place and discarded.
+    // It leaves the device inside the athlete's signed-in request and the verdict it produces is
+    // stored on their row, so it is declared, and declared LINKED: "not linked" would claim the
+    // identifiers were stripped before it left the phone, which they are not.
+    const loc = ios.privacyManifests.NSPrivacyCollectedDataTypes.find(
+      (t: any) => t.NSPrivacyCollectedDataType === 'NSPrivacyCollectedDataTypePreciseLocation',
+    );
+    expect(loc).toEqual({
+      NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypePreciseLocation',
+      NSPrivacyCollectedDataTypeLinked: true,
+      NSPrivacyCollectedDataTypeTracking: false,
+      NSPrivacyCollectedDataTypePurposes: ['NSPrivacyCollectedDataTypePurposeAppFunctionality'],
+    });
+  });
+
   it('ships a privacy manifest declaring no tracking and the required-reason APIs', () => {
     const pm = ios.privacyManifests;
     expect(pm.NSPrivacyTracking).toBe(false);

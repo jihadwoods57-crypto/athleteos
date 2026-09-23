@@ -23,6 +23,10 @@ import {
   isHealthAvailable, healthConnected, connectHealth, readRecoverySample,
   readActivity, observeActivity, type HealthScope,
 } from '../lib/health';
+import {
+  isLocationAvailable, getPermissionState, requestPermission,
+  refreshGeofences, disarmAll, checkArrival, REPORTS_PRESENCE,
+} from '../lib/location';
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { syncWakeAlarms, wakeAlarmState, cancelWakeAlarmFor } from '../lib/notify/wakeAlarms';
 import { drainLiveActivityTaps, settleLiveCard } from '../lib/notify/rollcall';
@@ -71,11 +75,16 @@ export type BridgeMessage =
   | { type: 'HEALTH_CONNECT_SCOPED'; id: number; scopes?: string[] }
   | { type: 'HEALTH_READ_ACTIVITY'; id: number; from?: string; to?: string }
   | { type: 'HEALTH_OBSERVE_ACTIVITY'; id: number }
-  // Verified Commitments (0139). Note what is absent: no message carries a coordinate in either
-  // The ONE place a coordinate legitimately crosses this bridge: a COACH standing at their own
-  // facility, deliberately capturing it as a scheduled place. That is the coach recording a
-  // location they chose, not the app observing where a person goes — the opposite of what the
-  // athlete-side messages above are careful never to do.
+  // Verified Commitments (0139), restored 2026-09-23 and verified by DISTANCE on the server (0242).
+  // No message carries a coordinate across THIS bridge in either direction: LOCATION_CHECK takes
+  // one reading natively, sends it to verify_arrival_at, and hands the proto back the verdict
+  // ({ within, reason, distance_m }). The coach's old "use where I'm standing" (LOCATION_PLACE) is
+  // not restored: coaches pick places on a map.
+  | { type: 'LOCATION_AVAILABLE'; id: number }
+  | { type: 'LOCATION_PERMISSION'; id: number; background?: boolean }
+  | { type: 'LOCATION_ARM'; id: number }
+  | { type: 'LOCATION_DISARM'; id: number }
+  | { type: 'LOCATION_CHECK'; id: number; instanceId?: string }
   | { __log: { level: string; msg: string } };
 
 /** Serialize a value for safe injection into `window.__onNativeResult(id, <here>)`. */
@@ -348,6 +357,59 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
         resolve(ref, msg.id, false, String((e as Error)?.message ?? e));
       }
       return true;
+    case 'LOCATION_AVAILABLE':
+      // False on any binary built without expo-location — an OTA update can land on such a build,
+      // and the arrival affordance simply stays hidden rather than throwing.
+      try {
+        // `presence` (0208) is ABSENT on every binary built before region exits were reported,
+        // which is exactly what makes it usable as a capability probe: the proto reads a missing
+        // field as false and stops claiming a minimum-stay is enforced. Never widen this to a
+        // truthy default.
+        resolve(ref, msg.id, {
+          available: isLocationAvailable(),
+          state: await getPermissionState(),
+          presence: REPORTS_PRESENCE,
+        });
+      } catch (e) {
+        resolve(ref, msg.id, { available: false, state: 'unavailable', presence: false }, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'LOCATION_PERMISSION':
+      // Foreground first, background only when the athlete has seen the explainer and asked for it.
+      try {
+        resolve(ref, msg.id, await requestPermission(!!msg.background));
+      } catch (e) {
+        resolve(ref, msg.id, 'unavailable', String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'LOCATION_ARM':
+      // Register geofences for whatever is inside its window right now. `capped` is surfaced so
+      // the UI can tell the athlete which commitments need a tap instead of leaving them
+      // silently unverified (iOS caps an app at 20 monitored regions).
+      try {
+        resolve(ref, msg.id, await refreshGeofences());
+      } catch (e) {
+        resolve(ref, msg.id, { armed: 0, capped: 0, state: 'unavailable' }, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'LOCATION_DISARM':
+      try {
+        await disarmAll();
+        resolve(ref, msg.id, true);
+      } catch (e) {
+        resolve(ref, msg.id, false, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'LOCATION_CHECK':
+      // The "I'm here" tap: one reading, sent natively to verify_arrival_at, which measures the
+      // distance on the server. A NEGATIVE verdict is recorded as 'unverified' with "N m from
+      // <place>", never as 'missed'. The proto gets { within, reason, distance_m } back.
+      try {
+        resolve(ref, msg.id, await checkArrival(String(msg.instanceId || '')));
+      } catch (e) {
+        resolve(ref, msg.id, { within: false, reason: 'Something went wrong', distance_m: null }, String((e as Error)?.message ?? e));
+      }
+      return true;
     case 'REVIEW_REQUEST': {
       /* Ask the OS to show its rating prompt. Resolves TRUE only when we actually asked.
        *
@@ -459,6 +521,15 @@ export const BRIDGE_SHIM = `
       connectScoped: function(scopes){ return call('HEALTH_CONNECT_SCOPED', { scopes: Array.isArray(scopes) ? scopes : [] }); },
       readActivity: function(from, to){ return call('HEALTH_READ_ACTIVITY', { from: String(from||''), to: String(to||'') }); },
       observeActivity: function(){ return call('HEALTH_OBSERVE_ACTIVITY', {}); }
+    },
+    // Verified Commitments. check() returns { within, reason, distance_m }: the verdict the server
+    // computed from one reading. No coordinate crosses this boundary in either direction.
+    location: {
+      available: function(){ return call('LOCATION_AVAILABLE', {}); },
+      request: function(background){ return call('LOCATION_PERMISSION', { background: !!background }); },
+      arm: function(){ return call('LOCATION_ARM', {}); },
+      disarm: function(){ return call('LOCATION_DISARM', {}); },
+      check: function(instanceId){ return call('LOCATION_CHECK', { instanceId: String(instanceId||'') }); }
     },
   };
 
