@@ -29,8 +29,11 @@
 import { pendingRowHtml, typingRowHtml } from './chat-view.js';
 import { icon } from './icons.js';
 
-/** The same words, again, inside this window, are the same intent: the incident was 15s. */
-export const DUP_WINDOW_MS = 45000;
+/** The same words, again, inside this window, are the same intent: the incident was 15s.
+ *  20s, not 45s (founder, 2026-09-23): the thread now shows "Sending…" and the AI's working
+ *  row, so the resend-because-nothing-happened case is rarer, and a longer window blocked
+ *  people who meant to say something twice. */
+export const DUP_WINDOW_MS = 20000;
 /** How long a new row counts as arriving (its entrance plays inside this beat, then stops). */
 const ARRIVE_MS = 450;
 
