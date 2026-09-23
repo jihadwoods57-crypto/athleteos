@@ -11,7 +11,7 @@
  *
  * WHAT CHANGED IN 0242 (founder 2026-09-23). An Enter now tries ONE position reading and sends it
  * to verify_arrival_at, which measures the distance to the coach's place on the server, records
- * only the verdict (and, when it is a miss, "N m from <place>"), and discards the coordinate. One
+ * only the verdict (and, when it is a miss, "Not at <place>"), and discards the coordinate. One
  * reading per crossing or per "I'm here" tap; never a track.
  *
  * THE BINARY HAS NO BACKGROUND-LOCATION MODE (controller ruling 2026-09-23; App Review 2.5.4 was

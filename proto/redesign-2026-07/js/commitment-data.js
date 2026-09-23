@@ -758,9 +758,10 @@ export async function loadRollcallHistory(commitmentId, days = 30, force = false
 }
 
 /** Arrival by distance (verify_arrival_at, 0242): ONE reading goes up, the server measures the
- *  distance to the instance's saved place, records arrived or unverified ("400 m from Weight
- *  room", never missed) and throws the position away. Returns { ok, within, distance_m } or
- *  { ok: false, error } ('bad_position', 'no_place', 'not_authorized', or the transport's).
+ *  distance to the instance's saved place, records arrived or unverified ("Not at Weight room",
+ *  never missed; the distance is in THIS reply only and is never stored) and throws the position
+ *  away. Returns { ok, within, distance_m } or { ok: false, error } ('bad_position', 'no_place',
+ *  'not_authorized', 'arrival_closed' after the close (0242 section 8), or the transport's).
  *  In the app, "I'm here" goes through location.js imHere(), which takes the reading natively; this
  *  is the same write for a caller that already holds a reading. NOT queued offline: the verdict is
  *  about where the athlete is NOW, and replaying it later would verify the wrong moment. */

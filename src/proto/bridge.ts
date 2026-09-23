@@ -444,7 +444,7 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
       return true;
     case 'LOCATION_CHECK':
       // The "I'm here" tap: one reading, sent natively to verify_arrival_at, which measures the
-      // distance on the server. A NEGATIVE verdict is recorded as 'unverified' with "N m from
+      // distance on the server. A NEGATIVE verdict is recorded as 'unverified' with "Not at
       // <place>", never as 'missed'. The proto gets { within, reason, distance_m } back.
       try {
         resolve(ref, msg.id, await checkArrival(String(msg.instanceId || '')));

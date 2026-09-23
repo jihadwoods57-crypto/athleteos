@@ -486,7 +486,10 @@ begin
   end if;
   v_within := v_dist <= loc.radius_m + least(greatest(v_acc, 0), 75);
   v_res := verify_arrival(p_instance, p_source, v_within,
-    case when v_within then null else format('%s m from %s', round(v_dist), loc.name) end);
+    -- The stored reason names the PLACE only, never the distance (final fix round, item 7): staff
+    -- read unverified_reason (commitment_board, cr_read), and coaches see Arrived / Not arrived
+    -- only. The distance goes back to the athlete in THIS reply (distance_m) and is never stored.
+    case when v_within then null else format('Not at %s', loc.name) end);
   return coalesce(v_res, '{}'::jsonb) || jsonb_build_object('within', v_within, 'distance_m', round(v_dist));
 end $$;
 comment on function verify_arrival_at(uuid, text, double precision, double precision, double precision) is
@@ -927,7 +930,10 @@ begin
   end if;
   v_within := v_dist <= loc.radius_m + least(greatest(v_acc, 0), 75);
   v_res := verify_arrival(p_instance, p_source, v_within,
-    case when v_within then null else format('%s m from %s', round(v_dist), loc.name) end);
+    -- The stored reason names the PLACE only, never the distance (final fix round, item 7): staff
+    -- read unverified_reason (commitment_board, cr_read), and coaches see Arrived / Not arrived
+    -- only. The distance goes back to the athlete in THIS reply (distance_m) and is never stored.
+    case when v_within then null else format('Not at %s', loc.name) end);
   return coalesce(v_res, '{}'::jsonb) || jsonb_build_object('within', v_within, 'distance_m', round(v_dist));
 end $$;
 comment on function verify_arrival_at(uuid, text, double precision, double precision, double precision) is
@@ -1095,3 +1101,145 @@ AS $function$
       and vc_enabled()
   ) s;
 $function$;
+
+-- ================================================================ 8. arrival after the close (final review I1, M2, M6)
+-- 8a. verify_arrival REFUSES an arrival after the close, and never writes the wake-up answer.
+--
+-- It is still the ONE write path (verify_arrival_at calls it; it stays athlete-callable from 0208).
+-- Two things were wrong with the 0208 body for a roll call:
+--   * it CLAMPED the stamp into [arrive_by - 4h, end + 1h] instead of refusing, so an arrival after
+--     the close was written as if it had happened at the clamp, and flipped 'missed' to 'arrived';
+--   * it set acknowledged_at ("being there implies being up"), and acknowledged_at IS the wake-up
+--     answer: a 6:40 walk-in turned a 6:30-closed "missed" wake-up into "late" on the board, the
+--     history, my_commitments and the day score, past the close _rc_record_ack enforces for every
+--     other path. One authenticated call (verify_arrival_at(inst,'geofence',null,null,null)) did it.
+-- Now:
+--   * ARRIVAL CLOSE = greatest(the roll call's close, arrive-by + grace), the same instant
+--     rollcall_arrival_verdict turns 'pending' into 'missed'. After it: raise 'arrival_closed'
+--     (a named code; the phone says "Check-in for this has closed"). Nothing is written.
+--   * A morning_roll_call's acknowledged_at is never touched by an arrival, and its 'missed' status
+--     (the wake-up's own verdict) is not flipped. The arrival lives in arrived_at, which is what
+--     rollcall_arrival_verdict reads. Other commitment types keep 0208's behaviour.
+--   * The lower clamp stays (a stamp is never earlier than arrive-by - 4h); the phone arms from
+--     start - 2h, so a real arrival never reaches it.
+-- Body copied from 0208 (the live definition); only the lines marked NEW changed.
+create or replace function verify_arrival(
+  p_instance uuid, p_source text, p_within boolean, p_reason text
+) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+  v_resp commitment_responses; v_inst commitment_instances; v_c commitments;
+  v_at timestamptz := now(); v_lo timestamptz; v_hi timestamptz;
+  v_deadline timestamptz; v_close timestamptz; v_morning boolean;
+begin
+  if not vc_enabled() then
+    raise exception 'Verified Commitments is currently switched off';
+  end if;
+
+  if p_source not in ('geofence', 'manual') then
+    raise exception 'arrival source must be geofence or manual';
+  end if;
+
+  select r.* into v_resp from commitment_responses r
+   where r.instance_id = p_instance and r.athlete_id = auth.uid();
+  if not found then raise exception 'no commitment for you on this instance'; end if;
+
+  select * into v_inst from commitment_instances where id = p_instance;
+  select * into v_c from commitments where id = v_inst.commitment_id;
+
+  if v_c.location_id is null then
+    raise exception 'this commitment has no location to verify against';
+  end if;
+  if v_inst.status = 'cancelled' then
+    raise exception 'this commitment was cancelled';
+  end if;
+
+  -- CONSENT GATE. Nothing location-derived is recorded for a minor without consent.
+  if not has_verification_consent(auth.uid()) then
+    raise exception 'location verification requires guardian or institutional consent';
+  end if;
+
+  -- NEW (0242 section 8): refuse after the arrival close; never clamp into it.
+  v_deadline := coalesce(v_inst.arrive_by_at, v_inst.starts_at)
+                + make_interval(mins => coalesce(v_c.arrival_grace_min, 10)::int);
+  v_close := greatest(coalesce(rollcall_closes_at(v_c.type, v_inst.respond_by_at, v_inst.starts_at, v_inst.ends_at), v_deadline),
+                      v_deadline);
+  if v_at > v_close then
+    raise exception 'arrival_closed';
+  end if;
+  v_morning := v_c.type = 'morning_roll_call';
+
+  -- Clamp the stamp into a sane window (see 0139). Only the lower bound can still bite.
+  v_lo := coalesce(v_inst.arrive_by_at, v_inst.starts_at) - interval '4 hours';
+  v_hi := coalesce(v_inst.ends_at, v_inst.starts_at + interval '3 hours') + interval '1 hour';
+  if v_at < v_lo then v_at := v_lo; end if;
+  if v_at > v_hi then v_at := v_hi; end if;
+
+  if p_within then
+    update commitment_responses set
+      arrived_at = coalesce(arrived_at, v_at),
+      arrival_source = coalesce(arrival_source, p_source),
+      -- NEW: a wake-up's answer is its own tap. An arrival never writes it.
+      acknowledged_at = case when v_morning then acknowledged_at else coalesce(acknowledged_at, v_at) end,
+      -- THE 0208 LINE. A re-entry refutes the departure that preceded it.
+      departed_at = null,
+      -- NEW: a morning's 'missed' is the wake-up's verdict and stays; arrived_at carries the arrival.
+      status = case when status in ('pending', 'acknowledged', 'unverified') then 'arrived'
+                    when status = 'missed' and not v_morning then 'arrived'
+                    else status end,
+      unverified_reason = null,
+      updated_at = now()
+    where id = v_resp.id;
+  else
+    -- NEVER 'missed'. Absence of evidence is not evidence of absence.
+    update commitment_responses set
+      status = case when status = 'pending' then 'unverified'
+                    when status = 'missed' and not v_morning then 'unverified'
+                    else status end,
+      unverified_reason = nullif(left(coalesce(p_reason, 'Could not confirm the location'), 60), ''),
+      updated_at = now()
+    where id = v_resp.id;
+  end if;
+
+  select r.* into v_resp from commitment_responses r where r.id = v_resp.id;
+  return jsonb_build_object(
+    'status', v_resp.status, 'arrived_at', v_resp.arrived_at,
+    'departed_at', v_resp.departed_at,
+    'presence', commitment_presence(v_resp.arrived_at, v_resp.departed_at, v_c.min_dwell_min),
+    'arrival_source', v_resp.arrival_source, 'unverified_reason', v_resp.unverified_reason);
+end $$;
+comment on function verify_arrival(uuid, text, boolean, text) is
+  'The one arrival write path. Refuses after the arrival close (arrival_closed: greatest(roll call close, arrive-by + grace)); a morning roll call''s acknowledged_at and missed status are never written by an arrival. 0208 body, 0242 section 8.';
+
+-- 8b. _haversine_m pins its search_path (M6). It is not a definer function, uses builtins only and
+--     is revoked from everyone, but the security advisor flags any function without one.
+create or replace function _haversine_m(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision)
+returns double precision language sql immutable set search_path = '' as $$
+  select 2 * 6371000 * asin(sqrt(
+    power(sin(radians(lat2 - lat1) / 2), 2) +
+    cos(radians(lat1)) * cos(radians(lat2)) * power(sin(radians(lng2 - lng1) / 2), 2)))
+$$;
+revoke all on function _haversine_m(double precision,double precision,double precision,double precision) from public, anon, authenticated;
+
+-- 8c. A commitment may only point at a place of its OWN owner (M2). upsert_commitment (0211) never
+--     checked, so a coach who knew another owner's place UUID could attach it, and
+--     my_armable_geofences would then hand that place to their athletes. A trigger, not a copy of
+--     upsert_commitment's body: it guards every write path at once. Fires only when location_id is
+--     set or changed, so no unrelated update of an old row can trip it.
+create or replace function commitments_location_owner_check() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  if new.location_id is not null
+     and (tg_op = 'INSERT' or new.location_id is distinct from old.location_id)
+     and not exists (select 1 from commitment_locations l
+                      where l.id = new.location_id
+                        and l.team_id is not distinct from new.team_id
+                        and l.practice_id is not distinct from new.practice_id) then
+    raise exception 'location_not_yours';
+  end if;
+  return new;
+end $$;
+revoke all on function commitments_location_owner_check() from public, anon, authenticated;
+drop trigger if exists commitments_location_owner on commitments;
+create trigger commitments_location_owner before insert or update of location_id on commitments
+  for each row execute function commitments_location_owner_check();

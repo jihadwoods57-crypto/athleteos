@@ -52,7 +52,7 @@ export async function requestLocation(background) {
 }
 
 /** "I'm here": one reading, judged on the server. Resolves { within, distance_m, reason } (the
- *  server's verdict; a miss is recorded as unverified with "N m from <place>", never as missed), or
+ *  server's verdict; a miss is recorded as unverified with "Not at <place>", never as missed; the distance comes back here only), or
  *  { error } when no check could be made: 'unavailable' (no bridge), 'no-instance', or the phone's
  *  own reason. */
 export async function imHere(instanceId) {

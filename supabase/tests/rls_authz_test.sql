@@ -4982,6 +4982,85 @@ select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'g
 select _ok(_try($f$ select _haversine_m(0,0,0,0) $f$) like 'denied%',
   '0242: _haversine_m is internal — not even a signed-in user may call it directly');
 
+-- ---- 0242 section 8 (final review I1, item 7, M2, M6): arrival after the close; no distance stored ----
+-- The stored reason names the place only. The distance goes back to the athlete in the reply and
+-- nowhere else: staff read unverified_reason, and coaches see Arrived / Not arrived only.
+select _superuser();
+update commitment_responses set status = 'pending', acknowledged_at = null, arrived_at = null,
+       arrival_source = null, unverified_reason = null, departed_at = null
+ where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+create temp table _rc_far as
+  select verify_arrival_at((select id from _rc_place_next), 'manual', 28.6036, -81.2, 10) as j;
+select _superuser();
+select _ok((select (j->>'distance_m')::int between 350 and 450 from _rc_far),
+  '0242 s8: the athlete still gets the distance back in the reply to their own tap');
+select _ok((select unverified_reason = 'Not at Weight Room B' from commitment_responses
+             where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 s8: the stored reason names the place, never the distance (staff can read it)');
+select _ok((select coalesce(j->>'unverified_reason', '') not like '% m from %' from _rc_far),
+  '0242 s8: no "N m from" anywhere in what is stored or echoed as the reason');
+drop table _rc_far;
+
+-- A morning with a place, the wake-up MISSED at its close, the arrival still open: walking in
+-- writes the arrival and leaves the wake-up answer and its missed verdict exactly as they were.
+update commitment_instances
+   set starts_at = now() - interval '40 minutes', respond_by_at = now() - interval '35 minutes',
+       ends_at = null, arrive_by_at = now() + interval '5 minutes'
+ where id = (select id from _rc_place_next);
+update commitment_responses set status = 'missed', acknowledged_at = null, arrived_at = null,
+       arrival_source = null, unverified_reason = null, departed_at = null
+ where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'geofence', null, null, null) $f$) = 'ok',
+  '0242 s8: an arrival inside the arrival window is accepted after the wake-up closed');
+select _superuser();
+select _ok((select arrived_at is not null and acknowledged_at is null and status = 'missed'
+              from commitment_responses
+             where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 s8: an arrival never writes the wake-up answer time, and the missed wake-up stays missed');
+select _ok((select r->>'verdict' = 'missed' and r->>'arrival_verdict' = 'on_standard'
+              from jsonb_array_elements(rollcall_team_board_svc((select id from _rc_place_next))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 s8: the board keeps the wake-up missed and shows the arrival on time');
+
+-- After the arrival close (greatest(the roll call close, arrive-by + grace)): refused, nothing written.
+update commitment_instances
+   set starts_at = now() - interval '2 hours', respond_by_at = now() - interval '115 minutes',
+       ends_at = null, arrive_by_at = now() - interval '2 hours'
+ where id = (select id from _rc_place_next);
+update commitment_responses set status = 'missed', acknowledged_at = null, arrived_at = null,
+       arrival_source = null, unverified_reason = null, departed_at = null
+ where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'geofence', null, null, null) $f$) like '%arrival_closed%',
+  '0242 s8: the region-match path after the close is refused arrival_closed (was: clamped and written)');
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'manual', 28.6005, -81.2, 10) $f$) like '%arrival_closed%',
+  '0242 s8: an I''m here tap after the close is refused arrival_closed');
+select _ok(_try($f$ select verify_arrival((select id from _rc_place_next), 'geofence', true, null) $f$) like '%arrival_closed%',
+  '0242 s8: the old direct verify_arrival door is closed after the close too');
+select _superuser();
+select _ok((select arrived_at is null and acknowledged_at is null and status = 'missed'
+              from commitment_responses
+             where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 s8: a refused late arrival writes nothing: missed stays missed');
+
+-- M2: a commitment may only point at its own owner's place.
+insert into commitment_locations (id, team_id, name, lat, lng, radius_m, created_by)
+  values ('cccc0242-0000-0000-0000-0000000000b3', '77777777-2222-0000-0000-000000000002', 'T2 place', 28.7, -81.3, 200,
+          '22222222-0000-0000-0000-000000000002');
+select _ok(_try($f$ update commitments set location_id = 'cccc0242-0000-0000-0000-0000000000b3'
+                     where id = 'ccccdddd-0000-0000-0000-0000000000c1' $f$) like '%location_not_yours%',
+  '0242 s8: a T1 commitment cannot be pointed at a T2 place (M2)');
+select _ok((select location_id = (select id from _rc_place) from commitments where id = 'ccccdddd-0000-0000-0000-0000000000c1'),
+  '0242 s8: the commitment still points at its own place');
+delete from commitment_locations where id = 'cccc0242-0000-0000-0000-0000000000b3';
+
+-- M6: _haversine_m pins its search_path.
+select _ok((select coalesce(array_to_string(proconfig, ','), '') like '%search_path=%'
+              from pg_proc where proname = '_haversine_m'),
+  '0242 s8: _haversine_m has a pinned search_path');
+
 select _superuser();
 update commitments set location_id = null, arrive_by_min = null where id = 'ccccdddd-0000-0000-0000-0000000000c1';
 -- restore this response row to the same untouched state materialization left it in, rather than

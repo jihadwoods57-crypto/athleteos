@@ -21,8 +21,9 @@
  *
  * WHAT LEAVES THE DEVICE (0242, founder 2026-09-23): ONE position reading per arrival, sent once to
  * verify_arrival_at with the instance id and the phone's own stated accuracy. The server measures
- * the distance to the coach's place, stores the verdict (and "N m from <place>" when it is a miss)
- * and does not keep the coordinate. There is no position stream and no history: a region crossing
+ * the distance to the coach's place, stores the verdict (and "Not at <place>" when it is a miss; the
+ * distance comes back to the athlete in the reply and is never stored) and does not keep the
+ * coordinate. There is no position stream and no history: a region crossing
  * or an "I'm here" tap each take exactly one reading. Until 0242 the comparison happened here and
  * only a boolean left, which meant the server had to believe whatever the phone said; that is
  * what changed.
@@ -123,12 +124,6 @@ export async function requestPermission(wantBackground: boolean): Promise<Permis
 
 /* ---------------------------------------------------------------- arming */
 
-/** Fetch what is armable right now (server-side window + consent check live in
- *  my_armable_geofences, migration 0139) and hand the OS exactly that set.
- *
- *  A failed fetch KEEPS the regions already armed (armingPlan): a network blip at 5:30 AM must not
- *  leave the athlete unseen at 5:43. `kept: true` tells the caller nothing changed. Only a
- *  successful answer with nothing in its window disarms; sign-out disarms via LOCATION_DISARM. */
 /** What walk-in check-in is doing on this phone after an arm:
  *    'on'           regions armed, or the armed ones kept through a failed server read
  *    'idle'         nothing inside its window right now (or no Always permission): nothing armed
@@ -136,6 +131,12 @@ export async function requestPermission(wantBackground: boolean): Promise<Permis
  *    'unavailable'  the OS refused to arm (the error is logged): the athlete taps "I'm here" */
 export type WalkInStatus = 'on' | 'idle' | 'off' | 'unavailable';
 
+/** Fetch what is armable right now (server-side window + consent check live in
+ *  my_armable_geofences, migration 0139) and hand the OS exactly that set.
+ *
+ *  A failed fetch KEEPS the regions already armed (armingPlan): a network blip at 5:30 AM must not
+ *  leave the athlete unseen at 5:43. `kept: true` tells the caller nothing changed. Only a
+ *  successful answer with nothing in its window disarms; sign-out disarms via LOCATION_DISARM. */
 export async function refreshGeofences(nowMs: number = Date.now()): Promise<{
   armed: number; capped: number; state: PermissionState; kept?: boolean; walkIn: WalkInStatus; error?: string;
 }> {
@@ -285,7 +286,7 @@ function reasonFor(message: string): string {
 }
 
 /** Send ONE reading to verify_arrival_at (0242). The server measures the distance to the coach's
- *  place and records the verdict: `within: false` becomes 'unverified' with "N m from <place>",
+ *  place and records the verdict: `within: false` becomes 'unverified' with "Not at <place>",
  *  and it can never write 'missed'. The coordinate is not kept. */
 export async function reportArrival(
   instanceId: string,
