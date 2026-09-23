@@ -479,7 +479,7 @@ export default {
     }
     const nowISO = new Date().toISOString();
     const strip = coach ? '' : tabs(id, view);
-    return `${backHead(title(board), headSub(board), back)}${strip}`
+    return `${backHead(title(board), headSub(board), back)}${strip}${coach ? '' : '<div class="rb-primer"></div>'}`
       + `<div class="pane"><div class="rb-live${coach ? ' coach' : ''}" data-rb-root="${esc(id)}" data-rb-view="${esc(view)}">${liveHtml(id, view, nowISO)}</div></div>`;
   },
 
@@ -487,6 +487,11 @@ export default {
     const { id, view } = parseSub(sub);
     if (!id) return;
     const coach = isOperator();
+    // I4: the athlete's board and Your day carry the same Continue primer as Home.
+    if (!coach) {
+      const host = root.querySelector('.rb-primer');
+      if (host) void import('../notify-permission.js').then((NP) => NP.mountRollcallPrimer(host, VC.mine), () => {});
+    }
     const live = root.querySelector(`[data-rb-root="${CSS.escape(id)}"]`);
 
     const retry = root.querySelector('#rb-retry');

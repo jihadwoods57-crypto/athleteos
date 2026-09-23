@@ -55,7 +55,7 @@ test('the notifications primer: Continue, Not now, never Allow; only while never
   const N = await import('./notify-permission.js');
   for (const context of ['rollcall', 'settings']) {
     const h = N.notifyPrimerHtml({ perm: 'undetermined', context, later: false });
-    assert.match(h, /data-np-go>Continue<\/button>/);
+    assert.match(h, /data-np-go[^>]*>Continue<\/button>/);
     for (const t of buttonTexts(h)) assert.doesNotMatch(t, ALLOW);
     assert.equal(N.notifyPrimerHtml({ perm: 'granted', context }), '');
     assert.equal(N.notifyPrimerHtml({ perm: 'denied', context }), '');
@@ -100,4 +100,33 @@ test('sweep: no <button> anywhere in the shipped proto reads Allow', () => {
     for (const m of src.matchAll(/aria-label="([^"]*)"/g)) if (ALLOW.test(m[1])) hits.push(`${f.slice(JS.length + 1)}: aria-label ${m[1]}`);
   }
   assert.deepEqual(hits, []);
+});
+
+/* I4: the wake-up must not get weaker. The primer shows wherever an assigned roll call is seen,
+   and asks for the alarm too, but only when a question is still unanswered. */
+test('roll call primer: notifications and/or the alarm, only while unanswered', async () => {
+  const N = await import('./notify-permission.js');
+  const both = N.notifyPrimerHtml({ perm: 'undetermined', alarm: 'notDetermined', context: 'rollcall', later: false });
+  assert.match(both, /data-np-notify="1" data-np-alarm="1"/);
+  const alarmOnly = N.notifyPrimerHtml({ perm: 'granted', alarm: 'notDetermined', context: 'rollcall', later: false });
+  assert.match(alarmOnly, /Let your coach’s wake-up ring/);
+  assert.match(alarmOnly, /data-np-notify="" data-np-alarm="1"/);
+  assert.equal(N.notifyPrimerHtml({ perm: 'granted', alarm: 'authorized', context: 'rollcall', later: false }), '', 'already allowed: nothing');
+  assert.equal(N.notifyPrimerHtml({ perm: 'granted', alarm: 'notDetermined', context: 'settings', later: false }), '', 'settings never asks for alarms');
+  const now = Date.parse('2026-09-23T10:00:00Z');
+  const row = { type: 'morning_roll_call', instance_id: 'i1', status: 'pending', verdict: 'pending', alarm: true,
+    starts_at: '2026-09-24T10:00:00Z', closes_at: '2026-09-24T10:30:00Z' };
+  assert.deepEqual(N.rollcallReach([row], now), { live: true, alarm: true });
+  assert.deepEqual(N.rollcallReach([{ ...row, closes_at: '2026-09-22T00:00:00Z', starts_at: '2026-09-22T00:00:00Z' }], now), { live: false, alarm: false });
+});
+
+test('the primer is mounted on Home and on the board / Your day, not only the detail', () => {
+  const home = readFileSync(join(JS, 'screens', 'home.js'), 'utf8');
+  assert.match(home, /NP\.mountRollcallPrimer\(slot, VC\.mine\)/);
+  const board = readFileSync(join(JS, 'screens', 'rollcall-board.js'), 'utf8');
+  assert.match(board, /NP\.mountRollcallPrimer\(host, VC\.mine\)/);
+  assert.match(board, /<div class="rb-primer"><\/div>/);
+  const np = readFileSync(join(JS, 'notify-permission.js'), 'utf8');
+  assert.match(np, /export async function reachAfter/);
+  assert.match(np, /localStorage\.getItem\(LATER_KEY\) === dayKey\(\)/, 'Not now lasts a day');
 });

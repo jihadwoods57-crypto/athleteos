@@ -16,6 +16,7 @@
  * Pure markup + a thin bridge wrapper, no import from state.js (state.js imports this module).
  */
 import { icon } from './icons.js';
+import { alarmsFor } from './wake-alarms.js';
 
 let PERM = null;    // 'granted' | 'denied' | 'undetermined' | 'unsupported' | null (not asked yet)
 const LATER_KEY = 'os.notif.primerLater';
@@ -44,29 +45,78 @@ export async function alarmPermission(ask = false) {
   try { return await N.wakeAlarms.state({ ask: !!ask }); } catch { return null; }
 }
 
-function laterSet() { try { return localStorage.getItem(LATER_KEY) === '1'; } catch { return false; } }
-function setLater() { try { localStorage.setItem(LATER_KEY, '1'); } catch { /* no storage */ } }
+/* Not now lasts for the DAY, not for ever (review I4): a coach's wake-up tomorrow deserves the
+   question again tomorrow. */
+const dayKey = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; };
+function laterSet() { try { return localStorage.getItem(LATER_KEY) === dayKey(); } catch { return false; } }
+function setLater() { try { localStorage.setItem(LATER_KEY, dayKey()); } catch { /* no storage */ } }
 
 /**
- * The primer card. '' unless the system question has not been answered yet (PERM 'undetermined')
- * and the person has not tapped Not now here before. Pure over its inputs.
- * @param {{ perm?: string|null, context?: 'rollcall'|'settings', later?: boolean }} o
+ * The primer card. '' unless a question is still unanswered: notifications never asked, or (on a
+ * roll call with a coach's wake-up) alarms never asked. Never shown after a Not now today, except
+ * on the settings screen. Pure over its inputs.
+ * @param {{ perm?: string|null, alarm?: string|null, context?: 'rollcall'|'settings', later?: boolean }} o
  */
-export function notifyPrimerHtml({ perm = PERM, context = 'rollcall', later = laterSet() } = {}) {
-  if (perm !== 'undetermined') return '';
+export function notifyPrimerHtml({ perm = PERM, alarm = null, context = 'rollcall', later = laterSet() } = {}) {
+  const askNotify = perm === 'undetermined';
+  const askAlarm = context === 'rollcall' && alarm === 'notDetermined';
+  if (!askNotify && !askAlarm) return '';
   if (later && context !== 'settings') return '';
-  const t = context === 'rollcall' ? 'Get the roll call on your lock screen' : 'Turn on reminders';
-  const s = context === 'rollcall'
-    ? 'OnStandard can put your coach’s roll call on your lock screen, so one tap checks you in, and ring an alarm when your coach sets a wake-up. Your phone asks next.'
-    : 'OnStandard sends the reminders you choose here, your coach’s roll calls and messages from your team. Your phone asks next.';
+  const t = context !== 'rollcall' ? 'Turn on reminders'
+    : askNotify ? 'Get the roll call on your lock screen' : 'Let your coach’s wake-up ring';
+  const s = context !== 'rollcall'
+    ? 'OnStandard sends the reminders you choose here, your coach’s roll calls and messages from your team. Your phone asks next.'
+    : askNotify
+      ? 'OnStandard can put your coach’s roll call on your lock screen, so one tap checks you in, and ring an alarm when your coach sets a wake-up. Your phone asks next.'
+      : 'Your coach set a wake-up. OnStandard can ring it as a real alarm, through Do Not Disturb and silent mode. Your phone asks next.';
   return `<section class="card pad np-card" role="region" aria-labelledby="np-t">
     <h3 class="np-t" id="np-t">${icon('bell', 16)} ${t}</h3>
     <p class="np-s">${s}</p>
     <div class="np-acts">
-      <button type="button" class="btn sm np-go" data-np-go>Continue</button>
+      <button type="button" class="btn sm np-go" data-np-go data-np-notify="${askNotify ? '1' : ''}" data-np-alarm="${askAlarm ? '1' : ''}">Continue</button>
       ${context === 'settings' ? '' : '<button type="button" class="btn ghost sm" data-np-later>Not now</button>'}
     </div>
   </section>`;
+}
+
+/** Of the athlete's roll-call rows, is there one still ahead or open (so reaching the phone
+ *  matters), and one whose coach asked for an alarm? Pure. */
+export function rollcallReach(rows, nowMs = Date.now()) {
+  const list = Array.isArray(rows) ? rows : [];
+  const live = list.some((r) => r && r.instance_status !== 'cancelled' && r.skipped !== true
+    && (!r.verdict || r.verdict === 'pending') && r.status !== 'excused'
+    && Date.parse(r.closes_at || r.respond_by_at || r.starts_at || '') > nowMs);
+  return { live, alarm: alarmsFor(list, nowMs).length > 0 };
+}
+
+/**
+ * The primer wherever an athlete sees an assigned roll call (review I4): Home's slot, the team
+ * board and Your day, the detail screen. Reads (never asks) both permissions; draws the card only
+ * when one is unanswered; a Continue asks notifications, then alarms. Athletes who already allowed
+ * see nothing. `after` registers the token and re-arms.
+ */
+export async function mountRollcallPrimer(host, rows, after = () => reachAfter(rows)) {
+  if (!host || host.querySelector('.np-card')) return;
+  const reach = rollcallReach(rows);
+  if (!reach.live && !reach.alarm) return;
+  const perm = await notifyPermission(false);
+  const al = reach.alarm ? await alarmPermission(false) : null;
+  const html = notifyPrimerHtml({ perm, alarm: al && al.supported ? al.authorization : null, context: 'rollcall' });
+  if (!html || !host.isConnected || host.querySelector('.np-card')) return;
+  const slot = document.createElement('div');
+  slot.className = 'np-slot';
+  slot.innerHTML = html;
+  host.appendChild(slot);
+  wireNotifyPrimer(slot, { withAlarms: true, after });
+}
+
+/** After a primer's yes: mint the push token, reschedule reminders, arm the mornings. Loaded
+ *  lazily with this module, so none of it sits on the boot graph. */
+export async function reachAfter(rows) {
+  const { act, RT } = await import('./state.js');
+  await act.registerPushToken({ ask: true });
+  RT._lastPlan = null; act.syncNotifications();
+  try { const { syncWakeAlarms } = await import('./wake-alarms.js'); await syncWakeAlarms(rows || []); } catch { /* the next Home load arms it */ }
 }
 
 /**
@@ -89,9 +139,12 @@ export function wireNotifyPrimer(root, { after, withAlarms = false } = {}) {
     if (!go || go.disabled) return;
     go.disabled = true;
     go.textContent = 'Asking…';
-    const perm = await notifyPermission(true);
+    // Only the questions the card named. An older card with no flags asks notifications.
+    const askN = go.getAttribute('data-np-notify') !== '' || !go.hasAttribute('data-np-notify');
+    const askA = withAlarms && go.getAttribute('data-np-alarm') === '1';
+    const perm = askN ? await notifyPermission(true) : await notifyPermission(false);
     let alarms = null;
-    if (withAlarms && perm === 'granted') alarms = await alarmPermission(true);
+    if (withAlarms && (askA || (askN && perm === 'granted'))) alarms = await alarmPermission(true);
     const card = go.closest('.np-card');
     if (card) card.remove();
     if (typeof after === 'function') { try { await after({ perm, alarms }); } catch { /* best effort */ } }
