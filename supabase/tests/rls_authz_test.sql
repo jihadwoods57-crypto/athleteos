@@ -474,9 +474,9 @@ select post_announcement('77777777-1111-0000-0000-000000000001','team',null,'Tea
 -- athletes' feed rows under RLS. Verify the fan-out from superuser (same idiom as the
 -- profile-name check in section 3).
 select _superuser();
-select _ok((select count(*) from notifications where user_id = 'aaaaaaaa-0000-0000-0000-000000000001' and kind = 'announcement') = 1,
+select _ok((select count(*) from notifications where user_id = 'aaaaaaaa-0000-0000-0000-000000000001' and kind like 'announcement%') = 1,
            'post_announcement (team scope) notifies athlete A');
-select _ok((select count(*) from notifications where user_id = 'dddddddd-0000-0000-0000-000000000004' and kind = 'announcement') = 1,
+select _ok((select count(*) from notifications where user_id = 'dddddddd-0000-0000-0000-000000000004' and kind like 'announcement%') = 1,
            'post_announcement (team scope) notifies minor M');
 
 -- as an athlete (non-staff), the RPC raises 'not team staff'.
@@ -486,13 +486,13 @@ select _ok(_try($q$select post_announcement('77777777-1111-0000-0000-00000000000
 
 -- position scope: only the matching position gets notified.
 select _superuser();
-delete from notifications where user_id in ('aaaaaaaa-0000-0000-0000-000000000001','dddddddd-0000-0000-0000-000000000004') and kind = 'announcement';
+delete from notifications where user_id in ('aaaaaaaa-0000-0000-0000-000000000001','dddddddd-0000-0000-0000-000000000004') and kind like 'announcement%';
 select _as('11111111-0000-0000-0000-000000000001');
 select post_announcement('77777777-1111-0000-0000-000000000001','position','QB','QB meeting','Film room, 8am.');
 select _superuser();  -- owner-read notifications: verify the fan-out from superuser
-select _ok((select count(*) from notifications where user_id = 'aaaaaaaa-0000-0000-0000-000000000001' and kind = 'announcement') = 1,
+select _ok((select count(*) from notifications where user_id = 'aaaaaaaa-0000-0000-0000-000000000001' and kind like 'announcement%') = 1,
            'post_announcement (position=QB) notifies the QB (athlete A)');
-select _ok((select count(*) from notifications where user_id = 'dddddddd-0000-0000-0000-000000000004' and kind = 'announcement') = 0,
+select _ok((select count(*) from notifications where user_id = 'dddddddd-0000-0000-0000-000000000004' and kind like 'announcement%') = 0,
            'post_announcement (position=QB) does NOT notify the WR (minor M)');
 
 -- ================================================================ COACH OS SLICE C: requirement_templates
@@ -5224,6 +5224,31 @@ select _ok(has_ai_consent('fffb0000-0000-0000-0000-0000000000a1') = true
        and has_ai_consent('00000000-0000-0000-0000-00000000dead') = false,
   '0243: has_ai_consent is true only for an explicit yes; never asked and no profile are no');
 
+-- M12: an ordinary own-profile edit still passes the 0243 trigger.
+select _as('fffb0000-0000-0000-0000-0000000000a1');
+select _ok(_try($q$update profiles set full_name = 'Review Athlete II' where id = 'fffb0000-0000-0000-0000-0000000000a1'$q$) = 'ok',
+  '0243: an ordinary own-profile update is untouched by the consent trigger');
+select _ok((select full_name from profiles where id = 'fffb0000-0000-0000-0000-0000000000a1') = 'Review Athlete II',
+  '0243: and it lands');
+-- I6: a minor who says yes without a verified guardian is still NO to every AI path.
+select _superuser();
+insert into auth.users (id, email) values ('fffb0000-0000-0000-0000-0000000000f1','rp-minor@x.io');
+insert into athlete_profiles (athlete_id, sport, dob) values ('fffb0000-0000-0000-0000-0000000000f1', 'football', current_date - interval '15 years')
+  on conflict (athlete_id) do update set dob = excluded.dob;
+select _as('fffb0000-0000-0000-0000-0000000000f1');
+select _try($q$select set_ai_consent(true)$q$);
+select _ok((select (my_ai_consent()->>'minor_pending')::boolean) = true and (select (my_ai_consent()->>'ai_consent')::boolean) = true,
+  '0243: a minor sees their own answer and that a parent still has to approve');
+select _superuser();
+select _ok(has_ai_consent('fffb0000-0000-0000-0000-0000000000f1') = false,
+  '0243 (I6): a minor''s yes without a verified guardian is no to the AI');
+select _ok((select ai_consent from ai_consent_effective(array['fffb0000-0000-0000-0000-0000000000f1','fffb0000-0000-0000-0000-0000000000a1']::uuid[]) where id = 'fffb0000-0000-0000-0000-0000000000f1') = false
+       and (select ai_consent from ai_consent_effective(array['fffb0000-0000-0000-0000-0000000000a1']::uuid[])) = true,
+  '0243: ai_consent_effective applies the same rule in bulk');
+select _as('fffb0000-0000-0000-0000-0000000000a1');
+select _ok(_try($q$select * from ai_consent_effective(array['fffb0000-0000-0000-0000-0000000000a1']::uuid[])$q$) <> 'ok',
+  '0243: ai_consent_effective is service-role only');
+
 -- 0244: Block.
 select _as('fffb0000-0000-0000-0000-0000000000a1');
 select _ok((select count(*) from meal_comments where meal_id = 'fffb0000-e000-0000-0000-00000000d001') = 2,
@@ -5247,8 +5272,8 @@ select _ok((select count(*) from meal_comments where meal_id = 'fffb0000-e000-00
 select _ok(_try($q$select post_announcement('fffb0000-1111-0000-0000-000000000001', 'team', null, 'Early lift', 'Lift at six tomorrow.')$q$) = 'ok',
   '0244: the coach can still post an announcement');
 select _superuser();
-select _ok((select count(*) from notifications where user_id = 'fffb0000-0000-0000-0000-0000000000a1' and kind = 'announcement' and title = 'Early lift') = 0
-       and (select count(*) from notifications where user_id = 'fffb0000-0000-0000-0000-0000000000e1' and kind = 'announcement' and title = 'Early lift') = 1,
+select _ok((select count(*) from notifications where user_id = 'fffb0000-0000-0000-0000-0000000000a1' and kind like 'announcement%' and title = 'Early lift') = 0
+       and (select count(*) from notifications where user_id = 'fffb0000-0000-0000-0000-0000000000e1' and kind like 'announcement%' and title = 'Early lift') = 1,
   '0244: the announcement skips the athlete who blocked the author, and reaches everyone else');
 select _ok((select array_agg(x) from blocked_recipients('fffb0000-0000-0000-0000-0000000000c1',
           array['fffb0000-0000-0000-0000-0000000000a1','fffb0000-0000-0000-0000-0000000000e1']::uuid[]) as x)
@@ -5256,7 +5281,7 @@ select _ok((select array_agg(x) from blocked_recipients('fffb0000-0000-0000-0000
   '0244: blocked_recipients names exactly the recipients who blocked the sender');
 -- block_announcement_author: the OTHER athlete blocks the coach from the announcement row alone.
 select _as('fffb0000-0000-0000-0000-0000000000e1');
-select _ok((select block_announcement_author((select id from notifications where kind = 'announcement' and title = 'Early lift' limit 1))) = true,
+select _ok((select block_announcement_author((select id from notifications where kind like 'announcement%' and title = 'Early lift' limit 1))) = true,
   '0244: an athlete can block the coach behind an announcement they received');
 select _ok((select count(*) from user_blocks where blocked_id = 'fffb0000-0000-0000-0000-0000000000c1') = 1,
   '0244: that block is theirs');

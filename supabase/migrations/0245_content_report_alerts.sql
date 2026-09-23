@@ -21,6 +21,9 @@
 --   select schedule_content_report_alerts('https://<ref>.supabase.co/functions/v1/admin-alert', '<ALERT_KEY>');
 
 alter table public.content_reports add column if not exists alerted_at timestamptz;
+-- The pg_net request that carried the alert (review M2): a request whose response failed puts its
+-- reports back in the queue on the next run, so a down admin-alert never loses a report.
+alter table public.content_reports add column if not exists alert_request_id bigint;
 create index if not exists content_reports_unalerted_idx on public.content_reports (created_at) where alerted_at is null;
 
 create or replace function public.alert_content_reports(p_fn_url text, p_alert_key text)
@@ -28,9 +31,18 @@ returns int language plpgsql security definer set search_path = public as $$
 declare
   r record;
   n int := 0;
+  req bigint;
   details jsonb := '[]'::jsonb;
 begin
   if p_fn_url is null or p_alert_key is null then return 0; end if;
+  -- Re-queue reports whose alert call came back as a failure (or never connected).
+  begin
+    update content_reports c set alerted_at = null, alert_request_id = null
+     where c.status = 'open' and c.alert_request_id is not null
+       and exists (select 1 from net._http_response h
+                    where h.id = c.alert_request_id and (h.status_code is null or h.status_code >= 300 or h.timed_out));
+  exception when others then null;  -- pg_net's response table absent: stamping stays best effort
+  end;
   for r in
     select id, reason, reporter_id, subject_id, meal_id, team_id, comment_id,
            left(coalesce(detail, ''), 280) as note
@@ -54,7 +66,7 @@ begin
     update content_reports set alerted_at = now() where id = r.id;
   end loop;
   if n = 0 then return 0; end if;
-  perform net.http_post(
+  select net.http_post(
     url := p_fn_url,
     headers := jsonb_build_object('Content-Type', 'application/json', 'x-alert-key', p_alert_key),
     body := jsonb_build_object(
@@ -62,7 +74,8 @@ begin
       'subject', n || ' new content report' || case when n = 1 then '' else 's' end,
       'body', 'Someone reported content in OnStandard. Review it in the content_reports table and answer within 24 hours.',
       'details', details,
-      'occurredAt', now()));
+      'occurredAt', now())) into req;
+  update content_reports set alert_request_id = req where alerted_at is not null and alert_request_id is null and status = 'open';
   return n;
 end $$;
 revoke all on function public.alert_content_reports(text, text) from public, anon, authenticated;
