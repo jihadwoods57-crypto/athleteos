@@ -470,3 +470,20 @@ records what the CSS now says.
   does not inherit the caps treatment just because it sits next to one. `.rb-meta`, `.rb-arr` and
   `.rb-line` are sentence case at `--t-xs`/`--t-sm`, same as any other caption, because they are
   per-athlete facts, not headers.
+
+## Amendments · 2026-09-23 the composer
+
+- **The bottom of a thread is one flush bar.** Every thread screen (meal page, past meal, full
+  chat, the coach's meal view) ends with its `.chat-dock.dock-end`: flush with the screen's bottom
+  edge in both keyboard states, carrying the home-indicator inset itself. Nothing renders under the
+  message box. A screen's exit is its header back control, never a button under the composer.
+- **The keyboard is one motion.** The shell shortens on the keyboard's own duration and curve
+  (`--kb-ms`, `--kb-ease`, fed by the native keyboardWillShow/WillHide), and a thread resting on
+  its newest message is held there every frame. No style that the keyboard changes may switch in
+  one frame: animate it on `--kb-ms`/`--kb-ease` or do not change it.
+- **The mic lives in send's slot.** Empty box: mic. Text or a photo: send (blue). Listening: a blue
+  stop control with a voice ring, and nothing else (dictation never sends). The mic shows only under
+  `html.can-dictate`. Listening is selection blue, never red.
+- **Empty notes take no room.** A thread's one-line note (`.cmp-note`) is `display: none` while
+  empty; no composer holds an empty line open under itself.
+

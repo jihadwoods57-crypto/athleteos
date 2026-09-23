@@ -62,7 +62,7 @@ body {
    hide (keyboard.js writes it from the native keyboardWillShow/WillHide); 250ms is its usual.
    --kb-ease approximates the keys' own curve (UIKit's private curve 7: a fast start that settles
    long), so the shell shortening and the keys rising read as one object, not a chase. */
-:root { --kb-ms: 250ms; --kb-ease: cubic-bezier(0.38, 0.7, 0.125, 1); }
+:root { --kb-ms: 250ms; --kb-ease: cubic-bezier(0.25, 0.9, 0.3, 1); }
 
 /* ===== Device frame (realistic iPhone) ===== */
 .device {
