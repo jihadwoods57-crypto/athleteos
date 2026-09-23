@@ -170,3 +170,80 @@ test('coordinates on a row never reach the markup', async () => {
   const html = boardHtml(boardModel({ ...B, asks_arrival: true, rows }, 'm', '2026-09-25T10:45:00Z'), { coach: true });
   assert.doesNotMatch(html, /28\.60|81\.20/);
 });
+
+/* ---------------------------------------------------------------- fix round 1 (2026-09-23) */
+
+test('Missed renders only when the SERVER says missed, never from the clock', async () => {
+  const { boardHtml } = await import('./team-board.js');
+  // Past the close, but the server still says pending (e.g. a board read a second before the
+  // escalation ran): the client does not promote it to missed on its own.
+  const m = boardModel(B, 'm', '2026-09-25T11:00:00Z');
+  assert.equal(m.closed, true);
+  assert.deepEqual(m.groups.missed, []);
+  const html = boardHtml(m, { coach: false });
+  assert.doesNotMatch(html, />Missed</);
+  assert.match(html, />Not up yet</);
+});
+
+test('the athlete reads "You" once; the coach label carries the group and the time', async () => {
+  const { boardHtml } = await import('./team-board.js');
+  const mine = boardHtml(boardModel(B, 'm', '2026-09-25T10:10:00Z'), { coach: false });
+  const tileHtml = mine.slice(mine.indexOf('rb-tile up me'));
+  assert.equal((tileHtml.slice(0, tileHtml.indexOf('</li>')).match(/You/g) || []).length, 1);
+  assert.doesNotMatch(mine, /sr-only/);
+  const coach = boardHtml(boardModel(B, null, '2026-09-25T10:10:00Z'), { coach: true });
+  assert.match(coach, /aria-label="DeShawn Cole, on time, 1st at \d+:52\. Nudge or override"/);
+  assert.match(coach, /aria-label="Tyrek Malone, late, 3rd at \d+:08\. Nudge or override"/);
+  assert.match(coach, /aria-label="Tommy Vargas, not up yet\. Nudge or override"/);
+  const placed = { ...B, asks_arrival: true, rows: [{ ...B.rows[0], arrival_verdict: 'pending' }] };
+  assert.match(boardHtml(boardModel(placed, null, '2026-09-25T10:10:00Z'), { coach: true }),
+    /aria-label="DeShawn Cole, on time, 1st at \d+:52, not here yet\. Nudge or override"/);
+});
+
+/* The three board modes (0242 fix round 1, controller ruling). */
+const ARR = { mode: 'arrival', asks_arrival: true, location_name: 'Stadium', total: 5,
+  closes_at: '2026-09-25T20:00:00Z', arrive_by_at: '2026-09-25T19:30:00Z', rows: [
+  { athlete_id: 'a', name: 'Andre Whitfield', acknowledged_at: null, verdict: 'missed', place: null, arrived_at: '2026-09-25T19:25:00Z', arrival_verdict: 'on_standard' },
+  { athlete_id: 'b', name: 'Marcus Reed', acknowledged_at: null, verdict: 'missed', place: null, arrived_at: '2026-09-25T19:12:00Z', arrival_verdict: 'on_standard' },
+  { athlete_id: 'c', name: 'Tyrek Malone', acknowledged_at: null, verdict: 'missed', place: null, arrived_at: '2026-09-25T19:44:00Z', arrival_verdict: 'late' },
+  { athlete_id: 'd', name: 'Jaylen Brooks', acknowledged_at: null, verdict: 'pending', place: null, arrived_at: null, arrival_verdict: 'pending' },
+  { athlete_id: 'e', name: 'Tommy Vargas', acknowledged_at: null, verdict: 'pending', place: null, arrived_at: null, arrival_verdict: 'unverified' },
+  { athlete_id: 'f', name: 'Ray Gomez', acknowledged_at: null, verdict: 'excused', place: null, arrived_at: null, arrival_verdict: 'excused' } ] };
+
+test('arrival mode groups by the server arrival_verdict, in arrival order', () => {
+  const m = boardModel(ARR, 'a', '2026-09-25T19:50:00Z');
+  assert.equal(m.mode, 'arrival');
+  assert.deepEqual(m.groups.up.map((r) => r.athlete_id), ['b', 'a']);
+  assert.deepEqual(m.groups.late.map((r) => r.athlete_id), ['c']);
+  assert.deepEqual(m.groups.waiting.map((r) => r.athlete_id), ['d']);
+  assert.deepEqual(m.groups.unverified.map((r) => r.athlete_id), ['e']);
+  assert.deepEqual(m.groups.excused.map((r) => r.athlete_id), ['f']);
+  assert.deepEqual(m.groups.missed, [], 'the wake-up verdict is ignored in arrival mode');
+  assert.equal(m.upCount, 3);
+  assert.equal(m.total, 5);
+  assert.equal(m.firstUp.name, 'Marcus');
+  assert.deepEqual(m.me, { place: 2, verdict: 'on_standard' });
+});
+
+test('arrival mode markup counts here, not up, and shows unverified as its own neutral state', async () => {
+  const { boardHtml } = await import('./team-board.js');
+  const html = boardHtml(boardModel(ARR, 'a', '2026-09-25T19:50:00Z'), { coach: false });
+  assert.match(html, /<span class="rb-n">3<\/span> of 5 here/);
+  assert.doesNotMatch(html, / up</);
+  assert.match(html, /First here: Marcus · /);
+  assert.match(html, />Place not confirmed</);
+  assert.match(html, /class="rb-tile unverified/);
+  assert.match(html, />Not here yet</);
+  assert.doesNotMatch(html, /rb-arr/, 'no second arrival line: the arrival is the tile');
+  const closed = { ...ARR, rows: ARR.rows.map((r) => r.athlete_id === 'd' ? { ...r, arrival_verdict: 'missed' } : r) };
+  assert.match(boardHtml(boardModel(closed, 'a', '2026-09-25T20:30:00Z'), { coach: false }), />Not here</);
+});
+
+test('mode falls back on asks_arrival when the server sent none (wake or both, never arrival)', async () => {
+  const { boardMode } = await import('./team-board.js');
+  assert.equal(boardMode({ asks_arrival: false }), 'wake');
+  assert.equal(boardMode({ asks_arrival: true }), 'both');
+  assert.equal(boardMode({ mode: 'arrival' }), 'arrival');
+  assert.equal(boardMode(null), 'wake');
+  assert.equal(boardModel({ ...B, mode: 'both', asks_arrival: true }, 'm', '2026-09-25T10:10:00Z').mode, 'both');
+});

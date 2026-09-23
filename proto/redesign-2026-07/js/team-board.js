@@ -41,39 +41,61 @@ function clock(iso) {
   return clockTime(iso).replace(/\s?[AaPp]\.?\s?[Mm]\.?$/, '').trim();
 }
 const at = (iso) => { const t = Date.parse(iso || ''); return isFinite(t) ? t : null; };
-const byAnswer = (a, b) => (at(a.acknowledged_at) ?? Infinity) - (at(b.acknowledged_at) ?? Infinity);
+const byTime = (key) => (a, b) => (at(a[key]) ?? Infinity) - (at(b[key]) ?? Infinity);
 const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''));
+
+/* The board's MODE (0242, fix round 1, controller ruling): 'wake' a morning roll call with no
+   place, 'both' a morning roll call with a place, 'arrival' any other commitment type with a place
+   (no alarm, no I'm Up: the arrival IS the answer). A board from before the server sent `mode`
+   falls back on asks_arrival, which can tell 'wake' from 'both' but never 'arrival'. */
+export function boardMode(board) {
+  const m = board && board.mode;
+  if (m === 'wake' || m === 'both' || m === 'arrival') return m;
+  return board && board.asks_arrival ? 'both' : 'wake';
+}
 
 /** The board, arranged. `board` is rollcall_team_board's answer; `selfId` the signed-in athlete
  *  (null for a coach); `nowISO` the clock the caller renders against.
- *    upCount      answers that count: on time + late (never an unresolved review)
+ *    mode         'wake' | 'both' | 'arrival' (boardMode)
+ *    upCount      answers that count: on time + late (never an unresolved review). In 'arrival'
+ *                 mode, arrivals that count (arrival_verdict on_standard + late)
  *    total        everyone the roll call is asking, excused left out (as the score does)
  *    arrivedCount responders with an arrival, excused left out
- *    firstUp      { name, time } of the earliest answer that counts, or null
- *    me           { place, verdict } for selfId, or null when they are not on this board
+ *    firstUp      { name, time } of the earliest answer (arrival, in 'arrival' mode) that counts
+ *    me           { place, verdict } for selfId, or null when they are not on this board; in
+ *                 'arrival' mode verdict is the arrival_verdict and place the arrival order
  *    groups       up (on time) and late in answer order; waiting (not up yet, and answers under
- *                 review), missed, excused by name
+ *                 review), missed, excused by name; unverified (arrival mode only: the phone could
+ *                 not confirm the place, a neutral state, never a miss)
  *    closed       the roll call's window has closed (by instant, not by string)
  *    asksArrival  the roll call carries a place check
- *  plus `info` (title, coach, place name and the instance's times, for the screen's header) and
- *  `names`, the display name per athlete id (first name; last initial added when two share one). */
+ *  plus `info` (title, coach, place name and the instance's times, for the screen's header),
+ *  `names` (display name per athlete id: first name, last initial added when two share one) and
+ *  `places` (arrival mode: athlete id -> arrival order).
+ *  Every verdict is the server's; in 'arrival' mode the only thing computed here is the ORDER of
+ *  arrival, from arrived_at, because the server's `place` counts wake-up answers. */
 export function boardModel(board, selfId, nowISO) {
   const b = board && typeof board === 'object' ? board : {};
   const rows = Array.isArray(b.rows) ? b.rows.filter((r) => r && typeof r === 'object') : [];
   const now = at(nowISO), close = at(b.closes_at);
   const closed = now != null && close != null && now > close;
+  const mode = boardMode(b);
+  const arrival = mode === 'arrival';
+  const key = arrival ? 'arrived_at' : 'acknowledged_at';
+  const sorted = byTime(key);
 
-  const groups = { up: [], late: [], waiting: [], missed: [], excused: [] };
+  const groups = { up: [], late: [], waiting: [], missed: [], excused: [], unverified: [] };
   for (const r of rows) {
-    const v = r.verdict;
+    const v = arrival ? (r.verdict === 'excused' ? 'excused' : r.arrival_verdict) : r.verdict;
     if (v === 'on_standard') groups.up.push(r);
     else if (v === 'late') groups.late.push(r);
     else if (v === 'missed') groups.missed.push(r);
     else if (v === 'excused') groups.excused.push(r);
+    else if (arrival && v === 'unverified') groups.unverified.push(r);
     else groups.waiting.push(r);   // pending, review, or anything the server adds later
   }
-  groups.up.sort(byAnswer); groups.late.sort(byAnswer);
-  groups.waiting.sort(byName); groups.missed.sort(byName); groups.excused.sort(byName);
+  groups.up.sort(sorted); groups.late.sort(sorted);
+  groups.waiting.sort(byName); groups.missed.sort(byName); groups.excused.sort(byName); groups.unverified.sort(byName);
 
   // Display names: first name, told apart by last initial only when two teammates share one.
   const count = new Map();
@@ -84,16 +106,22 @@ export function boardModel(board, selfId, nowISO) {
     names[r.athlete_id] = (count.get(f.toLowerCase()) > 1 && lastInitial(r.name)) ? `${f} ${lastInitial(r.name)}` : (f || 'Teammate');
   }
 
-  const counted = groups.up.concat(groups.late).sort(byAnswer);
+  const counted = groups.up.concat(groups.late).sort(sorted);
+  // Arrival mode: the place in line is the arrival order (the server's `place` is the wake-up's).
+  const places = new Map();
+  if (arrival) counted.forEach((r, i) => places.set(r.athlete_id, i + 1));
+  const placeOf = (r) => (arrival ? places.get(r.athlete_id) || null : r.place || null);
   const firstRow = counted[0] || null;
   const mine = selfId ? rows.find((r) => r.athlete_id === selfId) || null : null;
+  const myVerdict = mine && (arrival ? (mine.verdict === 'excused' ? 'excused' : mine.arrival_verdict) : mine.verdict);
   return {
+    mode,
     upCount: counted.length,
     total: rows.filter((r) => r.verdict !== 'excused').length,
     arrivedCount: rows.filter((r) => r.arrived_at && r.verdict !== 'excused').length,
-    firstUp: firstRow ? { name: names[firstRow.athlete_id], time: clock(firstRow.acknowledged_at) } : null,
-    me: mine ? { place: mine.place || null, verdict: mine.verdict } : null,
-    groups, closed, asksArrival: !!b.asks_arrival, selfId: selfId || null, names,
+    firstUp: firstRow ? { name: names[firstRow.athlete_id], time: clock(firstRow[key]) } : null,
+    me: mine ? { place: placeOf(mine), verdict: myVerdict } : null,
+    groups, closed, asksArrival: !!b.asks_arrival || arrival, selfId: selfId || null, names, places,
     info: {
       instanceId: b.instance_id || null, title: b.title || '', coachName: b.coach_name || '',
       locationName: b.location_name || '', startsAt: b.starts_at || null,
@@ -107,45 +135,64 @@ export function boardModel(board, selfId, nowISO) {
 /* The place check, per tile, straight off the server's arrival_verdict. Sentence case, one colour
    per meaning: green here on time, amber here late (a real warning), red only for a miss (which
    the server only returns once the arrival deadline and the close have both passed), neutral for
-   not here yet and for a phone that could not confirm the place (unverified is never a miss). */
+   not here yet and for a phone that could not confirm the place (unverified is never a miss).
+   Returns [markup, words for a screen reader]. */
 function arrivalLine(r) {
+  const t = clock(r.arrived_at);
   switch (r.arrival_verdict) {
-    case 'on_standard': return `<span class="rb-arr g">Here ${esc(clock(r.arrived_at))}</span>`;
-    case 'late': return `<span class="rb-arr a">Here ${esc(clock(r.arrived_at))}</span>`;
-    case 'pending': return '<span class="rb-arr">Not here yet</span>';
-    case 'unverified': return '<span class="rb-arr">Unverified</span>';
-    case 'missed': return '<span class="rb-arr r">Not here</span>';
-    default: return '';
+    case 'on_standard': return [`<span class="rb-arr g">Here ${esc(t)}</span>`, `here at ${t}`];
+    case 'late': return [`<span class="rb-arr a">Here ${esc(t)}</span>`, `here late at ${t}`];
+    case 'pending': return ['<span class="rb-arr">Not here yet</span>', 'not here yet'];
+    case 'unverified': return ['<span class="rb-arr">Unverified</span>', 'place not confirmed'];
+    case 'missed': return ['<span class="rb-arr r">Not here</span>', 'not here'];
+    default: return ['', ''];
   }
 }
 
-/* One face. `kind` is the group: up | late | waiting | missed | excused. */
+const GROUP_WORDS = {
+  up: 'on time', late: 'late', waiting: 'not up yet', missed: 'missed', excused: 'excused', unverified: 'place not confirmed',
+};
+const GROUP_WORDS_ARRIVAL = { ...GROUP_WORDS, up: 'here on time', late: 'here late', waiting: 'not here yet', missed: 'not here' };
+
+/* One face. `kind` is the group: up | late | waiting | missed | excused | unverified. */
 function tile(r, kind, m, coach) {
   const me = !coach && m.selfId && r.athlete_id === m.selfId;
+  const arrivalMode = m.mode === 'arrival';
   const name = me ? 'You' : m.names[r.athlete_id];
   const fullName = String(r.name || name);
+  const place = arrivalMode ? (m.places && m.places.get(r.athlete_id)) : r.place;
+  const t = clock(arrivalMode ? r.arrived_at : r.acknowledged_at);
   let meta = '';
   if (kind === 'up' || kind === 'late') {
-    meta = `<span class="rb-meta">${r.place ? `${ordinal(r.place)} · ` : ''}<span class="rb-t">${esc(clock(r.acknowledged_at))}</span></span>`;
+    meta = `<span class="rb-meta">${place ? `${ordinal(place)} · ` : ''}<span class="rb-t">${esc(t)}</span></span>`;
   } else if (kind === 'waiting' && r.verdict === 'review') {
     meta = '<span class="rb-meta">Being checked</span>';
   } else if (kind === 'missed') {
-    meta = '<span class="rb-meta">Missed</span>';
+    meta = `<span class="rb-meta">${arrivalMode ? 'Not here' : 'Missed'}</span>`;
   } else if (kind === 'excused') {
     meta = '<span class="rb-meta">Excused</span>';
+  } else if (kind === 'unverified') {
+    meta = '<span class="rb-meta">Unverified</span>';
   }
-  const arr = m.asksArrival && kind !== 'excused' ? arrivalLine(r) : '';
+  // In arrival mode the arrival IS the tile; in 'both' it is a second line under the wake-up.
+  const [arr, arrWords] = m.asksArrival && !arrivalMode && kind !== 'excused' ? arrivalLine(r) : ['', ''];
   const cls = `rb-tile ${kind}${me ? ' me' : ''}`;
   const face = `<span class="rb-av" data-avatar-uid="${esc(r.athlete_id)}" aria-hidden="true"><span data-avatar-fallback>${esc(initialsOf(r.name, '?'))}</span></span>`;
   const body = `${face}<span class="rb-name">${esc(name)}</span>${meta}${arr}`;
   if (coach) {
-    return `<li><button type="button" class="${cls}" data-rb-athlete="${esc(r.athlete_id)}" aria-label="${esc(fullName)}. Nudge or override">${body}</button></li>`;
+    // The button's label replaces its contents for a screen reader, so it carries all of them:
+    // who, which group, place and time, and the place check.
+    const words = (arrivalMode ? GROUP_WORDS_ARRIVAL : GROUP_WORDS)[kind] || '';
+    const when = (kind === 'up' || kind === 'late') ? `, ${place ? `${ordinal(place)} at ` : 'at '}${t}` : '';
+    const label = `${fullName}, ${words}${when}${arrWords ? `, ${arrWords}` : ''}. Nudge or override`;
+    return `<li><button type="button" class="${cls}" data-rb-athlete="${esc(r.athlete_id)}" aria-label="${esc(label)}">${body}</button></li>`;
   }
-  return `<li><div class="${cls}"${me ? ' aria-current="true"' : ''}>${me ? '<span class="sr-only">You, </span>' : ''}${body}</div></li>`;
+  // The name already reads "You" on the athlete's own tile; nothing is added, so it is said once.
+  return `<li><div class="${cls}"${me ? ' aria-current="true"' : ''}>${body}</div></li>`;
 }
 
 function group(label, rows, kind, m, coach) {
-  if (!rows.length) return '';
+  if (!rows || !rows.length) return '';
   return `<h2 class="eyebrow rb-h">${esc(label)}<span class="rb-hn">${rows.length}</span></h2>`
     + `<ul class="rb-grid ${kind}">${rows.map((r) => tile(r, kind, m, coach)).join('')}</ul>`;
 }
@@ -153,33 +200,39 @@ function group(label, rows, kind, m, coach) {
 /** The board's markup: the count, who was first up, the athlete's own place, then the faces.
  *  `coach` true makes every face a <button data-rb-athlete="id"> (the screen opens Nudge /
  *  Override from it); an athlete's faces are not controls, and their own tile is marked `.me`.
- *  Every name goes through esc; no coordinate is ever in a board row's rendered fields. */
+ *  In 'arrival' mode the board counts "here" instead of "up". Every name goes through esc; no
+ *  coordinate is ever in a board row's rendered fields. */
 export function boardHtml(model, { coach = false } = {}) {
   const m = model || boardModel(null, null, null);
   const g = m.groups;
+  const arrivalMode = m.mode === 'arrival';
   // The athlete's own place, in the one pill: green on time, amber late (a real warning).
   const isLate = m.me && m.me.verdict === 'late';
   const you = !coach && m.me && m.me.place
-    ? `<p class="rb-you"><span class="status-pill ${isLate ? 'a' : 'g'}">You're ${esc(ordinal(m.me.place))}${isLate ? ' · Late' : ''}</span></p>`
+    ? `<p class="rb-you"><span class="status-pill ${isLate ? 'a' : 'g'}">You're ${esc(ordinal(m.me.place))}${arrivalMode ? ' here' : ''}${isLate ? ' · Late' : ''}</span></p>`
     : '';
+  const nobody = m.closed ? 'Nobody checked in' : arrivalMode ? 'Nobody is here yet' : 'Nobody is up yet';
   const firstLine = m.firstUp
-    ? `<p class="rb-first">First up: ${esc(m.firstUp.name)} · ${esc(m.firstUp.time)}</p>`
-    : `<p class="rb-first">${m.closed ? 'Nobody checked in' : 'Nobody is up yet'}</p>`;
-  const here = m.asksArrival
-    ? `<p class="rb-here"><span class="rb-hn2">${m.arrivedCount}</span> of ${m.total} here${m.info && m.info.locationName ? ` · ${esc(m.info.locationName)}` : ''}</p>`
+    ? `<p class="rb-first">${arrivalMode ? 'First here' : 'First up'}: ${esc(m.firstUp.name)} · ${esc(m.firstUp.time)}</p>`
+    : `<p class="rb-first">${nobody}</p>`;
+  const where = m.info && m.info.locationName ? m.info.locationName : '';
+  const here = m.asksArrival && !arrivalMode
+    ? `<p class="rb-here"><span class="rb-hn2">${m.arrivedCount}</span> of ${m.total} here${where ? ` · ${esc(where)}` : ''}</p>`
     : '';
-  const hero = `<div class="rb-hero">`
-    + `<p class="rb-count"><span class="rb-n">${m.upCount}</span> of ${m.total} up</p>`
-    + firstLine + here + you
-    + `</div>`;
-  const empty = !g.up.length && !g.late.length && !g.waiting.length && !g.missed.length && !g.excused.length
+  const count = arrivalMode
+    ? `<p class="rb-count"><span class="rb-n">${m.upCount}</span> of ${m.total} here</p>${where ? `<p class="rb-here">${esc(where)}</p>` : ''}`
+    : `<p class="rb-count"><span class="rb-n">${m.upCount}</span> of ${m.total} up</p>`;
+  const hero = `<div class="rb-hero">${count}${firstLine}${here}${you}</div>`;
+  const kinds = ['up', 'late', 'waiting', 'missed', 'excused', 'unverified'];
+  const empty = kinds.every((k) => !(g[k] && g[k].length))
     ? '<p class="rb-empty">No one is on this roll call yet.</p>' : '';
   return `<section class="rb${coach ? ' coach' : ''}" aria-label="Team board">`
     + hero + empty
-    + group('On time', g.up, 'up', m, coach)
-    + group('Late', g.late, 'late', m, coach)
-    + group('Not up yet', g.waiting, 'waiting', m, coach)
-    + group('Missed', g.missed, 'missed', m, coach)
+    + group(arrivalMode ? 'Here on time' : 'On time', g.up, 'up', m, coach)
+    + group(arrivalMode ? 'Here late' : 'Late', g.late, 'late', m, coach)
+    + group(arrivalMode ? 'Not here yet' : 'Not up yet', g.waiting, 'waiting', m, coach)
+    + group('Place not confirmed', g.unverified, 'unverified', m, coach)
+    + group(arrivalMode ? 'Not here' : 'Missed', g.missed, 'missed', m, coach)
     + group('Excused', g.excused, 'excused', m, coach)
     + `</section>`;
 }

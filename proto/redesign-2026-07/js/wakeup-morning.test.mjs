@@ -145,3 +145,36 @@ test('a malformed row is read as no morning rather than throwing', () => {
   assert.equal(myWakeupForDay([mine({ late_min: 'not a number' })], '2026-09-11').lateMin, 0);
   assert.equal(myWakeupForDay([mine({ late_min: -5 })], '2026-09-11').lateMin, 0);
 });
+
+/* ---- the arrival's twin (Task 8 fix round 1, 2026-09-23) ---- */
+import { myArrivalForDay } from './wakeup-morning.js';
+
+test('myArrivalForDay reads the server arrival verdict for today, and only when a place is asked', () => {
+  const D = '2026-09-11';
+  const row = (over) => ({ type: 'practice', occurs_on: D, asks_arrival: true, arrive_by_at: `${D}T19:30:00Z`, arrival_verdict: 'pending', ...over });
+  assert.deepEqual(myArrivalForDay([], D), { assigned: false, verdict: null, lateMin: 0 });
+  assert.deepEqual(myArrivalForDay([row({ asks_arrival: false })], D), { assigned: false, verdict: null, lateMin: 0 });
+  assert.deepEqual(myArrivalForDay([row({ occurs_on: '2026-09-10' })], D), { assigned: false, verdict: null, lateMin: 0 });
+  assert.deepEqual(myArrivalForDay([row()], D), { assigned: true, verdict: 'pending', lateMin: 0 });
+  assert.deepEqual(myArrivalForDay([row({ arrival_verdict: 'on_standard', arrived_at: `${D}T19:20:00Z` })], D), { assigned: true, verdict: 'on_standard', lateMin: 0 });
+  assert.deepEqual(myArrivalForDay([row({ arrival_verdict: 'late', arrived_at: `${D}T19:44:00Z` })], D), { assigned: true, verdict: 'late', lateMin: 14 });
+  assert.deepEqual(myArrivalForDay([row({ arrival_verdict: 'missed' })], D), { assigned: true, verdict: 'missed', lateMin: 0 });
+  // A wake-up with a place counts too.
+  assert.equal(myArrivalForDay([row({ type: 'morning_roll_call', arrival_verdict: 'on_standard' })], D).verdict, 'on_standard');
+});
+
+test('myArrivalForDay: excused is not assigned; a decided row beats an open one; cancelled is ignored', () => {
+  const D = '2026-09-11';
+  const row = (over) => ({ type: 'practice', occurs_on: D, asks_arrival: true, arrival_verdict: 'pending', ...over });
+  assert.deepEqual(myArrivalForDay([row({ arrival_verdict: 'excused', status: 'excused' })], D), { assigned: false, verdict: null, lateMin: 0 });
+  assert.equal(myArrivalForDay([row(), row({ arrival_verdict: 'missed' })], D).verdict, 'missed');
+  assert.deepEqual(myArrivalForDay([row({ instance_status: 'cancelled', arrival_verdict: 'missed' })], D), { assigned: false, verdict: null, lateMin: 0 });
+});
+
+test('Home publishes the arrival to the day wherever it publishes the wake-up', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = readFileSync(new URL('./screens/home.js', import.meta.url), 'utf8');
+  const body = src.slice(src.indexOf('function publishWakeup('), src.indexOf('function publishWakeup(') + 2000);
+  assert.match(body, /daySetArrival\(myArrivalForDay\(rows, DAY\.date\), RT\.userId \|\| null\)/);
+  assert.equal((src.match(/daySetWakeup\(myWakeupForDay\(/g) || []).length, (src.match(/daySetArrival\(myArrivalForDay\(/g) || []).length);
+});

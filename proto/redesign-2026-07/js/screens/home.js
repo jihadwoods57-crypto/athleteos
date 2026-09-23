@@ -7,11 +7,11 @@ import { appHead, scoreRing, esc, safeImg, collapseSection, emailVerifyBanner, w
 import { reveal, buzz } from '../motion.js';
 import { qualityAccent } from '../score-band.js';
 import { maybeShowLock } from '../lock-moment.js';
-import { DAY, MEAL_KEYS, daySetWakeup } from '../day.js';
+import { DAY, MEAL_KEYS, daySetWakeup, daySetArrival } from '../day.js';
 import { fetchMyDayReceipts, fetchRecentMeals, signedMealPhotoUrl, daysAgoISO, todayISO, fetchMyReplyInputs } from '../roles.js';
 import { unreadCoachReplies, replyRow } from '../coach-replies.js';
 import { wakeupReceipt, receiptHtml } from '../wakeup-handoff.js';
-import { myWakeupForDay } from '../wakeup-morning.js';
+import { myWakeupForDay, myArrivalForDay } from '../wakeup-morning.js';
 import { syncWakeAlarms } from '../wake-alarms.js';
 import { initWakeFace, armWakeFace } from '../wake-face.js';
 import { WAKEUP_SHIFT } from '../plan-style.js';
@@ -333,6 +333,9 @@ function paintCommitments(root) {
    because these rows are refetched on every foreground beat. */
 function publishWakeup(rows) {
   try { daySetWakeup(myWakeupForDay(rows, DAY.date), RT.userId || null); } catch (_) { /* never block the paint */ }
+  // The place check's twin (0242 s7): the server's arrival_verdict for today's assigned arrival,
+  // whether it rides a wake-up or stands alone. Same no-op-when-unchanged push.
+  try { daySetArrival(myArrivalForDay(rows, DAY.date), RT.userId || null); } catch (_) { /* never block the paint */ }
   // The in-app alarm face (wake-face.js): shown now if a roll call is open and unanswered while
   // the athlete is looking at the app, else asleep until the next one opens. Its deps are wired
   // once; every later call only re-evaluates.
@@ -344,7 +347,7 @@ function publishWakeup(rows) {
       drain: () => { const N = window.OnStandardNative; return N && N.rollcall && N.rollcall.drain ? N.rollcall.drain() : 0; },
       points: () => Math.round(WAKEUP_SHIFT * 100),
       buzz,
-      onAnswered: () => { loadMine(true).then((r) => { RT.vcRows = r; daySetWakeup(myWakeupForDay(r, DAY.date), RT.userId || null); if (window.__render) window.__render(); }); },
+      onAnswered: () => { loadMine(true).then((r) => { RT.vcRows = r; daySetWakeup(myWakeupForDay(r, DAY.date), RT.userId || null); daySetArrival(myArrivalForDay(r, DAY.date), RT.userId || null); if (window.__render) window.__render(); }); },
     });
     armWakeFace(rows);
   } catch (_) { /* never block the paint */ }

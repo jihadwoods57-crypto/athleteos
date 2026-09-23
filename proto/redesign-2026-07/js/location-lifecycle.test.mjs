@@ -121,3 +121,19 @@ test('a bridge that throws never breaks the lifecycle', async () => {
   await act._syncSession({ id: 'u-3', email: 'x@y.z' });
   await act.signOut();
 });
+
+test('a native disarm that never answers cannot block sign-out or account deletion', async () => {
+  const { LOC_DISARM_WAIT_MS } = await import('./state.js');
+  assert.ok(LOC_DISARM_WAIT_MS <= 3000);
+  window.OnStandardNative.location = { arm: () => Promise.resolve({}), disarm: () => new Promise(() => {}) };
+  RT.userId = 'u-4';
+  let t = Date.now();
+  await act.signOut();
+  assert.ok(Date.now() - t < LOC_DISARM_WAIT_MS + 1000, 'sign-out finished');
+  assert.equal(RT.userId, null, 'and the local state was wiped');
+  RT.userId = 'u-5';
+  t = Date.now();
+  const ok = await act.deleteAccount();
+  assert.ok(Date.now() - t < LOC_DISARM_WAIT_MS + 1000, 'deletion finished');
+  assert.equal(typeof ok, 'boolean');
+});

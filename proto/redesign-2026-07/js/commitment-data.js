@@ -685,6 +685,14 @@ export async function loadTeamBoard(instanceId, force = false) {
   } catch { return fail(); }
 }
 
+/** Mark one instance's board stale so the next read (or the live tick) goes to the server: after
+ *  an "I'm here" or any write that moves this athlete's row. A harness seed is left alone. */
+export function invalidateTeamBoard(instanceId) {
+  const t = RTC.team.get(instanceId);
+  if (t && !t.seeded) t.at = 0;
+  RTC.mineAt = 0;
+}
+
 /** Watch one instance's team board. `onChange(board)` fires once right away and then with a FRESH
  *  board on every tick: a Realtime row event, or the poll. The poll runs every 8 s while the roll
  *  call is open WHETHER OR NOT the socket is up, because an athlete's Realtime feed only carries
@@ -748,9 +756,7 @@ export async function arriveAt(instanceId, source, coords) {
       p_instance: instanceId, p_source: source || 'manual',
       p_lat: lat, p_lng: lng, p_accuracy_m: isFinite(acc) ? acc : null });
     if (error) return { ok: false, error: String(error.message || 'failed') };
-    const t = RTC.team.get(instanceId);
-    if (t && !t.seeded) t.at = 0;   // the next board read shows the arrival
-    RTC.mineAt = 0;
+    invalidateTeamBoard(instanceId);   // the next board read shows the arrival
     return { ok: true, within: !!(data && data.within),
       distance_m: data && typeof data.distance_m === 'number' ? data.distance_m : null };
   } catch (e) { return { ok: false, error: String((e && e.message) || e || 'failed') }; }

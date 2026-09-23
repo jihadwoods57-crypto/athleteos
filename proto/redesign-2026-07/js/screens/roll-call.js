@@ -308,7 +308,11 @@ export function mountCommitmentCard(root, rerender) {
       // and a dead write leaves a note the card renders instead of resetting in silence.
       let ok = false;
       try { ok = await fn(id); } catch { ok = false; }
-      if (ok) {
+      // A handler may answer { note } instead of true/false: the action did not happen, and the
+      // card should say exactly why rather than the generic signal line.
+      if (ok && typeof ok === 'object' && ok.note) {
+        SAVE_FAILED.set(id, ok.note);
+      } else if (ok) {
         SAVE_FAILED.delete(id);
         try { if (navigator.vibrate) navigator.vibrate(14); } catch { /* no-op */ }
       } else {
@@ -345,12 +349,18 @@ export function mountCommitmentCard(root, rerender) {
   // as missed, and the card then shows that reason with its dispute door. location.js is loaded on
   // the tap because this file is in the boot graph and that one must not be.
   go('data-vc-arrive', async (id) => {
+    const place = (VC.instance(id) || {}).location_name || 'the check-in spot';
     const { imHere } = await import('../location.js');
     const r = await imHere(id);
+    // No location module on this phone (an app build from before the place check came back).
+    if (r && r.error === 'unavailable') return { note: 'Update OnStandard to check in with location.' };
     if (!r || r.error) return false;
     await loadMine(true);
     if (r.within) { VERIFY_REASON.delete(id); track(EVENTS.VC_ARRIVED, { source: 'manual' }); return true; }
-    VERIFY_REASON.set(id, r.reason || 'Couldn’t confirm your location');
+    // Too far: say how far, from the server's own measurement.
+    VERIFY_REASON.set(id, typeof r.distance_m === 'number'
+      ? `${Math.round(r.distance_m)} m from ${place}`
+      : (r.reason || 'Couldn’t confirm your location'));
     track(EVENTS.VC_UNVERIFIED, { reason: 'distance' });
     return true;
   });

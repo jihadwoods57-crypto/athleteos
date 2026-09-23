@@ -4543,6 +4543,39 @@ select _as('eeee0000-0000-0000-0000-0000000000e1');
 select _ok(_try($f$ select rollcall_arrival_verdict('pending', null, now(), 10, now(), now()) $f$) = 'ok',
   '0242 arrival verdict: callable by a signed-in user (the client shares the definition)');
 select _superuser();
+-- ---- 0242 section 7 (Task 8 fix round 1): the board's mode and the athlete's arrival verdict ----
+-- Here the roll call (c1) is a morning_roll_call with the Weight Room place; its instance started 2
+-- hours ago with arrive-by at the start, so e2 (not arrived, pending) is missed on arrival and e1
+-- (arrived 15 minutes into the old fixture clock) is judged by the server.
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok((rollcall_team_board((select id from _rc_b))->>'mode') = 'both',
+  '0242 s7: a morning roll call with a place is mode both');
+select _ok((select x->>'arrival_verdict' from jsonb_array_elements(my_commitments(current_date, current_date)) x
+             where x->>'instance_id' = (select id::text from _rc_b)) = 'missed',
+  '0242 s7: my_commitments carries the athlete''s arrival verdict from the one definition (missed)');
+select _ok((select x->>'arrival_verdict' from jsonb_array_elements(my_commitments(current_date, current_date)) x
+             where x->>'instance_id' = (select id::text from _rc_b))
+         = (select r->>'arrival_verdict' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2'),
+  '0242 s7: the card and the board read the same arrival verdict');
+select _superuser();
+update commitments set type = 'practice' where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok((rollcall_team_board((select id from _rc_b))->>'mode') = 'arrival',
+  '0242 s7: any other type with a place is mode arrival');
+select _superuser();
+select _ok((rollcall_team_board_svc((select id from _rc_b))->>'mode') = 'arrival',
+  '0242 s7: the service board carries the same mode');
+update commitments set type = 'morning_roll_call', location_id = null where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok((rollcall_team_board((select id from _rc_b))->>'mode') = 'wake',
+  '0242 s7: a morning roll call with no place is mode wake');
+select _ok((select jsonb_typeof(x->'arrival_verdict') = 'null' and x ? 'arrival_verdict'
+              from jsonb_array_elements(my_commitments(current_date, current_date)) x
+             where x->>'instance_id' = (select id::text from _rc_b)),
+  '0242 s7: with no place, my_commitments carries arrival_verdict null');
+select _superuser();
+update commitments set location_id = 'cccc0242-0000-0000-0000-0000000000a1' where id = 'ccccdddd-0000-0000-0000-0000000000c1';
 update commitments set location_id = null where id = 'ccccdddd-0000-0000-0000-0000000000c1';
 delete from commitment_locations where id = 'cccc0242-0000-0000-0000-0000000000a1';
 -- today's roll call is still OPEN for the history below (it must not count as a morning yet)

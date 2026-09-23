@@ -19,6 +19,8 @@
    sign-in / sign-out / foreground lifecycle lives in state.js and talks to the bridge directly,
    so the boot never needs this file. */
 
+import { invalidateTeamBoard } from './commitment-data.js';
+
 function bridge() {
   const w = typeof window !== 'undefined' ? window : null;
   return (w && w.OnStandardNative) || null;
@@ -60,6 +62,9 @@ export async function imHere(instanceId) {
   try {
     const r = await L.check(String(instanceId));
     if (!r || typeof r !== 'object') return { error: 'unavailable' };
+    // Either verdict was written server-side (arrived, or unverified with the distance): the
+    // cached team board is stale now, so the athlete's own tile updates on the next paint.
+    invalidateTeamBoard(instanceId);
     return {
       within: r.within === true,
       distance_m: typeof r.distance_m === 'number' && isFinite(r.distance_m) ? r.distance_m : null,

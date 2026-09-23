@@ -801,3 +801,46 @@ test('tomorrowRollcall reads tomorrow from the athlete rows, moved and skipped i
   assert.equal(off.moved, false);
   assert.equal(tomorrowRollcall([], '2026-09-02'), null);
 });
+
+/* ---------------------------------------------------------------- fix round 1 (2026-09-23)
+   A roll call with a place, once answered, sat on "awaiting arrival" with an I'm here button
+   forever. It settles once the close and the arrive-by + grace have BOTH passed. */
+import { arrivalWindowOver } from './commitments.js';
+
+const placed = {
+  ...rollCall, asks_arrival: true, location_name: 'Weight room',
+  status: 'acknowledged', acknowledged_at: '2026-07-22T08:50:00Z',
+  closes_at: '2026-07-22T09:15:00Z', arrive_by_at: '2026-07-22T09:30:00Z',
+};
+
+test('a placed roll call keeps I\'m here until the close and the arrive-by + grace pass', () => {
+  const d = deriveCommitment(placed, '2026-07-22T09:35:00Z', EDT);   // past close, inside grace
+  assert.equal(d.stage, 'awaiting_arrival');
+  assert.equal(d.canArrive, true);
+  assert.equal(arrivalWindowOver(placed, Date.parse('2026-07-22T09:40:00Z')), false, 'the minute of arrive-by + 10 still counts');
+  assert.equal(arrivalWindowOver(placed, Date.parse('2026-07-22T09:40:01Z')), true);
+  assert.equal(arrivalWindowOver({ ...placed, arrival_grace_min: 0 }, Date.parse('2026-07-22T09:31:00Z')), true);
+  assert.equal(arrivalWindowOver({ asks_arrival: true }, Date.now()), false, 'no times known: never over');
+});
+
+test('past the window the button goes and the server\'s arrival verdict joins the receipt', () => {
+  const after = '2026-07-22T10:00:00Z';
+  const missed = deriveCommitment({ ...placed, arrival_verdict: 'missed' }, after, EDT);
+  assert.equal(missed.stage, 'acknowledged');
+  assert.equal(missed.canArrive, false);
+  assert.equal(missed.collapsed, true);
+  assert.equal(missed.arrivalVerdict, 'missed');
+  assert.match(missed.confirmLine, /^Checked in at .* · not at Weight room$/);
+  assert.equal(missed.statusColor, 'a');
+  const unv = deriveCommitment({ ...placed, arrival_verdict: 'unverified' }, after, EDT);
+  assert.match(unv.confirmLine, /place not confirmed/);
+  assert.equal(unv.statusColor, 'g', 'unverified is never a warning');
+});
+
+test('past the window with no server arrival verdict it is the settled check-in receipt', () => {
+  const d = deriveCommitment(placed, '2026-07-22T10:00:00Z', EDT);
+  assert.equal(d.stage, 'acknowledged');
+  assert.equal(d.canArrive, false);
+  assert.match(d.confirmLine, /^Checked in at [^·]+$/);
+  assert.equal(d.statusColor, 'g');
+});

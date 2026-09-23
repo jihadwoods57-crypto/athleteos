@@ -15,7 +15,9 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 globalThis.window = globalThis.window || {};
+globalThis.localStorage = globalThis.localStorage || { getItem: () => null, setItem() {}, removeItem() {} };
 const L = await import('./location.js');
+const CD = await import('./commitment-data.js');
 
 const calls = [];
 function shim(over = {}) {
@@ -99,4 +101,17 @@ test('disarmLocation reports the bridge answer', async () => {
   shim();
   assert.equal(await L.disarmLocation(), true);
   assert.deepEqual(calls[0], ['disarm']);
+});
+
+test('a successful I am here check clears the cached team board so the tile updates', async () => {
+  let reads = 0;
+  window.sb = { rpc: () => { reads++; return Promise.resolve({ data: { instance_id: 'i5', rows: [] }, error: null }); } };
+  await CD.loadTeamBoard('i5', true);
+  await CD.loadTeamBoard('i5');
+  assert.equal(reads, 1, 'fresh cache');
+  shim({ location: { check: () => Promise.resolve({ within: true, reason: null, distance_m: 20 }) } });
+  await L.imHere('i5');
+  await CD.loadTeamBoard('i5');
+  assert.equal(reads, 2, 'stale after the check-in');
+  delete window.sb;
 });

@@ -308,6 +308,27 @@ export function signalsAsked(row) {
   };
 }
 
+/** Default arrival grace in minutes when the row does not carry one (0242 rollcall_arrival_verdict). */
+export const ARRIVAL_GRACE_DEFAULT_MIN = 10;
+/** Whether the place check can no longer be answered: past BOTH the roll call's close and the
+ *  arrive-by + grace (the server's missed rule, rollcall_arrival_verdict: an arrival is never over
+ *  before its own deadline, even when the wake-up closes first). With neither time known, never. */
+export function arrivalWindowOver(row, nowT) {
+  const r = row || {};
+  const grace = typeof r.arrival_grace_min === 'number' ? r.arrival_grace_min : ARRIVAL_GRACE_DEFAULT_MIN;
+  const byT = Date.parse(r.arrive_by_at || '');
+  const closeT = Date.parse(closesAtOf(r) || '');
+  const ends = [isFinite(byT) ? byT + grace * 60000 : NaN, closeT].filter(isFinite);
+  return ends.length > 0 && nowT > Math.max(...ends);
+}
+/* The receipt's arrival half, from the server's arrival_verdict. pending/excused add nothing. */
+const ARRIVAL_RECEIPT = {
+  on_standard: (where) => `at ${where}`,
+  late: (where) => `late to ${where}`,
+  missed: (where) => `not at ${where}`,
+  unverified: () => 'place not confirmed',
+};
+
 const arrivedOnTime = (row) => row.arrived_at != null &&
   (!row.arrive_by_at || Date.parse(row.arrived_at) <= Date.parse(row.arrive_by_at));
 
@@ -502,11 +523,18 @@ export function deriveCommitment(row, nowISO, offMinOverride) {
       : base.source === SOURCE.ACCEPTED ? `Tap time accepted · tapped ${at(r.device_tapped_at || r.acknowledged_at)}`
       : late ? `Late${base.lateMin ? ` · ${base.lateMin} min` : ''} · checked in at ${at(r.acknowledged_at)}`
       : `Checked in at ${at(r.acknowledged_at)}`;
-    if (asks.arrival) {
+    if (asks.arrival && !arrivalWindowOver(r, nowT)) {
       return { ...base, stage: 'awaiting_arrival', canArrive: true, statusColor: 'b', confirmLine: confirm };
     }
-    return { ...base, stage: 'acknowledged', collapsed: true, statusColor: late ? 'a' : 'g',
-      confirmLine: confirm };
+    // The place check's window is over (fix round 1, 2026-09-23): the card used to sit on
+    // "awaiting arrival" with an I'm here button forever. It settles into the receipt, carrying
+    // the SERVER's arrival verdict when there is one (rollcall_arrival_verdict via my_commitments),
+    // never one derived here.
+    const av = asks.arrival ? r.arrival_verdict : null;
+    const avLine = ARRIVAL_RECEIPT[av] ? ARRIVAL_RECEIPT[av](r.location_name || 'the facility') : '';
+    const warn = late || av === 'late' || av === 'missed';
+    return { ...base, stage: 'acknowledged', collapsed: true, statusColor: warn ? 'a' : 'g',
+      arrivalVerdict: av || null, confirmLine: avLine ? `${confirm} · ${avLine}` : confirm };
   }
 
   // Nothing recorded yet — now the clock decides.

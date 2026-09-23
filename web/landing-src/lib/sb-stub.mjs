@@ -496,7 +496,7 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
         };
       });
       return {
-        instance_id: (p && p.p_instance) || 'b-0', title: '5 AM Club', coach_name: 'Coach Brooks',
+        instance_id: (p && p.p_instance) || 'b-0', title: '5 AM Club', coach_name: 'Coach Brooks', mode: 'both',
         starts_at: T('10:00'), respond_by_at: T('10:05'), closes_at: T('10:30'),
         arrive_by_at: T('10:45'), asks_arrival: true, location_name: 'Lincoln Weight Room',
         total: rows.filter((r) => r.verdict !== 'excused').length,

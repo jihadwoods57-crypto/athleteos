@@ -803,3 +803,150 @@ comment on function verify_arrival_at(uuid, text, double precision, double preci
 -- stands on its own if it is ever lifted out.
 revoke all on function verify_arrival_at(uuid,text,double precision,double precision,double precision) from public, anon;
 grant execute on function verify_arrival_at(uuid,text,double precision,double precision,double precision) to authenticated;
+
+-- ================================================================ 7. arrival-only + the athlete's arrival verdict (Task 8 fix round 1)
+-- Controller ruling 2026-09-23. The spec lets arrival stand alone ("At the stadium by 3:30") but the
+-- plan gave it no data shape. An arrival-only roll call is an existing NON-morning commitment type
+-- (e.g. 'practice') with a location_id and an arrive-by: no alarm, no I'm Up. It is never a
+-- morning_roll_call.
+--
+-- 7a. The board says which kind it is: `mode`
+--       'wake'     a morning_roll_call with no place (only the wake-up is judged)
+--       'both'     a morning_roll_call with a place (wake-up AND arrival)
+--       'arrival'  any other type with a place (the arrival is the answer; the client groups the
+--                  faces by arrival_verdict, and the wake-up verdict means nothing)
+--     A commitment with no place is 'wake' whatever its type: nothing else can be judged.
+--     Same body as section 2 plus the one key. rollcall_team_board calls this, so it gains the key
+--     too; create or replace keeps the service-only grants set above.
+create or replace function rollcall_team_board_svc(p_instance uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+  i commitment_instances; c commitments; v_now timestamptz := now();
+  v_close timestamptz; v_out jsonb;
+begin
+  select * into i from commitment_instances where id = p_instance;
+  if not found then return null; end if;
+  select * into c from commitments where id = i.commitment_id;
+
+  v_close := rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at);
+
+  with base as (
+    select r.athlete_id, p.full_name as name, r.status, r.acknowledged_at, r.arrived_at,
+      rollcall_verdict(r.status, r.acknowledged_at, coalesce(i.respond_by_at, i.starts_at), v_close, v_now,
+        r.ack_source, r.sync_review, r.review_resolution) as verdict
+    from commitment_responses r join profiles p on p.id = r.athlete_id
+    where r.instance_id = p_instance
+  ), rows as (
+    select b.*,
+      case when c.location_id is null then null
+           else rollcall_arrival_verdict(b.status, b.arrived_at, coalesce(i.arrive_by_at, i.starts_at),
+                  c.arrival_grace_min::int, v_close, v_now) end as arrival_verdict,
+      case when exists (select 1 from storage.objects o
+                         where o.bucket_id = 'avatars' and o.name = b.athlete_id::text || '/avatar.jpg')
+           then b.athlete_id::text || '/avatar.jpg' end as avatar_path,
+      b.verdict in ('on_standard', 'late') as counted_up
+    from base b
+  ), ordered as (
+    select r.*,
+      case when r.counted_up
+           then row_number() over (partition by r.counted_up order by r.acknowledged_at, r.name) end as place
+    from rows r
+  )
+  select jsonb_build_object(
+    'instance_id', i.id, 'title', c.title,
+    'mode', case when c.location_id is null then 'wake'
+                 when c.type = 'morning_roll_call' then 'both'
+                 else 'arrival' end,
+    'coach_name', (select p.full_name from profiles p where p.id = c.created_by),
+    'starts_at', i.starts_at, 'respond_by_at', i.respond_by_at,
+    'closes_at', v_close,
+    'arrive_by_at', i.arrive_by_at, 'asks_arrival', c.location_id is not null,
+    'location_name', (select cl.name from commitment_locations cl where cl.id = c.location_id),
+    'total', (select count(*) from ordered where verdict <> 'excused'),
+    'up', (select count(*) from ordered where counted_up),
+    'arrived', (select count(*) from ordered where arrived_at is not null and verdict <> 'excused'),
+    'rows', coalesce((select jsonb_agg(jsonb_build_object(
+        'athlete_id', o.athlete_id, 'name', o.name, 'avatar_path', o.avatar_path,
+        'acknowledged_at', o.acknowledged_at, 'arrived_at', o.arrived_at,
+        'verdict', o.verdict, 'arrival_verdict', o.arrival_verdict, 'place', o.place)
+      order by o.acknowledged_at nulls last, o.name) from ordered o), '[]'::jsonb)
+  ) into v_out;
+  return v_out;
+end $$;
+comment on function rollcall_team_board_svc(uuid) is
+  'The team board body with NO caller check: service_role only (roll-call-ack Live Activity counts, commitment-escalation closing summary). Carries mode: wake | both | arrival. Null for an unknown instance. 0242.';
+
+-- 7b. my_commitments carries the athlete's own arrival_verdict, from the ONE definition
+--     (rollcall_arrival_verdict), so the card and the day score read the server's verdict and never
+--     derive their own. Recreated from the LIVE body (pg_get_functiondef, 2026-09-23); only the
+--     'arrival_verdict' key is new, in the second (smaller) jsonb_build_object: the first is near
+--     the 100-argument limit. Null when the commitment asks no place.
+CREATE OR REPLACE FUNCTION public.my_commitments(p_from date, p_to date)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(jsonb_agg(x order by x->>'starts_at'), '[]'::jsonb) from (
+    select jsonb_build_object(
+      'response_id', r.id, 'instance_id', i.id, 'occurs_on', i.occurs_on,
+      'type', c.type, 'title', c.title,
+      'message', coalesce(i.message_override, c.message),
+      'action_label', c.action_label,
+      -- NEW (0234): does this wake-up ring as a real alarm? Absent/unset reads as true.
+      'alarm', coalesce((c.escalation ->> 'alarm')::boolean, true),
+      'starts_at', i.starts_at, 'ends_at', i.ends_at,
+      'respond_by_at', i.respond_by_at, 'arrive_by_at', i.arrive_by_at,
+      'opens_min', case when c.opens_min is null then null
+                        else _rc_min_of(i.starts_at, c.timezone) - (c.starts_min - c.opens_min) end,
+      'starts_min', _rc_min_of(i.starts_at, c.timezone),
+      'ends_min', _rc_min_of(i.ends_at, c.timezone),
+      'respond_by_min', _rc_min_of(i.respond_by_at, c.timezone),
+      'arrive_by_min', _rc_min_of(i.arrive_by_at, c.timezone),
+      'rule_starts_min', c.starts_min,
+      'min_dwell_min', c.min_dwell_min, 'arrival_grace_min', c.arrival_grace_min,
+      'reminder_offsets_min', c.reminder_offsets_min,
+      'repeat_days', c.repeat_days, 'starts_on', c.starts_on, 'ends_on', c.ends_on,
+      'timezone', c.timezone,
+      'instance_status', i.status,
+      'linked_title', (select l.title from commitments l where l.id = c.linked_commitment_id),
+      'linked_starts_min', (select l.starts_min from commitments l where l.id = c.linked_commitment_id),
+      'asks_arrival', (c.location_id is not null),
+      'location_name', (select cl.name from commitment_locations cl where cl.id = c.location_id),
+      'coach_name', (select p.full_name from profiles p where p.id = c.created_by),
+      'status', r.status, 'acknowledged_at', r.acknowledged_at,
+      'arrived_at', r.arrived_at, 'completed_at', r.completed_at,
+      'departed_at', r.departed_at,
+      'presence', commitment_presence(r.arrived_at, r.departed_at, c.min_dwell_min),
+      'arrival_source', r.arrival_source, 'unverified_reason', r.unverified_reason,
+      'disputed_at', r.disputed_at, 'excused_reason', r.excused_reason
+    ) || jsonb_build_object(   -- a second object: jsonb_build_object takes at most 100 arguments
+      'opens_at', rollcall_opens_at(c.type, i.starts_at, i.respond_by_at, c.starts_min, c.opens_min),
+      'closes_at', rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at),
+      'grace_min', case when c.respond_by_min is null then null else c.respond_by_min - c.starts_min end,
+      'verdict', rollcall_verdict(r.status, r.acknowledged_at, coalesce(i.respond_by_at, i.starts_at),
+                   rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at), now(),
+                   r.ack_source, r.sync_review, r.review_resolution),
+      -- NEW (0242 section 7): the server's arrival verdict, null when no place is asked.
+      'arrival_verdict', case when c.location_id is null then null
+                         else rollcall_arrival_verdict(r.status, r.arrived_at, coalesce(i.arrive_by_at, i.starts_at),
+                                c.arrival_grace_min::int,
+                                rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at), now()) end,
+      'late_min', rollcall_late_min(r.acknowledged_at, coalesce(i.respond_by_at, i.starts_at)),
+      'ack_source', r.ack_source,
+      'last_nudge_at', r.last_nudge_at,
+      'correction_note', r.correction_note,
+      'corrected_by_name', (select p2.full_name from profiles p2 where p2.id = r.corrected_by),
+      'device_tapped_at', r.device_tapped_at, 'sync_review', r.sync_review,
+      'review_resolution', r.review_resolution, 'review_note', r.review_note,
+      'review_resolved_at', r.review_resolved_at,
+      'reviewer_name', (select p3.full_name from profiles p3 where p3.id = r.review_resolved_by)
+    ) as x
+    from commitment_responses r
+    join commitment_instances i on i.id = r.instance_id
+    join commitments c on c.id = i.commitment_id
+    where r.athlete_id = auth.uid()
+      and i.occurs_on between p_from and p_to
+      and vc_enabled()
+  ) s;
+$function$;

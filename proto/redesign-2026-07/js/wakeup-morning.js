@@ -132,3 +132,35 @@ export function myWakeupForDay(rows, dayISO) {
     lateMin: Number.isFinite(lateMin) && lateMin > 0 ? lateMin : 0,
   };
 }
+
+/**
+ * The athlete's OWN assigned arrival (the place check) for one day, in the shape the scoring
+ * engine reads (`day.arrival`, day.js daySetArrival). The morning's twin (fix round 1, 2026-09-23).
+ *
+ * Reads the SERVER's `arrival_verdict` (my_commitments, 0242 section 7) verbatim; never derives
+ * one. Any commitment type counts (a wake-up with a place, or an arrival-only practice), as long as
+ * it asks for arrival. An EXCUSED athlete is not assigned (the coach took the arrival off them, so
+ * it leaves the budget rather than scoring either way). The decided row wins over an open one.
+ * `lateMin` is minutes past arrive-by (display only; the verdict decides the points).
+ *
+ * @param {Array|null} rows loadMine() output
+ * @param {string} dayISO the day to score, 'YYYY-MM-DD'
+ * @returns {{assigned:boolean, verdict:string|null, lateMin:number}}
+ */
+export function myArrivalForDay(rows, dayISO) {
+  const none = { assigned: false, verdict: null, lateMin: 0 };
+  if (!Array.isArray(rows) || !dayISO) return none;
+  const mine = rows.filter((r) => r && r.asks_arrival && String(r.occurs_on || '') === dayISO
+    && r.instance_status !== 'cancelled');
+  if (!mine.length) return none;
+  const DECIDED = [UP, LATE, 'missed', 'unverified', 'excused'];
+  const pick = mine.find((r) => DECIDED.includes(String(r.arrival_verdict || ''))) || mine[0];
+  const v = pick.arrival_verdict == null ? null : String(pick.arrival_verdict);
+  if (v === 'excused' || pick.status === 'excused') return none;
+  let lateMin = 0;
+  if (v === LATE) {
+    const d = Date.parse(pick.arrived_at || '') - Date.parse(pick.arrive_by_at || pick.starts_at || '');
+    lateMin = Number.isFinite(d) && d > 0 ? Math.ceil(d / 60000) : 0;
+  }
+  return { assigned: true, verdict: v, lateMin };
+}

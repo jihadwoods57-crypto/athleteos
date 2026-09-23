@@ -981,6 +981,7 @@ let NOTIF_FETCH_AT = 0;
    phone decides; location.js armLocation() normalises it for a screen that wants to show it. */
 let LOC_ARM_AT = 0;
 const LOC_ARM_EVERY_MS = 60_000;
+export const LOC_DISARM_WAIT_MS = 2_000;   // sign-out never waits longer on the phone
 function nativeLocation() {
   try {
     const N = typeof window !== 'undefined' ? window.OnStandardNative : null;
@@ -3709,11 +3710,20 @@ export const act = {
     } catch { /* the next beat retries */ }
   },
   /* Every way out of an account disarms: sign-out, account deletion, a launch with no session. */
+  /* RACED against a short timer (fix round 1): the bridge call has no timeout of its own, and a
+     native call that never answers must not hold sign-out or account deletion hostage (App Review
+     5.1.1(v): deletion has to complete). The disarm keeps running on the phone either way. */
   async _disarmLocation() {
     LOC_ARM_AT = 0;
     const L = nativeLocation();
     if (!L || typeof L.disarm !== 'function') return;
-    try { await L.disarm(); } catch { /* best-effort */ }
+    let timer = null;
+    try {
+      await Promise.race([
+        Promise.resolve().then(() => L.disarm()).catch(() => { /* best-effort */ }),
+        new Promise((res) => { timer = setTimeout(res, LOC_DISARM_WAIT_MS); }),
+      ]);
+    } catch { /* best-effort */ } finally { if (timer) clearTimeout(timer); }
   },
 
   /* Arrival check-in opt-out (0139 hardening 2026-08-19). Arrival was removed from the
