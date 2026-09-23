@@ -254,6 +254,15 @@ export function alwaysDeclined() { return flag(NOT_NOW_KEY) || flag(REFUSED_KEY)
  *  at all, so a button that asks again would be dead (fix round 2, m1): only Settings can change
  *  it now. */
 export function alwaysRefused() { return flag(REFUSED_KEY); }
+/* "Not now" on the While Using card (G-P5). Remembered on this phone so the full ask does not
+   come back on every roll call; the card shrinks to one line with the way back in. */
+const WIU_NOT_NOW_KEY = 'os.loc.wiuNotNow';
+function wiuDeclined() {
+  try { return localStorage.getItem(WIU_NOT_NOW_KEY) === '1'; } catch { return false; }
+}
+function setWiuDeclined(on) {
+  try { if (on) localStorage.setItem(WIU_NOT_NOW_KEY, '1'); else localStorage.removeItem(WIU_NOT_NOW_KEY); } catch { /* no storage */ }
+}
 function setAlwaysDeclined(on) {
   try { if (on) localStorage.setItem(NOT_NOW_KEY, '1'); else localStorage.removeItem(NOT_NOW_KEY); } catch { /* no storage */ }
 }
@@ -298,8 +307,8 @@ export function hereErrorLine(r) {
   if (!e) return null;
   if (e === 'unavailable') return 'Update OnStandard to check in by location.';
   if (e === 'denied') return 'Location is off for OnStandard. Turn it on in Settings to use I’m here.';
-  if (e === 'not-allowed') return 'I’m here needs your location. Tap it again to allow it.';
-  if (e === 'ask-first') return 'Allow location first. It’s explained on the next screen.';
+  if (e === 'not-allowed') return 'I’m here needs your location. Tap it again to continue.';
+  if (e === 'ask-first') return 'Location comes first. It’s explained on the next screen.';
   if (e === 'consent') return 'A parent or guardian has to approve location check-in first.';
   return 'Couldn’t get your location. Try again.';
 }
@@ -308,7 +317,7 @@ export function hereErrorLine(r) {
  *  at `place`. Pure over its inputs so it holds still in a test. '' when there is nothing to ask.
  *  Its buttons are the selection-blue secondary (lk-go), never a second primary: I'm here, right
  *  above it, is the one primary on the board. */
-export function locationAskHtml({ place = 'the check-in spot', state = null, walkIn = false, walkInStatus = null, optedOut = false, declined = false, consent = true } = {}) {
+export function locationAskHtml({ place = 'the check-in spot', state = null, walkIn = false, walkInStatus = null, optedOut = false, declined = false, consent = true, wiuDeclined = false } = {}) {
   const where = esc(place);
   const card = (title, body, acts, foot = '') => `<section class="card pad lk-ask" role="region" aria-labelledby="lk-ask-t">
     <h3 class="lk-t" id="lk-ask-t">${icon('pin', 16)} ${title}</h3>
@@ -324,11 +333,19 @@ export function locationAskHtml({ place = 'the check-in spot', state = null, wal
       '<button type="button" class="btn sm lk-go" data-go="location-consent">See how</button>');
   }
   if (consent !== true) return '';
+  /* Every control below that leads to the phone's own question says Continue, never Allow, and
+     no footer tells the athlete which answer to give (App Review 5.1.1(iv), G-L6). Declining is
+     visible BEFORE the phone asks: Not now sits beside Continue on both cards (G-P5). */
+  if (state === 'undetermined' && wiuDeclined) {
+    return card('Location check-in is off',
+      `You chose Not now. Until you turn it on, your coach sees Not arrived for ${where}, or marks you in.`,
+      `<button type="button" class="btn sm lk-go" data-loc-allow>Continue</button>${how}`);
+  }
   if (state === 'undetermined') {
     return card('Check in with your location',
       `When you tap I’m here, your phone takes one reading and checks it against ${where}. Your coach and team see Arrived or Not arrived, never where you are.`,
-      `<button type="button" class="btn sm lk-go" data-loc-allow>Allow location</button>${how}`,
-      'Your phone asks next. Choose Allow While Using App.');
+      `<button type="button" class="btn sm lk-go" data-loc-allow>Continue</button><button type="button" class="btn ghost sm" data-loc-wiu-notnow>Not now</button>${how}`,
+      'Your phone asks next.');
   }
   if (state === 'denied') {
     return card('Location is off for OnStandard',
@@ -337,9 +354,9 @@ export function locationAskHtml({ place = 'the check-in spot', state = null, wal
   }
   if (state === 'when_in_use' && walkIn && !optedOut && !declined) {
     return card('Check in without tapping',
-      `Allow Always and your phone checks you in when you walk into ${where}, only during the check-in window. Rather not? I’m here works the same.`,
-      '<button type="button" class="btn sm lk-go" data-loc-always>Allow Always</button><button type="button" class="btn ghost sm" data-loc-notnow>Not now</button>',
-      'Your phone asks next. Choose Change to Always Allow.');
+      `Turn on walk-in check-in and your phone checks you in when you walk into ${where}, only during the check-in window. Rather not? I’m here works the same.`,
+      '<button type="button" class="btn sm lk-go" data-loc-always>Continue</button><button type="button" class="btn ghost sm" data-loc-notnow>Not now</button>',
+      'Your phone asks next.');
   }
   if (state === 'always' && walkIn && !optedOut) {
     return walkInStatus === 'unavailable'
@@ -362,6 +379,7 @@ export function locationAskClick(target, repaint) {
   const always = t.closest('[data-loc-always]');
   if (always) { if (!always.disabled) { busy(always); allowLocation(true).then(redo, redo); } return true; }
   if (t.closest('[data-loc-notnow]')) { setAlwaysDeclined(true); redo(); return true; }
+  if (t.closest('[data-loc-wiu-notnow]')) { setWiuDeclined(true); redo(); return true; }
   if (t.closest('[data-loc-settings]')) { openLocationSettings(); return true; }
   return false;
 }
@@ -377,6 +395,6 @@ export function locationAskFor(place, optedOut = false) {
   const arm = lastLocationArm();
   return locationAskHtml({
     place, state: STATE, walkIn: walkInCapable(), walkInStatus: arm && arm.walkIn ? String(arm.walkIn) : null,
-    optedOut: !!optedOut, declined: alwaysDeclined(), consent: consentCached(),
+    optedOut: !!optedOut, declined: alwaysDeclined(), consent: consentCached(), wiuDeclined: wiuDeclined(),
   });
 }

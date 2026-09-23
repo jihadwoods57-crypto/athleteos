@@ -232,11 +232,12 @@ export async function syncWakeAlarms(rows, nowMs = Date.now()) {
 }
 
 /** What the app can honestly say about alarms on this device. Null when there is no bridge. */
-export async function wakeAlarmState() {
+export async function wakeAlarmState({ ask = false } = {}) {
   try {
     const n = window.OnStandardNative;
     if (!n || !n.wakeAlarms) return null;
-    return await n.wakeAlarms.state();
+    // Asks the system question only with `ask`: the roll call's Continue (G-P2).
+    return await n.wakeAlarms.state({ ask: !!ask });
   } catch {
     return null;
   }

@@ -1,4 +1,4 @@
-import { S, RT, tier, act, MEAL, mealDetail, fmtClock, liveWeightPct, athleteContextForAnalysis } from '../state.js';
+import { S, RT, tier, act, MEAL, mealDetail, fmtClock, liveWeightPct, athleteContextForAnalysis, AI_OFF_LINE } from '../state.js';
 import { FILTERED_NOTE } from '../content-filter.js';
 import { DAY, slotDeadline, dayStandard } from '../day.js';
 import { icon } from '../icons.js';
@@ -18,6 +18,7 @@ import {
 } from '../chat-attach.js';
 import { openImageViewer } from '../image-viewer.js';
 import { openMembersSheet } from '../members-sheet.js';
+import { ensureAiConsent, isConsentSkip, noteAiConsentRequired } from '../ai-consent.js';
 import { openMealQuestions, autoShownFor, markAutoShown } from '../meal-questions-sheet.js';
 import { hydrateAvatars } from '../avatar.js';
 import { wireTapback } from '../tapback.js';
@@ -368,6 +369,18 @@ export const analyzing = {
       clearPhases();
       const sl = root.querySelector('.scanline');
       if (sl) sl.style.display = 'none';
+      // AI reads are off (0243): not a failure. Say so, and offer the two ways forward.
+      if (r.aiOff) {
+        if (phase) phase.textContent = 'AI reads are off.';
+        if (sub) sub.textContent = 'Nothing was sent. Turn AI reads on to have this photo read, or log the meal with Search.';
+        root.querySelector('.analyzing').insertAdjacentHTML('beforeend', `<div class="aic-off an-aioff">
+          <button class="btn primary sm" id="an-ai-on">${icon('sparkle', 17)} Turn on AI reads</button>
+          <button class="btn ghost sm" data-go="food-search">${icon('search', 17)} Log with Search</button></div>`);
+        root.querySelector('#an-ai-on').addEventListener('click', async () => {
+          if (await ensureAiConsent(RT.userId, { role: 'athlete', ask: true })) window.__render && window.__render();
+        });
+        return;
+      }
       // One honest headline, always. r.error rides the sub only when it is short and reads like
       // a sentence: status codes and stack fragments help nobody standing over a plate.
       if (phase) phase.textContent = "Couldn't read this plate.";
@@ -572,6 +585,9 @@ function openingInputs(M) {
  *   failed    — the read did not land. The meal stays logged as photo proof; retry is offered.
  *   result    — the normal case: summary, optional full analysis, and one follow-up question.
  */
+/** The thread's line when the AI stays quiet because AI replies are off (0243). */
+const AI_OFF_REPLY = 'AI replies are off, so the AI Nutritionist stays quiet. Your message is posted. Turn AI on in Privacy on your Profile.';
+
 export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, part = 'all' } = {}) {
   /* `part` exists because these rows live at two different points in time. The lead (the read
      itself, or its pending/failed/questions state) is the OLDEST thing in the thread and paints
@@ -587,6 +603,15 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
         <div class="bubble">${inner}</div></div>
       </div>`;
 
+  /* AI reads are off (0243): the athlete said Not now, or never answered. This is not the AI
+     speaking (the AI never saw the photo), so it is a plain notice with the way to turn it on. */
+  if (M && M.analysisFailed === 'ai_off') {
+    return wrap(`
+      <div class="aic-off mt-aioff" id="analysis-ai-off" role="status">
+        <span>${esc(AI_OFF_LINE)}</span>
+        <button type="button" class="btn ghost sm" id="mt-ai-on">${icon('sparkle', 15)} Turn on AI reads</button>
+      </div>`, '');
+  }
   if (M && M.analysisFailed) {
     const capacity = M.analysisFailed === 'capacity';
     // photo_lost: the device's photo budget dropped the bytes before they uploaded. There is
@@ -2312,8 +2337,13 @@ export const thread = {
         void act.confirmMemoryFact(id, fx.getAttribute('data-keep') === '1');
         return;
       }
-      const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mq-open-breakdown, #mt-retry-analysis, #mt-reread, #open-full-chat, #thread-more') : null;
+      const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mq-open-breakdown, #mt-retry-analysis, #mt-ai-on, #mt-reread, #open-full-chat, #thread-more') : null;
       if (!t) return;
+      if (t.id === 'mt-ai-on') {
+        // The consent sheet, asked on purpose. A yes re-queues this plate's read.
+        void ensureAiConsent(RT.userId, { role: 'athlete', ask: true }).then((yes) => { if (yes) void act.retryAnalysis(M.slot); });
+        return;
+      }
       if (t.id === 'mt-retry-analysis') {
         // Always answer the tap: in-flight label now, and retryAnalysis itself re-renders with
         // either the pending state or an honest failure line. The old handler called a function
@@ -2360,6 +2390,9 @@ export const thread = {
     // with the service role, so the client cannot make the model look at anything the athlete did
     // not actually attach to this thread.
     const askAI = async (text, photoPath = null, turn = null) => {
+      // AI CONSENT (0243): the first time the AI would answer, ask; after a Not now, say plainly
+      // that it stays quiet. The message itself is already posted either way.
+      if (!(await ensureAiConsent(RT.userId, { role: 'athlete' }))) { setNote(AI_OFF_REPLY); return; }
       // THE AI IS WORKING, visibly, from the moment it is asked (2026-09-22). This used to wait on
       // two fetches first, so the athlete stared at a quiet thread for a beat and could not tell
       // a turn was coming at all.
@@ -2434,6 +2467,7 @@ export const thread = {
         // error and not a failure to reach anyone: the message is in the thread, and the AI
         // simply had nothing it was asked for. Say nothing, show nothing.
         if (data && data.silent) { setTyping(false); return; }
+        if (isConsentSkip(data)) { noteAiConsentRequired(RT.userId); setNote(AI_OFF_REPLY); return; }
         if (error || !data || data.error) {
           // The vendored supabase-js (js/vendor/supabase.js) throws FunctionsHttpError on any
           // non-2xx response, so `data` is always null and the function's JSON error body never

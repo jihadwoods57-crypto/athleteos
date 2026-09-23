@@ -84,6 +84,12 @@ import { bustAvatar } from './avatar.js';
 import { itemFromMeal, memoryContextForAnalysis, mealSignature } from './food-memory.js';
 import { foodMemory, warmFoodMemory, invalidateFoodMemory } from './food-memory-data.js';
 import { track, EVENTS } from './analytics.js';
+/* ai-consent.js and notify-permission.js load on first use, not at boot (lint:boot): the AI
+   answer is needed only when a read or a reply is about to go out, and the notification state
+   only once the push token is read. */
+const aiConsent = () => import('./ai-consent.js');
+const notifyPerm = () => import('./notify-permission.js');
+let NOTIFY_PERM = null;   // the phone's answer, read (never asked) alongside the push token
 
 /* minutes-from-midnight → "8:14 AM" (real logged times, never a canned '8:14 AM') */
 export function fmtClock(min) {
@@ -962,7 +968,12 @@ let PUSH_TOKEN_VALUE = null;
 export function pushTokenState() {
   if (typeof window === 'undefined' || !window.OnStandardNative || !window.OnStandardNative.push) return 'web';
   if (PUSH_TOKEN_VALUE) return 'ready';
-  return PUSH_TOKEN_TRIED ? 'denied' : 'unknown';
+  // Since G-R10 a launch-time read never asks, so "no token" is a refusal only when the phone
+  // says so. Never asked is 'unknown': the roll call shows the Continue primer, not a warning.
+  const perm = NOTIFY_PERM;
+  if (perm === 'undetermined') return 'unknown';
+  if (perm === 'denied') return 'denied';
+  return PUSH_TOKEN_TRIED && perm !== null ? 'denied' : 'unknown';
 }
 
 /* Server-notification fetch throttle (in-memory: refetch at most every 15s, resets on
@@ -1011,6 +1022,10 @@ const ANALYSIS_TIMEOUT_MS = 45_000;
  *
  * Never throws. Returns the same `{ data, error }` shape invoke() does, so callers are unchanged.
  */
+/** What an athlete is told when a read was skipped because AI reads are off (0243). A notice, not
+ *  an error: the meal is logged either way. */
+export const AI_OFF_LINE = 'AI reads are off, so this meal has no numbers. It still counts as proof and for timing.';
+
 function invokeWithDeadline(name, body, ms = ANALYSIS_TIMEOUT_MS) {
   const sb = window.sb;
   if (!sb) return Promise.resolve({ data: null, error: { message: 'offline' } });
@@ -1436,6 +1451,17 @@ export const act = {
       if (done) { this._patchSlot(job.slot, { analysisFailed: reason }); window.__render && window.__render(); }
       track(EVENTS.MEAL_ANALYSIS_FAILED, { reason });
     };
+    /* AI CONSENT (0243, Guideline 5.1.2(i)). The photo goes to Anthropic only after the athlete
+       said yes. Without it the meal stays logged (proof + timing) and the thread says plainly that
+       AI reads are off, with a way to turn them on. Terminal for this job: no retries against a
+       door the athlete closed. The server holds the same line; this just skips the round trip. */
+    const aiOff = () => {
+      updateJob(job.k, { needAnalysis: false, pendingQuestions: null });
+      this._patchSlot(job.slot, { analysisFailed: 'ai_off' });
+      window.__render && window.__render();
+    };
+    const { aiConsentCached, refreshAiConsent, noteAiConsentRequired, isConsentSkip } = await aiConsent();
+    if (aiConsentCached(job.uid) !== true && (await refreshAiConsent(job.uid)) !== true) return aiOff();
     try {
       const phase = job.answers ? 'finalize' : 'analyze';
       const body = { ...this._jobAnalysisBody(job), phase };
@@ -1445,6 +1471,7 @@ export const act = {
         const msg = String((error && error.message) || '');
         return fail(/429|capacity|limit/i.test(msg) ? 'capacity' : 'error');
       }
+      if (isConsentSkip(data)) { noteAiConsentRequired(job.uid); return aiOff(); }
       if (data && data.kind === 'questions') {
         const qs = Array.isArray(data.questions) ? data.questions.filter((q) => typeof q === 'string' && q.trim()).slice(0, 3) : [];
         if (qs.length) {
@@ -2174,16 +2201,25 @@ export const act = {
     RT.voiceNudge = { sig, text: text || null };
     save();
   },
-  /* Register this device's push token (coach→athlete nudges) via the bridge, once per
-     session, after sign-in. Fire-and-forget; a denial or missing seam is a silent no-op. */
-  async registerPushToken() {
-    if (PUSH_TOKEN_TRIED || !RT.userId) return;
+  /* Register this device's push token (coach→athlete nudges) via the bridge, after sign-in.
+     Fire-and-forget; a denial or missing seam is a silent no-op.
+     NEVER ASKS ON ITS OWN (G-R10). Home calls this on every load, and it used to put up the
+     system notification question the first time Home painted. Now it only reads a permission
+     the person already gave; `ask` is passed by the Continue primers (notify-permission.js),
+     which are the one place the question is asked. A read that found no permission may run
+     again later in the session (after a primer said yes); a token, once had, is kept. */
+  async registerPushToken({ ask = false } = {}) {
+    if (PUSH_TOKEN_VALUE || !RT.userId) return;
+    if (PUSH_TOKEN_TRIED && !ask) return;
     const N = window.OnStandardNative;
     const sb = window.sb;
     if (!N || !N.push || !sb) return;
     PUSH_TOKEN_TRIED = true;
     try {
-      const r = await N.push.token();
+      // What the phone says, read without asking, so the roll call can tell "never asked"
+      // (show the primer) from "said no" (show the Settings line).
+      try { NOTIFY_PERM = await (await notifyPerm()).notifyPermission(false); } catch { /* unknown */ }
+      const r = await N.push.token({ ask });
       // Whatever came back, the roll-call card can now say whether a push will reach this phone.
       try { window.dispatchEvent(new CustomEvent('onstd:push-token', { detail: { ok: !!(r && r.token) } })); } catch { /* no-op */ }
       if (r && r.token) {
@@ -2346,9 +2382,13 @@ export const act = {
     const sb = window.sb;
     if (!sb || !MEAL.photoBase64) return { ok: false, error: 'No photo to analyze.' };
     MEAL.questions = null;
+    // AI consent (0243): no yes, no photo sent. A plain answer, not a failure.
+    const { aiConsentCached, refreshAiConsent, noteAiConsentRequired, isConsentSkip } = await aiConsent();
+    if (aiConsentCached(RT.userId) !== true && (await refreshAiConsent(RT.userId)) !== true) return { ok: false, aiOff: true, error: AI_OFF_LINE };
     try {
       const { data, error } = await invokeWithDeadline('analyze-meal', { ...this._analysisBody(), phase: 'analyze' });
       if (error) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'error' }); return { ok: false, error: 'Analysis failed. Check your connection and retake.' }; }
+      if (isConsentSkip(data)) { noteAiConsentRequired(RT.userId); return { ok: false, aiOff: true, error: AI_OFF_LINE }; }
       if (data && data.kind === 'questions') {
         const qs = Array.isArray(data.questions) ? data.questions.filter((q) => typeof q === 'string' && q.trim()).slice(0, 3) : [];
         if (qs.length) { MEAL.questions = qs; save(); saveMeal(); return { ok: true, kind: 'questions' }; }
@@ -2372,9 +2412,11 @@ export const act = {
     const sb = window.sb;
     if (!sb || !MEAL.photoBase64) return { ok: false, error: 'No photo to analyze.' };
     const clarifications = buildClarifications(MEAL.questions || [], answers || []);
+    const { noteAiConsentRequired, isConsentSkip } = await aiConsent();
     try {
       const { data, error } = await invokeWithDeadline('analyze-meal', { ...this._analysisBody(), phase: 'finalize', clarifications });
       if (error) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'error' }); return { ok: false, error: 'Analysis failed. Check your connection and retake.' }; }
+      if (isConsentSkip(data)) { noteAiConsentRequired(RT.userId); return { ok: false, aiOff: true, error: AI_OFF_LINE }; }
       if (data && data.kind === 'result') {
         const grounded = groundResult(data);
         if (!isCompleteMealResult(grounded)) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' }); return { ok: false, error: 'Could not read that meal. Try another angle.' }; }
@@ -3075,6 +3117,9 @@ export const act = {
       // round trip, so the banner can render on the very first screen after signup instead of
       // waiting for hydrateDay()'s query (which only runs from boot(), not from onSession(true)).
       RT.emailVerified = false;
+      // The AI answer given in the onboarding demo, before this account existed, lands on it now
+      // (0243). Best effort: the next read retries a write that did not land.
+      if (RT.userId) { const uid = RT.userId; void aiConsent().then((m) => m.refreshAiConsent(uid), () => {}); }
     } else {
       RT.userId = null;
       RT.authRole = null;
@@ -3102,6 +3147,7 @@ export const act = {
     RT.authRole = role;
     save();
     this._armLocation({ force: true });
+    { const uid = RT.userId; void aiConsent().then((m) => m.refreshAiConsent(uid), () => {}); }   // this device learns the account's AI answer (0243)
     const hadServerProfile = await this._loadProfileIntoRt(RT.userId);
     // Back-fill: if onboarding was captured locally but never fully reached the server (a signup
     // that had no session at the time, or a partial persistOnboarding failure — e.g. a
@@ -4240,6 +4286,7 @@ export const act = {
     if (!user) return;
     if (RT.userId && RT.userId !== user.id) this._wipeUserScopedState({ keepPendingOb: true });
     RT.userId = user.id; RT.email = user.email || RT.email; save();
+    void aiConsent().then((m) => m.refreshAiConsent(user.id), () => {});   // the AI answer, and any onboarding answer still to write (0243)
     // A restored session is a sign-in as far as the phone's geofences are concerned.
     this._armLocation({ force: true });
     // The queue is durable, so a launch can inherit work: a read killed mid-flight, a meal logged

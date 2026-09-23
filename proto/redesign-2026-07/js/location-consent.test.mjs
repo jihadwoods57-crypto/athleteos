@@ -23,7 +23,9 @@ const base = { capable: true, state: 'undetermined', walkIn: true, consent: true
 test('never asked: While Using first, and Always is not mentioned yet', () => {
   const h = consentActionHtml(base);
   assert.match(h, /id="lc-allow"/);
-  assert.match(h, /Allow While Using App/);
+  // Continue, never Allow, and no line telling the athlete which answer to give (G-L6).
+  assert.match(h, /id="lc-allow"[^>]*>[\s\S]*?Continue<\/button>/);
+  assert.doesNotMatch(h, /\bAllow\b|\bChoose\b/);
   assert.doesNotMatch(h, /lc-always/);
 });
 
@@ -63,7 +65,10 @@ test('the copy tells the truth about what the product does now', () => {
   const src = readFileSync(join(JS, 'screens', 'location-consent.js'), 'utf8');
   assert.doesNotMatch(src, /No coordinates leave your phone/, 'one reading goes to the server since 0242');
   assert.doesNotMatch(src, /no way for other athletes/, 'teammates see Arrived / Not arrived on the board');
-  assert.match(src, /Nobody sees where you are\. Only you see how far away you were\./);
+  assert.match(src, /ARRIVAL_PRIVACY\} Nobody sees where you are\./, 'the one shared promise (privacy-copy.js)');
+  // M6: "the reading is not kept" and "only you see how far away you were" contradicted each other.
+  assert.doesNotMatch(src, /The reading itself is not kept/);
+  assert.doesNotMatch(src, /Choose Change to Always Allow|Choose Allow While Using/);
   const idx = readFileSync(join(JS, 'screens', 'index.js'), 'utf8');
   assert.match(idx, /'location-consent': lazy\(\(\) => import\('\.\/location-consent\.js'\)\)/);
   assert.match(readFileSync(join(JS, 'screens', 'profile.js'), 'utf8'), /row\('location-consent'/);

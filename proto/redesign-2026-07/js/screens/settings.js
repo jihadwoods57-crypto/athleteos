@@ -10,6 +10,10 @@ import * as roles from '../roles.js';
 import { planById } from '../pricing.js';
 import { armReplay } from '../tour.js';
 import { normalizePressure } from '../ob-helpers.js';
+import { PHOTO_PRIVACY, ROLLCALL_BOARD_PRIVACY, SQUAD_PRIVACY, AI_PROVIDER } from '../privacy-copy.js';
+import { aiConsentCached, refreshAiConsent, ensureAiConsent } from '../ai-consent.js';
+import { ROLLCALL_OFF } from '../commitments.js';
+import { notifyPrimerHtml, wireNotifyPrimer, notifyPermission } from '../notify-permission.js';
 
 /* Reminder-pressure chips: restore the athlete's REAL saved pressure and persist taps into
    RT.ob.standard.pressure (the same field onboarding writes, which drives the exec engine's
@@ -201,19 +205,145 @@ export const settings = {
 
 /* Terms/Privacy detours land here from any onboarding flow; OB_BACK sends "Done" back to the
    right in-progress step (by role) instead of always dropping the athlete on Profile. */
-const OB_BACK = { ob: 'onboarding/7', cob: 'coach-ob/5', tob: 'trainer-ob/3', clob: 'client-ob/6' };
+const OB_BACK = {
+  ob: 'onboarding/7', cob: 'coach-ob/5', tob: 'trainer-ob/3', clob: 'client-ob/6',
+  // The current onboarding flows (ob2), each back to its OWN account step. They used to borrow the
+  // legacy keys above, so Back from Terms dropped an athlete into the retired 7-step flow (A-B1).
+  oba: 'oba/account', obp: 'obp/account', obf: 'obf/account', obk: 'obk/account',
+  obt: 'obt/account', obn: 'obn/account', obd: 'obd/account',
+};
 
 /* ---------- Privacy & visibility (spec §20): real connections only, plain language ----------
    Rows render ONLY for people who actually exist (connected coach/trainer, a real guardian
    relationship). Each expands into a plain-language access breakdown. "Download my data" is
    a REAL export (act.exportMyData — the athlete's own rows, RLS-scoped, as a JSON file). */
+/** A coach, trainer, dietitian, nutritionist or parent: someone who looks after athletes. */
+function isOperator() {
+  const r = RT.authRole;
+  return !!r && r !== 'athlete' && r !== 'client';
+}
+
+/* AI reads (0243, Guideline 5.1.2(i)): the answer to the consent sheet, and the way to change it.
+   The row opens the same sheet, asked on purpose; its pill is the answer this device knows, then
+   the server's once mount() has asked. */
+function aiPill(v) {
+  return v === true ? '<span class="status-pill g" id="pv-ai-pill">On</span>'
+    : v === false ? '<span class="status-pill muted" id="pv-ai-pill">Off</span>'
+      : '<span class="status-pill muted" id="pv-ai-pill">Not set</span>';
+}
+function aiPrivacySection(role) {
+  if (!RT.userId) return '';
+  const v = aiConsentCached(RT.userId);
+  const sub = role === 'athlete'
+    ? `Meal photos, meal messages and the facts the AI coaches from go to ${AI_PROVIDER} only while this is on. Never used to train AI.`
+    : `Your questions to the AI Nutritionist go to ${AI_PROVIDER} only while this is on. Never used to train AI.`;
+  return `<h2 class="eyebrow">AI</h2>
+    <section class="card rows">
+      <div class="lrow" id="pv-ai" role="button" tabindex="0">
+        <div class="lic">${icon('sparkle', 17)}</div>
+        <div class="lm"><div class="lt">${role === 'athlete' ? 'AI meal reads' : 'AI Nutritionist'}</div><div class="ls">${esc(sub)}</div></div>
+        ${aiPill(v)}
+        ${icon('chevron', 15, 'class="chev-dim"')}
+      </div>
+    </section>`;
+}
+function wireAiPrivacyRow(root) {
+  const row = root.querySelector('#pv-ai');
+  if (!row || !RT.userId) return;
+  const paint = (v) => { const p = root.querySelector('#pv-ai-pill'); if (p) p.outerHTML = aiPill(v); };
+  refreshAiConsent(RT.userId).then((v) => { if (root.isConnected) paint(v); }, () => {});
+  row.addEventListener('click', async () => {
+    await ensureAiConsent(RT.userId, { role: isOperator() ? (RT.authRole || 'coach') : 'athlete', ask: true });
+    if (root.isConnected) paint(aiConsentCached(RT.userId));
+  });
+}
+
+/* The operator's privacy view (coach report B5). "Visibility rules" and "Privacy & your data"
+   used to open the athlete's screen, which told a coach what "your coach" could see. This is the
+   same promise from the other side, row for row, so the two can never disagree: what each kind of
+   person around an athlete sees, what the AI receives, and the operator's own data. */
+export function operatorPrivacyHtml(back) {
+  const rows = [
+    { ic: 'users', t: 'You and your staff', pill: 'View access',
+      s: 'Scores, requirements, meal logs and photos, check-ins',
+      detail: [
+        ['Can see', 'Each connected athlete’s daily score, requirement completion, meal logs and photos, check-ins, and weight trend where the athlete shares weight.'],
+        ['Can set', 'Requirements, deadlines, targets and reminder urgency for athletes on your team or in your practice.'],
+        ['Ends when', 'The athlete leaves your team or practice. Access stops at once.'],
+      ] },
+    { ic: 'heart', t: 'Parents and guardians', pill: 'Limited access',
+      s: 'Consent and account controls, not day-to-day logs',
+      detail: [
+        ['Can do', 'Approve a minor’s account, request the minor’s data, or request deletion.'],
+        ['Cannot see', 'Meal photos and daily logs are not mirrored to a guardian view.'],
+      ] },
+    { ic: 'bolt', t: 'Trainers', pill: 'Limited access',
+      s: 'Recovery, readiness and nutrition consistency',
+      detail: [
+        ['Can see', 'For athletes who connect them: recovery check-ins, readiness and nutrition consistency.'],
+        ['Cannot see', 'Full meal photos and per-meal detail.'],
+      ] },
+    { ic: 'grid', t: 'Teammates', pill: 'Limited access',
+      s: 'Roll call answers; scores only by opt-in',
+      detail: [
+        ['Can see', ROLLCALL_BOARD_PRIVACY],
+        ['Score', 'An athlete’s score number shows on the Squad board only if that athlete opts in.'],
+        ['Cannot see', 'Meals, photos, weight, check-ins, or where anyone is.'],
+      ] },
+  ];
+  const peopleRows = rows.map((r) => `
+        <details class="pv-row">
+          <summary class="lrow">
+            <div class="lic">${icon(r.ic, 17)}</div>
+            <div class="lm"><div class="lt">${esc(r.t)}</div><div class="ls">${esc(r.s)}</div></div>
+            <span class="status-pill ${r.pill === 'View access' ? 'g' : 'b'}">${r.pill}</span>
+            <span class="pv-chev" aria-hidden="true">${icon('chevron', 15)}</span>
+          </summary>
+          <div class="pv-detail">
+            ${r.detail.map(([k, v]) => `<div class="pv-line"><b>${esc(k)}</b>${esc(v)}</div>`).join('')}
+          </div>
+        </details>`).join('');
+  return `
+    ${backHead('Privacy & visibility', 'Who sees your athletes’ data', back)}
+    <h2 class="eyebrow">Around your athletes</h2>
+    <section class="card rows">${peopleRows}</section>
+    <div class="sidebox pv-defaults">
+      <div class="req-icon b s38">${icon('lock', 17)}</div>
+      <div><div class="tt">What athletes are told</div>
+      <div class="ts">Athletes see the same rules from their side in their own Privacy screen. A minor’s data is shared only after a parent or guardian approves. Nothing about an athlete is public unless they publish their own profile.</div></div>
+    </div>
+    ${aiPrivacySection(RT.authRole)}
+    ${RT.userId ? `<h2 class="eyebrow">Your data</h2>
+    <section class="card rows">
+      <div class="lrow" id="pv-export" role="button" tabindex="0">
+        <div class="lic">${icon('download', 17)}</div>
+        <div class="lm"><div class="lt">Download my data</div><div class="ls">Your profile and account records as a JSON file</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>
+      <div class="lrow" data-go="delete-account">
+        <div class="lic lic-danger">${icon('trash', 17)}</div>
+        <div class="lm"><div class="lt pf-red">Delete my account</div><div class="ls">Permanent, in-app</div></div>
+        ${icon('chevron', 17, 'class="chev-dim"')}
+      </div>
+    </section>
+    <div id="pv-export-note" class="pv-note"></div>` : ''}
+    <div class="set-tail"></div>`;
+}
+
 export const privacy = {
   tab: 'profile',
   hideTabs: true,
   render({ sub } = {}) {
     const back = OB_BACK[sub] || roleProfileRoute();
+    // Coaches, trainers, dietitians and parents get their own view (coach report B5): what the
+    // people around THEIR athletes can see, and their own data. The athlete's rows ("Your coach
+    // can see...") are not theirs to read.
+    if (isOperator()) return operatorPrivacyHtml(back);
+    // Signed out (an onboarding detour): nobody is connected and there is no account to export
+    // or delete, so none of those rows can be true (athlete report B1).
+    const signedIn = !!RT.userId;
     const rows = [];
-    if (S.coach.hasCoach && S.coach.kind === 'coach') {
+    if (signedIn && S.coach.hasCoach && S.coach.kind === 'coach') {
       rows.push({
         ic: 'users', t: S.coach.isNamed ? S.coach.name : 'Your coach', pill: 'View access',
         s: 'Daily score, requirements, meal logs and photos, check-ins, weight trend',
@@ -225,7 +355,7 @@ export const privacy = {
         ],
       });
     }
-    if (RT.myTrainer) {
+    if (signedIn && RT.myTrainer) {
       rows.push({
         ic: 'bolt', t: (RT.myTrainer.name || 'Your trainer'), pill: 'Limited access',
         s: 'Recovery, readiness, and nutrition consistency, not your full meal detail',
@@ -236,7 +366,7 @@ export const privacy = {
         ],
       });
     }
-    if (S.consent.minor || (RT.consent && RT.consent.guardianEmail)) {
+    if (signedIn && (S.consent.minor || (RT.consent && RT.consent.guardianEmail))) {
       rows.push({
         ic: 'heart', t: 'Parent / guardian', pill: 'Limited access',
         s: RT.consent && RT.consent.guardianEmail ? `${RT.consent.guardianEmail} · consent + account controls` : 'Consent status and account controls, not your day-to-day logs',
@@ -246,31 +376,41 @@ export const privacy = {
         ],
       });
     }
-    if (S.coach.hasCoach && S.coach.kind === 'coach') {
-      /* The Squad board shipped (0180) — this row now tells the truth about it, per the standing
-         note that shipped with the old copy ("change this row IN THE SAME commit"). Default is
-         still nothing: the board shows an athlete only after they flip their own switch, which
-         lives ON the Squad screen where the effect is visible. */
+    if (signedIn && S.coach.hasCoach && S.coach.kind === 'coach') {
+      /* TEAMMATES (review pass 2026-09-23, athlete report M1). This row used to say teammates see
+         nothing, while the roll call board names every athlete with their answer time, place in
+         line and arrival. The founder chose to keep the board as it is; the copy is what changed.
+         Score: still opt-in on the Squad board. Roll call answers: visible to the team, always. */
       const sharing = RT.shareSquadScore === true;
       rows.push({
-        ic: 'grid', t: 'Teammates', pill: sharing ? 'Score only' : 'No access',
-        s: sharing ? 'Teammates see your score number on the Squad board, nothing else'
-          : 'Teammates cannot see anything about your day',
+        ic: 'grid', t: 'Teammates', pill: 'Limited access',
+        s: SQUAD_PRIVACY,
         detail: [
           ['Can see', sharing
-            ? 'Your name and daily score number on your team’s Squad board. That is the whole disclosure.'
-            : 'Nothing. The Squad board shows teammates who opted in; you haven’t, so you appear only as a private count.'],
-          ['Cannot see', 'Your meals, photos, weight, and check-ins are never visible to teammates, shared or not.'],
-          ['Change it', 'The switch lives on the Squad screen (Progress → Squad), next to what it shows.'],
+            ? 'Your name and daily score number on the Squad board, and your roll call answers on the roll call board.'
+            : 'Your roll call answers on the roll call board. Your score only if you opt in on the Squad board; right now you haven’t.'],
+          ['Cannot see', 'Your meals, photos, weight, check-ins, and where you are. Never, shared or not.'],
+          ['Change it', 'The score switch lives on the Squad screen (Progress → Squad), next to what it shows.'],
         ],
       });
+      if (!ROLLCALL_OFF) {
+        rows.push({
+          ic: 'clock', t: 'Roll call board', pill: 'Team sees',
+          s: 'Teammates see your name, answer time and arrival on team roll calls',
+          detail: [
+            ['Can see', ROLLCALL_BOARD_PRIVACY],
+            ['Cannot see', 'Where you are. A place check keeps only Arrived or Not arrived; your location is not kept.'],
+            ['Why', 'A roll call is a team event. Everyone sees who is up, the way a coach reads the list out loud.'],
+          ],
+        });
+      }
     }
     /* The public page (verified-profile, 0199/0200) is the one thing an athlete CAN make public,
        and this screen used to say "nothing is public" twice without ever mentioning it: true for
        most athletes, false for any athlete who published. It has its own row now, and the claim
        is made only once mount() has asked the server (2026-09-22). A trainer's client has no
        Verified Profile door (profile.js), so they get neither the row nor the caveat. */
-    const hasPage = RT.authRole === 'athlete' && !(S.audience === 'client' && S.coach.kind === 'trainer');
+    const hasPage = signedIn && RT.authRole === 'athlete' && !(S.audience === 'client' && S.coach.kind === 'trainer');
     const pageRow = hasPage ? `
       <div class="lrow" data-go="verified-profile" id="pv-page">
         <div class="lic">${icon('share', 17)}</div>
@@ -308,10 +448,12 @@ export const privacy = {
     <div class="sidebox pv-defaults">
       <div class="req-icon b s38">${icon('lock', 17)}</div>
       <div><div class="tt">Defaults that protect you</div>
-      <div class="ts">${hasPage ? 'Nothing is public unless you publish your Verified Profile.' : 'Nothing is public.'} Meal photos never leave your coach connection. You can download or delete everything, below.</div></div>
+      <div class="ts">${hasPage ? 'Nothing is public unless you publish your Verified Profile.' : 'Nothing is public.'} ${esc(PHOTO_PRIVACY)}${signedIn ? ' You can download or delete everything, below.' : ''}</div></div>
     </div>
 
-    <h2 class="eyebrow">Your data</h2>
+    ${aiPrivacySection('athlete')}
+
+    ${signedIn ? `<h2 class="eyebrow">Your data</h2>
     <section class="card rows">
       <div class="lrow" id="pv-export" role="button" tabindex="0">
         <div class="lic">${icon('download', 17)}</div>
@@ -324,11 +466,12 @@ export const privacy = {
         ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
     </section>
-    <div id="pv-export-note" class="pv-note"></div>
+    <div id="pv-export-note" class="pv-note"></div>` : ''}
     <div class="set-tail"></div>
     `;
   },
   mount(root) {
+    wireAiPrivacyRow(root);
     // The public page's real state, patched in place. A failed read claims nothing either way:
     // the pill goes and the line says where to look.
     const pvPill = root.querySelector('#pv-page-pill');
@@ -588,6 +731,23 @@ export const billing = {
 /* ---------- Notification settings (athlete-side quiet hours; coach sets urgency) ----------
    All of it is LIVE now: master switch, quiet-hours start, and the deadline override persist
    to RT.notifPrefs (act.setNotifPrefs) and resync the device schedule on every change. */
+/* The Notifications screens are where the system question is asked on purpose (G-R10): a
+   Continue primer while the phone has never been asked, nothing once it has. A read decides
+   whether to draw it; only the Continue tap asks. A yes registers the push token and reschedules. */
+function mountNotifyPrimer(root) {
+  void notifyPermission(false).then((p) => {
+    const slot = root.querySelector('#np-slot');
+    if (!slot || !root.isConnected) return;
+    slot.innerHTML = p === 'undetermined' ? notifyPrimerHtml({ perm: p, context: 'settings' }) : '';
+  });
+  wireNotifyPrimer(root, {
+    after: async () => {
+      await act.registerPushToken({ ask: true });   // already answered, so this only mints the token
+      RT._lastPlan = null; act.syncNotifications();
+    },
+  });
+}
+
 export const notifSettings = {
   tab: 'profile',
   get nav() { return roleNav(); },
@@ -599,6 +759,7 @@ export const notifSettings = {
     const qt = Math.round(p.quietTo / 60);   // 6 | 7 | 8
     return `
     ${backHead('Notifications', 'Your tone. Your quiet hours.', back)}
+    <div id="np-slot">${notifyPrimerHtml({ context: 'settings' })}</div>
 
     <section class="card" style="padding:6px 16px">
       ${/* role="switch" presents the row's children as presentational; aria-describedby keeps
@@ -715,6 +876,7 @@ export const notifSettings = {
     };
     const hsw = root.querySelector('#ns-haptics');
     if (hsw) hsw.addEventListener('click', () => { act.setHaptics(flip(hsw)); });
+    mountNotifyPrimer(root);
     // On/Off switches persist one boolean straight into RT.notifPrefs.
     const sw = (sel, patch, after) => {
       const el = root.querySelector(sel);
@@ -796,6 +958,7 @@ export const coachNotifSettings = {
     const preset = presetFor(p);
     return `
     ${backHead('Notifications', `When and how you hear from your ${RT.authRole === 'trainer' ? 'clients' : 'team'}.`, roleProfileRoute())}
+    <div id="np-slot">${notifyPrimerHtml({ context: 'settings' })}</div>
 
     <h2 class="eyebrow">Quick setup</h2>
     <div class="chip-row" id="cns-preset" data-toggle-group>
@@ -895,6 +1058,7 @@ export const coachNotifSettings = {
     // .on state (the attach-order rule the other screens document).
     wireToggles(root);
     wireSegAria(root);
+    mountNotifyPrimer(root);
     // Plain On/Off segments: each writes one field straight through act.setCoachNotifPrefs —
     // AND paints the buttons. These saved without repainting, so tapping Off left On lit and
     // every seg on this screen read as broken (critique 2026-08-15; the athlete-side seg()
@@ -1127,13 +1291,14 @@ export const terms = {
     <section class="card" style="padding:6px 16px">
       ${ext('https://onstandard.app/terms', 'clipboard', 'Terms of Service', 'The full agreement')}
       ${ext('https://onstandard.app/privacy', 'lock', 'Privacy Policy', 'What we collect and why')}
-      <div class="lrow" data-go="privacy"><div class="lic">${icon('download', 16)}</div><div class="lm"><div class="lt">Data export</div><div class="ls">Download everything you own, in-app</div></div>${icon('chevron', 16)}</div>
+      ${/* Account-only rows need an account: an onboarding detour lands here signed out (A-B1). */ ''}
+      ${RT.userId ? `<div class="lrow" data-go="privacy"><div class="lic">${icon('download', 16)}</div><div class="lm"><div class="lt">Data export</div><div class="ls">Download everything you own, in-app</div></div>${icon('chevron', 16)}</div>` : ''}
       ${/* Was #verified-discipline, its own screen with its own switch that never mentioned the
             public page. Both now live on #verified-profile as two separately labelled sections,
             so the row keeps its place here (an athlete looks for a sharing control under Terms &
             Privacy) but the label names what they actually land on. */ ''}
-      <div class="lrow" data-go="verified-profile"><div class="lic">${icon('shield', 16)}</div><div class="lm"><div class="lt">What recruiters can see</div><div class="ls">Your public page and your discipline record, each with its own switch</div></div>${icon('chevron', 16)}</div>
-      <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('trash', 16)}</div><div class="lm"><div class="lt">Account deletion</div><div class="ls">Permanent, in-app</div></div>${icon('chevron', 16)}</div>
+      ${RT.userId ? `<div class="lrow" data-go="verified-profile"><div class="lic">${icon('shield', 16)}</div><div class="lm"><div class="lt">What recruiters can see</div><div class="ls">Your public page and your discipline record, each with its own switch</div></div>${icon('chevron', 16)}</div>
+      <div class="lrow" data-go="delete-account"><div class="lic" style="color:var(--red)">${icon('trash', 16)}</div><div class="lm"><div class="lt">Account deletion</div><div class="ls">Permanent, in-app</div></div>${icon('chevron', 16)}</div>` : ''}
       <div class="lrow" data-go="feedback"><div class="lic">${icon('message', 16)}</div><div class="lm"><div class="lt">Send feedback</div><div class="ls">Report a bug, ask something, or tell us an idea</div></div>${icon('chevron', 16)}</div>
       ${/* The email stays. Someone locked out of their account cannot file an in-app ticket, and
             that is exactly when they most need to reach a human. */ ''}
@@ -1142,7 +1307,7 @@ export const terms = {
     <h2 class="eyebrow">The short version</h2>
     <section class="card" style="padding:6px 16px" role="list">
       ${[
-        ['Your photos are yours', 'Meal photos are private to your account and your coach connection. They are not public and not sold.'],
+        ['Your photos are yours', PHOTO_PRIVACY],
         ['Health & AI disclaimer', 'OnStandard gives execution feedback, not medical or dietary advice. AI meal reads are estimates; verify anything health-critical yourself.'],
         ['Children & guardians', 'OnStandard is for ages 13 and up. A guardian of a minor can request access to or deletion of the minor’s data at any time.'],
         ['No ad tracking', 'No ad trackers or third-party ad identifiers in the app.'],

@@ -51,6 +51,10 @@ import { hydrateAvatars } from '../avatar.js';
 import { wireTapback } from '../tapback.js';
 import { openImageViewer } from '../image-viewer.js';
 import { openMembersSheet } from '../members-sheet.js';
+import { ensureAiConsent, isConsentSkip, noteAiConsentRequired } from '../ai-consent.js';
+
+/** The line when the AI stays quiet because AI replies are off (0243). */
+const AI_OFF_REPLY_NC = 'AI replies are off, so the AI Nutritionist stays quiet. Your message is posted. Turn AI on in Privacy on your Profile.';
 import { cachedMealPhoto, warmMealPhotos } from '../photo-store.js';
 import { scrollThreadToEnd, focusComposer } from '../keyboard.js';
 
@@ -601,6 +605,8 @@ export default {
     const askAI = async (text, mealId, turn = null) => {
       if (!mealId) return;
       lastAsk = { text, mealId, turn };
+      // AI CONSENT (0243): ask the first time; after a Not now the AI stays quiet, said plainly.
+      if (!(await ensureAiConsent(RT.userId, { role: 'athlete' }))) { setNote(AI_OFF_REPLY_NC); return; }
       const meal = mealById(STATE.meals, mealId);
       // Visible from the moment it is asked, not after two fetches (2026-09-22).
       setTyping(true);
@@ -661,6 +667,7 @@ export default {
         setTyping(false);
         // Same verdict, reached server-side: the AI was not addressed, so it stays quiet.
         if (data && data.silent) return;
+        if (isConsentSkip(data)) { noteAiConsentRequired(RT.userId); setNote(AI_OFF_REPLY_NC); return; }
         if (error || !data || data.error) {
           // The vendored supabase-js throws FunctionsHttpError on any non-2xx, so `data` is null
           // and the function's JSON error body never reaches it — parse it off error.context,

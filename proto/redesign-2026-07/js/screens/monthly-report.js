@@ -4,7 +4,8 @@
    CACHE + load() -> roles.fetchMonthlyReport() -> window.__render(), render()/mount(). */
 import { backHead, esc, skeletonRows, errorState, emptyState } from '../components.js';
 import { icon } from '../icons.js';
-import { S } from '../state.js';
+import { S, RT } from '../state.js';
+import { ensureAiConsent, isConsentSkip } from '../ai-consent.js';
 import * as roles from '../roles.js';
 import { buildMonthPayload } from '../monthly.js';
 import { track, EVENTS } from '../analytics.js';
@@ -246,7 +247,11 @@ export default {
     }
     const locked = isLockedReport(report);
     return `${backHead('Monthly report', esc(monthLabel(period)), 'progress')}
-    ${locked ? lockedCard(CACHE.payload, period) : report && !report.error ? reportBody(report, period) : `
+    ${locked ? lockedCard(CACHE.payload, period) : report && !report.error ? reportBody(report, period) : isConsentSkip(report) ? `
+      <section class="card pad aic-off mr-aioff" role="status">
+        <span>AI reads are off, so there is no written report this month. Your numbers are all still yours in Progress.</span>
+        <button type="button" class="btn ghost sm" id="mr-ai-on">${icon('sparkle', 15)} Turn on AI reads</button>
+      </section>` : `
       ${errorState({
         title: "Couldn't build your report",
         // Never the raw transport string. "Failed to fetch" is what the browser calls a dropped
@@ -259,6 +264,10 @@ export default {
   },
   mount(root) {
     load();
+    const aiOn = root.querySelector('#mr-ai-on');
+    if (aiOn) aiOn.addEventListener('click', async () => {
+      if (await ensureAiConsent(RT.userId, { role: 'athlete', ask: true })) { CACHE.loaded = false; load(true); }
+    });
     // errorState() hands back a button id rather than a data-act, so the shared primitive stays
     // free of any one screen's action vocabulary (same contract plan.js's #plan-retry uses).
     const retry = root.querySelector('#mr-retry');

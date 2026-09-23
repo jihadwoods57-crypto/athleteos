@@ -23,6 +23,7 @@ import {
   bindLive, wireThreadTaps,
 } from '../chat-live.js';
 import { openMembersSheet } from '../members-sheet.js';
+import { ensureAiConsent } from '../ai-consent.js';
 import { decideAiTurn } from '../ai-thread.js';
 import { hydrateAvatars } from '../avatar.js';
 
@@ -560,6 +561,11 @@ function mountThread(root, mealId, meal) {
       photo: !!photoPath,
     });
     if (!turn.decision.shouldRespond) return;
+    // AI CONSENT (0243): ask the first time; after a Not now the AI stays quiet, said plainly.
+    if (!(await ensureAiConsent(RT.userId, { role: 'athlete' }))) {
+      if (note) note.textContent = 'AI replies are off, so the AI Nutritionist stays quiet. Your message is posted.';
+      return;
+    }
     // The AI at work, shown in the thread for as long as it is (chat-live.js hook).
     setAiWorking(mealId, true, { label: photoPath ? 'Reading the photo' : workingLabel(visibleThread(threadMessages(rows), RT.mutedUsers)) });
     try {

@@ -357,7 +357,7 @@ const steps = [
       ? `The moment your account exists, we'll link you to ${nmEsc(o)}.`
       : `${nmEsc(o)}'s summary lands here as soon as you connect.`),
     body: () => `
-      ${accountBody({ terms: 'ob' })}
+      ${accountBody({ terms: 'obp' })}
       <div class="ob-foot" style="margin-top:16px">
         <button id="su-go" class="btn primary" disabled>Create my account</button>
       </div>`,

@@ -495,7 +495,7 @@ const steps = [
     title: () => 'Your Standard is set.',
     sub: () => 'Create your account to save it. Your score, meals, and coach connection sync across devices.',
     body: () => `
-      ${accountBody({ terms: 'ob' })}
+      ${accountBody({ terms: 'oba' })}
       <div style="height:18px"></div>
       <div class="ob-foot" style="margin-top:auto">
         <button id="su-go" class="btn primary" disabled>Create account &amp; Start</button>

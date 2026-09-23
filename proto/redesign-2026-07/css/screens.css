@@ -4406,3 +4406,54 @@ button.rw-cell:active { transform: scale(var(--press-btn)); }
 /* What logging does: a quiet fact above the actions, not a status-green box. */
 .ma-counts { margin: var(--s5) 0 0; font-size: var(--t-sm); font-weight: 600; line-height: 1.45; color: var(--text-2); }
 .ma-actions { margin-top: var(--s4); padding-bottom: var(--s2h); }
+
+/* ===== Third-party AI consent (js/ai-consent.js, 0243, Guideline 5.1.2(i)) =====
+   The .mqsheet idiom: scrim fades, card travels a few pixels, reduced motion keeps the fade. It
+   sits above every other sheet (z 64) because it is asked AT an action the person just took. */
+.aicsheet {
+  position: fixed; inset: 0; z-index: 64; display: grid; place-items: end center;
+  background: rgba(4, 7, 14, 0.66); opacity: 0; transition: opacity var(--dur-1) var(--ease-out);
+  padding: 0 0 max(14px, env(safe-area-inset-bottom, 0px));
+}
+.aicsheet.on { opacity: 1; }
+.aicsheet .aic-card {
+  width: min(460px, calc(100% - 16px)); max-height: min(90vh, 760px); overflow-y: auto;
+  background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-card);
+  padding: var(--s2) var(--s4) var(--s4); box-shadow: var(--sh-raised);
+  transform: translateY(12px); transition: transform var(--dur-2) var(--ease-out);
+}
+.aicsheet.on .aic-card { transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) { .aicsheet .aic-card { transition: none; transform: none; } }
+.aicsheet .aic-grab { width: 36px; height: 4px; border-radius: var(--r-micro); background: var(--hairline); margin: var(--s1) auto var(--s3h); }
+.aicsheet .aic-ic {
+  width: 44px; height: 44px; border-radius: var(--r-card-sm); display: grid; place-items: center;
+  background: var(--blue-surface); color: var(--blue-bright);
+}
+.aicsheet .aic-title { font-size: var(--t-lg); font-weight: 800; letter-spacing: var(--title-tight); line-height: 1.25; margin: var(--s3) 0 0; }
+.aicsheet .aic-lead { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.5; margin: var(--s2) 0 0; }
+.aicsheet .aic-rows { display: flex; flex-direction: column; gap: var(--s3); margin-top: var(--s4); }
+.aicsheet .aic-row { display: flex; gap: var(--s3); align-items: flex-start; }
+.aicsheet .aic-ric { flex: none; color: var(--blue-bright); margin-top: 2px; }
+.aicsheet .aic-rtx { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: var(--t-sm); line-height: 1.45; color: var(--text-2); }
+.aicsheet .aic-rtx b { color: var(--text); font-weight: 800; }
+.aicsheet .aic-foot { display: flex; flex-direction: column; gap: var(--s2h); margin-top: var(--s5); }
+.aicsheet .aic-foot .btn { width: 100%; }
+html[data-layout] .aicsheet { place-items: center; }
+/* The plain line a thread or card shows when the AI was skipped for lack of consent: a notice,
+   never an error colour. */
+.aic-off { display: flex; gap: var(--s3); align-items: center; flex-wrap: wrap; font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.45; }
+.aic-off .btn { width: auto; padding: 0 var(--s4); }
+
+/* ===== Notifications + alarms primer (js/notify-permission.js, G-R10 / G-P2) =====
+   The .lk-ask grammar: a quiet card with a selection-blue secondary Continue, never a second
+   primary on a screen that already has one. */
+.np-card { display: flex; flex-direction: column; gap: var(--s2); margin-top: var(--s2); text-align: left; }
+.np-t { display: flex; align-items: center; gap: var(--s2); margin: 0; font-size: var(--t-base); font-weight: 800; color: var(--text); }
+.np-t svg { color: var(--blue-bright); flex: none; }
+.np-s { margin: 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.45; text-wrap: pretty; }
+.np-acts { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.np-acts .btn { width: auto; padding: 0 var(--s4); }
+.np-alarm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s2); }
+.np-alarm .btn { width: auto; padding: 0 var(--s4); }
+.np-acts .btn { min-height: 44px; }
+.np-go { background: var(--blue-surface); color: var(--blue-bright); }

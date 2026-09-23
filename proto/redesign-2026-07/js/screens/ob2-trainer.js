@@ -431,7 +431,7 @@ const steps = [
     title: () => 'Create your account.',
     sub: () => 'Your practice, client code, and queue live on it.',
     body: () => `
-      ${accountBody({ terms: 'tob' })}
+      ${accountBody({ terms: 'obt' })}
       <div class="ob-foot" style="margin-top:18px"><button id="su-go" class="btn primary" disabled>Create account &amp; Get my code</button></div>`,
     mount(root) {
       // Same post-account mechanics as legacy trainer-ob step 3 (route `obt` is auth-gated

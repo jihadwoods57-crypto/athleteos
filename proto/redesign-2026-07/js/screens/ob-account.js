@@ -15,7 +15,7 @@ export function accountBody(opts = {}) {
     <div id="su-meter-label" style="font-size:12px;font-weight:700;color:var(--text-3);min-height:16px;margin:0 2px 8px"></div>
     <input id="su-pass2" class="ob-input" type="password" autocomplete="new-password" maxlength="64" placeholder="Retype password" aria-label="Retype password" />
     <div id="su-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:12px;text-align:center"></div>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;line-height:1.5;margin-top:4px">By creating an account you agree to the <span class="lnk" data-go="terms/${terms}">Terms of Service</span> and <span class="lnk" data-go="privacy/${terms}">Privacy Policy</span>.</div>`;
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);text-align:center;line-height:1.5;margin-top:4px">By creating an account you agree to the <span class="lnk" data-go="terms/${terms}">Terms of Service</span> and <a class="lnk" href="https://onstandard.app/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</div>`;
 }
 
 export function wireAccount(root, { role, onSession }) {

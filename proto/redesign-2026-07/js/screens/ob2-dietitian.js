@@ -396,7 +396,7 @@ const steps = [
       ? 'Your staff seat and your review queue live on it.'
       : 'Your team, its join code, and your review queue live on it.'),
     body: (o) => `
-      ${accountBody({ terms: 'cob' })}
+      ${accountBody({ terms: 'obd' })}
       <div class="ob-foot"><button id="su-go" class="btn primary" disabled>${isStaffJoin(o) ? 'Create account &amp; Join the staff' : 'Create account &amp; Get my code'}</button></div>`,
     mount(root, ctx) {
       /* The coach rail, discipline 'nutrition': signUp(role 'coach') so routing and the whole

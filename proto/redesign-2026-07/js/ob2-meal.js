@@ -22,6 +22,7 @@ import { icon } from './icons.js';
 import { esc } from './components.js';
 import { openingMessage, openingSummary, qualityBand, groundExtras } from './meal-intel.js';
 import { capture, simChip, meter, chatSim, phoneCard, gateCta } from './ob2.js';
+import { ensureAiConsent } from './ai-consent.js';
 
 /* Demo scratch — module-level, never persisted (photos are heavy and this is a
    throwaway trial; a refresh honestly restarts the demo). */
@@ -156,7 +157,7 @@ export function mealDemoSteps({ route, voice = 'coach', computeScore }) {
             <div class="dc-tag">Recommended</div>
             <div class="dc-ic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('camera', 20)}</div>
             <div><div class="dc-t">Analyze my meal</div>
-            <div class="dc-s">Snap your next meal or pick a photo. Real AI analysis (foods, portions, macros) in seconds.</div></div>
+            <div class="dc-s">Snap your next meal or pick a photo. Real AI analysis (foods, portions, macros) in seconds, by our AI provider, Anthropic. We ask first.</div></div>
           </div>
           <div class="ob2-demo-card" id="demo-sample" role="button" aria-label="Try a sample meal">
             <div class="dc-ic" style="background:var(--green-surface);color:var(--green-bright)">${icon('utensils', 20)}</div>
@@ -293,15 +294,15 @@ function ob2mode() { return (RT.ob && RT.ob.demoMode) || 'sample'; }
 /* ---- the live call: one request, deduped, budgeted, honest failure → sample ---- */
 async function runLiveAnalysis(root, ctx) {
   const err = root.querySelector('#scan-err');
-  const fail = (msg) => {
+  const fail = (msg, title = 'Analysis didn’t go through') => {
     if (!err) return;
     /* clear the in-progress scan UI so "Reading the plate…" doesn't sit above the error */
-    const ph = root.querySelector('#scan-phase'); if (ph) ph.textContent = 'Analysis stopped';
+    const ph = root.querySelector('#scan-phase'); if (ph) ph.textContent = title === 'Analysis didn’t go through' ? 'Analysis stopped' : 'Nothing sent';
     const ps = root.querySelector('#scan-sub'); if (ps) ps.style.display = 'none';
     const box = root.querySelector('.scanbox'); if (box) box.style.display = 'none';
     err.innerHTML = `
       <div class="state-demo err-box" style="text-align:center">
-        <div class="sd-t">Analysis didn’t go through</div>
+        <div class="sd-t">${esc(title)}</div>
         <div class="sd-s">${esc(msg)}</div>
         <div class="sd-cta"><button class="btn ghost sm" id="scan-fallback">Use the sample meal instead</button></div>
       </div>`;
@@ -318,13 +319,26 @@ async function runLiveAnalysis(root, ctx) {
   const sig = sigOf(DEMO.photoBase64);
   if (DEMO.lastSig === sig && DEMO.result) { ctx.go(ctx.nextRoute); return; } /* same photo → reuse result */
   if (!liveLeft()) { fail('Live analysis limit reached for today.'); return; }
+  /* AI CONSENT (0243, Guideline 5.1.2(i), athlete report R2). The demo photo is the first thing of
+     theirs that would reach the AI, and it happens before any account exists, so the question is
+     asked here, before the photo leaves the phone. The answer is kept on the device and written to
+     the account once it exists. Not now sends nothing and offers the sample meal. Tapping Analyze
+     is an explicit ask, so an earlier Not now is asked again rather than silently refused. */
   DEMO.busy = true;
+  const consented = await ensureAiConsent(RT.userId || null, { role: 'athlete', ask: true });
+  if (!consented) {
+    DEMO.busy = false;
+    fail('Nothing was sent. The sample meal shows the same experience without your photo.', 'No AI read, as you asked');
+    return;
+  }
   try {
     const body = {
       mode: 'meal', mealType: 'Meal', phase: 'analyze',
       goal: (RT.ob && RT.ob.goal) || null,
       photoBase64: DEMO.photoBase64,
       athleteNote: 'Onboarding trial analysis.',
+      // The answer from the sheet above. The server requires it on an anonymous call (0243).
+      aiConsent: true,
     };
     spendLive();
     let { data, error } = await window.sb.functions.invoke('analyze-meal', { body });
