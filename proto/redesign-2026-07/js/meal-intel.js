@@ -886,21 +886,37 @@ export function mealPatterns(recentMeals, { slot, mealProteinBar } = {}) {
 /** The one shared evaluation: every observable component judged met/partial/miss.
  *  Same thresholds qualityReason speaks to (protein share ≥25% of energy, fat ≤40%,
  *  the produce-guarded fiber rule) — null components when there's nothing to judge. */
+/* A macro the read never returned is UNKNOWN, not zero (review pass 2026-09-23, A-B4). `Number(null)`
+   is 0, so `Number(m.fat) || 0` turned an unread fat into a measured 0g: 0% of energy was judged
+   'met' ("Fat in range", 20 points), carbs likewise (15), and protein's share of a protein-only
+   total was 100% (35). The meal screen printed "Fat in range" directly above a dash captioned "It is
+   not a zero". Now an unknown macro is null all the way through: it earns no state, no points and
+   no chip, and the score is re-weighted over what WAS judged. */
+const knownNum = (v) => v != null && v !== '' && isFinite(Number(v));
+
 function componentStates({ minutesLate, macros, fiber, detected } = {}) {
   const m = macros || {};
-  const p = Math.max(0, Number(m.protein) || 0);
-  const c = Math.max(0, Number(m.carbs) || 0);
-  const f = Math.max(0, Number(m.fat) || 0);
-  const total = p * 4 + c * 4 + f * 9;
+  const pK = knownNum(m.protein), cK = knownNum(m.carbs), fK = knownNum(m.fat);
+  const p = pK ? Math.max(0, Number(m.protein)) : null;
+  const c = cK ? Math.max(0, Number(m.carbs)) : null;
+  const f = fK ? Math.max(0, Number(m.fat)) : null;
+  // The energy a share is taken of. With all three macros read, their own sum. With one missing,
+  // only an independently read calorie figure will do, and only when it is larger than the energy
+  // of the macros that WERE read: a kcal derived as 4p + 4c + 9f with the missing ones as zero
+  // equals that energy exactly and would hand protein its 100% share back.
+  const knownEnergy = (p || 0) * 4 + (c || 0) * 4 + (f || 0) * 9;
+  const kcalRaw = m.kcal != null ? m.kcal : m.calories;
+  const kcal = knownNum(kcalRaw) ? Number(kcalRaw) : 0;
+  const total = (pK && cK && fK) ? knownEnergy : (kcal > knownEnergy + 1 ? kcal : 0);
   const late = typeof minutesLate === 'number' && minutesLate > 0;
   const fib = Math.max(0, Number(fiber) || 0);
   const produce = hasVisibleProduce(detected);
   return {
     p, c, f, total, late, fib, produce,
     timing: late ? (minutesLate > 60 ? 'miss' : 'partial') : 'met',
-    protein: total > 0 ? ((p * 4) / total >= 0.25 ? 'met' : (p * 4) / total >= 0.2 ? 'partial' : 'miss') : null,
-    carbs: total > 0 ? ((c * 4) / total <= 0.6 ? 'met' : 'partial') : null,
-    fat: total > 0 ? ((f * 9) / total <= 0.4 ? 'met' : (f * 9) / total <= 0.45 ? 'partial' : 'miss') : null,
+    protein: pK && total > 0 ? ((p * 4) / total >= 0.25 ? 'met' : (p * 4) / total >= 0.2 ? 'partial' : 'miss') : null,
+    carbs: cK && total > 0 ? ((c * 4) / total <= 0.6 ? 'met' : 'partial') : null,
+    fat: fK && total > 0 ? ((f * 9) / total <= 0.4 ? 'met' : (f * 9) / total <= 0.45 ? 'partial' : 'miss') : null,
     fiberState: fib >= 6 || (produce && fib >= 3) ? 'met' : produce ? 'partial' : fib >= 3 ? 'partial' : 'miss',
   };
 }
@@ -924,10 +940,20 @@ const QUALITY_POINTS = {
 export function mealQualityScore({ macros, fiber, detected, minutesLate } = {}) {
   const s = componentStates({ minutesLate, macros, fiber, detected });
   if (!(s.total > 0)) return null;
+  // No macro judged at all is no honest score, same as no macros.
+  if (s.protein == null && s.carbs == null && s.fat == null) return null;
   const pts = QUALITY_POINTS;
-  const score = pts.protein[s.protein] + pts.carbs[s.carbs] + pts.fat[s.fat]
-    + pts.fiber[s.fiberState] + pts.timing[s.timing];
-  return Math.max(0, Math.min(100, Math.round(score)));
+  // Re-weighted over the components that were judged: an unknown macro is left out of both the
+  // points and the maximum, never scored as a measured zero. With all five judged the maximum is
+  // 100 and this is byte-identical to the plain sum.
+  let got = 0, max = 0;
+  for (const [k, st] of [['protein', s.protein], ['carbs', s.carbs], ['fat', s.fat], ['fiber', s.fiberState], ['timing', s.timing]]) {
+    if (st == null) continue;
+    got += pts[k][st];
+    max += pts[k].met;
+  }
+  if (!max) return null;
+  return Math.max(0, Math.min(100, Math.round((got / max) * 100)));
 }
 
 /** The score, immediately explainable (founder 2026-08-04): the top 2–3 reasons the meal
@@ -993,7 +1019,7 @@ export function coachFocus({ macros, fiber, detected, minutesLate, nextMealName,
   // with the produce-guarded fiber rule (never scold "no fiber" against a visible salad).
   const costs = [
     ['protein', s.protein], ['fat', s.fat], ['fiber', s.fiberState], ['carbs', s.carbs], ['timing', s.timing],
-  ].map(([k, st]) => ({
+  ].filter(([, st]) => st != null).map(([k, st]) => ({
     k, st,
     lost: QUALITY_POINTS[k].met - (QUALITY_POINTS[k][st] != null ? QUALITY_POINTS[k][st] : QUALITY_POINTS[k].met),
   }))
@@ -1038,19 +1064,20 @@ export function scoreRubric({ quality, minutesLate, macros, fiber, detected, sou
     note: late ? `${Math.round(minutesLate)} min past the window` : 'Inside the window',
   });
 
-  // Protein alignment — estimated for photo reads.
+  // Protein alignment — estimated for photo reads. A macro the read never returned gets no row:
+  // it was not judged, and a row would print its missing number as "nullg" or imply a zero.
   if (total > 0) {
-    rows.push({
+    if (s.protein != null) rows.push({
       k: 'Protein alignment', exact: !est,
       state: s.protein,
       note: `${est ? `~${estRange(p, conf).text}` : p}g${est ? ' (estimated)' : ''}`,
     });
-    rows.push({
+    if (s.carbs != null) rows.push({
       k: 'Carbohydrate balance', exact: !est,
       state: s.carbs,
       note: `${est ? `~${c}` : c}g${est ? ' (estimated)' : ''}`,
     });
-    rows.push({
+    if (s.fat != null) rows.push({
       k: 'Fat within range', exact: !est,
       state: s.fat,
       note: `${est ? `~${f}` : f}g${est ? ' (estimated)' : ''}`,

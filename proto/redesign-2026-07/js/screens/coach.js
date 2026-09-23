@@ -3257,6 +3257,7 @@ export const coachMeal = {
     const read = M ? mealReadHtml(M, {
       exec: null, past: true, viewer: 'coach', targets: athleteTargets,
       planStyle: { showMacros: true, showCalories: true, key: 'structured' },
+      athleteName: ((CD.roster && CD.roster.rows.find(x => x.athleteId === meal.athlete_id)) || {}).name || '',
     }) : { photoBlock: '', breakdown: '' };
     const mlateTop = meal && typeof meal.minutes_late === 'number' ? meal.minutes_late : null;
     const execTop = meal ? `

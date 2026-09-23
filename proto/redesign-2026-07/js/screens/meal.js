@@ -952,7 +952,7 @@ function correctionRow(slot) {
   </div>`;
 }
 
-export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete', targets = null, planStyle = null, dayTotals = null } = {}) {
+export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete', targets = null, planStyle = null, dayTotals = null, athleteName = '' } = {}) {
   // `viewer`: 'athlete' (the default, second person) or 'coach' (the professional reading an
   // athlete's plate: full figures, the athlete named in the third person, no self-service links).
   // `targets` / `planStyle` override the signed-in user's own (S.planTargets / PS) so a
@@ -963,6 +963,9 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
   // day context at all (the coach opening one row from the inbox) passes nothing and gets no
   // day bars, because the alternative is a day figure that is not the day's.
   const you = viewer !== 'coach';
+  // The athlete's first name for the coach's third-person lines (review pass C-M8): "Good balance
+  // for Marcus's goals", never "your goals" on a screen the athlete is not reading.
+  const whose = you ? 'your' : (athleteName ? `${String(athleteName).split(' ')[0]}'s` : 'their');
   const PS = planStyle || S.planStyle || {};
     // ---- 2. PHOTO + MEAL QUALITY (feedback 2026-07-16: quality is a separate concept from
     // compliance — banded color, its own label, and a one-line WHY so 58 never reads as green
@@ -1093,7 +1096,7 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
       if (/^Protein/.test(l)) return perMeal && PS.showMacros ? `Try to get about ${perMeal}g next time` : 'Lead the next plate with protein';
       if (/^Carbs balanced/.test(l)) return 'Good fuel for the work';
       if (/^Carb-heavy/.test(l)) return 'Trade some for protein next time';
-      if (/^Fat in range/.test(l)) return 'Good balance for your goals';
+      if (/^Fat in range/.test(l)) return `Good balance for ${whose} goals`;
       if (/^Fat/.test(l)) return 'Go lighter on oils and cheese';
       if (/^Good fiber/.test(l)) return 'Produce is showing';
       if (/^Fiber light/.test(l)) return 'Add fruit, veggies or higher fiber carbs';
