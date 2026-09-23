@@ -2769,8 +2769,9 @@ export const act = {
       const context = contextForChat({
         meal: {
           name: m.name || cap(slot), slot,
-          protein: m.protein || 0, carbs: m.carbs || 0, fat: m.fat || 0, kcal: m.kcal || 0,
-          fiber: m.fiber || 0, quality: m.quality != null ? m.quality : null,
+          // An unmeasured carbs/fat/fiber goes to the AI as null (unknown), never as a measured 0.
+          protein: m.protein || 0, carbs: m.carbs ?? null, fat: m.fat ?? null, kcal: m.kcal || 0,
+          fiber: m.fiber ?? null, quality: m.quality != null ? m.quality : null,
           foods: (m.detectedRich || []).map((d) => d && d.name).filter(Boolean).slice(0, 8),
           // What the athlete actually told us, and what it used to say.
           correction: r.summary || null,

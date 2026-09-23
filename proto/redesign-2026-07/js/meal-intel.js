@@ -1798,7 +1798,7 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
       }
     }
     summary = `Corrected: ${rule.note}${deltas.length ? `; ${deltas.join(', ')} (estimated)` : rule.certainty ? '; estimate confirmed' : ''}`
-      + (unmeasured.length ? `; ${unmeasured.join(' and ')} was not measured, so it stays unknown` : '');
+      + (unmeasured.length ? `; ${unmeasured.join(' and ')} ${unmeasured.length > 1 ? 'were' : 'was'} not measured, so ${unmeasured.length > 1 ? 'they stay' : 'it stays'} unknown` : '');
     log.push({ kind, value });
   }
   next.corrections = log.slice(0, 8);
