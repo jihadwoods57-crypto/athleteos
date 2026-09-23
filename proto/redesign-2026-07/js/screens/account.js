@@ -30,7 +30,8 @@ export const account = {
   render() {
     const email = RT.email || '';
     return `
-    ${backHead('Account', email || 'Signed in', roleProfileRoute())}
+    ${/* The email once, in the Signed in as row below; the header repeated it (C-P6). */''}
+    ${backHead('Account', 'Sign-in, password and email', roleProfileRoute())}
 
     <section class="card rows ac-tasks">
       <div class="lrow ac-static">

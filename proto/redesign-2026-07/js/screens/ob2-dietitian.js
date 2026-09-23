@@ -325,7 +325,7 @@ const steps = [
       return `
       ${mirrorCard('users', `<b>${esc(band ? band.t : 'Your roster')}</b> athletes: the queue triages every plate so your read time stays flat as the roster grows.`)}
       ${mirrorCard('flame', `You said fueling slips at <b>${esc(slip)}</b>: those plates get flagged first, not found later.`)}
-      ${mirrorCard('clipboard', `Your team standard sets what a fueled day means. Athletes prove it with photos, and the score never lies.`)}`;
+      ${mirrorCard('clipboard', `Your team standard sets what a fueled day means. Athletes prove it with photos, and the score shows the work behind every number.`)}`;
     },
   },
   {

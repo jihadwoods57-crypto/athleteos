@@ -3,7 +3,7 @@ import { icon } from '../icons.js';
 import { backHead, esc, errorState, skeletonRows, emptyState } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, entriesFor, getScope, scopeFilter } from '../coach-data.js';
-import { teamCounts, COUNT_BUCKETS } from '../status.js';
+import { teamCounts, COUNT_BUCKETS } from '../team-count.js';
 
 /* nav:'operator'. Load whichever book the signed-in role owns (see coach-home.js). */
 const loadMyBook = (force) => loadBook(force, bookKindFor(RT.authRole));
@@ -156,7 +156,8 @@ function weekSection() {
   const reqsByAthlete = buildReqsByAthlete(scopedRoster, CD.extras);
   const brief = weeklyBrief({ rollup, roster: scopedRoster, todayISO: today, reqsByAthlete });
   const watch = athletesToWatch({ rollup, roster: scopedRoster, todayISO: today });
-  const missed = mostMissed({ rollup, reqsByAthlete, todayISO: today }).slice(0, 3);
+  const nowD = new Date();
+  const missed = mostMissed({ rollup, reqsByAthlete, todayISO: today, nowMin: nowD.getHours() * 60 + nowD.getMinutes() }).slice(0, 3);
   const vsMonth = weekVsMonth({ rollup, todayISO: today });
   const scopedOutcomes = (data.outcomes || []).filter(o => o && scopedIds.has(o.athlete_id));
   const outcomes = interventionOutcomes({ outcomes: scopedOutcomes, roster: scopedRoster, todayISO: today });

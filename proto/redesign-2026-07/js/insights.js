@@ -197,7 +197,7 @@ export function athletesToWatch({ rollup = [], roster = [], todayISO }) {
       const s = round1(slope);
       decliners.push({
         athleteId, name: nameOf(athleteId), slope: s,
-        text: `${nameOf(athleteId)}'s score is trending down this week, about ${Math.abs(s)} points/day.`,
+        text: `${nameOf(athleteId)}'s score is trending down this week, about ${Math.abs(s)} ${Math.abs(s) === 1 ? 'point' : 'points'} a day.`,
       });
     }
   }
@@ -276,7 +276,11 @@ function protoTasksAware(row) {
     && row.tasks_done.some((id) => id != null && !/^\d+$/.test(String(id)));
 }
 
-export function mostMissed({ rollup = [], reqsByAthlete = {}, todayISO }) {
+/* `nowMin` (minutes since midnight, the coach's clock) stops TODAY's count at what is actually due
+   (review pass C-M5): a lunch due at 2:00 PM is not missed at 10 AM, and "Breakfast was missed 40
+   times this week" on a 6-athlete team was counting not-yet-due meals and rows that never carried
+   the meals column. Omitted, today is judged whole (the old behaviour, kept for pure callers). */
+export function mostMissed({ rollup = [], reqsByAthlete = {}, todayISO, nowMin = null }) {
   const { thisFrom, thisTo } = weekWindows(todayISO);
   const rows = rollup.filter(r => r && r.athlete_id && inWindow(r.day, thisFrom, thisTo));
 
@@ -292,7 +296,10 @@ export function mostMissed({ rollup = [], reqsByAthlete = {}, todayISO }) {
     const reqs = reqsByAthlete[row.athlete_id] || [];
     const mealReqs = reqs.filter(r => r && r.kind === 'meal');
     const dow = dowOf(row.day);
-    const loggedMeals = Number(row.meals_logged) || 0;
+    // null is not zero: a row without the meals column cannot prove a meal was skipped.
+    const mealsKnown = row.meals_logged != null && isFinite(Number(row.meals_logged));
+    const loggedMeals = mealsKnown ? Number(row.meals_logged) : 0;
+    const isToday = row.day === todayISO;
     for (const req of reqs) {
       if (!req || !req.required) continue;
       const isMeal = req.kind === 'meal';
@@ -301,6 +308,9 @@ export function mostMissed({ rollup = [], reqsByAthlete = {}, todayISO }) {
       const isRecovery = req.id === 'recovery' || req.kind === 'recovery';
       if (!isMeal && !isWeigh && !isRecovery) continue; // lift/custom skipped
       if (!runsOnLocal(req.freq, dow)) continue;
+      if (isMeal && !mealsKnown) continue;
+      const due = req.window && typeof req.window.due === 'number' ? req.window.due : null;
+      if (isToday && nowMin != null && (due == null || nowMin <= due)) continue; // not owed yet
       let done;
       if (isMeal) done = loggedMeals > mealReqs.indexOf(req);
       else if (isWeigh) done = row.weight_logged === true;

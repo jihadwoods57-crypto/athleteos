@@ -142,9 +142,7 @@ function styleBandRow() {
   <div class="pg-note">Each style measures your day differently. Compare within a band, not across.</div>`;
 }
 
-/* The empty "What's moving" line, branched on the real number of scored days (review pass A-M8).
-   It used to say "after your fourth scored day" to a 35-day athlete whenever the category detail
-   was missing, whatever the history length. */
+/* The empty trends line, from the real number of scored days (A-M8). */
 function trendsEmptyLine() {
   const scored = (DAY.scoreHistory || []).filter((r) => r && r.score != null).length;
   if (scored >= 3) return 'Your daily scores are in, but the Nutrition and Recovery detail behind them has not synced to this phone, so the trend by category is not shown.';

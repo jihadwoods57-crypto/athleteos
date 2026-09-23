@@ -124,6 +124,7 @@ export const settings = {
   get nav() { return roleNav(); },
   render() {
     const athlete = RT.authRole === 'athlete';
+    const operator = RT.authRole === 'coach' || RT.authRole === 'trainer';
     const theme = RT.theme || 'dark';
     return `
     ${backHead('App settings', '', roleProfileRoute())}
@@ -134,14 +135,15 @@ export const settings = {
     </div>
 
     ${/* Face ID renders into this same card when the phone supports it (mount), so the group is
-          one card whether it holds one row or two. Operators reach their own notification
-          screen from their own profile, so the Notifications row here is the athlete's. */''}
+          one card whether it holds one row or two. */''}
     <h2 class="eyebrow">General</h2>
     <section class="card rows" id="set-general">
-      ${athlete ? `
-      <div class="lrow" data-go="notif-settings">
+      ${/* Operators get the row too (review pass C-Polish 13): "Settings" and "Preferences" split
+            one idea, and a coach looking for notifications here found appearance and Face ID only.
+            It opens their own operator screen, the same one Profile > Preferences opens. */''}
+      ${athlete || operator ? `<div class="lrow" data-go="${athlete ? 'notif-settings' : 'coach-notif-settings'}">
         <div class="lic">${icon('bell', 17)}</div>
-        <div class="lm"><div class="lt">Notifications</div><div class="ls">Tone, quiet hours, haptics</div></div>
+        <div class="lm"><div class="lt">Notifications</div><div class="ls">${athlete ? 'Tone, quiet hours, haptics' : 'Briefings, alerts, quiet hours'}</div></div>
         ${icon('chevron', 17, 'class="chev-dim"')}
       </div>` : ''}
       <div class="lrow" id="set-bio" role="switch" tabindex="0" aria-checked="false" aria-label="Unlock with Face ID" aria-describedby="set-bio-sub" hidden>

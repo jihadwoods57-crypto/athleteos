@@ -633,14 +633,15 @@ export function weekDays(rows, todayIso, nowMs = Date.now()) {
 function dayName(x) { return `${DAYS_LONG[x.dow]}, ${MONTHS_SHORT[x.month]} ${x.day}`; }
 
 /** The strip: 7 cells. A future morning is a button (move, cancel, undo); moved ones wear the
- *  selection blue, cancelled ones read Off with a dashed edge, days the rule skips read Off. */
+ *  word "Moved" under the time, cancelled ones read "Cancelled" with a dashed edge, days the rule
+ *  skips read Off. */
 export function weekStrip(rows, todayIso, nowMs = Date.now()) {
   const days = weekDays(rows, todayIso, nowMs);
   return `<ul class="rw-strip" aria-label="This week">${days.map((x) => {
     const cls = [x.today && 'today', x.moved && 'moved', x.skipped && 'skipped', (!x.row || x.skipped) && 'off', x.started && 'past'].filter(Boolean).join(' ');
-    const t = !x.row || x.skipped ? 'Off' : x.min != null ? compact(x.min) : '';
+    const t = x.skipped ? 'Cancelled' : !x.row ? 'Off' : x.min != null ? compact(x.min) : '';
     const said = `${dayName(x)}, ${!x.row ? 'no roll call' : x.skipped ? 'cancelled' : `${fmtMin(x.min)}${x.moved ? ', moved' : ''}${x.started ? ', already started' : ''}`}`;
-    const inner = `<span class="rw-d" aria-hidden="true">${x.today ? 'Today' : DAYS_SHORT[x.dow]}</span><span class="rw-n" aria-hidden="true">${x.day}</span><span class="rw-t" aria-hidden="true">${esc(t)}</span>`;
+    const inner = `<span class="rw-d" aria-hidden="true">${x.today ? 'Today' : DAYS_SHORT[x.dow]}</span><span class="rw-n" aria-hidden="true">${x.day}</span><span class="rw-t" aria-hidden="true">${esc(t)}</span>${x.moved ? '<span class="rw-m" aria-hidden="true">Moved</span>' : ''}`;
     const id = x.row && x.row.instance_id;
     const tappable = !!id && !x.started;
     return `<li class="rw-day${cls ? ` ${cls}` : ''}">${tappable
@@ -774,7 +775,7 @@ function openDaySheet(root, commitmentId, instanceId, opener, rerender) {
       <div class="sh-sub">${esc(state)}</div>
       ${x.skipped ? '' : `<div class="rw-move">
         <label class="wk-l" for="rw-time">Move this morning</label>
-        <div class="rw-move-row"><input class="ob-input wk-time" id="rw-time" type="time" value="${hhmm(x.min != null ? x.min : rule)}" /><button type="button" class="btn primary" id="rw-move">Move it</button></div>
+        <div class="rw-move-row"><input class="ob-input wk-time" id="rw-time" type="time" value="${hhmm(x.min != null ? x.min : rule)}" /><button type="button" class="btn primary" id="rw-move" disabled>Move it</button></div>
       </div>
       <button type="button" class="btn ghost danger rw-cancel" id="rw-cancel">Cancel this morning</button>`}
       ${x.skipped || x.moved ? `<button type="button" class="btn ghost rw-undo" id="rw-undo">${x.skipped ? 'Undo · put it back' : `Undo · back to ${esc(fmtMin(rule))}`}</button>` : ''}
@@ -812,6 +813,12 @@ function openDaySheet(root, commitmentId, instanceId, opener, rerender) {
     if (note && told && told.reason === 'failed') sayStatus(note, 'Saved. The heads-up to athletes didn’t send; their alarms still follow the change.', { error: true });
   };
   const move = sheet.querySelector('#rw-move');
+  // Live only once the time actually differs (review pass C-Polish 2): "Move it" on an unchanged
+  // time was a button that did nothing but close the sheet.
+  const timeIn = sheet.querySelector('#rw-time');
+  const current = x.min != null ? x.min : rule;
+  const syncMove = () => { if (move) move.disabled = minOf((timeIn || {}).value) === current; };
+  if (timeIn) { timeIn.addEventListener('input', syncMove); timeIn.addEventListener('change', syncMove); }
   if (move) move.addEventListener('click', () => {
     const m = minOf((sheet.querySelector('#rw-time') || {}).value);
     const no = moveProblem(x, m, tz);

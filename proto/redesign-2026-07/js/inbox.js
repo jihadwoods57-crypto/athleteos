@@ -113,16 +113,14 @@ export function inboxAlerts(entries, nowMs) {
       title: `${count} athlete${count === 1 ? '' : 's'} ${count === 1 ? "hasn't" : "haven't"} logged ${title}`,
       sub: 'Overdue requirement',
       ts: nowMs,
-      // The time it went overdue, not the time the inbox was opened: a lunch due at 2:00 PM read
-      // "now" at 8:10 PM (review pass C-M9). The earliest deadline across the group.
+      // When it went overdue (earliest in the group), never "now" (C-M9).
       whenLabel: dueMin != null ? `since ${clockOf(dueMin)}` : '',
     });
   }
   return out;
 }
 
-/** minutes-from-midnight → "2:00 PM". A local copy of state.js fmtClock: this module stays
- *  import-free. */
+/** "2:00 PM"; a copy of fmtClock, this module stays import-free. */
 function clockOf(min) {
   let h = Math.floor(min / 60) % 12; if (h === 0) h = 12;
   const ap = Math.floor(min / 60) % 24 < 12 ? 'AM' : 'PM';

@@ -705,18 +705,15 @@ const row = (i, hidePill) => `<div class="xrow-item ${i.color === 'green' ? 'gre
    (both links confirmed empty). That is the moment an athlete's coach churned, they graduated,
    or they were removed — the highest-intent consumer conversion moment the product has, and
    until now nothing marked it. Once dismissed it never returns; an athlete who rejoins a roster
-   simply stops matching. Honest by construction: the free record really does stay theirs — the
-   card sells CONTINUING (the Individual plan's portable record + written coaching), not ransom.
-   It named Individual Plus until that plan was retired on 2026-09-21; the portable record was
-   never Plus-only, because has_premium_access() never read tier. */
+   simply stops matching. The record is free and stays, so the card sells nothing (2026-09-23). */
 function keepRecordCard() {
   if (!RT.hadRoster || RT.keepRecordSeen) return '';
   if ((RT.myCoach && RT.myCoach.teamId) || (RT.myTrainer && RT.myTrainer.practiceId)) return '';
   return `<div class="lrow" id="keep-record" style="margin:12px 0 10px;background:linear-gradient(100deg, rgba(var(--green-rgb),0.10), rgba(var(--blue-rgb),0.05));border:1px solid var(--green-border);border-radius:var(--r-card-sm);padding:12px 13px;cursor:pointer">
     <div class="xico sm green">${icon('shield', 16)}</div>
     <div class="xr"><div class="xa">Your record stays yours</div>
-    <div class="xb" style="white-space:normal;line-height:1.45">Your roster ended. Every day you proved is still here. See the Individual plan to keep it going.</div></div>
-    <span class="status-pill g">See plans</span>
+    <div class="xb" style="white-space:normal;line-height:1.45">Your roster ended. Every day you proved is still here, free, and it stays yours. Keep logging and it keeps growing.</div></div>
+    <span class="status-pill g">See your record</span>
   </div>`;
 }
 
@@ -1086,11 +1083,8 @@ export default {
     // (and their coach sees it), but nothing is graded, overdue, or Off-Standard, and cumulative
     // goals defer to tomorrow. Pre-activation windows already resolve to "Not required" in exec.js.
     if (S.notYetScored) {
-      // A window that closed AFTER the athlete joined but before they opened the app is not late on
-      // day one: nothing is graded today (review pass A-B2). It used to lead the NOW card ("Start
-      // here: Breakfast, 40g+ before 9:30 AM" at 3:20 PM) and sit under "Later today" with an amber
-      // Late pill, beside a fairness note promising nothing was overdue. It is not an action and not
-      // upcoming, so it joins "Not counted today" as a neutral row.
+      // A window closed after joining is not late on day one (A-B2): never the NOW card or
+      // "Later today"; it sits under "Not counted today".
       const pastWindow = (i) => !!i && i.required && i.state === 'overdue';
       const ahead = [...(e.now ? [e.now] : []), ...(e.next ? [e.next] : []), ...e.later]
         .filter((i) => i.state !== 'not_required' && !pastWindow(i));
@@ -1243,12 +1237,11 @@ export default {
     reveal(root, { key: `day:${DAY.date}:${S.exec.score}`, haptic: null });
     // The score hero answers a press with depth (tilt.js) — the one surface that earns it.
     pressTilt(root.querySelector('.xhero'));
-    // Keep-your-record: tapping goes to the plans (Individual carries the portable record);
-    // either way it is marked seen — a conversion card that nags is a churn card.
+    // Keep-your-record opens the record and marks the card seen. No plan pointer, no price.
     const keep = root.querySelector('#keep-record');
     if (keep) keep.addEventListener('click', () => {
       act.markKeepRecordSeen();
-      if (window.__go) window.__go('paywall'); else location.hash = '#paywall';
+      if (window.__go) window.__go('history'); else location.hash = '#history';
     });
     // Yesterday's answer. The app tells an athlete "Day N locks at midnight" the night before and
     // never followed up; this closes that loop, once, on the next open. Guarded on a persisted

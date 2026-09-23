@@ -274,8 +274,7 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
       id: 'recovery', key: 'Recovery', accent: 'p', weightPct: recPossible,
       earned: recEarned, possible: recPossible,
       note: day.ciSubmitted
-        // Recovery pays for ANSWERING, never for how high the answers are (day.js recoveryParts:
-        // answered / enabled). "Recovery quality 100%" read like a grade on the answers (A-M5).
+        // Recovery pays for answering, not for the answers (day.js recoveryParts; A-M5).
         ? `Check-in submitted · ${c.recovery >= 100 ? 'every question answered' : `${c.recovery}% of the questions answered`}`
         : 'Not checked in yet. Tonight’s check-in is the only way to earn this',
       remaining: day.ciSubmitted ? 0 : recPossible,

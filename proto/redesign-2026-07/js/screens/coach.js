@@ -31,7 +31,8 @@ import { openImageViewer } from '../image-viewer.js';
 import { overlayOpen } from '../overlay-guard.js';
 import { wireTapback } from '../tapback.js';
 import { CD, loadBook, bookKindFor, bookId as currentBookId, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock, logBookIntervention, resolvePos, seenMealSet } from '../coach-data.js';
-import { STATUS_META, statusColor, statusLabel, teamCounts } from '../status.js';
+import { STATUS_META, statusColor, statusLabel } from '../status.js';
+import { teamCounts } from '../team-count.js';
 import { openRosterFiltered } from './coach-roster.js';
 import { everyone, people, audienceIds, audienceLabel, planSends, namesSummary, audienceHtml, wireAudience } from '../audience.js';
 import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin, planStyleFromItems } from '../requirements.js';
@@ -130,6 +131,13 @@ export const coachAssign = {
     // feature too.
     if (practice && (ASSIGN.aud.kind === 'position' || ASSIGN.aud.kind === 'group')) ASSIGN.aud = everyone();
     const head = backHead('Assign', practice ? 'Put something on a client’s plate' : 'Put something on someone’s plate', practice ? 'trainer' : 'coach-home');
+    // Loaded and empty is not loading (review pass C-B8): "Roster loading…" sat here forever on a
+    // book with nobody in it, over a preview promising "0 lists, with a push each".
+    if (CD.roster && !CD.roster.offline && !rows.length) {
+      return `${head}${emptyState({ icon: 'users', title: practice ? 'No clients yet' : 'No athletes yet',
+        body: `Assignments go to the ${CD.nouns} on your ${practice ? 'book' : 'roster'}. Share your code and this opens up as they join.`,
+        action: { label: practice ? 'Share client code' : 'Share athlete code', go: practice ? 'trainer-profile' : 'coach-profile/code' } })}`;
+    }
 
     if (ASSIGN.done) {
       const d = ASSIGN.done;
@@ -156,7 +164,7 @@ export const coachAssign = {
 
     <h2 class="eyebrow">Who</h2>
     ${audienceHtml(ASSIGN.aud, { rows, groups, practice, nouns: CD.nouns })}
-    ${rows.length ? '' : `<div class="ts mt">${practice ? 'Clients loading… everyone works right away.' : 'Roster loading… team-wide works right away.'}</div>`}
+    ${CD.roster === null ? `<div class="ts mt">${practice ? 'Clients loading… everyone works right away.' : 'Roster loading… team-wide works right away.'}</div>` : ''}
 
     <h2 class="eyebrow" id="as-title-l">What</h2>
     <input id="as-title" class="ob-input" aria-labelledby="as-title-l" maxlength="80" placeholder="What are they doing?" value="${esc(ASSIGN.title || '')}" />
@@ -1650,7 +1658,10 @@ const inboxCategories = () => {
   const cats = ALL_INBOX_CATEGORIES.filter(([key]) =>
     (key !== 'staff' || CD.caps.staffRoles) && (key !== 'announcements' || CD.caps.announcements));
   // On the nutrition lens Meal reviews leads the rail: it is the queue that operator works.
-  if (!isNutritionBook()) return cats;
+  // Elsewhere it is named for what it holds (review pass C-P4, verified): every meal thread vs the
+  // plates nobody on staff has opened yet. Two different sets that read as one tab twice ("Meal
+  // threads 12 / Meal reviews 12") whenever nothing had been opened.
+  if (!isNutritionBook()) return cats.map(([k, l]) => (k === 'mealReviews' ? [k, 'Not opened'] : [k, l]));
   return [...cats.filter(([k]) => k === 'mealReviews'), ...cats.filter(([k]) => k !== 'mealReviews')];
 };
 let INBOX_CAT = 'needsResponse';
@@ -2363,7 +2374,10 @@ function overviewSection(P, athleteId) {
   const st = P.status;
   const crit = st && (st.key === 'overdue' || st.key === 'no_activity');
   const last = lastActivityLabel(P.row && P.row.lastMealAt);
-  const subtitle = (st && st.detail) || last || 'On track';
+  // An on-standard day's detail ("On standard today") restated the label right above it, and the
+  // action bar said it a third time (review pass C-P1). The label says it once; the line under it
+  // carries the last activity instead.
+  const subtitle = (st && st.key !== 'on_standard' && st.detail) || last || '';
   const alerts = (P.exceptions || []).map(e => e.reason ? `Excused · ${e.reason}` : 'Excused');
   // ONE score artifact. The ring is the most legible thing the athlete's own Home has, and it
   // was the one thing this page dropped — while printing the same number three times (stat
@@ -2372,13 +2386,14 @@ function overviewSection(P, athleteId) {
   // Dot and words from the one status vocabulary (statusColor / statusLabel): a below-standard 71
   // reads "Building" in its tier's amber, the same name the roster band and their own badge use.
   const stLabel = st ? statusLabel(st, score) : '';
+  const lastLine = last && subtitle !== last ? last : '';
   return `
   <section class="card co-hero">
     ${score != null ? `<div class="co-hero-ring">${scoreRing({ score, size: 96, stroke: 9, showCenter: false, centerNum: true, uid: 'coathlete' })}</div>` : ''}
     <div style="min-width:0;flex:1">
       <div class="co-status co-hero-st ${crit ? 'crit' : ''}"><span class="dot" style="background:${st ? statusColor(st, score) : 'var(--text-3)'}"></span><span class="lbl">${stLabel ? esc(stLabel) : '—'}</span></div>
-      <div class="co-hero-sub">${esc(subtitle)}</div>
-      ${last && st && st.detail ? `<div class="co-hero-last">${esc(last)}</div>` : ''}
+      ${subtitle ? `<div class="co-hero-sub">${esc(subtitle)}</div>` : ''}
+      ${lastLine ? `<div class="co-hero-last">${esc(lastLine)}</div>` : ''}
     </div>
   </section>
 
@@ -2760,12 +2775,15 @@ export const coachAthlete = {
        "coach view" under an athlete's name told the one professional this board was built for
        that they were looking at somebody else's screen. isNutritionBook() covers all three doors
        (nutrition practice, dietitian-owned team, invited team nutritionist). */
-    const opView = isNutritionBook() ? 'dietitian view' : CD.kind === 'practice' ? 'trainer view' : 'coach view';
+    // "coach view" / "trainer view" under an athlete's name was a word the coach had to learn
+    // (review pass C-Polish 5): the operator knows whose screen they are on. Only the dietitian's
+    // lens keeps its name, because a nutrition board reads differently on purpose.
+    const opView = isNutritionBook() ? 'dietitian view' : '';
     const opBack = CD.kind === 'practice' ? 'trainer-roster' : 'coach-roster';
     if (!athleteId) return `${backHead(CD.kind === 'practice' ? 'Client' : 'Athlete', opView, opBack)}<div class="state-demo"><div class="sd-t">No ${CD.kind === 'practice' ? 'client' : 'athlete'} selected</div></div>`;
     const P = CD.profile;
     if (!P || P.athleteId !== athleteId) {
-      return `${backHead(who.name, (who.unit ? `${esc(who.unit)} · ` : '') + opView, opBack)}
+      return `${backHead(who.name, [who.unit ? esc(who.unit) : '', opView].filter(Boolean).join(' · '), opBack)}
       <div class="sidebox"><div class="req-icon b s38">${icon('user', 17)}</div>
       <div><div class="tt">Loading their profile…</div><div class="ts">Pulling today's real score and logged meals.</div></div></div>`;
     }
@@ -2779,7 +2797,7 @@ export const coachAthlete = {
     const head = `<div class="back-head ca-head">
       <div class="bk" data-back="${esc(opBack)}" role="button" aria-label="Back">${icon('back', 20)}</div>
       <div class="ca-av" data-avatar-uid="${esc(athleteId)}"><span data-avatar-fallback>${esc(initialsOf(name, 'A'))}</span></div>
-      <div class="bh-t"><h1 class="ht">${esc(name)}</h1><div class="hs">${position ? `${esc(position)} · ` : ''}${esc(opView)}</div></div>
+      <div class="bh-t"><h1 class="ht">${esc(name)}</h1><div class="hs">${esc([position, opView].filter(Boolean).join(' · '))}</div></div>
     </div>`;
     // An on-standard athlete has nothing to nudge — the always-available detail nudge used to be
     // the one path where "Time to get your log in." could land on someone who logged everything.
@@ -2821,7 +2839,7 @@ export const coachAthlete = {
           the DOM (and trips the one-overlay guard) until the coach asks for it. */''}
     <div class="co-actionbar">
       ${onStd
-        ? `<button class="co-act" disabled aria-label="They're on standard today. Nothing to nudge." title="They're on standard today. Nothing to nudge.">${icon('bell', 18)}<span class="lbl">On standard</span></button>`
+        ? `<button class="co-act" disabled aria-label="They're on standard today. Nothing to nudge." title="They're on standard today. Nothing to nudge.">${icon('bell', 18)}<span class="lbl">Nothing to nudge</span></button>`
         : nudgedTodayHere
           ? `<button class="co-act" disabled aria-label="Already nudged today. One a day keeps it meaningful." title="Already nudged today. One a day keeps it meaningful.">${icon('check', 18)}<span class="lbl">Nudged today</span></button>`
           : `<button class="co-act${P.pass ? '' : ' hero'}" data-anudge="${esc(athleteId)}">${icon('bell', 18)}<span class="lbl">Nudge</span></button>`}
@@ -2843,16 +2861,19 @@ export const coachAthlete = {
       </div>
     </template>
     ${NUDGE_ARM ? `
-    <div style="display:flex;gap:6px;align-items:center;margin:6px 0 2px">
-      <input id="anudge-body" class="ob-input" maxlength="120" value="${esc(NUDGE_ARM.body)}" aria-label="Nudge message" style="flex:1;height:36px;font-size:var(--t-sm)" />
-      <button class="btn ghost sm" data-anudge-cancel="1" style="width:auto;padding:0 12px;height:32px;flex:none">Cancel</button>
-      <button class="btn sm primary" data-anudge-send="${esc(athleteId)}" style="width:auto;padding:0 12px;height:32px;flex:none">Send</button>
-    </div>
-    <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:0 0 4px">This exact message goes to them, from "${esc(S.operatorIdentity.handle)} is waiting".</div>` : ''}
+    <div class="nx-edit">
+      <input id="anudge-body" class="ob-input nx-input" maxlength="120" value="${esc(NUDGE_ARM.body)}" aria-label="Nudge message" />
+      <div class="nx-acts">
+        <button class="btn ghost sm" data-anudge-cancel="1">Cancel</button>
+        <button class="btn sm primary" data-anudge-send="${esc(athleteId)}">Send</button>
+      </div>
+      <div class="nx-note">They'll get a push titled "${esc(S.operatorIdentity.handle)} is waiting" with this message.</div>
+    </div>` : ''}
     <div id="tp-status" style="text-align:center;font-size:var(--t-sm);font-weight:600;color:var(--text-3);min-height:0"></div>
     ${MANAGE.open && MANAGE.id === athleteId ? manageSheet(P, athleteId, position) : ''}
 
-    <div class="co-seg co-tabs co-tabs-fit" id="psec-row" role="radiogroup" aria-label="Profile section">
+    ${/* A scroll rail with the house fade and screen gutter (review pass C-Polish 10): "Notes" ended flush with the right edge at 390 and the row did not look scrollable. */''}
+    <div class="co-seg co-tabs co-tabs-fit co-scroll edge-fade" id="psec-row" role="radiogroup" aria-label="Profile section">
       ${profileSections().map(([key, label]) => `<button type="button" class="co-chip ${PSECTION === key ? 'on' : ''}" role="radio" aria-checked="${PSECTION === key ? 'true' : 'false'}" data-psec="${key}">${esc(label)}</button>`).join('')}
     </div>
 

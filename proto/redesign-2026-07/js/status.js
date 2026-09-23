@@ -30,83 +30,11 @@ export function statusColor(status, score) {
   return meta ? meta.color : 'var(--text-3)';
 }
 
-/** The words for a status: ONE word per state on every coach surface (2026-09-23 review pass).
- *  This used to narrow a below-standard day to its tier name ("Building"), so the same athlete
- *  read "Building" on the Roster, "Below standard" in Insights and "below the bar" in the Inbox.
- *  Tier names describe a SCORE (the tier chip beside a number); status words describe the
- *  athlete's DAY. `score` is still accepted so existing call sites need not change. */
+/** One word per state on every coach surface; tier names stay on score chips (DESIGN.md
+ *  2026-09-23 "one count, one word"). `_score` is kept for existing call sites. */
 export function statusLabel(status, _score) {
   const key = status && status.key;
   return STATUS_META[key] ? STATUS_META[key].label : '';
-}
-
-/* ---------------- The one team count ----------------
-   Home's legend, the Inbox briefing, Insights' read and the Roster's chips all print "how many are
-   in each state". Each used to count for itself (the Inbox from raw scores, a since-deleted
-   Copilot from roster flags), so one team read "1 need attention · 2 overdue" on Home and
-   "2 below the bar" in the Inbox at the same moment. Every surface reads teamCounts() now. */
-
-/** The buckets a coach sees, in display order. `statuses` are STATUS_META keys; `cls` is the
- *  .dot / .seg accent. "need attention" is the one bucket that adds several statuses up. */
-export const COUNT_BUCKETS = [
-  { key: 'onStandard', cls: 'g', label: 'on standard', statuses: ['on_standard'] },
-  { key: 'attention', cls: 'a', label: 'need attention', statuses: ['due_soon', 'below_standard', 'needs_review'] },
-  { key: 'overdue', cls: 'r', label: 'overdue', statuses: ['overdue'] },
-  { key: 'noActivity', cls: 'd', label: 'no activity', statuses: ['no_activity'] },
-  { key: 'excused', cls: 'd', label: 'excused', statuses: ['excused'] },
-];
-
-/** Required items that are due by now (or already done), and how many are in, for ONE athlete.
- *  Counted from the athlete's STANDARD, never from whichever `tasks` rows happen to exist: an
- *  athlete with no day row still owes every item whose deadline has passed, and that is exactly
- *  the missed work the old row-sum made disappear (review pass C-M1).
- *  - an item not yet due and not done is not counted at all (it is not owed yet);
- *  - an item done early counts on both sides (it is in);
- *  - an off-schedule item never counts (runsOn);
- *  - on a day row whose `tasks` cannot prove anything (legacy / pre-writer), a non-meal item that
- *    is not proven done is UNKNOWN and left out of both sides, the same guard openItems uses. */
-export function requirementsDue({ nowMin, nowDow = null, row, reqs }) {
-  const doneById = {};
-  for (const t of ((row && row.tasks) || [])) if (t && t.done) doneById[t.id] = true;
-  const meals = (row && row.meals && typeof row.meals === 'object') ? row.meals : null;
-  const trusted = tasksTrustworthy(row);
-  let due = 0, done = 0;
-  for (const r of (reqs || [])) {
-    if (!r || !r.required) continue;
-    if (nowDow != null && !runsOn(r, nowDow)) continue;
-    const isDone = !!(doneById[r.id] || (meals && meals[r.id]));
-    const d = r.window && typeof r.window.due === 'number' ? r.window.due : null;
-    const grace = typeof r.grace === 'number' && r.grace > 0 ? r.grace : 0;
-    const pastDue = d != null && nowMin > d + grace;
-    if (!isDone && !pastDue) continue;
-    if (!isDone && row && row.loggedToday && !trusted && !(meals && isMealSlot(r))) continue;
-    due++;
-    if (isDone) done++;
-  }
-  return { due, done };
-}
-
-/** THE team count. `entries` are coach-data entriesFor() rows: { row, status, reqs?, nowMin?,
- *  nowDow? }. Excused athletes are counted as excused and left out of the requirement totals. */
-export function teamCounts(entries) {
-  const list = entries || [];
-  const byStatus = {};
-  for (const k of Object.keys(STATUS_META)) byStatus[k] = 0;
-  for (const e of list) { const k = e && e.status && e.status.key; if (k in byStatus) byStatus[k]++; }
-  const out = { total: list.length, byStatus };
-  for (const b of COUNT_BUCKETS) out[b.key] = b.statuses.reduce((n, k) => n + (byStatus[k] || 0), 0);
-  const scoredRows = list.filter(e => e && e.row && e.row.score != null);
-  out.scored = scoredRows.length;
-  out.avg = scoredRows.length ? Math.round(scoredRows.reduce((a, e) => a + e.row.score, 0) / scoredRows.length) : null;
-  let reqDue = 0, reqDone = 0;
-  for (const e of list) {
-    if (!e || !e.row || (e.status && e.status.key === 'excused') || !Array.isArray(e.reqs)) continue;
-    const t = requirementsDue({ nowMin: e.nowMin, nowDow: e.nowDow, row: e.row, reqs: e.reqs });
-    reqDue += t.due; reqDone += t.done;
-  }
-  out.reqDue = reqDue;
-  out.reqDone = reqDone;
-  return out;
 }
 
 /** Pure mirror of requirements.js `runsToday` — status.js stays free of app-state imports (no
@@ -136,13 +64,13 @@ export function runsOn(req, dow) {
  *  something. Ported from insights.js protoTasksAware(), which has guarded its own miss counts
  *  this way from the start: a legacy RN row carries NUMERIC task ids, and a pre-writer row carries
  *  none. Neither can prove an item was skipped, and status.js used to treat both as proof. */
-function tasksTrustworthy(row) {
+export function tasksTrustworthy(row) {
   const tasks = Array.isArray(row && row.tasks) ? row.tasks : [];
   return tasks.some((t) => t && t.id != null && !/^\d+$/.test(String(t.id)));
 }
 
 /** A photo-proof requirement is a meal slot, and days.meals is the map that actually records it. */
-const isMealSlot = (r) => r && r.proof === 'photo';
+export const isMealSlot = (r) => r && r.proof === 'photo';
 
 function openItems(nowMin, row, reqs, nowDow) {
   const doneById = {};

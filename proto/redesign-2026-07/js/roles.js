@@ -2106,9 +2106,7 @@ export function buildRosterRow(member, dayRow, extras = {}) {
     night: nightSignalOf(dayRow),
     scoreHistory: extras.scoreHistory || [],
     lastMealAt: extras.lastMealAt || null,
-    // The latest SCORED day in the 7-day history window (review pass C-M2). Meals are read for 2
-    // days only, so an athlete quiet since Monday had lastMealAt null and read "No logs yet" beside
-    // a drawn 7-day sparkline. This is the fallback when there is no meal in the short window.
+    // Last scored day in the 7-day window: the fallback when no meal is in the 2-day read (C-M2).
     lastDayISO: lastScoredDayOf(extras.scoreHistory),
     // Athlete IANA timezone (0088) so the coach status engine judges due/overdue in the athlete's
     // local day. null (no set, or pre-migration) → the caller falls back to the coach clock.

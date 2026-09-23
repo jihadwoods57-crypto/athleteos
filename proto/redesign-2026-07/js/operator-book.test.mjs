@@ -332,7 +332,7 @@ assert.deepStrictEqual(snapshotStatus.practice, snapshotStatus.team,
     assert.ok(teamMenu.includes(`data-go="${route}"`), `a coach must be offered ${route}`);
     assert.ok(practiceMenu.includes(`data-go="${route}"`), `0136: a trainer must now be offered ${route}`);
   }
-  assert.ok(practiceMenu.includes('data-go="trainer-roster"'), 'a trainer keeps "message a client"');
+  assert.ok(practiceMenu.includes('data-go="trainer-roster/message"'), 'a trainer keeps "message a client" (lands with a next step, C-B9)');
   assert.ok(practiceMenu.includes('Built for teams'), 'a trainer must still be told which tools stay team-only');
   // Position/unit only exists on a team book.
   assert.ok(snapshots.team['coach-roster'].includes('LB'), 'a team roster shows units');
@@ -410,9 +410,10 @@ assert.deepStrictEqual(snapshotStatus.practice, snapshotStatus.team,
     assert.ok(teamAthlete.includes(marker) && practiceAthlete.includes(marker),
       `both books keep the ${marker} action`);
   }
-  assert.ok(practiceAthlete.includes('trainer view') && !practiceAthlete.includes('coach view'),
-    'the deep dive must not call itself a coach view for a trainer');
-  assert.ok(teamAthlete.includes('coach view'), 'the coach deep-dive subtitle is unchanged');
+  // Neither book names its own lens any more (review pass C-Polish 5: "coach view" was jargon);
+  // a trainer's deep dive must still never call itself a coach's.
+  assert.ok(!practiceAthlete.includes('coach view') && !teamAthlete.includes('coach view'),
+    'the deep dive does not label itself "coach view"');
 }
 
 /* ---- Slice B: the standalone "note to client" screen is retired, not aliased.

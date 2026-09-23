@@ -1105,9 +1105,17 @@ export const clientOb = {
    per sub, each its own screen with a back header and the profile tab. The mount() below is
    self-guarding (every handler is querySelector-null-guarded), so it wires only whichever section's
    controls are actually present — no flow changed, just where each concern lives. */
+/* The dietitian on a team (an owner who signed up as one, or a staff nutritionist) is not a coach,
+   and this screen called them one: "Coach Profile", "coach handle", "Coach Voice" (review pass
+   C-P7). Mirrors coach-home.js isNutritionBook's team branch. The staff role lives in the operator
+   book, which this eager module reaches only through a dynamic import (mount below): a static one
+   pulled coach-data into the boot graph. */
+let BOOK = null;   // the coach-data module, once mount() has loaded it
+const dietLens = () => !!(RT.team && RT.team.discipline === 'nutrition')
+  || !!(BOOK && BOOK.CD.extras && BOOK.CD.extras.myRole === 'nutritionist');
 const CP_SECTIONS = [
   // No "sign out" here: the root's own Sign out card sits directly below this menu.
-  { sub: 'personal',    icon: 'user',      t: 'Personal profile',       s: 'Your name and coach handle' },
+  { sub: 'personal',    icon: 'user',      t: 'Personal profile',       s: 'Your name and handle' },
   { sub: 'invitations', icon: 'share',     t: 'Athlete code & invites', s: 'The code athletes join with' },
   { sub: 'staff',       icon: 'users',     t: 'Staff & collaborators',  s: 'Invite staff, set their scope' },
   { sub: 'program',     icon: 'clipboard', t: 'Program',                s: 'Standards, templates, Coach Voice, visibility' },
@@ -1284,7 +1292,8 @@ function cpProgramBlock() {
     <h2 class="eyebrow">Program</h2>
     <section class="card" style="padding:6px 16px">
       <div class="lrow" data-go="coach-plan"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Standards</div><div class="ls">Targets, focus, publish updates</div></div>${icon('chevron', 17)}</div>
-      <div class="lrow" data-go="coach-assign"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Requirement templates</div><div class="ls">What you assign most</div></div>${icon('chevron', 17)}</div>
+      ${/* Templates live in the team standard editor, not in Assign (review pass C-Polish 4). */''}
+      <div class="lrow" data-go="coach-plan-set/team"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Requirement templates</div><div class="ls">Start a standard from a proven draft</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">Tone, length, instructions: make it coach like you</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Visibility rules</div><div class="ls">What parents and trainers can see</div></div>${icon('chevron', 17)}</div>
     </section>`;
@@ -1389,11 +1398,11 @@ export const coachProfile = {
     return `
     ${/* One tab-root header across the operator tabs (2026-09-22): title + bell + avatar, the
           same avatarHead Home, Roster and Inbox wear, so the bell never disappears on one tab. */''}
-    ${avatarHead('Coach Profile', 'You, your team, your code', S.operatorIdentity.initials)}
+    ${avatarHead(dietLens() ? 'Dietitian Profile' : 'Coach Profile', 'You, your team, your code', S.operatorIdentity.initials)}
     ${cpIdCard(false)}
     <h2 class="eyebrow">Manage</h2>
     <section class="card" style="padding:6px 16px">
-      ${CP_SECTIONS.map(x => `<div class="lrow" data-go="${esc(x.go || `coach-profile/${x.sub}`)}"><div class="lic">${icon(x.icon, 17)}</div><div class="lm"><div class="lt">${esc(x.t)}</div><div class="ls">${esc(x.s)}</div></div>${icon('chevron', 17)}</div>`).join('')}
+      ${CP_SECTIONS.map(x => `<div class="lrow" data-go="${esc(x.go || `coach-profile/${x.sub}`)}"><div class="lic">${icon(x.icon, 17)}</div><div class="lm"><div class="lt">${esc(x.t)}</div><div class="ls">${esc(dietLens() ? x.s.replace('Coach Voice', 'your voice') : x.s)}</div></div>${icon('chevron', 17)}</div>`).join('')}
     </section>
     <div style="height:8px"></div>
     ${cpSignOut()}
@@ -1410,6 +1419,9 @@ export const coachProfile = {
     // querySelector-null-guarded / forEach-over-empty), so it wires only the current section's
     // controls. Staff data is fetched only when the staff section is showing.
     if (sub === 'staff') loadStaff(RT.team && RT.team.id);
+    // The staff role (a team nutritionist) rides the operator book; the router repaints this
+    // screen when the book arrives, and dietLens() then names the profile honestly.
+    if (!BOOK) import('../coach-data.js').then((m) => { BOOK = m; m.loadBook(false, m.bookKindFor(RT.authRole)); }).catch(() => {});
     wireAvatarUpload(root); // the coach's own photo, when the id card rendered (self-guarding)
     wireNameEditor(root);   // the coach's own name, same card (self-guarding)
     wireOperatorAccount(root); // Account section (self-guarding: no-ops unless its rows rendered)

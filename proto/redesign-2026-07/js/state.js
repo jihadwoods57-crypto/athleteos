@@ -4955,10 +4955,7 @@ export const S = {
   mealScoreImpact(slot) {
     try { return mealImpact(slot); } catch { return 0; }
   },
-  /* Morning Weight on the breakdown (review pass A-B3). It used to ignore the weigh-in's own
-     schedule (Mon / Wed / Fri, which #weight itself states), so a Thursday read "missed today", and
-     every logged weight took the 'late' branch: "Logged late tonight" at 7 AM. The schedule comes
-     from the same catalog the day runs on; "late" compares the real log time with the due time. */
+  /* Morning Weight follows its own schedule, and "late" compares the real log time (A-B3). */
   get weightLine() {
     const req = (this.scheduleCatalog || []).find((r) => r && r.id === 'weight') || CATALOG.find((r) => r.id === 'weight');
     const due = req && req.window && typeof req.window.due === 'number' ? req.window.due : WEIGHT_DUE;

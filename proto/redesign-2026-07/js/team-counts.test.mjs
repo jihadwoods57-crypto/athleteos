@@ -98,7 +98,7 @@ const { loadAllScreens } = await import('./screens/index.js');
 const screens = await loadAllScreens();
 const { S, RT } = await import('./state.js');
 const { CD, loadBook, entriesFor } = await import('./coach-data.js');
-const { teamCounts, requirementsDue } = await import('./status.js');
+const { teamCounts, requirementsDue } = await import('./team-count.js');
 
 RT.userId = 'u1';
 RT.authRole = 'coach';

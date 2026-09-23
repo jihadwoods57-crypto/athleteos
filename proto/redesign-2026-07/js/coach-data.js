@@ -499,8 +499,7 @@ export function entriesFor(scope) {
         needsReview: false, // slice D wires flagged-meal review state
       }),
       planStyle: set ? planStyleFromItems(set.items)?.style || null : null,
-      // What status.js teamCounts() needs to total requirements from the STANDARD (review pass
-      // C-M1): the governing items and the athlete-local clock they were judged at.
+      // For teamCounts(): the governing items and the athlete-local clock (C-M1).
       reqs, nowMin: lc.nowMin, nowDow: lc.nowDow,
     };
   });

@@ -260,10 +260,10 @@ function absenceSheet() {
   <section class="card ro-sheet">
     <h2 class="eyebrow ro-sheet-h">Excuse ${SEL.size} ${CD.noun}${SEL.size === 1 ? '' : 's'}</h2>
     <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;margin-bottom:8px">Excused ${CD.nouns} drop out of the priority queue and today's completion math. And nothing pings them while excused.</div>
-    <input class="ob-input" id="abs-reason" aria-label="Reason" maxlength="120" placeholder="Reason (travel, injury, family…)" style="height:36px" />
+    <input class="ob-input nx-input" id="abs-reason" aria-label="Reason" maxlength="120" placeholder="Reason (travel, injury, family…)" />
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px">
-      <button class="btn sm" data-abs="0" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:12px">Just today</button>
-      <button class="btn ghost sm" data-abs="6" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:12px">Through the week</button>
+      <button class="btn sm" data-abs="0" ${BULK_BUSY ? 'disabled' : ''} style="min-height:44px">Just today</button>
+      <button class="btn ghost sm" data-abs="6" ${BULK_BUSY ? 'disabled' : ''} style="min-height:44px">Through the week</button>
     </div>
     <div id="abs-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;margin-top:5px"></div>
   </section>`;
@@ -333,12 +333,31 @@ function updateBulkCounts(root) {
   const send = root.querySelector('[data-bulk="nudgesend"]');
   if (send) send.textContent = `Send to ${n}`;
   const note = root.querySelector('#bulk-nudge-note');
-  if (note) note.textContent = `This exact message goes to all ${n}, from "${S.operatorIdentity.handle} is waiting".`;
+  if (note) note.textContent = `All ${n} get a push titled "${S.operatorIdentity.handle} is waiting" with this message.`;
+}
+
+/* Arriving from the Create menu with a job to do (review pass C-B9). "Adjust a schedule" and
+   "Message an athlete" both used to land on the plain roster with no next step, and excusing lives
+   behind Select, then Excuse. #coach-roster/excuse opens straight into Select with a line saying
+   what to do; #coach-roster/message says to tap someone. Primed once per arrival, so tapping Done
+   does not snap back into Select on the next repaint. */
+let PRIMED = null;
+function taskFromSub(sub) {
+  const mode = sub === 'excuse' || sub === 'message' ? sub : null;
+  if (mode !== PRIMED) {
+    PRIMED = mode;
+    if (mode === 'excuse' && CD.caps.exceptions) { SELECTING = true; SEL.clear(); FILTER = { kind: 'all', value: null }; Q = ''; }
+  }
+  if (mode === 'excuse' && CD.caps.exceptions) return SEL.size
+    ? `<div class="nx-note ro-task">Tap Excuse below to excuse ${SEL.size === 1 ? 'them' : `these ${SEL.size}`} for today or the week.</div>`
+    : `<div class="nx-note ro-task">Tap the ${CD.nouns} you want to excuse, then tap Excuse.</div>`;
+  if (mode === 'message' && !SELECTING) return `<div class="nx-note ro-task">Tap someone to open their page, then Nudge sends them a message.</div>`;
+  return '';
 }
 
 export const coachRoster = {
   nav: 'operator', tab: 'roster', pane: 'master',
-  render() {
+  render({ sub = null } = {}) {
     // ONE derivation, shared with coach-home. This screen used to re-derive a team coach's
     // initials from their HANDLE with the "Coach " prefix stripped ("Coach Reynolds" → RE) while
     // coach-home used S.operatorIdentity (name initials → DR). Same signed-in person, two sets of
@@ -397,14 +416,17 @@ export const coachRoster = {
     </div>
     ${SHOW_GROUPS ? groupSheet(groups) : ''}
     ${SHOW_ABSENCE ? absenceSheet() : ''}
+    ${taskFromSub(sub)}
     <section class="card" id="roster-list" style="padding:2px 0">${listHtml(list)}</section>
     ${SELECTING && SEL.size ? (BULK_NUDGE_ARM != null ? `
     <div class="action-bar">
-      <input id="bulk-nudge-body" class="ob-input" maxlength="120" value="${esc(BULK_NUDGE_ARM)}" aria-label="Nudge message" style="width:100%;height:36px;font-size:var(--t-sm)" />
-      <div id="bulk-nudge-note" style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:6px 0">This exact message goes to all ${SEL.size}, from "${esc(S.operatorIdentity.handle)} is waiting".</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-        <button class="btn ghost sm" data-bulk="nudgecancel" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-xs)">Cancel</button>
-        <button class="btn sm primary" data-bulk="nudgesend" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-xs)">Send to ${SEL.size}</button>
+      <div class="nx-edit">
+      <input id="bulk-nudge-body" class="ob-input nx-input" maxlength="120" value="${esc(BULK_NUDGE_ARM)}" aria-label="Nudge message" />
+      <div id="bulk-nudge-note" class="nx-note">All ${SEL.size} get a push titled "${esc(S.operatorIdentity.handle)} is waiting" with this message.</div>
+      <div class="nx-acts">
+        <button class="btn ghost sm" data-bulk="nudgecancel" ${BULK_BUSY ? 'disabled' : ''}>Cancel</button>
+        <button class="btn sm primary" data-bulk="nudgesend" ${BULK_BUSY ? 'disabled' : ''}>Send to ${SEL.size}</button>
+      </div>
       </div>
     </div>` : `
     <div class="action-bar" style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s1h)">

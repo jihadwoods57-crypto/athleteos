@@ -49,3 +49,60 @@ test('C-M7: Copilot is unregistered (no screen linked to it) and its counts are 
   assert.doesNotMatch(idx, /copilot/);
   assert.doesNotMatch(src('screens/coach.js'), /export const copilot/);
 });
+
+test('C-B2 / Polish 6 / 9: nudge editors give the message its own 44px row and name the push plainly', () => {
+  for (const f of ['screens/coach-home.js', 'screens/coach.js', 'screens/coach-roster.js']) {
+    const s = src(f);
+    assert.match(s, /class="ob-input nx-input"/, f);
+    assert.doesNotMatch(s, /This exact message goes to/, f);
+    assert.doesNotMatch(s, /nudge-body"[^>]*height:36px/, f);
+  }
+  assert.match(src('../css/coach.css'), /\.nx-input\.ob-input \{ width: 100%; min-height: 44px;/);
+});
+
+test('C-B4 / B9 / P2: Create names the book from the role cold, and its rows land with a next step', () => {
+  const c = src('screens/coach-create.js');
+  assert.match(c, /const practice = CD\.kind === 'practice' \|\| RT\.authRole === 'trainer';/);
+  assert.match(c, /loadBook\(false, bookKindFor\(RT\.authRole\)\)/);
+  assert.match(c, /go: 'coach-roster\/message'/);
+  assert.match(c, /go: 'coach-roster\/excuse'/);
+  assert.doesNotMatch(c, /title: 'Message a group'/);
+  assert.match(src('screens/coach-roster.js'), /function taskFromSub\(sub\)/);
+});
+
+test('C-B8: an empty roster is not "loading" on Assign or Announce', () => {
+  assert.match(src('screens/coach.js'), /if \(CD\.roster && !CD\.roster\.offline && !rows\.length\) \{/);
+  assert.match(src('screens/coach-announce.js'), /if \(CD\.roster && !CD\.roster\.offline && !rows\.length\) \{/);
+});
+
+test('C-M5: most-missed stops at what is due today and skips rows without the meals column', async () => {
+  const { mostMissed } = await import('./insights.js');
+  const today = '2026-09-22';
+  const reqs = { a1: [{ id: 'breakfast', title: 'Breakfast', kind: 'meal', required: true, freq: { type: 'daily' }, window: { due: 570 } },
+    { id: 'lunch', title: 'Lunch', kind: 'meal', required: true, freq: { type: 'daily' }, window: { due: 840 } }] };
+  const rollup = [
+    { athlete_id: 'a1', day: today, meals_logged: 1, tasks_done: [] },
+    { athlete_id: 'a1', day: '2026-09-21', meals_logged: null, tasks_done: [] },
+  ];
+  assert.deepStrictEqual(mostMissed({ rollup, reqsByAthlete: reqs, todayISO: today, nowMin: 10 * 60 }), [],
+    'breakfast is in and lunch is not due yet; the null row proves nothing');
+  const later = mostMissed({ rollup, reqsByAthlete: reqs, todayISO: today, nowMin: 15 * 60 });
+  assert.deepStrictEqual(later.map((m) => [m.title, m.missedCount]), [['Lunch', 1]]);
+});
+
+test('C-M6 / P5 / P7 / Polish 1-4, 8, 11, 13: copy and doors', () => {
+  assert.doesNotMatch(src('screens/auth.js') + src('screens/ob2-dietitian.js'), /never lies/);
+  assert.doesNotMatch(src('screens/coach.js'), /'coach view'/);
+  assert.match(src('screens/roles.js'), /dietLens\(\) \? 'Dietitian Profile' : 'Coach Profile'/);
+  assert.match(src('components.js'), /const onProfile = /);
+  assert.doesNotMatch(src('screens/account.js'), /backHead\('Account', email/);
+  const rs = src('screens/rollcall-setup.js');
+  assert.match(rs, /x\.skipped \? 'Cancelled'/);
+  assert.match(rs, /id="rw-move" disabled>Move it/);
+  assert.match(src('screens/coach-commitments.js'), /const DOW = \['S', 'M', 'T', 'W', 'T', 'F', 'S'\];/);
+  assert.match(src('screens/roles.js'), /data-go="coach-plan-set\/team"><div class="lic">\$\{icon\('plus', 17\)\}<\/div><div class="lm"><div class="lt">Requirement templates/);
+  assert.match(src('screens/rollcall-board.js'), /Roll call not found/);
+  assert.match(src('screens/coach-home.js'), /S\.operatorIdentity\.state === 'loading' && !code \? ''/);
+  assert.match(src('screens/settings.js'), /'coach-notif-settings'/);
+  assert.match(src('screens/coach.js'), /co-tabs-fit co-scroll edge-fade/);
+});

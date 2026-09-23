@@ -8,7 +8,8 @@ import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope,
 import { buildPriorities } from '../priority.js';
 import { nudgePreset, nudgeResultCopy } from '../nudge-presets.js';
 import { PLANS } from '../ob2.js';
-import { teamPulse, teamCounts, COUNT_BUCKETS, statusLabel } from '../status.js';
+import { teamPulse, statusLabel } from '../status.js';
+import { teamCounts, COUNT_BUCKETS } from '../team-count.js';
 import { scoreColor } from '../score-band.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
 import { paintBoard } from './coach-commitments.js';
@@ -323,7 +324,10 @@ export function emptyTeamDashboard(code, teamName) {
           from the roster, which hasn't arrived. This used to render "0 of 2 required steps done ·
           2 to go" directly under a card saying "Loading your team…": the screen admitting it
           doesn't know and asserting a count in the same viewport. Don't grade what hasn't loaded. */''}
-    ${S.operatorIdentity.state === 'loading' ? ''
+    ${/* Only while the code itself is unknown (review pass C-Polish 11 / R3): the team row can
+          still be refreshing (teamLoading) with the code and the loaded roster already in hand,
+          and gating on that alone hid the checklist from exactly the new coach it is for. */''}
+    ${S.operatorIdentity.state === 'loading' && !code ? ''
     : st.ready
       ? (setupIncompleteCount(st) ? collapseSection('coach-setup', vocab().setup, setupIncompleteCount(st), setupChecklistCard(st), false) : '')
       : `<h2 class="eyebrow">${esc(vocab().setup)}</h2>${setupChecklistCard(st)}`}
@@ -725,12 +729,14 @@ function priorityCard(c, i, nudgedToday) {
       ${CD.caps.interventions ? `<button class="btn sm" data-phandle="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Handled</button>` : ''}
     </div>
     ${PNUDGE_ARM && PNUDGE_ARM.athleteId === c.athleteId ? `
-    <div style="display:flex;gap:6px;align-items:center;margin-top:8px">
-      <input id="pnudge-body" class="ob-input" maxlength="120" value="${esc(PNUDGE_ARM.body)}" aria-label="Nudge message" style="flex:1;height:36px;font-size:var(--t-sm)" />
-      <button class="btn sm" data-pnudge-cancel="1">Cancel</button>
-      <button class="btn sm primary" data-pnudge-send="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Send</button>
-    </div>
-    <div class="co-pri-reason" style="margin-top:4px">This exact message goes to them, from "${esc(S.operatorIdentity.handle)} is waiting".</div>` : ''}
+    <div class="nx-edit">
+      <input id="pnudge-body" class="ob-input nx-input" maxlength="120" value="${esc(PNUDGE_ARM.body)}" aria-label="Nudge message" />
+      <div class="nx-acts">
+        <button class="btn sm" data-pnudge-cancel="1">Cancel</button>
+        <button class="btn sm primary" data-pnudge-send="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Send</button>
+      </div>
+      <div class="nx-note">They'll get a push titled "${esc(S.operatorIdentity.handle)} is waiting" with this message.</div>
+    </div>` : ''}
     <div class="co-pstatus" id="pstatus-${esc(c.athleteId)}"></div>
   </div>`;
 }
@@ -799,7 +805,7 @@ export const coachHome = {
     <div class="sidebox">
       <div class="req-icon b s38">${icon('shield', 17)}</div>
       <div style="flex:1"><div class="tt">${esc(worthy[0].row.name)} hit ${worthy[0].streak} straight days</div>
-      <div class="ts">Reward it with camera-free meals.</div></div>
+      <div class="ts">Reward it: a pass lets them log meals without a photo for a few days.</div></div>
       ${/* .ghost, not the bare .btn: the bare button's fill is --surface-2, which is also the
             sidebox's fill, so "Give a pass" rendered as loose text with no edge in either theme. */''}
       <button class="btn ghost sm" data-go="pass-grant/${esc(worthy[0].row.athleteId)}" style="width:auto;padding:0 12px;height:30px;flex:none">Give a pass</button>

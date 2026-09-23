@@ -90,4 +90,11 @@ test('A-Polish 1/3/5/7: dev route gone, error has a way out, the hours add up, n
   assert.match(src('../css/wide.css'), /html\[data-layout\] \.ob \{ max-width: 720px;/);
 });
 
+test('A-concern keepRecordCard: the record is free, so the card sells nothing', () => {
+  const home = src('screens/home.js');
+  const card = home.slice(home.indexOf('function keepRecordCard()'), home.indexOf('let dayRollFailed'));
+  assert.doesNotMatch(card, /Individual|plan|\$\d/i);
+  assert.match(home, /act\.markKeepRecordSeen\(\);\n\s*if \(window\.__go\) window\.__go\('history'\)/);
+});
+
 test.after(() => { globalThis.Date = RealDate; });
