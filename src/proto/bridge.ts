@@ -25,8 +25,7 @@ import {
 } from '../lib/health';
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { syncWakeAlarms, wakeAlarmState, cancelWakeAlarmFor } from '../lib/notify/wakeAlarms';
-import { drainLiveActivityTaps } from '../lib/notify/rollcall';
-import { endLiveActivity } from '../../modules/rollcall-live';
+import { drainLiveActivityTaps, settleLiveCard } from '../lib/notify/rollcall';
 import { getPushToken } from '../lib/notify';
 import { getFlag } from '../store/flagsStore';
 
@@ -246,7 +245,11 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
          athlete who tapped "I'm up" in the app watched the Live Activity keep counting down at
          them until iOS timed it out. Fire-and-forget: the ack is already recorded server-side, and
          a device with no Live Activity (Android, older iOS, push-to-start never fired) no-ops. */
-      try { await endLiveActivity(String(msg.instanceId || '')); } catch { /* best effort */ }
+      //
+      // Since 2026-09-23 the card is not simply ended: the server turns it to the answered card
+      // ("You're up · 4th") through roll-call-ack's refresh route, and ends it at the close. It is
+      // still ended HERE on an older binary, or when the refresh fails (an answer queued offline).
+      try { await settleLiveCard(String(msg.instanceId || '')); } catch { /* best effort */ }
       // And the alarm for it must not ring. An answer queued offline at 5:58 followed by the 6:00
       // alarm for the same roll call is the one "why is it still going off" nobody forgives.
       try { cancelWakeAlarmFor(String(msg.instanceId || '')); } catch { /* best effort */ }

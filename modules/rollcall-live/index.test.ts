@@ -8,7 +8,7 @@ const mockNative: Record<string, unknown> = {};
 
 jest.mock('expo-modules-core', () => ({ requireOptionalNativeModule: () => mockNative }));
 
-import { scheduleWakeAlarmAt } from './index';
+import { scheduleWakeAlarmAt, hasAckPoster } from './index';
 
 beforeEach(() => {
   for (const k of Object.keys(mockNative)) delete mockNative[k];
@@ -38,4 +38,12 @@ test('a morning with no code uses the four-argument call even on a new binary', 
   Object.assign(mockNative, { scheduleWakeAlarmAt: old, scheduleWakeAlarmAtWithAck: withAck });
   expect(await scheduleWakeAlarmAt({ instanceId: 'i1', at: 1000 })).toBe('old');
   expect(withAck).not.toHaveBeenCalled();
+});
+
+test('hasAckPoster tells a binary whose intents post taps from one that only records them', () => {
+  expect(hasAckPoster()).toBe(false);
+  Object.assign(mockNative, { scheduleWakeAlarmAt: jest.fn() });
+  expect(hasAckPoster()).toBe(false);
+  Object.assign(mockNative, { scheduleWakeAlarmAtWithAck: jest.fn() });
+  expect(hasAckPoster()).toBe(true);
 });

@@ -2,18 +2,25 @@
 // Deploy: supabase functions deploy roll-call-ack --use-api --no-verify-jwt
 //         supabase secrets set ROLLCALL_ACK_SECRET=<long random string>
 //
-// TWO ROUTES (2026-09-23):
+// THREE ROUTES (2026-09-23):
 //   { code, tapped_at }   the check-in. The code is a one-shot push code or a WINDOW code (the one
 //                         the Live Activity and the alarm hold so the tap posts with the app closed).
 //   { action: 'codes' }   the mint. Authorization: Bearer <the athlete's own session JWT>. Returns
 //                         window codes for the caller's own wake-ups over the next 7 days, plus the
 //                         URL to post them to, so the app can hand them to the native alarm.
 //                         --no-verify-jwt stays: this route verifies the JWT itself (auth.getUser).
+//   { action: 'refresh', instance_id }   Authorization: Bearer <the athlete's own session JWT>.
+//                         An answer recorded WITHOUT a code (the app's drain, an in-app "I'm up",
+//                         any older binary) sends no push, so the lock-screen card kept counting
+//                         down until the close. This sends the same answered update and team
+//                         fan-out a code ack does: the caller's own row only, and only once it has
+//                         an answer. Throttled per card (REFRESH_MIN_GAP_MS).
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { verifyRollCallCode, signWindowCode } from '../_shared/rollcall-code.ts';
 import { evaluateFlag, type FlagRow } from '../_shared/feature-flags.ts';
 import {
   httpStatusFor, teamCountUpdates, mintableWindows, bearerOf, WINDOW_CODE_DAYS, TEAM_UPDATE_MIN_GAP_MS,
+  refreshInstanceOf, refreshVerdict, wonAthleteIds, REFRESH_MIN_GAP_MS,
   type TeamTarget,
 } from './logic.ts';
 import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
@@ -64,6 +71,38 @@ async function mintCodes(req: Request): Promise<Response> {
   return json({ ok: true, ack_url: ackUrlFor(SUPABASE_URL), codes });
 }
 
+/** The refresh: the answered card for an answer that came through ack_commitment. The athlete id
+ *  comes from the verified JWT and nowhere else; the body only names the instance. */
+async function refreshCard(req: Request, body: unknown): Promise<Response> {
+  const jwt = bearerOf(req.headers.get('Authorization'));
+  if (!jwt) return json({ ok: false, error: 'unauthorized' }, 401);
+  const instanceId = refreshInstanceOf(body);
+  if (!instanceId) return json({ ok: false, error: 'missing instance' }, 400);
+  const svc = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
+  const { data: u, error: authErr } = await svc.auth.getUser(jwt);
+  const uid = u?.user?.id;
+  if (authErr || !uid) return json({ ok: false, error: 'unauthorized' }, 401);
+  if (!(await flagAllows(svc, uid))) return json({ ok: false, error: 'flag_off' }, httpStatusFor('flag_off'));
+
+  const { data: row, error } = await svc
+    .from('commitment_responses').select('acknowledged_at')
+    .eq('instance_id', instanceId).eq('athlete_id', uid).maybeSingle();
+  if (error) return json({ ok: false, error: 'db_error' }, httpStatusFor('db_error'));
+  const verdict = refreshVerdict(row as { acknowledged_at: string | null } | null);
+  if (verdict === 'no_row') return json({ ok: false, error: 'no_row' }, httpStatusFor('no_row'));
+  if (verdict === 'not_acked') return json({ ok: false, error: 'not_acked' }, 409);
+
+  // One card update per REFRESH_MIN_GAP_MS. A code ack stamps the card (gap 0) as it sends, so the
+  // app draining the same tap a second later is refused here instead of pushing the card twice,
+  // and a caller looping on this route cannot spend the device's APNs budget.
+  const { data: won } = await svc.rpc('claim_live_team_updates', {
+    p_instance: instanceId, p_athletes: [uid], p_gap_sec: Math.round(REFRESH_MIN_GAP_MS / 1000),
+  });
+  if (!wonAthleteIds(won).has(uid)) return json({ ok: true, refreshed: false });
+  await afterResponse(liveAfterCheckIn(svc, instanceId, uid, String((row as { acknowledged_at: string }).acknowledged_at)));
+  return json({ ok: true, refreshed: true });
+}
+
 /** Everything the lock screen does after a check-in. Never throws, never costs the ack.
  *   1. The athlete's own card UPDATES to answered (place, points, the team count) and STAYS until
  *      the close, instead of ending. No alert: they are holding the phone.
@@ -100,8 +139,7 @@ async function liveAfterCheckIn(svc: SupabaseClient, instanceId: string, athlete
     p_instance: instanceId, p_athletes: planned.map((u) => u.athleteId),
     p_gap_sec: Math.round(TEAM_UPDATE_MIN_GAP_MS / 1000),
   });
-  const wonSet = new Set((Array.isArray(won) ? won : []).map((x: unknown) =>
-    typeof x === 'string' ? x : String(Object.values((x ?? {}) as Record<string, unknown>)[0] ?? '')));
+  const wonSet = wonAthleteIds(won);
   await sendLiveUpdates(svc, apns, planned.filter((u) => wonSet.has(u.athleteId)), nowMs);
 }
 
@@ -123,14 +161,17 @@ Deno.serve(async (req: Request) => {
   // queue). Evidence only: the server's own receipt is the verdict's input. Unparseable = absent.
   let tappedAt: string | null = null;
   let action = '';
+  let rawBody: unknown = null;
   try {
     const body = (await req.json()) as { code?: unknown; tapped_at?: unknown; action?: unknown };
+    rawBody = body;
     action = typeof body.action === 'string' ? body.action : '';
     code = String(body.code ?? '');
     if (typeof body.tapped_at === 'string' && Number.isFinite(Date.parse(body.tapped_at))) tappedAt = new Date(Date.parse(body.tapped_at)).toISOString();
     else if (typeof body.tapped_at === 'number' && Number.isFinite(body.tapped_at)) tappedAt = new Date(body.tapped_at).toISOString();
   } catch { /* empty */ }
   if (action === 'codes') return mintCodes(req);
+  if (action === 'refresh') return refreshCard(req, rawBody);
   if (!code) return json({ ok: false, error: 'missing code' }, 400);
 
   // 'athlete' is passed explicitly, not left to the default: this endpoint acks ONE athlete for

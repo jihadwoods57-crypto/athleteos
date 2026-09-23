@@ -4,7 +4,7 @@ import {
   coachActionFor, enqueueCoachAction, dropCoachAction,
   CHECK_IN_LABEL, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL, ackOutcome,
   routeNotificationResponse, ACTION_OPTIONS, buttonTitleFor, ROLLCALL_BG_TASK,
-  boardRouteFor,
+  boardRouteFor, BOARD_TAP_MAX_AGE_MS, shouldEndCardLocally,
 } from './rollcall';
 import {
   rollCallCategoryId as serverCategoryId,
@@ -171,26 +171,59 @@ describe('registration contract (0212)', () => {
 });
 
 describe('boardRouteFor: the alarm button opens the team board', () => {
+  const NOW = Date.parse('2026-09-25T10:03:00Z');
+  const ago = (min: number) => NOW - min * 60_000;
   it('routes to the board for a tap the opening button made', () => {
-    expect(boardRouteFor([{ instanceId: 'a1b2c3d4-0000-4000-8000-000000000001', at: 1, board: true }]))
+    expect(boardRouteFor([{ instanceId: 'a1b2c3d4-0000-4000-8000-000000000001', at: ago(1), board: true }], NOW))
       .toBe('rollcall-board/a1b2c3d4-0000-4000-8000-000000000001');
   });
   it('stays put for a tap made by Stop or by the lock-screen card', () => {
-    expect(boardRouteFor([{ instanceId: 'i1', at: 1 }])).toBeNull();
-    expect(boardRouteFor([{ instanceId: 'i1', at: 1, board: false }])).toBeNull();
-    expect(boardRouteFor([])).toBeNull();
-    expect(boardRouteFor(null as never)).toBeNull();
+    expect(boardRouteFor([{ instanceId: 'i1', at: ago(1) }], NOW)).toBeNull();
+    expect(boardRouteFor([{ instanceId: 'i1', at: ago(1), board: false }], NOW)).toBeNull();
+    expect(boardRouteFor([], NOW)).toBeNull();
+    expect(boardRouteFor(null as never, NOW)).toBeNull();
   });
   it('the newest opening tap wins when several are waiting', () => {
     expect(boardRouteFor([
-      { instanceId: 'old', at: 1, board: true },
-      { instanceId: 'stop', at: 9 },
-      { instanceId: 'new', at: 5, board: true },
-    ])).toBe('rollcall-board/new');
+      { instanceId: 'old', at: ago(9), board: true },
+      { instanceId: 'stop', at: ago(1) },
+      { instanceId: 'new', at: ago(5), board: true },
+    ], NOW)).toBe('rollcall-board/new');
+  });
+  it('a stale tap never hijacks a normal open: 2 hours old routes nowhere', () => {
+    expect(BOARD_TAP_MAX_AGE_MS).toBe(15 * 60_000);
+    expect(boardRouteFor([{ instanceId: 'i1', at: ago(120), board: true }], NOW)).toBeNull();
+    expect(boardRouteFor([{ instanceId: 'i1', at: ago(16), board: true }], NOW)).toBeNull();
+    expect(boardRouteFor([{ instanceId: 'i1', at: ago(14), board: true }], NOW)).toBe('rollcall-board/i1');
+    expect(boardRouteFor([{ instanceId: 'i1', at: Number.NaN, board: true }], NOW)).toBeNull();
+    // A fresh tap still wins over a stale one waiting beside it.
+    expect(boardRouteFor([
+      { instanceId: 'stale', at: ago(120), board: true },
+      { instanceId: 'fresh', at: ago(2), board: true },
+    ], NOW)).toBe('rollcall-board/fresh');
+  });
+  it('defaults to the real clock', () => {
+    expect(boardRouteFor([{ instanceId: 'i1', at: Date.now() - 1000, board: true }])).toBe('rollcall-board/i1');
+    expect(boardRouteFor([{ instanceId: 'i1', at: 1, board: true }])).toBeNull();
   });
   it('never builds a route out of an id that could escape the hash', () => {
-    expect(boardRouteFor([{ instanceId: "x'; alert(1); '", at: 1, board: true }])).toBeNull();
-    expect(boardRouteFor([{ instanceId: '../home', at: 1, board: true }])).toBeNull();
-    expect(boardRouteFor([{ instanceId: 'x'.repeat(65), at: 1, board: true }])).toBeNull();
+    expect(boardRouteFor([{ instanceId: "x'; alert(1); '", at: ago(1), board: true }], NOW)).toBeNull();
+    expect(boardRouteFor([{ instanceId: '../home', at: ago(1), board: true }], NOW)).toBeNull();
+    expect(boardRouteFor([{ instanceId: 'x'.repeat(65), at: ago(1), board: true }], NOW)).toBeNull();
+  });
+});
+
+describe('shouldEndCardLocally: an answer the server could not turn into an answered card', () => {
+  it('a binary that can post taps itself keeps its card for the server to update', () => {
+    expect(shouldEndCardLocally(true, 'sent')).toBe(false);
+    // Throttled or no card on the server: a code ack already turned it, or there is nothing to turn.
+    expect(shouldEndCardLocally(true, 'skipped')).toBe(false);
+  });
+  it('an older binary (build 43 and before) ends it, as it always did', () => {
+    expect(shouldEndCardLocally(false, 'sent')).toBe(true);
+    expect(shouldEndCardLocally(false, 'skipped')).toBe(true);
+  });
+  it('a refresh that failed (offline, queued answer, old server) ends it rather than leave it counting', () => {
+    expect(shouldEndCardLocally(true, 'failed')).toBe(true);
   });
 });

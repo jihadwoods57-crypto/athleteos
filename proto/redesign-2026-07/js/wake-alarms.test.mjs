@@ -9,7 +9,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { alarmsFor, alarmTitle, alarmButtonLabel, MAX_ALARMS, HORIZON_DAYS, DEFAULT_BUTTON, withAckCodes, fetchAckCodes, _resetAckCodes } from './wake-alarms.js';
+import { alarmsFor, alarmTitle, alarmButtonLabel, MAX_ALARMS, HORIZON_DAYS, DEFAULT_BUTTON, withAckCodes, fetchAckCodes, _resetAckCodes, ACK_CODES_TTL_MS } from './wake-alarms.js';
 
 const NOW = Date.parse('2026-09-11T12:00:00Z');
 const inHours = (h) => new Date(NOW + h * 3600000).toISOString();
@@ -184,20 +184,47 @@ test('the mint is asked once, with the athlete own session, and cached', async (
   _resetAckCodes();
   const calls = [];
   const client = { functions: { invoke: async (name, opts) => { calls.push([name, opts]); return { data: MINT, error: null }; } } };
-  const a = await fetchAckCodes(client, NOW);
-  const b = await fetchAckCodes(client, NOW + 60000);
+  const a = await fetchAckCodes(client, NOW, ['i1']);
+  const b = await fetchAckCodes(client, NOW + 60000, ['i1', 'i9']);
   assert.deepEqual(calls, [['roll-call-ack', { body: { action: 'codes' } }]]);
   assert.equal(a, b);
   // A new instance the cache has never seen asks again.
   await fetchAckCodes(client, NOW + 120000, ['i-new']);
   assert.equal(calls.length, 2);
+  // After the TTL, it asks again even for known ids.
+  await fetchAckCodes(client, NOW + 120000 + ACK_CODES_TTL_MS, ['i1']);
+  assert.equal(calls.length, 3);
 });
 
 test('a mint that fails costs nothing but the code', async () => {
   _resetAckCodes();
   const client = { functions: { invoke: async () => ({ data: null, error: { message: '401' } }) } };
   assert.equal(await fetchAckCodes(client, NOW), null);
+  _resetAckCodes();
   assert.equal(await fetchAckCodes(null, NOW), null);
+  _resetAckCodes();
   const throwing = { functions: { invoke: async () => { throw new Error('offline'); } } };
   assert.equal(await fetchAckCodes(throwing, NOW), null);
+});
+
+test('a failed mint is cached too, so a signed-out phone does not ask on every foreground beat', async () => {
+  _resetAckCodes();
+  let n = 0;
+  const client = { functions: { invoke: async () => { n++; return { data: null, error: { message: '401' } }; } } };
+  assert.equal(await fetchAckCodes(client, NOW, ['i1']), null);
+  assert.equal(await fetchAckCodes(client, NOW + 60000, ['i1']), null);
+  assert.equal(await fetchAckCodes(client, NOW + 29 * 60000, ['i1']), null);
+  assert.equal(n, 1);
+  await fetchAckCodes(client, NOW + ACK_CODES_TTL_MS, ['i1']);
+  assert.equal(n, 2, 'the TTL still ends the negative cache');
+});
+
+test('a morning the mint had no code for is not re-asked every beat', async () => {
+  _resetAckCodes();
+  let n = 0;
+  const client = { functions: { invoke: async () => { n++; return { data: MINT, error: null }; } } };
+  await fetchAckCodes(client, NOW, ['i1', 'i2']); // i2 has no code in MINT
+  const again = await fetchAckCodes(client, NOW + 60000, ['i1', 'i2']);
+  assert.equal(n, 1);
+  assert.equal(again, MINT);
 });

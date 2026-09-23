@@ -169,6 +169,14 @@ export async function scheduleWakeAlarmAt(a: WakeAlarmAt): Promise<string> {
   } catch { return ''; }
 }
 
+/** Whether this binary's intents post a tap themselves (the window-code build, 2026-09-23). An
+ *  older binary only records taps for the app to drain and never gets a server-side answered card
+ *  unless the app asks, so the app ends its card locally there instead. Keyed on the native call
+ *  that shipped in the same build as the posting intents. */
+export function hasAckPoster(): boolean {
+  try { return typeof native()?.scheduleWakeAlarmAtWithAck === 'function'; } catch { return false; }
+}
+
 /** Whether this binary can arm a dated alarm at all. */
 export function hasDatedAlarms(): boolean {
   try { return typeof native()?.scheduleWakeAlarmAt === 'function'; } catch { return false; }

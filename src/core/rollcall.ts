@@ -154,17 +154,38 @@ export type PendingBoardTap = { instanceId: string; at: number; board?: boolean 
  *  whole route inside ProtoApp's deliverRoute bound (64), which drops anything longer silently. */
 const BOARD_ID = /^[A-Za-z0-9_-]{1,48}$/;
 
+/** A board tap older than this routes nowhere. The pending store is drained on the next foreground,
+ *  which can be hours after the alarm (the athlete pressed the button, put the phone down, and
+ *  opened OnStandard at lunch); landing that open on the morning's board would hijack it. */
+export const BOARD_TAP_MAX_AGE_MS = 15 * 60 * 1000;
+
 /**
- * Where the app should land after draining taps: the team board for the newest tap the alarm's
- * opening button made, or null to stay where it is. The route string is fixed here and the board
- * screen itself arrives in the proto (Task 9).
+ * Where the app should land after draining taps: the team board for the newest FRESH tap the
+ * alarm's opening button made, or null to stay where it is. The route string is fixed here and the
+ * board screen itself arrives in the proto (Task 9).
  */
-export function boardRouteFor(taps: PendingBoardTap[] | null | undefined): string | null {
+export function boardRouteFor(taps: PendingBoardTap[] | null | undefined, nowMs: number = Date.now()): string | null {
   if (!Array.isArray(taps)) return null;
   let best: PendingBoardTap | null = null;
   for (const t of taps) {
     if (!t || t.board !== true || typeof t.instanceId !== 'string' || !BOARD_ID.test(t.instanceId)) continue;
-    if (!best || (Number(t.at) || 0) >= (Number(best.at) || 0)) best = t;
+    const at = Number(t.at);
+    if (!Number.isFinite(at) || nowMs - at > BOARD_TAP_MAX_AGE_MS) continue;
+    if (!best || at >= Number(best.at)) best = t;
   }
   return best ? `rollcall-board/${best.instanceId}` : null;
+}
+
+/** What roll-call-ack's refresh route did: turned the card ('sent'), had nothing to do because a
+ *  code ack just did it or no card is live ('skipped'), or could not be reached / refused ('failed'). */
+export type RefreshOutcome = 'sent' | 'skipped' | 'failed';
+
+/**
+ * After an answer that did not come through a window code, whether THIS device should end its
+ * lock-screen card itself. A binary whose intents post taps (hasAckPoster) leaves the card to the
+ * server's answered update; an older binary, or a refresh that failed (offline, an answer still
+ * queued), ends it, as the app always did, rather than leave it counting down until the close.
+ */
+export function shouldEndCardLocally(hasAckPoster: boolean, outcome: RefreshOutcome): boolean {
+  return !hasAckPoster || outcome === 'failed';
 }

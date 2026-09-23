@@ -109,3 +109,34 @@ export function bearerOf(header: string | null | undefined): string {
   const m = /^Bearer\s+(\S+)$/i.exec((header ?? '').trim());
   return m ? m[1] : '';
 }
+
+// ---------------------------------------------------------------- the refresh route (2026-09-23)
+/* An answer that did NOT come through a window code (the app's drain of a tap whose own post
+   failed, an in-app "I'm up", every older binary) records through ack_commitment, which sends no
+   push. Without this the athlete's lock-screen card kept counting down at them until the close.
+   `{ action: 'refresh', instance_id }` with the athlete's own session sends the same answered
+   update and team fan-out a code ack does. */
+
+/** A refresh right behind a code ack (the intent posts, then the app drains the same tap) must not
+ *  send the card twice. Shorter than the team gap so a real in-app answer is never held a minute. */
+export const REFRESH_MIN_GAP_MS = 10_000;
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The one instance a refresh names, or "" when it names nothing usable. */
+export function refreshInstanceOf(body: unknown): string {
+  const v = (body as { instance_id?: unknown } | null)?.instance_id;
+  return typeof v === 'string' && UUID.test(v) ? v : '';
+}
+
+/** Whether the caller's own response row earns a refresh. Only a recorded answer does. */
+export function refreshVerdict(row: { acknowledged_at: string | null } | null | undefined): 'ok' | 'not_acked' | 'no_row' {
+  if (!row) return 'no_row';
+  return row.acknowledged_at ? 'ok' : 'not_acked';
+}
+
+/** The athlete ids a claim_live_team_updates call returned (plain strings or one-column rows). */
+export function wonAthleteIds(won: unknown): Set<string> {
+  return new Set((Array.isArray(won) ? won : []).map((x: unknown) =>
+    typeof x === 'string' ? x : String(Object.values((x ?? {}) as Record<string, unknown>)[0] ?? '')));
+}

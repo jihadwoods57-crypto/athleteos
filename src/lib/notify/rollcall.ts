@@ -8,6 +8,7 @@ import {
   enqueueCoachAction, dropCoachAction, type CoachAction, type QueuedCoachAction,
   CHECK_IN_LABEL, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL, ackOutcome, type AckOutcome,
   ROLLCALL_BG_TASK, ACTION_OPTIONS, buttonTitleFor, routeNotificationResponse, boardRouteFor,
+  shouldEndCardLocally, type RefreshOutcome,
 } from '@/core/rollcall';
 
 const supaUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
@@ -339,6 +340,34 @@ let draining: Promise<number> | null = null;
  *  only one of them would have seen a return value. Read once with `takeBoardRoute`. */
 let boardRoute: string | null = null;
 
+/**
+ * The lock-screen card after an answer that did NOT come through a window code (a drained tap, an
+ * in-app "I'm up"). Only roll-call-ack's code path sends the answered update by itself, so this
+ * asks it to (`{ action: 'refresh' }`, the athlete's own session), and ends the card locally where
+ * the server cannot be relied on to: an older binary, or a refresh that failed. Never throws.
+ */
+export async function settleLiveCard(instanceId: string): Promise<RefreshOutcome> {
+  const id = String(instanceId || '');
+  if (!id || Platform.OS === 'web') return 'failed';
+  let outcome: RefreshOutcome = 'failed';
+  try {
+    const { supabase } = require('@/lib/supabase/client') as {
+      supabase: { functions: { invoke: (n: string, o: { body: unknown }) => Promise<{ data: unknown; error: unknown }> } } | null;
+    };
+    if (supabase) {
+      const { data, error } = await supabase.functions.invoke('roll-call-ack', { body: { action: 'refresh', instance_id: id } });
+      const d = data as { ok?: unknown; refreshed?: unknown } | null;
+      if (!error && d && d.ok === true) outcome = d.refreshed === true ? 'sent' : 'skipped';
+    }
+  } catch { outcome = 'failed'; }
+  try {
+    const live = require('../../../modules/rollcall-live') as typeof import('../../../modules/rollcall-live');
+    const poster = typeof live.hasAckPoster === 'function' && live.hasAckPoster();
+    if (shouldEndCardLocally(poster, outcome)) await live.endLiveActivity(id);
+  } catch { /* best effort */ }
+  return outcome;
+}
+
 /** The team-board route the last drained taps asked for, or null. Clears on read. */
 export function takeBoardRoute(): string | null {
   const r = boardRoute;
@@ -386,16 +415,16 @@ export async function drainLiveActivityTaps(): Promise<number> {
             landed++;
             q = q.filter((x) => x.instanceId !== tap.instanceId);
             // Answered: the alarm for it must not ring.
-            //
-            // The lock-screen card is NOT ended here any more (2026-09-23). The server owns it
-            // now: a check-in updates it to "You're up · 4th" with the team count, and the close
-            // sweep ends it. The tap drained here has usually ALREADY been posted by the intent
-            // itself, so ending the card at this point would wipe the answered state the athlete
-            // is about to look at when the alarm's button opens the app.
             try {
               const { cancelWakeAlarmFor } = require('./wakeAlarms') as typeof import('./wakeAlarms');
               cancelWakeAlarmFor(tap.instanceId);
             } catch { /* best effort */ }
+            // The lock-screen card (2026-09-23): the server turns it to "You're up · 4th" and ends
+            // it at the close. The tap drained here has usually ALREADY been posted by the intent,
+            // so ending it would wipe the answered card the athlete is about to look at; when the
+            // intent's own post failed, ack_commitment sent no push, so the refresh asks for one.
+            // An older binary or a failed refresh ends it here, as this always did.
+            await settleLiveCard(tap.instanceId);
           } else if (!tapRetryable(error.message)) {
             q = q.filter((x) => x.instanceId !== tap.instanceId);
           }

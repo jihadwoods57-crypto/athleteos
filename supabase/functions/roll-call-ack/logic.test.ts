@@ -21,7 +21,7 @@ describe('httpStatusFor', () => {
 });
 
 // ---------------------------------------------------------------- 2026-09-23: the team on every card
-import { teamCountUpdates, mintableWindows, bearerOf, TEAM_UPDATE_MIN_GAP_MS } from './logic';
+import { teamCountUpdates, mintableWindows, bearerOf, TEAM_UPDATE_MIN_GAP_MS, refreshInstanceOf, refreshVerdict, REFRESH_MIN_GAP_MS, wonAthleteIds } from './logic';
 
 describe('teamCountUpdates: one check-in moves every teammate\'s count', () => {
   const NOW = Date.parse('2026-09-25T10:03:00Z');
@@ -97,5 +97,30 @@ describe('bearerOf', () => {
 describe('not_yet', () => {
   test('a code spent before its window is a decided answer (410), like expired', () => {
     expect(httpStatusFor('not_yet')).toBe(410);
+  });
+});
+
+describe('refresh: an answer that did not come through a code still turns the card', () => {
+  const ID = '0b6f2c1e-4d0a-4c55-9b1e-7d2a3f4e5a6b';
+  test('names exactly one instance, as a uuid', () => {
+    expect(refreshInstanceOf({ action: 'refresh', instance_id: ID })).toBe(ID);
+    expect(refreshInstanceOf({ action: 'refresh', instance_id: ID.toUpperCase() })).toBe(ID.toUpperCase());
+    expect(refreshInstanceOf({ action: 'refresh' })).toBe('');
+    expect(refreshInstanceOf({ action: 'refresh', instance_id: "x' or 1=1" })).toBe('');
+    expect(refreshInstanceOf({ action: 'refresh', instance_id: 42 })).toBe('');
+    expect(refreshInstanceOf(null)).toBe('');
+  });
+  test('only the caller\'s own row, and only once they have actually answered', () => {
+    expect(refreshVerdict(null)).toBe('no_row');
+    expect(refreshVerdict({ acknowledged_at: null })).toBe('not_acked');
+    expect(refreshVerdict({ acknowledged_at: '2026-09-25T10:01:00Z' })).toBe('ok');
+  });
+  test('a refresh right behind a code ack (intent post, then the app drain) sends nothing twice', () => {
+    expect(REFRESH_MIN_GAP_MS).toBe(10_000);
+    expect(REFRESH_MIN_GAP_MS).toBeLessThan(TEAM_UPDATE_MIN_GAP_MS);
+  });
+  test('reads the athletes a claim returned, in either row shape', () => {
+    expect([...wonAthleteIds(['a', { claim_live_team_updates: 'b' }, null])]).toEqual(['a', 'b', '']);
+    expect([...wonAthleteIds(null)]).toEqual([]);
   });
 });

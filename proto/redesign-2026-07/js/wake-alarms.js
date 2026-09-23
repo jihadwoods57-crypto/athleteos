@@ -123,35 +123,44 @@ export const ACK_CODES_TTL_MS = 30 * 60 * 1000;
 /** A mint slower than this is abandoned for this sync: arming must never wait on it. */
 const ACK_CODES_TIMEOUT_MS = 6000;
 
-let ackCache = null; // { at, data }
+/* { at, data, asked }: the last mint's answer (null when it failed) and every instance id that was
+   about to be armed when it was asked. A FAILED mint and an id the mint had no code for are cached
+   too, for the same TTL: a signed-out athlete, a mint route not deployed yet, or a morning the
+   server will not code must not cost an edge-function call on every foreground beat. */
+let ackCache = null;
 
 /** Test seam. */
 export function _resetAckCodes() { ackCache = null; }
 
 /**
  * The mint's answer, cached. Asks again when the cache is stale or when an instance about to be
- * armed has no code in it (a wake-up the coach just added).
+ * armed was never part of an ask (a wake-up the coach just added).
  * @param {object|null} client the Supabase client (window.sb)
  * @param {number} nowMs
  * @param {string[]} [needIds] instance ids about to be armed
  * @returns {Promise<{ok:boolean, ack_url:string, codes:Array}|null>} null when there is nothing usable
  */
 export async function fetchAckCodes(client, nowMs = Date.now(), needIds = []) {
-  if (ackCache && nowMs - ackCache.at < ACK_CODES_TTL_MS) {
-    const have = new Set((ackCache.data.codes || []).map((c) => c && c.instance_id));
-    if (needIds.every((id) => have.has(id))) return ackCache.data;
+  const need = Array.isArray(needIds) ? needIds.map(String) : [];
+  if (ackCache && nowMs - ackCache.at >= 0 && nowMs - ackCache.at < ACK_CODES_TTL_MS) {
+    if (need.every((id) => ackCache.asked.has(id))) return ackCache.data;
   }
   if (!client || !client.functions || typeof client.functions.invoke !== 'function') return null;
+  const asked = new Set(need);
+  const remember = (data) => {
+    if (data) for (const c of data.codes) if (c && c.instance_id) asked.add(String(c.instance_id));
+    ackCache = { at: nowMs, data, asked };
+    return data;
+  };
   let timer = null;
   try {
     const call = client.functions.invoke('roll-call-ack', { body: { action: 'codes' } });
     const late = new Promise((resolve) => { timer = setTimeout(() => resolve({ data: null, error: 'timeout' }), ACK_CODES_TIMEOUT_MS); });
     const { data, error } = await Promise.race([call, late]);
-    if (error || !data || data.ok !== true || !Array.isArray(data.codes)) return null;
-    ackCache = { at: nowMs, data };
-    return data;
+    if (error || !data || data.ok !== true || !Array.isArray(data.codes)) return remember(null);
+    return remember(data);
   } catch {
-    return null;
+    return remember(null);
   } finally {
     if (timer) clearTimeout(timer);
   }
