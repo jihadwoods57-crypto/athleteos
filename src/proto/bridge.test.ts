@@ -7,6 +7,7 @@ jest.mock('expo-haptics', () => ({
 }));
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn(), deleteItemAsync: jest.fn(),
+  AFTER_FIRST_UNLOCK: 0,
 }));
 jest.mock('../lib/notify/execSync', () => ({ syncExecNotifications: jest.fn(async () => undefined) }));
 jest.mock('../../modules/rollcall-live', () => ({ endLiveActivity: jest.fn(async () => undefined) }));
@@ -199,5 +200,27 @@ describe('location bridge', () => {
     }
     expect(BRIDGE_SHIM).toContain('location:');
     expect(BRIDGE_SHIM).not.toContain('LOCATION_PLACE');
+  });
+});
+
+/* The PROTO writes the Supabase session through SECURE_SET. A region wake with the phone LOCKED
+   has to read it, so every write uses AFTER_FIRST_UNLOCK rather than the iOS default. */
+describe('SECURE_SET keychain class', () => {
+  const SS = () => jest.requireMock('expo-secure-store') as { setItemAsync: jest.Mock; AFTER_FIRST_UNLOCK: number };
+
+  test.each(['sb-abcdefghij-auth-token', 'sb-abcdefghij-auth-token.0', 'onstd-biolock'])(
+    'SECURE_SET %s passes keychainAccessible AFTER_FIRST_UNLOCK', async (key) => {
+      SS().setItemAsync.mockClear();
+      const { injected, ref } = fakeRef();
+      await handleBridgeMessage(ref, { type: 'SECURE_SET', id: 30, key, value: 'v' } as never);
+      expect(SS().setItemAsync).toHaveBeenCalledWith(key, 'v', { keychainAccessible: SS().AFTER_FIRST_UNLOCK });
+      expect(injected[0]).toContain('__onNativeResult(30, true');
+    });
+
+  test('a key outside the allow-list is still refused before any write', async () => {
+    SS().setItemAsync.mockClear();
+    const { ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'SECURE_SET', id: 31, key: 'other', value: 'v' } as never);
+    expect(SS().setItemAsync).not.toHaveBeenCalled();
   });
 });

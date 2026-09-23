@@ -111,6 +111,10 @@ function resolve(ref: Ref, id: number, value: unknown, error?: string) {
 // keys the proto legitimately owns are served: the supabase session (`sb-<ref>-auth-token`
 // + its chunk suffixes) and the app's own `onstd-*` flags (biolock). Everything else is
 // refused with an explicit error.
+/** Every SECURE_SET write. Same option as src/lib/supabase/secureStorage.ts, the other writer of
+ *  the session keys. keychainAccessible is iOS-only; Android ignores it. */
+const SECURE_WRITE_OPTS: SecureStore.SecureStoreOptions = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK };
+
 function secureKeyAllowed(key: unknown): key is string {
   return typeof key === 'string' && (key.startsWith('sb-') || key.startsWith('onstd-'));
 }
@@ -201,7 +205,14 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
     case 'SECURE_SET':
       if (!secureKeyAllowed(msg.key)) return denySecureKey(ref, msg.id);
       try {
-        await SecureStore.setItemAsync(msg.key, msg.value);
+        // AFTER_FIRST_UNLOCK, not the iOS default (WHEN_UNLOCKED): the proto writes the Supabase
+        // session through here, and the walk-in check-in reads it from a background region wake
+        // with the phone LOCKED. The default class is unreadable then, so the arrival RPC went out
+        // anonymous and recorded nothing. The proto deletes each item before it writes it, and
+        // expo-secure-store applies the class on ADD, so every refresh moves the session over.
+        // Applies to every allowed key (sb-*, onstd-*): none needs WHEN_UNLOCKED; the one other
+        // secret-ish item, onstd-biolock, is a flag read at launch in the foreground.
+        await SecureStore.setItemAsync(msg.key, msg.value, SECURE_WRITE_OPTS);
         resolve(ref, msg.id, true);
       } catch (e) {
         resolve(ref, msg.id, null, String((e as Error)?.message ?? e));

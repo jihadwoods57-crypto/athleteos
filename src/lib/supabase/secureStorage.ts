@@ -18,13 +18,15 @@
 // iOS wakes the app for a region crossing, typically with the phone locked in a pocket. The iOS
 // default accessibility (WHEN_UNLOCKED) makes the session unreadable then, so the arrival RPC went
 // out anonymous and nothing was recorded. Every write now uses AFTER_FIRST_UNLOCK: readable
-// whenever the phone has been unlocked once since it booted, still encrypted at rest, and still
-// migrates to a new device through an encrypted backup like the default does. Items written by
-// older builds are moved over once by migrateKeychainAccessibility().
+// whenever the phone has been unlocked once since it booted, still encrypted at rest.
 //
-// NOTE ON iOS: expo-secure-store only applies keychainAccessible when it ADDS an item; writing a
-// key that already exists updates the value and keeps the old class. setItem below always deletes
-// first (clearSecure), which is what makes a re-write actually change the class.
+// WHO WRITES THE SESSION. The session athletes actually have is written by the PROTO (its own
+// supabase-js, through the bridge's SECURE_SET), under the same key and chunk layout; bridge.ts
+// passes the same AFTER_FIRST_UNLOCK option. Items written by older builds are NOT rewritten here:
+// a read-and-rewrite at launch raced the proto's own token rotation and could put a revoked
+// refresh token back (signing the athlete out). The next ordinary refresh moves them instead,
+// because both writers delete before they add, and expo-secure-store applies keychainAccessible
+// only when it ADDS an item (writing an existing key updates the value and keeps the old class).
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
@@ -34,21 +36,36 @@ const CHUNK = 2000;
 /** SecureStore is iOS/Android only; on web (and SSR) we delegate to AsyncStorage. */
 const useSecure = Platform.OS !== 'web';
 
-/** Every SecureStore write. keychainAccessible is iOS-only; Android ignores it. */
-const WRITE_OPTS: SecureStore.SecureStoreOptions = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK };
+/** Every SecureStore write. keychainAccessible is iOS-only; Android ignores it. The bridge's
+ *  SECURE_SET (src/proto/bridge.ts) passes the same option, so both writers use the same class. */
+const KEYCHAIN_WRITE_OPTS: SecureStore.SecureStoreOptions = {
+  keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK,
+};
 
-/** Set once every stored key has been re-written with WRITE_OPTS. */
-const MIGRATION_MARK = 'onstandard.keychain.afu.v1';
+/** A keychain call that has not answered in this long is treated as failed, so one hung call can
+ *  never stall every later auth read queued behind it. */
+const KEYCHAIN_TIMEOUT_MS = 5000;
+
+function withTimeout<T>(p: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('secure-store timed out')), KEYCHAIN_TIMEOUT_MS);
+  });
+  return Promise.race([p, timeout]).finally(() => { if (timer) clearTimeout(timer); });
+}
+
+const kGet = (k: string) => withTimeout(SecureStore.getItemAsync(k));
+const kSet = (k: string, v: string) => withTimeout(SecureStore.setItemAsync(k, v, KEYCHAIN_WRITE_OPTS));
+const kDel = (k: string) => withTimeout(SecureStore.deleteItemAsync(k));
 
 // SecureStore keys allow [A-Za-z0-9._-]; Supabase's key ("sb-<ref>-auth-token") qualifies, and the
 // suffixes below stay in that set.
 const countKey = (key: string) => `${key}.__n`;
 const chunkKey = (key: string, i: number) => `${key}.${i}`;
 
-/* ONE queue for every SecureStore operation this adapter does. The migration reads a session and
-   writes it back; if Supabase refreshed the token in between, writing the old value back would
-   throw away a refresh token the server has already rotated, and sign the athlete out. Running
-   everything in order makes that interleaving impossible. */
+/* This adapter's own operations run one at a time, so a read can never see a half-written chunk
+   set from a concurrent write. (The proto writes through the bridge on its own schedule; nothing
+   here reads-then-rewrites, so the two cannot put a stale token back.) */
 let queue: Promise<unknown> = Promise.resolve();
 function serial<T>(op: () => Promise<T>): Promise<T> {
   const run = queue.then(op, op);
@@ -58,39 +75,11 @@ function serial<T>(op: () => Promise<T>): Promise<T> {
 
 /** Delete every SecureStore entry for a key (single value + any chunk set), so no stale chunk lingers. */
 async function clearSecure(key: string): Promise<void> {
-  const n = Number(await SecureStore.getItemAsync(countKey(key)));
-  await SecureStore.deleteItemAsync(key);
-  await SecureStore.deleteItemAsync(countKey(key));
+  const n = Number(await kGet(countKey(key)));
+  await kDel(key);
+  await kDel(countKey(key));
   if (n && !Number.isNaN(n)) {
-    for (let i = 0; i < n; i++) await SecureStore.deleteItemAsync(chunkKey(key, i));
-  }
-}
-
-async function readSecure(key: string): Promise<string | null> {
-  const n = Number(await SecureStore.getItemAsync(countKey(key)));
-  if (!n || Number.isNaN(n)) return SecureStore.getItemAsync(key); // single (small) value
-  let out = '';
-  for (let i = 0; i < n; i++) {
-    const part = await SecureStore.getItemAsync(chunkKey(key, i));
-    if (part == null) return null; // a missing chunk => treat as absent (forces a safe re-auth)
-    out += part;
-  }
-  return out;
-}
-
-/** `opts` undefined = the iOS default class, used ONLY to put a session back after a failed
- *  migration write (it is how the item was stored before). */
-async function writeSecure(key: string, value: string, opts: SecureStore.SecureStoreOptions | undefined = WRITE_OPTS): Promise<void> {
-  await clearSecure(key); // drop any prior representation first (and with it the old class)
-  const set = (k: string, v: string) => (opts ? SecureStore.setItemAsync(k, v, opts) : SecureStore.setItemAsync(k, v));
-  if (value.length <= CHUNK) {
-    await set(key, value);
-    return;
-  }
-  const n = Math.ceil(value.length / CHUNK);
-  await set(countKey(key), String(n));
-  for (let i = 0; i < n; i++) {
-    await set(chunkKey(key, i), value.slice(i * CHUNK, (i + 1) * CHUNK));
+    for (let i = 0; i < n; i++) await kDel(chunkKey(key, i));
   }
 }
 
@@ -98,12 +87,33 @@ async function writeSecure(key: string, value: string, opts: SecureStore.SecureS
 export const secureStorage = {
   async getItem(key: string): Promise<string | null> {
     if (!useSecure) return AsyncStorage.getItem(key);
-    return serial(() => readSecure(key));
+    return serial(async () => {
+      const n = Number(await kGet(countKey(key)));
+      if (!n || Number.isNaN(n)) return kGet(key); // single (small) value
+      let out = '';
+      for (let i = 0; i < n; i++) {
+        const part = await kGet(chunkKey(key, i));
+        if (part == null) return null; // a missing chunk => treat as absent (forces a safe re-auth)
+        out += part;
+      }
+      return out;
+    });
   },
 
   async setItem(key: string, value: string): Promise<void> {
     if (!useSecure) return AsyncStorage.setItem(key, value);
-    return serial(() => writeSecure(key, value));
+    return serial(async () => {
+      await clearSecure(key); // drop any prior representation first (and with it the old class)
+      if (value.length <= CHUNK) {
+        await kSet(key, value);
+        return;
+      }
+      const n = Math.ceil(value.length / CHUNK);
+      await kSet(countKey(key), String(n));
+      for (let i = 0; i < n; i++) {
+        await kSet(chunkKey(key, i), value.slice(i * CHUNK, (i + 1) * CHUNK));
+      }
+    });
   },
 
   async removeItem(key: string): Promise<void> {
@@ -111,55 +121,3 @@ export const secureStorage = {
     return serial(() => clearSecure(key));
   },
 };
-
-/** Supabase's default auth storage key for a project URL ("sb-<project ref>-auth-token"), exactly
- *  as supabase-js derives it. client.ts passes it explicitly so the migration below and the client
- *  can never disagree about which key holds the session. */
-export function defaultAuthStorageKey(url: string): string {
-  return `sb-${new URL(url).hostname.split('.')[0]}-auth-token`;
-}
-
-/** Move items written by older builds (iOS default class, unreadable while locked) to
- *  AFTER_FIRST_UNLOCK. Run while the app is in the FOREGROUND, where the phone is unlocked.
- *
- *  - Idempotent: a marker is set when every key is done, and after that it touches nothing.
- *  - A read that throws (the phone is locked, so the old item is unreadable) writes NOTHING and
- *    leaves the marker unset: it simply runs again next time.
- *  - A write that fails puts the value straight back the way it was stored before, and leaves the
- *    marker unset. The value is held in memory throughout, so a session is never lost.
- *  - Serialized with every Supabase read and write (see `serial`), so a token refresh can never be
- *    overwritten by the older value this read.
- *  - A key with nothing stored (signed out) needs nothing: the next sign-in writes the new class. */
-export async function migrateKeychainAccessibility(
-  keys: string[],
-): Promise<'done' | 'already' | 'skipped' | 'failed'> {
-  if (!useSecure) return 'skipped';
-  return serial(async () => {
-    try {
-      if ((await SecureStore.getItemAsync(MIGRATION_MARK)) === '1') return 'already';
-    } catch {
-      return 'failed';
-    }
-    for (const key of keys) {
-      let value: string | null;
-      try {
-        value = await readSecure(key);
-      } catch {
-        return 'failed'; // locked: nothing written, retry on the next foreground
-      }
-      if (value == null) continue;
-      try {
-        await writeSecure(key, value);
-      } catch {
-        try { await writeSecure(key, value, undefined); } catch { /* the next Supabase write re-creates it */ }
-        return 'failed';
-      }
-    }
-    try {
-      await SecureStore.setItemAsync(MIGRATION_MARK, '1', WRITE_OPTS);
-    } catch {
-      return 'failed';
-    }
-    return 'done';
-  });
-}

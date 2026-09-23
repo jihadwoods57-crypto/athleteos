@@ -104,96 +104,67 @@ describe('secureStorage: readable while the phone is locked', () => {
   });
 });
 
-describe('migrateKeychainAccessibility (one time, never loses a session)', () => {
-  /** Seed an item the way a build before this fix wrote it: no options = the iOS default class. */
-  const seedLegacy = async (k: string, v: string) => { await SecureStore.setItemAsync(k, v); };
+/* No read-and-rewrite migration (fix round 2). At launch it raced the proto's own token rotation
+   and could write a revoked refresh token back, signing the athlete out. Old-class items move over
+   on the next ordinary refresh instead (both writers delete before they add). Loading the client
+   must therefore never write, rewrite or delete an existing session item. */
+describe('startup never rewrites an existing session', () => {
+  const OLD_ENV = { ...process.env };
+  afterEach(() => { process.env = { ...OLD_ENV }; });
 
-  it('re-writes an existing (old-class) session with AFTER_FIRST_UNLOCK, value unchanged, then marks done', async () => {
-    const { migrateKeychainAccessibility, secureStorage } = require('./secureStorage');
-    await seedLegacy('sb-x-auth-token', 'session-json');
-    expect(mock.__opts.get('sb-x-auth-token')).toBeUndefined();
-    expect(await migrateKeychainAccessibility(['sb-x-auth-token'])).toBe('done');
-    expect(await secureStorage.getItem('sb-x-auth-token')).toBe('session-json');
-    expect(mock.__opts.get('sb-x-auth-token')).toEqual({ keychainAccessible: AFU });
-    expect(mock.__store.get(MARK)).toBe('1');
-  });
-
-  it('migrates a chunked session too', async () => {
-    const { migrateKeychainAccessibility, secureStorage } = require('./secureStorage');
-    const big = 'A'.repeat(2000) + 'B'.repeat(2000) + 'C'.repeat(10);
-    await seedLegacy('k.__n', '3');
-    await seedLegacy('k.0', big.slice(0, 2000));
-    await seedLegacy('k.1', big.slice(2000, 4000));
-    await seedLegacy('k.2', big.slice(4000));
-    expect(await migrateKeychainAccessibility(['k'])).toBe('done');
-    expect(await secureStorage.getItem('k')).toBe(big);
-    for (const c of ['k.__n', 'k.0', 'k.1', 'k.2']) expect(mock.__opts.get(c)).toEqual({ keychainAccessible: AFU });
-  });
-
-  it('is idempotent: once marked, it touches nothing', async () => {
-    const { migrateKeychainAccessibility } = require('./secureStorage');
-    await seedLegacy('k', 'v');
-    expect(await migrateKeychainAccessibility(['k'])).toBe('done');
-    const spy = jest.spyOn(SecureStore, 'setItemAsync');
-    expect(await migrateKeychainAccessibility(['k'])).toBe('already');
-    expect(spy).not.toHaveBeenCalled();
-    spy.mockRestore();
-  });
-
-  it('signed out (nothing stored) still marks done: the next sign-in writes the new class anyway', async () => {
-    const { migrateKeychainAccessibility } = require('./secureStorage');
-    expect(await migrateKeychainAccessibility(['absent'])).toBe('done');
-    expect(mock.__store.get(MARK)).toBe('1');
-  });
-
-  it('a read that throws (phone locked) writes NOTHING and leaves the marker unset, so it retries later', async () => {
-    const { migrateKeychainAccessibility } = require('./secureStorage');
-    await seedLegacy('k', 'v');
-    const get = jest.spyOn(SecureStore, 'getItemAsync').mockImplementation(async (k: string) => {
-      if (k === MARK) return null;
-      throw new Error('errSecInteractionNotAllowed');
+  it('loading the Supabase client with a stored (old-class) session writes and deletes nothing', async () => {
+    const future = Math.floor(Date.now() / 1000) + 3600;
+    const session = JSON.stringify({
+      access_token: 'a', refresh_token: 'r', token_type: 'bearer', expires_in: 3600, expires_at: future,
+      user: { id: 'u1', aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' },
     });
+    await SecureStore.setItemAsync('sb-abcdefghij-auth-token', session); // no options = the old class
+    process.env.EXPO_PUBLIC_SUPABASE_URL = 'https://abcdefghij.supabase.co';
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY = 'anon';
     const set = jest.spyOn(SecureStore, 'setItemAsync');
-    expect(await migrateKeychainAccessibility(['k'])).toBe('failed');
-    expect(set).not.toHaveBeenCalled();
-    get.mockRestore();
-    set.mockRestore();
-    expect(mock.__store.get('k')).toBe('v');
-    expect(mock.__store.has(MARK)).toBe(false);
-  });
-
-  it('a failed re-write puts the session back the old way and leaves the marker unset', async () => {
-    const { migrateKeychainAccessibility, secureStorage } = require('./secureStorage');
-    await seedLegacy('k', 'session');
-    const set = jest.spyOn(SecureStore, 'setItemAsync');
-    set.mockImplementationOnce(async () => { throw new Error('errSecIO'); }); // the AFU write fails
-    expect(await migrateKeychainAccessibility(['k'])).toBe('failed');
-    set.mockRestore();
-    expect(await secureStorage.getItem('k')).toBe('session'); // never lost
-    expect(mock.__store.has(MARK)).toBe(false);
-  });
-
-  it('a Supabase write queued during the migration lands AFTER it, so a fresh token is never overwritten', async () => {
-    const { migrateKeychainAccessibility, secureStorage } = require('./secureStorage');
-    await seedLegacy('k', 'old-token');
-    const m = migrateKeychainAccessibility(['k']);
-    const w = secureStorage.setItem('k', 'refreshed-token');
-    await Promise.all([m, w]);
-    expect(await secureStorage.getItem('k')).toBe('refreshed-token');
-  });
-
-  it('the session key is the one supabase-js derives by default (so no existing session is orphaned)', () => {
-    const { defaultAuthStorageKey } = require('./secureStorage');
-    expect(defaultAuthStorageKey('https://abcdefghij.supabase.co')).toBe('sb-abcdefghij-auth-token');
-    expect(defaultAuthStorageKey('http://127.0.0.1:54321')).toBe('sb-127-auth-token');
-  });
-
-  it('web has no keychain: skipped', async () => {
-    let migrateWeb: typeof import('./secureStorage').migrateKeychainAccessibility;
+    const del = jest.spyOn(SecureStore, 'deleteItemAsync');
+    let client: typeof import('./client') | undefined;
     jest.isolateModules(() => {
-      jest.doMock('react-native', () => ({ Platform: { OS: 'web' } }));
-      migrateWeb = require('./secureStorage').migrateKeychainAccessibility;
+      // Pin the native stubs: an earlier test doMock'd react-native as web, and a fresh registry
+      // would otherwise load a SECOND secure-store mock that cannot see the item seeded above.
+      jest.doMock('react-native', () => jest.requireActual('../../../jest/reactNativeMock.js'));
+      jest.doMock('expo-secure-store', () => SecureStore);
+      client = require('./client');
     });
-    expect(await migrateWeb!(['k'])).toBe('skipped');
+    expect(client!.supabase).not.toBeNull();
+    await client!.supabase!.auth.getSession(); // let the client finish initializing from storage
+    expect(set).not.toHaveBeenCalled();
+    expect(del).not.toHaveBeenCalled();
+    expect(mock.__store.get('sb-abcdefghij-auth-token')).toBe(session);
+    expect(mock.__opts.get('sb-abcdefghij-auth-token')).toBeUndefined();
+    client!.supabase!.auth.stopAutoRefresh();
+    set.mockRestore();
+    del.mockRestore();
+  });
+
+  it('the adapter exposes no migration', () => {
+    const mod = require('./secureStorage');
+    expect(Object.keys(mod)).toEqual(['secureStorage']);
+  });
+});
+
+describe('a hung keychain call cannot stall every read behind it', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('a call that never answers fails after 5 s, and the next read still goes through', async () => {
+    const { secureStorage } = require('./secureStorage');
+    await SecureStore.setItemAsync('ok', 'v');
+    const get = jest.spyOn(SecureStore, 'getItemAsync');
+    get.mockImplementationOnce(() => new Promise(() => {})); // the hung call
+    const hung = secureStorage.getItem('stuck');
+    const next = secureStorage.getItem('ok');
+    const hungOutcome = hung.then(() => 'resolved', (e: Error) => e.message);
+    await jest.advanceTimersByTimeAsync(4999);
+    await jest.advanceTimersByTimeAsync(1);
+    expect(await hungOutcome).toBe('secure-store timed out');
+    get.mockRestore();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(await next).toBe('v');
   });
 });
