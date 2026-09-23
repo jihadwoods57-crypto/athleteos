@@ -627,7 +627,7 @@ export function pastMealDetail(m) {
     // never had is not a measured zero. null and 0 are different facts.
     macros: { protein: m.protein || 0, carbs: m.carbs || 0, fat: m.fat || 0, cals: m.kcal || 0 },
     macrosRaw: { protein: nz(m.protein), carbs: nz(m.carbs), fat: nz(m.fat), cals: nz(m.kcal) },
-    fiber: m.fiber || 0, detectedRich: rich, foods: rich.map((d) => d.name),
+    fiber: nz(m.fiber), detectedRich: rich, foods: rich.map((d) => d.name),
     // A stored plate with a photo was read from it; without one it was entered by hand. The row
     // does not keep the source, so this is the honest reading of what it does keep.
     source: m.photo_path ? null : 'manual',

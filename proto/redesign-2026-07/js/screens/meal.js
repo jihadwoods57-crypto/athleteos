@@ -1102,6 +1102,7 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
       if (/^Fat in range/.test(l)) return `Good balance for ${whose} goals`;
       if (/^Fat/.test(l)) return 'Go lighter on oils and cheese';
       if (/^Good fiber/.test(l)) return 'Produce is showing';
+      if (/^Produce showing/.test(l)) return 'Fiber was not measured for this plate';
       if (/^Fiber light/.test(l)) return 'Add fruit, veggies or higher fiber carbs';
       // Not "Nothing green on the plate": that is a claim about the photo, and the photo can show
       // edamame and lettuce while the fiber estimate reads zero (audit 2026-09-22). Say what to do.
@@ -1294,7 +1295,7 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
       ${/* "No targets" is claimed off the RAW targets, not the visible bars: a target a
             professional chose to hide still exists, and this line must not say otherwise. */''}
       ${targetBars.length || T.protein || T.calories ? '' : `<div class="est-note">${you ? "No coach targets set yet, so there's nothing to measure against. These are this meal's totals." : 'No targets set for this athlete yet, so there is nothing to measure against. These are this meal\'s totals.'}</div>`}
-      ${PS.showMacros ? `<div class="est-note" style="margin-top:8px">~${M.fiber}g fiber estimated. The full component read is under "Why did this meal score ${M.score != null ? M.score : 'this'}?".</div>` : ''}
+      ${PS.showMacros && M.fiber != null ? `<div class="est-note" style="margin-top:8px">~${M.fiber}g fiber estimated. The full component read is under "Why did this meal score ${M.score != null ? M.score : 'this'}?".</div>` : ''}
       ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">${you ? 'Your note' : 'Their note'}:</b> ${esc(M.userNote)}</div>` : ''}
       ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">${you ? 'Corrected by you' : 'Corrected by the athlete'}</b>: ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${(() => {
         if (!M.orig) return '';

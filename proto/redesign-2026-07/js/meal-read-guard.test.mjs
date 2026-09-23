@@ -48,7 +48,11 @@ test('a report that named no food is refused', () => {
 test('a half-written number is refused, not coerced to zero', () => {
   // Number(null) and Number('') are both 0 — finite, and therefore invisible to a naive check.
   // That is exactly how a truncated report used to pass as a meal.
-  assert.equal(isCompleteMealResult(read({ carbs: null })), false);
+  // A null carbs or fat is an honest UNKNOWN since 2026-09-23 (review pass ruling: unknown is not
+  // zero), and groundResult now carries it that way; protein and kcal must still be present.
+  assert.equal(isCompleteMealResult(read({ carbs: null })), true);
+  assert.equal(isCompleteMealResult(read({ protein: null })), false);
+  assert.equal(isCompleteMealResult(read({ carbs: '' })), false);
   assert.equal(isCompleteMealResult(read({ protein: undefined })), false);
   assert.equal(isCompleteMealResult(read({ kcal: '' })), false);
   assert.equal(isCompleteMealResult(read({ fat: 'thirty' })), false);

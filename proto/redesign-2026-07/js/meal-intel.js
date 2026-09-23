@@ -31,6 +31,8 @@ export function normalizeDetected(detected) {
     const src = d && (d.per && typeof d.per === 'object' ? d.per : d);
     if (src && ['protein', 'kcal', 'carbs', 'fat'].some((k) => num(src[k]) > 0)) {
       out.per = { protein: num(src.protein), kcal: num(src.kcal), carbs: num(src.carbs), fat: num(src.fat) };
+      const unk = ['carbs', 'fat'].filter((k) => src[k] == null || src[k] === '' || !isFinite(Number(src[k])));
+      if (unk.length) out.perUnknown = unk;
     }
     if (d && d.edited) out.edited = true;
     // portionEdited is NOT edited, and the difference is the whole point. `edited` means the
@@ -161,7 +163,7 @@ function withStated(priced, stated) {
  *  fall back to `note`. */
 export function groundExtras(raw) {
   const r = raw || {};
-  const fiber = Math.max(0, Math.min(60, Math.round(Number(r.fiber) || 0)));
+  const fiber = r.fiber == null || r.fiber === '' || !isFinite(Number(r.fiber)) ? null : Math.max(0, Math.min(60, Math.round(Number(r.fiber))));
   const highlights = (Array.isArray(r.highlights) ? r.highlights : [])
     .slice(0, 3).map((h) => clean(h).slice(0, 120)).filter(Boolean);
   const detectedRich = normalizeDetected(r.detected);
@@ -573,9 +575,10 @@ export function qualityReason(macros, fiber, detected) {
   const issues = [];
   if ((p * 4) / total < 0.2) issues.push('protein came in low next to the carbs and fat');
   if ((f * 9) / total > 0.45) issues.push('fat ran above the range');
-  const fib = Math.max(0, Number(fiber) || 0);
+  const fibKnown = fiber != null && fiber !== '' && isFinite(Number(fiber));
+  const fib = fibKnown ? Math.max(0, Number(fiber)) : 0;
   const produce = hasVisibleProduce(detected);
-  if (fib < 4 && c >= 30) {
+  if (fibKnown && fib < 4 && c >= 30) {
     if (!produce) issues.push('almost no fiber');
     else if (fib > 0) issues.push('fiber reads lighter than the plate suggests');
     // produce visible + fiber estimate of 0: the estimate is the suspect — say nothing false
@@ -904,15 +907,18 @@ function componentStates({ minutesLate, macros, fiber, detected } = {}) {
   const kcal = knownNum(kcalRaw) ? Number(kcalRaw) : 0;
   const total = (pK && cK && fK) ? knownEnergy : (kcal > knownEnergy + 1 ? kcal : 0);
   const late = typeof minutesLate === 'number' && minutesLate > 0;
-  const fib = Math.max(0, Number(fiber) || 0);
+  // Unmeasured fiber is judged only on visible produce (partial credit); otherwise left out.
+  const fibKnown = knownNum(fiber);
+  const fib = fibKnown ? Math.max(0, Number(fiber)) : null;
   const produce = hasVisibleProduce(detected);
   return {
-    p, c, f, total, late, fib, produce,
+    p, c, f, total, late, fib, fibKnown, produce,
     timing: late ? (minutesLate > 60 ? 'miss' : 'partial') : 'met',
     protein: pK && total > 0 ? ((p * 4) / total >= 0.25 ? 'met' : (p * 4) / total >= 0.2 ? 'partial' : 'miss') : null,
     carbs: cK && total > 0 ? ((c * 4) / total <= 0.6 ? 'met' : 'partial') : null,
     fat: fK && total > 0 ? ((f * 9) / total <= 0.4 ? 'met' : (f * 9) / total <= 0.45 ? 'partial' : 'miss') : null,
-    fiberState: fib >= 6 || (produce && fib >= 3) ? 'met' : produce ? 'partial' : fib >= 3 ? 'partial' : 'miss',
+    fiberState: !fibKnown ? (produce ? 'partial' : null)
+      : fib >= 6 || (produce && fib >= 3) ? 'met' : produce ? 'partial' : fib >= 3 ? 'partial' : 'miss',
   };
 }
 
@@ -985,7 +991,8 @@ export function scoreReasons({ macros, fiber, detected, minutesLate } = {}) {
       const table = QUALITY_POINTS[c.k];
       const max = table.met;
       const lost = max - (table[c.state] != null ? table[c.state] : max);
-      return { ...c, lost, label: (LABEL[c.k] && LABEL[c.k][c.state]) || '' };
+      const label = c.k === 'fiber' && !s.fibKnown ? 'Produce showing' : (LABEL[c.k] && LABEL[c.k][c.state]) || '';
+      return { ...c, lost, label };
     })
     .filter((c) => c.label);
   const problems = scored.filter((c) => c.lost > 0).sort((a, b) => b.lost - a.lost);
@@ -1016,7 +1023,7 @@ export function coachFocus({ macros, fiber, detected, minutesLate, nextMealName,
     k, st,
     lost: QUALITY_POINTS[k].met - (QUALITY_POINTS[k][st] != null ? QUALITY_POINTS[k][st] : QUALITY_POINTS[k].met),
   }))
-    .filter((c) => !(c.k === 'fiber' && c.st === 'miss' && s.produce))
+    .filter((c) => !(c.k === 'fiber' && c.st === 'miss' && s.produce) && !(c.k === 'fiber' && !s.fibKnown))
     .sort((a, b) => b.lost - a.lost);
   const worst = costs[0];
   if (!worst || worst.lost === 0) return 'Great plate. Repeat this structure tomorrow.';
@@ -1077,10 +1084,11 @@ export function scoreRubric({ quality, minutesLate, macros, fiber, detected, sou
   }
 
   // Produce & fiber — guarded by what's visible, same rule as qualityReason.
-  rows.push({
+  if (s.fiberState != null) rows.push({
     k: 'Produce & fiber', exact: false,
     state: s.fiberState,
-    note: produce ? `Visible produce on the plate · ~${fib}g fiber (estimated)` : `~${fib}g fiber (estimated)`,
+    note: !s.fibKnown ? 'Visible produce on the plate · fiber not measured'
+      : produce ? `Visible produce on the plate · ~${fib}g fiber (estimated)` : `~${fib}g fiber (estimated)`,
   });
 
   // Completeness — photo present + note coverage.
