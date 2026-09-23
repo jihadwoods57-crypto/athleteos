@@ -339,3 +339,7 @@
   .ob2-chat .cm, .ob2-notif { animation: none; }
   .ob2-meter .arc-fill, .ob2-prog .seg > i { transition: none; }
 }
+
+/* A quiet line under an onboarding field (the "You'll need a parent's OK" step, A-B6). */
+.ob-hint-line { font-size: var(--t-sm); font-weight: 600; color: var(--text-3); line-height: 1.5; margin-top: var(--s2h); }
+.ob-guardian-in { margin-top: var(--s3h); }

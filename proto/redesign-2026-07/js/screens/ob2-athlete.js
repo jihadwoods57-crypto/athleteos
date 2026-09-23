@@ -21,7 +21,8 @@
 import { RT, act, computeScore } from '../state.js';
 import { icon } from '../icons.js';
 import { esc } from '../components.js';
-import { dobFromParts, ageOn, normalizePressure, showConfirmPending } from '../ob-helpers.js';
+import { dobFromParts, ageBand, normalizePressure, showConfirmPending } from '../ob-helpers.js';
+import { guardianWhyHtml } from './guardian.js';
 import { commitButton, wireCommit } from '../ob-commit.js';
 import { accountBody, wireAccount } from './ob-account.js';
 import { track, EVENTS } from '../analytics.js';
@@ -109,9 +110,10 @@ const steps = [
      of it could be kept. The engine is data-driven, so the pair rides here unchanged. */
   {
     id: 'dob', ch: 0, cta: 'Continue',
-    next: (o) => (o.dobBlocked ? 'blocked' : 'sport'),
+    next: (o) => (o.dobBlocked ? 'blocked' : o.dobMinor ? 'minor' : 'sport'),
     title: () => 'Your birth date',
-    sub: () => 'Asked once. It verifies you are old enough to use OnStandard.',
+    // A-M7: nothing is verified; a typed date is a statement, and the copy says only what is true.
+    sub: () => 'Asked once. OnStandard is for ages 13 and up.',
     body: (o) => {
       const [y, m, d] = o.dob ? String(o.dob).split('-') : ['', '', ''];
       return `
@@ -135,15 +137,20 @@ const steps = [
       // Digits only. These are type="text" so `maxlength` actually clamps the year (number
       // inputs ignore maxlength entirely, which let a pasted "99999999" sail through).
       const digitsOnly = (el, max) => { const v = el.value.replace(/\D/g, '').slice(0, max); if (v !== el.value) el.value = v; };
+      // Locked (A Polish 4): someone who reached the under-13 screen does not get to type an
+      // older year. The lock lives in the onboarding scratch and only a finished account or a
+      // fresh install clears it.
+      if (RT.ob && RT.ob.ageLocked) { window.__navigate && window.__navigate(`${R}/blocked`); return; }
       const sync = () => {
         const raw = !!(dm.value && dd.value && dy.value);
         const dob = dobFromParts(dm.value, dd.value, dy.value);
         const future = dob != null && dob > todayISO();
-        const under13 = dob != null && !future && ageOn(dob, todayISO()) < 13;
+        const band = dob != null && !future ? ageBand(dob, todayISO()) : null;
+        const under13 = band === 'under13';
         /* COPPA: the blocked step does the identity scrub on arrival. Scrubbing per keystroke
            here erased the typed name on transient under-13 reads while typing the year. */
-        if (under13) capture({ dob: null, dobBlocked: true });
-        else capture({ dob: (dob && !future) ? dob : null, dobBlocked: false });
+        if (under13) capture({ dob: null, dobBlocked: true, dobMinor: false });
+        else capture({ dob: (dob && !future) ? dob : null, dobBlocked: false, dobMinor: band === 'minor' });
         if (!btn) return;
         if (under13) {
           errEl.textContent = 'OnStandard is for ages 13 and up.';
@@ -152,7 +159,7 @@ const steps = [
           btn.disabled = false;
           return;
         }
-        btn.setAttribute('data-go', `${R}/sport`);
+        btn.setAttribute('data-go', `${R}/${band === 'minor' ? 'minor' : 'sport'}`);
         if (future) {
           // Genuinely just a typo (2030 instead of 2003), not the same thing as under-13, so
           // it must not route to the age-blocked screen.
@@ -175,8 +182,30 @@ const steps = [
       sync();
     },
   },
+  /* 13 TO 17 (athlete report B6): told now, not discovered later. A minor's real data stays on
+     the phone until a parent or guardian approves (0050), and the flow used to walk them through
+     the commitment and the plans and "your coach's board is waiting" without a word about it.
+     One plain screen: the why, and the parent's email, which is sent the moment the account
+     exists (the same guardian-request the #guardian screen sends). Skippable: #guardian asks
+     again after sign-up. */
   {
-    id: 'blocked', ch: 0, noFoot: true, back: `${R}/dob`,
+    id: 'minor', ch: 0, cta: 'Continue',
+    when: (o) => !!o.dobMinor,
+    title: () => 'You’ll need a parent’s OK',
+    sub: () => 'You’re under 18. A parent or guardian approves your account before your coach sees anything.',
+    body: (o) => `
+      ${guardianWhyHtml()}
+      <input id="ob-guardian" class="ob-input ob-guardian-in" type="email" inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false" placeholder="Parent or guardian email" aria-label="Parent or guardian email" value="${esc(o.guardianEmail || '')}" />
+      <div class="ob-hint-line">We email them one approve button right after you create your account. You can also do it later from Profile.</div>`,
+    mount(root) {
+      const f = root.querySelector('#ob-guardian');
+      if (f) f.addEventListener('input', () => capture({ guardianEmail: f.value.trim() }));
+    },
+  },
+  {
+    /* No way back to change the answer (A Polish 4): no back arrow, and the DOB step sends a
+       locked flow straight here. "Back to start" is the only door. */
+    id: 'blocked', ch: 0, noFoot: true, noBack: true,
     when: (o) => !!o.dobBlocked,
     body: () => `
       <div class="standard-set" style="padding-bottom:6px">
@@ -190,7 +219,7 @@ const steps = [
     mount() {
       /* COPPA scrub happens HERE, on actually landing blocked. A corrected DOB clears the
          block; the name is re-entered via Back on the name step. */
-      capture({ firstName: '', lastName: '', name: '' });
+      capture({ firstName: '', lastName: '', name: '', ageLocked: true });
       track(EVENTS.AGE_BLOCKED);
     },
   },

@@ -17,7 +17,7 @@ import { icon } from './icons.js';
 import { esc } from './components.js';
 import { track, EVENTS } from './analytics.js';
 import { STRUCTURE_ANSWERS } from './plan-style.js';
-import { dobFromParts, ageOn } from './ob-helpers.js';
+import { dobFromParts, ageBand } from './ob-helpers.js';
 import { canOpenExternalCheckout, storeNotice } from './store-policy.js';
 
 export const CHAPTERS = ['Discover', 'See it', 'Your plan', 'Commit', 'Start'];
@@ -97,7 +97,7 @@ export function defineFlow({ route, steps }) {
         </div>`;
       return `
       <div class="ob">
-        <div class="ob-nav"><button type="button" class="ob-back" data-go="${backRoute(vis, idx)}" aria-label="Back">${icon('chevron', 18)}</button>${chapterProgress(vis, idx)}</div>
+        <div class="ob-nav">${s.noBack ? '' : `<button type="button" class="ob-back" data-go="${backRoute(vis, idx)}" aria-label="Back">${icon('chevron', 18)}</button>`}${chapterProgress(vis, idx)}</div>
         ${s.title ? `<h1 class="ob-title">${s.title(o) || ''}</h1>` : ''}
         ${s.sub ? `<div class="ob-sub">${s.sub(o) || ''}</div>` : ''}
         <div class="ob-body">${s.body ? s.body(o) : ''}</div>
@@ -511,11 +511,14 @@ export function adultDobSteps({ R, next, who }) {
           return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
         };
         const digitsOnly = (el, max) => { const v = el.value.replace(/\D/g, '').slice(0, max); if (v !== el.value) el.value = v; };
+        // Locked once "Not this door." was reached (coach report Polish 7): no retyping the year.
+        if (RT.ob && RT.ob.adultAgeLocked) { window.__navigate && window.__navigate(`${R}/blocked`); return; }
         const sync = () => {
           const raw = !!(dm.value && dd.value && dy.value);
           const dob = dobFromParts(dm.value, dd.value, dy.value);
           const future = dob != null && dob > todayISO();
-          const minor = dob != null && !future && ageOn(dob, todayISO()) < 18;
+          const band = dob != null && !future ? ageBand(dob, todayISO()) : null;
+          const minor = band === 'under13' || band === 'minor';
           if (minor) capture({ dob: null, dobBlocked: true });
           else capture({ dob: (dob && !future) ? dob : null, dobBlocked: false });
           if (!btn) return;
@@ -548,7 +551,10 @@ export function adultDobSteps({ R, next, who }) {
       },
     },
     {
-      id: 'blocked', ch: 0, noFoot: true, back: `${R}/dob`,
+      /* No way back to change the answer (coach report Polish 7): no back arrow, and the DOB step
+         itself sends a locked flow straight here. "Back to start" is the only door, and the
+         athlete door stays open to them from 13. */
+      id: 'blocked', ch: 0, noFoot: true, noBack: true,
       when: (o) => !!o.dobBlocked,
       body: () => `
       <div class="standard-set ob-blocked-set">
@@ -560,7 +566,7 @@ export function adultDobSteps({ R, next, who }) {
         <button class="btn ghost" data-go="welcome">Back to start</button>
       </div>`,
       mount() {
-        capture({ firstName: '', lastName: '', name: '' });
+        capture({ firstName: '', lastName: '', name: '', adultAgeLocked: true });
         track(EVENTS.AGE_BLOCKED);
       },
     },

@@ -128,6 +128,7 @@ export const screens = {
   profile,
   connect: lazy(() => import('./connect.js')),
   guardian: lazy(() => import('./guardian.js')),
+  'age-check': lazy(() => import('./age-check.js')),
   notifications: lazy(() => import('./notifications.js')),
   log,
   welcome: auth,

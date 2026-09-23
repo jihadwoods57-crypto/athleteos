@@ -3,11 +3,12 @@
    persisted; the email is captured to RT.ob so a Terms detour doesn't lose it. */
 import { RT, act, routeForRole } from '../state.js';
 import { passwordStrength, weakPasswordReason } from '../ob-helpers.js';
+import { socialAvailability, socialButtonHtml, socialSignIn } from '../social-auth.js';
 
 export function accountBody(opts = {}) {
   const terms = opts.terms || 'ob';
   return `
-    <div id="ap-wrap"></div>
+    <div id="ap-wrap" class="sso-wrap"></div>
     <input id="su-email" class="ob-input" type="email" inputmode="email" autocomplete="email" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Email" aria-label="Email" />
     <div style="height:12px"></div>
     <div class="pw-row"><input id="su-pass" class="ob-input" type="password" autocomplete="new-password" maxlength="64" placeholder="Create a password" aria-label="Create a password" /><span class="pw-eye" id="su-eye" role="button" tabindex="0" aria-pressed="false" aria-label="Show password">Show</span></div>
@@ -64,34 +65,28 @@ export function wireAccount(root, { role, onSession }) {
   btn.addEventListener('click', submit);
   p2.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing && !btn.disabled) submit(); });
 
-  // Sign in with Apple / Google — each button renders only when the native seam reports it
-  // available (go-live). A fresh social identity (no primary_role) adopts THIS onboarding's
-  // role + name; an existing identity is never silently demoted/renamed.
-  const wireSocial = async (key, provider, label) => {
-    const native = window.OnStandardNative && window.OnStandardNative[key];
-    if (!native) return;
-    let ok = false;
-    try { ok = await native.available(); } catch { /* treat as unavailable */ }
-    if (!ok) return;
+  // Sign in with Apple / Google (G-P4, A-B5): Apple's own button, and Google only beside it
+  // (Guideline 4.8). A fresh social identity (no primary_role) adopts THIS onboarding's role +
+  // name; it has already answered the date-of-birth step, which comes before this one. An
+  // existing identity is never silently demoted or renamed.
+  const wireSocial = async () => {
+    const avail = await socialAvailability();
     const wrap = $('#ap-wrap');
-    if (!wrap) return;
-    const b = document.createElement('button');
-    b.className = 'btn ghost';
-    b.style.marginBottom = '10px';
-    b.textContent = 'Continue with ' + label;
-    wrap.appendChild(b);
-    b.addEventListener('click', async () => {
+    if (!wrap || !avail.apple) return;
+    wrap.innerHTML = socialButtonHtml('apple', 'ap') + (avail.google ? socialButtonHtml('google', 'ap') : '');
+    wrap.querySelectorAll('button').forEach((b) => b.addEventListener('click', async () => {
       if (b.disabled) return;
+      const provider = b.id === 'ap-google' ? 'google' : 'apple';
+      const label = provider === 'google' ? 'Google' : 'Apple';
       err.textContent = '';
       b.disabled = true;
       let proceed = false;
       try {
-        const token = await native.signIn();
-        if (!token) { b.disabled = false; return; } // user cancelled
-        const { data, error } = await window.sb.auth.signInWithIdToken({ provider, token });
-        if (error || !data || !data.user) { err.textContent = label + ' sign-in failed. Use email instead.'; b.disabled = false; return; }
-        act._syncSession(data.user);
-        const { data: prof } = await window.sb.from('profiles').select('primary_role').eq('id', data.user.id).maybeSingle();
+        const r = await socialSignIn(provider);
+        if (r.cancelled) { b.disabled = false; return; }
+        if (!r.user) { err.textContent = label + ' sign-in failed. Use email instead.'; b.disabled = false; return; }
+        act._syncSession(r.user);
+        const { data: prof } = await window.sb.from('profiles').select('primary_role').eq('id', r.user.id).maybeSingle();
         if (prof && prof.primary_role) {
           act.setAuthRole(prof.primary_role);
           window.__go(routeForRole(prof.primary_role));
@@ -101,13 +96,12 @@ export function wireAccount(root, { role, onSession }) {
         try {
           await window.sb.from('profiles').update({
             primary_role: role, ...(RT.ob && RT.ob.name ? { full_name: RT.ob.name } : {}),
-          }).eq('id', data.user.id);
+          }).eq('id', r.user.id);
         } catch { /* best-effort */ }
         proceed = true;
       } catch { err.textContent = label + ' sign-in failed. Use email instead.'; b.disabled = false; }
       if (proceed) await onSession(true);
-    });
+    }));
   };
-  wireSocial('apple', 'apple', 'Apple');
-  wireSocial('google', 'google', 'Google');
+  void wireSocial();
 }

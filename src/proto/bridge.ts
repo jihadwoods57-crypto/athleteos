@@ -15,7 +15,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Haptics from 'expo-haptics';
 import * as SecureStore from 'expo-secure-store';
 import type WebView from 'react-native-webview';
-import { isAppleAuthAvailable, requestAppleIdentityToken } from '../lib/auth/apple';
+import { isAppleAuthAvailable, requestAppleIdentityToken, requestAppleCredential } from '../lib/auth/apple';
 import { isGoogleAuthAvailable, requestGoogleIdToken } from '../lib/auth/google';
 import { biometricsUsable } from '../lib/auth/biometrics';
 import { isIapAvailable, purchaseConsumer, restoreConsumer } from '../lib/iap';
@@ -46,6 +46,9 @@ export type BridgeMessage =
   | { type: 'SECURE_DELETE'; id: number; key: string }
   | { type: 'APPLE_AVAILABLE'; id: number }
   | { type: 'APPLE_SIGNIN'; id: number }
+  // The identity token plus the one-time authorization code (G-R4: deletion revokes the Apple
+  // sign-in with the refresh token the code buys).
+  | { type: 'APPLE_CREDENTIAL'; id: number }
   | { type: 'GOOGLE_AVAILABLE'; id: number }
   | { type: 'GOOGLE_SIGNIN'; id: number }
   | { type: 'BIO_AVAILABLE'; id: number }
@@ -261,6 +264,13 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
     case 'APPLE_SIGNIN':
       try {
         resolve(ref, msg.id, await requestAppleIdentityToken());
+      } catch (e) {
+        resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'APPLE_CREDENTIAL':
+      try {
+        resolve(ref, msg.id, await requestAppleCredential());
       } catch (e) {
         resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
       }
@@ -574,7 +584,8 @@ export const BRIDGE_SHIM = `
     },
     apple: {
       available: function(){ return call('APPLE_AVAILABLE', {}); },
-      signIn: function(){ return call('APPLE_SIGNIN', {}); }
+      signIn: function(){ return call('APPLE_SIGNIN', {}); },
+      credential: function(){ return call('APPLE_CREDENTIAL', {}); }
     },
     google: {
       available: function(){ return call('GOOGLE_AVAILABLE', {}); },

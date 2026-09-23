@@ -22,6 +22,7 @@ jest.mock('../../modules/rollcall-live', () => ({ endLiveActivity: jest.fn(async
 jest.mock('../lib/auth/apple', () => ({
   isAppleAuthAvailable: false,
   requestAppleIdentityToken: jest.fn(async () => null),
+  requestAppleCredential: jest.fn(async () => ({ identityToken: 'id.tok', authorizationCode: 'c0de' })),
 }));
 jest.mock('../lib/auth/google', () => ({
   isGoogleAuthAvailable: false,
@@ -75,6 +76,15 @@ test('APPLE_AVAILABLE resolves false when the auth seam reports unavailable', as
   const handled = await handleBridgeMessage(ref, { type: 'APPLE_AVAILABLE', id: 1 } as never);
   expect(handled).toBe(true);
   expect(injected[0]).toContain('__onNativeResult(1, false');
+});
+
+// G-R4: the proto gets the authorization code with the token, so deletion can revoke Apple.
+test('APPLE_CREDENTIAL resolves the token and the authorization code', async () => {
+  const { injected, ref } = fakeRef();
+  expect(await handleBridgeMessage(ref, { type: 'APPLE_CREDENTIAL', id: 12 } as never)).toBe(true);
+  expect(injected[0]).toContain('id.tok');
+  expect(injected[0]).toContain('c0de');
+  expect(BRIDGE_SHIM).toContain('APPLE_CREDENTIAL');
 });
 
 test('APPLE_SIGNIN resolves null when the auth seam reports unavailable', async () => {

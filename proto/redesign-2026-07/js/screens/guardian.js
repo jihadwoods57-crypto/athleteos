@@ -6,6 +6,16 @@ import { backHead, esc, alertMsg, statusMsg } from '../components.js';
    ON THIS DEVICE until a parent/guardian verifies; this screen explains that honestly and
    lets the athlete send (or re-send) the approval request. Adults and verified minors get
    an honest "nothing needed" state instead of a form. */
+/** Why a parent approves, in one box. Shared with onboarding's "You'll need a parent's OK" step
+ *  (athlete report B6) so the two can never tell a minor different things. */
+export function guardianWhyHtml() {
+  return `<div class="sidebox">
+      <div class="req-icon b s38">${icon('lock', 17)}</div>
+      <div><div class="tt">Why this exists</div>
+      <div class="ts">You're under 18, so the law says a parent or guardian approves before your data leaves this phone. Everything you log still counts here. It just stays private until they say yes.</div></div>
+    </div>`;
+}
+
 export default {
   tab: 'home',
   render() {
@@ -69,11 +79,7 @@ export default {
     return `
     ${backHead('Parent approval', 'One step before your day can sync', 'home')}
 
-    <div class="sidebox">
-      <div class="req-icon b s38">${icon('lock', 17)}</div>
-      <div><div class="tt">Why this exists</div>
-      <div class="ts">You're under 18, so the law says a parent or guardian approves before your data leaves this phone. Everything you log still counts here. It just stays private until they say yes.</div></div>
-    </div>
+    ${guardianWhyHtml()}
 
     <div style="height:16px"></div>
     <h2 class="eyebrow">Send the approval request</h2>

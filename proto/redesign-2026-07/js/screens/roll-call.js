@@ -404,8 +404,7 @@ export function mountCommitmentCard(root, rerender) {
 function pushWarning(phase) {
   if (phase === 'closed') return '';
   const s = pushTokenState();
-  // Never asked: the Continue primer, which is the one place the question is asked (G-R10).
-  // mount() fills the slot (notify-permission.js loads on demand, off the boot graph).
+  // Never asked: mount() fills this with the Continue primer (G-R10).
   if (s === 'unknown') return '<div id="np-slot"></div>';
   if (s !== 'denied') return '';
   return `
@@ -432,7 +431,7 @@ async function paintAlarmLine(root, row) {
   const at = fmtAt(row.starts_at, off);
   const denied = st.authorization === 'denied';
   const coachOff = row.alarm === false;
-  // Never asked (G-P2): say what the alarm is for, and ask only when the athlete taps Continue.
+  // Never asked (G-P2): ask only from this Continue.
   if (!coachOff && st.authorization === 'notDetermined') {
     slot.innerHTML = `<div class="vc-ctx wk-alarmline np-alarm">${icon('sun', 13)} <span>${esc(`Your coach set a wake-up for ${at}. Turn on alarms and your phone rings through Do Not Disturb and silent mode. Your phone asks next.`)}</span>
       <button type="button" class="btn ghost sm" id="wk-alarm-go">Continue</button></div>`;
@@ -743,9 +742,7 @@ export default {
     // that answer lands after this screen painted, repaint once so the warning is not a refresh
     // away. `{ once }` keeps a long-lived screen from stacking listeners across re-mounts.
     window.addEventListener('onstd:push-token', () => { if (root.isConnected) window.__render && window.__render(); }, { once: true });
-    // Learn whether the phone was ever asked (a read, never an ask), then draw and wire the
-    // primer: a yes registers the push token, reschedules reminders and, where the coach set one,
-    // arms alarms.
+    // The notification primer (G-R10): a read decides whether to draw it; only Continue asks.
     const npSlot = root.querySelector('#np-slot');
     if (npSlot) {
       void import('../notify-permission.js').then(async (NP) => {

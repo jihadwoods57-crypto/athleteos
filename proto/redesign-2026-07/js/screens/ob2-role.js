@@ -42,6 +42,9 @@ function resumeTarget() {
   return role ? { go: raw, role } : null;
 }
 
+/** Set by the Sign-in screen when an Apple or Google account had no OnStandard profile yet. */
+function ssoNew() { try { return sessionStorage.getItem('os.sso.new'); } catch { return null; } }
+
 export const ob2Role = {
   hideTabs: true,
   render() {
@@ -64,6 +67,7 @@ export const ob2Role = {
           <div class="role-chev">${icon('chevron', 18)}</div>
         </div>
         <div class="role-note role-note-gap">Or start over with a different role.</div>` : ''}
+        ${ssoNew() ? `<div class="role-note role-sso" role="status">You’re new to OnStandard. Pick how you’ll use it and answer a few questions, including your age. Then continue with ${ssoNew() === 'google' ? 'Google' : 'Apple'} on the last step.</div>` : ''}
         <div class="role-list">${ROLES.map(card).join('')}</div>
         <div class="role-note">Invited by a coach, trainer, or athlete? Pick your role. You’ll connect with your code in a minute.</div>
       </div>

@@ -84,9 +84,7 @@ import { bustAvatar } from './avatar.js';
 import { itemFromMeal, memoryContextForAnalysis, mealSignature } from './food-memory.js';
 import { foodMemory, warmFoodMemory, invalidateFoodMemory } from './food-memory-data.js';
 import { track, EVENTS } from './analytics.js';
-/* ai-consent.js and notify-permission.js load on first use, not at boot (lint:boot): the AI
-   answer is needed only when a read or a reply is about to go out, and the notification state
-   only once the push token is read. */
+// Loaded on first use, off the boot graph (lint:boot).
 const aiConsent = () => import('./ai-consent.js');
 const notifyPerm = () => import('./notify-permission.js');
 let NOTIFY_PERM = null;   // the phone's answer, read (never asked) alongside the push token
@@ -310,6 +308,7 @@ const DEFAULT_RT = {
   profile: null,         // athlete identity: {name, sport, position, school, level, avatar(dataURL)} — from onboarding / signed-in profile, never fabricated
   ob: null,              // onboarding scratch — the athlete's real selections, captured as they build their Standard
   mutedUsers: [],        // profile ids whose messages this reader hides (Guideline 1.2 block). Device-local, never sent.
+  ageKnown: null,        // athlete only: does the server hold a birth date or an age? null = not checked / unknown (never routes); false sends the router to #age-check (G-R5)
   allergies: [],         // FLAT summary list (guardian check + profile row). Derived from restrictions when structured.
   restrictions: null,    // structured (spec §18.1): {allergies:[{name,severity}], intolerances:[], preferences:[]}
   wearable: false,       // reserved; #apple-health gates on the live native health probe, not this flag
@@ -968,8 +967,7 @@ let PUSH_TOKEN_VALUE = null;
 export function pushTokenState() {
   if (typeof window === 'undefined' || !window.OnStandardNative || !window.OnStandardNative.push) return 'web';
   if (PUSH_TOKEN_VALUE) return 'ready';
-  // Since G-R10 a launch-time read never asks, so "no token" is a refusal only when the phone
-  // says so. Never asked is 'unknown': the roll call shows the Continue primer, not a warning.
+  // G-R10: no token is a refusal only when the phone says so; never asked is 'unknown'.
   const perm = NOTIFY_PERM;
   if (perm === 'undetermined') return 'unknown';
   if (perm === 'denied') return 'denied';
@@ -1451,10 +1449,8 @@ export const act = {
       if (done) { this._patchSlot(job.slot, { analysisFailed: reason }); window.__render && window.__render(); }
       track(EVENTS.MEAL_ANALYSIS_FAILED, { reason });
     };
-    /* AI CONSENT (0243, Guideline 5.1.2(i)). The photo goes to Anthropic only after the athlete
-       said yes. Without it the meal stays logged (proof + timing) and the thread says plainly that
-       AI reads are off, with a way to turn them on. Terminal for this job: no retries against a
-       door the athlete closed. The server holds the same line; this just skips the round trip. */
+    /* AI CONSENT (0243, 5.1.2(i)): no yes, no photo sent. The meal stays logged; the thread says
+       AI reads are off, with Turn on. Terminal for the job; the server holds the same line. */
     const aiOff = () => {
       updateJob(job.k, { needAnalysis: false, pendingQuestions: null });
       this._patchSlot(job.slot, { analysisFailed: 'ai_off' });
@@ -2201,13 +2197,9 @@ export const act = {
     RT.voiceNudge = { sig, text: text || null };
     save();
   },
-  /* Register this device's push token (coach→athlete nudges) via the bridge, after sign-in.
-     Fire-and-forget; a denial or missing seam is a silent no-op.
-     NEVER ASKS ON ITS OWN (G-R10). Home calls this on every load, and it used to put up the
-     system notification question the first time Home painted. Now it only reads a permission
-     the person already gave; `ask` is passed by the Continue primers (notify-permission.js),
-     which are the one place the question is asked. A read that found no permission may run
-     again later in the session (after a primer said yes); a token, once had, is kept. */
+  /* Register this device's push token via the bridge, after sign-in. Fire-and-forget.
+     NEVER ASKS ON ITS OWN (G-R10): Home calls this on every load; only the Continue primers
+     (notify-permission.js) pass `ask`. */
   async registerPushToken({ ask = false } = {}) {
     if (PUSH_TOKEN_VALUE || !RT.userId) return;
     if (PUSH_TOKEN_TRIED && !ask) return;
@@ -2216,8 +2208,6 @@ export const act = {
     if (!N || !N.push || !sb) return;
     PUSH_TOKEN_TRIED = true;
     try {
-      // What the phone says, read without asking, so the roll call can tell "never asked"
-      // (show the primer) from "said no" (show the Settings line).
       try { NOTIFY_PERM = await (await notifyPerm()).notifyPermission(false); } catch { /* unknown */ }
       const r = await N.push.token({ ask });
       // Whatever came back, the roll-call card can now say whether a push will reach this phone.
@@ -3148,6 +3138,7 @@ export const act = {
     save();
     this._armLocation({ force: true });
     { const uid = RT.userId; void aiConsent().then((m) => m.refreshAiConsent(uid), () => {}); }   // this device learns the account's AI answer (0243)
+    void this.checkAgeKnown();   // the router's age guard (G-R5)
     const hadServerProfile = await this._loadProfileIntoRt(RT.userId);
     // Back-fill: if onboarding was captured locally but never fully reached the server (a signup
     // that had no session at the time, or a partial persistOnboarding failure — e.g. a
@@ -3407,6 +3398,29 @@ export const act = {
         save();
       } catch { /* best-effort */ }
     }
+  },
+  /* The age guard's fact (G-R5): does the server hold a birth date or age for this athlete? A
+     confirmed NO sends the router to #age-check; a failed read decides nothing. */
+  async checkAgeKnown() {
+    const sb = window.sb;
+    const uid = RT.userId;
+    if (!sb || !uid) return;
+    if (RT.authRole && RT.authRole !== 'athlete') { if (RT.ageKnown !== null) { RT.ageKnown = null; save(); } return; }
+    try {
+      const { data, error } = await sb.from('athlete_profiles').select('dob,base_age').eq('athlete_id', uid).maybeSingle();
+      if (error || RT.userId !== uid) return;
+      const known = !!(data && (data.dob || data.base_age != null));
+      if (RT.ageKnown === known) return;
+      RT.ageKnown = known; save();
+      if (!known && window.__render) window.__render();
+    } catch { /* unknown: the guard stays quiet */ }
+  },
+  /** The age check just saved a birth date. */
+  noteAgeKnown(dob) {
+    RT.ageKnown = true;
+    if (dob) RT.profile = { ...(RT.profile || {}), dob };
+    save();
+    this._armSyncGate();
   },
   /* Athlete guardian-consent state (the client half of 0050): hydrate the newest request's
      status, then arm/disarm the day-sync gate. A PROVABLE minor (dob says <18 — the same rule
@@ -4086,6 +4100,14 @@ export const act = {
     if (!synced.stamps && sb && RT.userId) {
       synced.stamps = await this._stampConsent(RT.activationDate || ob.committedAt);
     }
+    // phase 3b (A-B6): a 13-17 athlete's parent email becomes the approval request, once.
+    if (!synced.guardian) {
+      if (!ob.guardianEmail || !ob.dobMinor) synced.guardian = true;
+      else if (sb && RT.userId) {
+        try { const r = await this.requestGuardianConsent(ob.guardianEmail); synced.guardian = !!(r && r.ok !== false); }
+        catch { /* #guardian asks again */ }
+      }
+    }
     // phase 4: redeem the validated join code (server re-validates; idempotent)
     if (!synced.join) {
       if (!(ob.join && ob.join.code)) synced.join = true;
@@ -4300,6 +4322,7 @@ export const act = {
         if (prof && prof.primary_role) { RT.authRole = prof.primary_role; save(); }
       } catch { /* offline — routes as athlete until the next successful boot */ }
     }
+    void this.checkAgeKnown();   // the router's age guard (G-R5); never awaited, never blocks boot
     // Capture the device timezone once (0088) — powers coach-side, athlete-local overdue. Best-effort:
     // a not-yet-applied profiles.timezone column or offline just no-ops.
     try {

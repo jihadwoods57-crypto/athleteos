@@ -1,25 +1,19 @@
 // OnStandard — Sign in with Apple seam.
 //
-// App Store Guideline 4.8 requires Sign in with Apple when an app offers email
-// login. The native module (`expo-apple-authentication`) HAS shipped in the binary
-// since 2026-07-18 — but the ENTITLEMENT is deliberately stripped at build time
-// (plugins/withDeferredAppleSignIn.js) because the App Store provisioning profile
-// doesn't carry the capability yet (build #19 failed code-signing on it).
+// App Store Guideline 4.8 requires Sign in with Apple when an app offers another social login.
+// Sign in with Apple is LIVE: `ios.usesAppleSignIn: true` in app.json, the
+// com.apple.developer.applesignin entitlement ships in the binary, and the Apple provider is
+// configured in Supabase Auth (client id com.onstandard.app). The old deferral plugin
+// (plugins/withDeferredAppleSignIn.js) is deleted; nothing referenced it any more.
 //
-// The 2026-08-05 fix: availability now follows `ios.usesAppleSignIn` in app config —
-// the SAME flag that decides whether the entitlement ships — instead of mere module
-// presence. Module-presence gating made the button render on a binary that could not
-// sign in: `signInAsync` threw against the missing entitlement, the catch returned
-// null, and the athlete got a silent dead button (the worst possible UX for a launch
-// requirement). Now the config says what the binary can do, and the button tells the
-// truth either way.
+// Availability follows `ios.usesAppleSignIn` (the same flag that decides whether the entitlement
+// ships) AND the module resolving, then `isAvailableAsync()` on the device. Module presence alone
+// once rendered a button on a binary that could not sign in (2026-08-05).
 //
-// To go live (founder, in this order): enable Sign in with Apple on the
-// com.onstandard.app App ID + regenerate the App Store profile → set
-// `ios.usesAppleSignIn: true` and remove `./plugins/withDeferredAppleSignIn` from
-// app.json → configure the Apple provider in Supabase Auth (client ID
-// com.onstandard.app) → new native build (entitlements are binary-level; no OTA can
-// deliver this last step).
+// Account deletion must revoke the Apple sign-in (Apple's account-deletion rule, 5.1.1(v)). That
+// needs a refresh token, which only the one-time authorizationCode can buy, so
+// requestAppleCredential() hands the code back alongside the identity token; the proto sends it to
+// the apple-token edge function after sign-in, and delete-account revokes it (G-R4, 2026-09-23).
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
@@ -35,6 +29,30 @@ export const isAppleAuthAvailable: boolean = (() => {
     return false;
   }
 })();
+
+/**
+ * The identity token AND the one-time authorization code. The code is what the server exchanges
+ * for a refresh token (apple-token), so account deletion can revoke the Apple sign-in. Null when
+ * unavailable, cancelled or failed; `authorizationCode` may be null on its own.
+ */
+export async function requestAppleCredential(): Promise<{ identityToken: string; authorizationCode: string | null } | null> {
+  if (!isAppleAuthAvailable) return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const AppleAuthentication = require('expo-apple-authentication');
+    if (!(await AppleAuthentication.isAvailableAsync())) return null;
+    const cred = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+    if (!cred || !cred.identityToken) return null;
+    return { identityToken: cred.identityToken, authorizationCode: cred.authorizationCode ?? null };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Obtain an Apple identity token to exchange for a Supabase session
