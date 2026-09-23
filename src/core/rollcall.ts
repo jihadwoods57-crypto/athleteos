@@ -204,3 +204,17 @@ export function shouldEndCardLocally(hasAckPoster: boolean, outcome: RefreshOutc
   if (!hasAckPoster) return true;
   return !(outcome === 'sent' || outcome === 'already_answered');
 }
+
+/** How long after an 'already_answered' refresh the phone looks once more. */
+export const REFRESH_RECHECK_MS = 20_000;
+
+/**
+ * 'already_answered' can be read while the code ack's own answered push is still in flight; if
+ * that push then reaches no device it releases its claim, and nobody would ever try again. So the
+ * FIRST 'already_answered' schedules one re-refresh after REFRESH_RECHECK_MS (attempt 0 -> 1).
+ * On the re-check, 'already_answered' again means the push landed: stop. Any other answer on the
+ * re-check is handled by shouldEndCardLocally as usual. Returns the delay, or null for none.
+ */
+export function recheckDelayFor(outcome: RefreshOutcome, attempt: number): number | null {
+  return outcome === 'already_answered' && attempt === 0 ? REFRESH_RECHECK_MS : null;
+}

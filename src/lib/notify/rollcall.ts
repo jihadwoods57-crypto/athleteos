@@ -8,7 +8,7 @@ import {
   enqueueCoachAction, dropCoachAction, type CoachAction, type QueuedCoachAction,
   CHECK_IN_LABEL, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL, ackOutcome, type AckOutcome,
   ROLLCALL_BG_TASK, ACTION_OPTIONS, buttonTitleFor, routeNotificationResponse, boardRouteFor,
-  shouldEndCardLocally, refreshOutcomeOf, type RefreshOutcome,
+  shouldEndCardLocally, refreshOutcomeOf, recheckDelayFor, type RefreshOutcome,
 } from '@/core/rollcall';
 
 const supaUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
@@ -346,7 +346,7 @@ let boardRoute: string | null = null;
  * asks it to (`{ action: 'refresh' }`, the athlete's own session), and ends the card locally where
  * the server cannot be relied on to: an older binary, or a refresh that failed. Never throws.
  */
-export async function settleLiveCard(instanceId: string): Promise<RefreshOutcome> {
+export async function settleLiveCard(instanceId: string, attempt = 0): Promise<RefreshOutcome> {
   const id = String(instanceId || '');
   if (!id || Platform.OS === 'web') return 'failed';
   let outcome: RefreshOutcome = 'failed';
@@ -364,6 +364,12 @@ export async function settleLiveCard(instanceId: string): Promise<RefreshOutcome
     const poster = typeof live.hasAckPoster === 'function' && live.hasAckPoster();
     if (shouldEndCardLocally(poster, outcome)) await live.endLiveActivity(id);
   } catch { /* best effort */ }
+  // 'already_answered' may have been read while the code ack's push was still in flight, and that
+  // push can still reach nobody and release its claim. One second look, never more.
+  const delay = recheckDelayFor(outcome, attempt);
+  if (delay != null) {
+    setTimeout(() => { void settleLiveCard(id, attempt + 1); }, delay);
+  }
   return outcome;
 }
 

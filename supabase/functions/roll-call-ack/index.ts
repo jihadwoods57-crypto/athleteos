@@ -24,7 +24,7 @@ import { evaluateFlag, type FlagRow } from '../_shared/feature-flags.ts';
 import {
   httpStatusFor, teamCountUpdates, mintableWindows, bearerOf, WINDOW_CODE_DAYS, TEAM_UPDATE_MIN_GAP_MS,
   refreshInstanceOf, refreshVerdict, wonAthleteIds,
-  answeredClaimOf, ownCardBeforePush, ownCardAfterPush, fansOutTeam,
+  answeredClaimOf, fansOutTeam, runOwnCard, runTeamFanOut,
   type TeamTarget, type OwnCardResult,
 } from './logic.ts';
 import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
@@ -114,54 +114,57 @@ async function answeredOwnCard(
   svc: SupabaseClient, apns: ApnsClient | null, card: Awaited<ReturnType<typeof loadLiveCard>>,
   instanceId: string, athleteId: string, ackIso: string,
 ): Promise<OwnCardResult> {
-  try {
-    let claim = answeredClaimOf(null, 'not asked');
-    if (apns && card) {
+  // runOwnCard (logic.ts) owns the rule: a claimed card whose push reached no device, or threw on
+  // the way, is released so a later refresh can send it.
+  return await runOwnCard({ apns: !!apns, card: !!card }, {
+    claim: async () => {
       const { data, error } = await svc.rpc('claim_live_answered_update', { p_instance: instanceId, p_athlete: athleteId });
-      claim = answeredClaimOf(data, error);
-    }
-    const early = ownCardBeforePush({ apns: !!apns, card: !!card, claim });
-    if (early) return early;
-    const board = await loadTeamBoard(svc, instanceId);
-    const pushed = await pushLiveActivity({
-      svc, apns, card: card!, phase: 'answered',
-      athleteIds: [athleteId],
-      checkedInAt: new Map([[athleteId, ackIso]]),
-      team: (id) => teamFields(board, id),
-      nowMs: Date.now(),
-    });
-    const after = ownCardAfterPush(claim, pushed);
-    if (after.release) {
-      try { await svc.rpc('release_live_answered_update', { p_instance: instanceId, p_athlete: athleteId }); } catch { /* best effort */ }
-    }
-    return after.result;
-  } catch {
-    return 'unavailable';
-  }
+      return answeredClaimOf(data, error);
+    },
+    push: async () => {
+      // Built after the ack, so its timestamp is newer than any count push built from a board
+      // read before the ack (runTeamFanOut stamps those with their read time).
+      const builtAt = Date.now();
+      const board = await loadTeamBoard(svc, instanceId);
+      return await pushLiveActivity({
+        svc, apns, card: card!, phase: 'answered',
+        athleteIds: [athleteId],
+        checkedInAt: new Map([[athleteId, ackIso]]),
+        team: (id) => teamFields(board, id),
+        nowMs: builtAt,
+      });
+    },
+    release: async () => {
+      await svc.rpc('release_live_answered_update', { p_instance: instanceId, p_athlete: athleteId });
+    },
+  });
 }
 
 /** Every teammate with a live card gets the new count, at most once a minute each, never the
- *  athlete who just checked in (they had theirs from answeredOwnCard). */
+ *  athlete who just checked in (they had theirs from answeredOwnCard). The APNs timestamp is the
+ *  moment the board was READ (runTeamFanOut), so a stale count never overwrites a newer card. */
 async function teamFanOut(
   svc: SupabaseClient, apns: ApnsClient, card: NonNullable<Awaited<ReturnType<typeof loadLiveCard>>>,
   instanceId: string, athleteId: string,
 ): Promise<void> {
-  const board = await loadTeamBoard(svc, instanceId);
-  if (!board) return;
-  const nowMs = Date.now();
-  const { data: tg } = await svc.rpc('rollcall_live_update_targets', { p_instance: instanceId });
-  const planned = teamCountUpdates(instanceId, board, {
-    targets: (Array.isArray(tg) ? tg : []) as TeamTarget[], card, checkedIn: athleteId, nowMs,
+  await runTeamFanOut({
+    now: () => Date.now(),
+    loadBoard: () => loadTeamBoard(svc, instanceId),
+    loadTargets: async () => {
+      const { data: tg } = await svc.rpc('rollcall_live_update_targets', { p_instance: instanceId });
+      return (Array.isArray(tg) ? tg : []) as TeamTarget[];
+    },
+    plan: (board, targets, builtAt) => teamCountUpdates(instanceId, board, { targets, card, checkedIn: athleteId, nowMs: builtAt }),
+    // The pure plan read last_update_at; the claim re-checks it atomically, so two check-ins in
+    // the same second cannot both update one card. Only the athletes the claim returns are sent.
+    claim: async (ids) => {
+      const { data: won } = await svc.rpc('claim_live_team_updates', {
+        p_instance: instanceId, p_athletes: ids, p_gap_sec: Math.round(TEAM_UPDATE_MIN_GAP_MS / 1000),
+      });
+      return wonAthleteIds(won);
+    },
+    send: (updates, builtAt) => sendLiveUpdates(svc, apns, updates, builtAt),
   });
-  if (!planned.length) return;
-  // The pure plan read last_update_at; the claim re-checks it atomically, so two check-ins in the
-  // same second cannot both update one card. Only the athletes the claim returns are sent.
-  const { data: won } = await svc.rpc('claim_live_team_updates', {
-    p_instance: instanceId, p_athletes: planned.map((u) => u.athleteId),
-    p_gap_sec: Math.round(TEAM_UPDATE_MIN_GAP_MS / 1000),
-  });
-  const wonSet = wonAthleteIds(won);
-  await sendLiveUpdates(svc, apns, planned.filter((u) => wonSet.has(u.athleteId)), nowMs);
 }
 
 /** Everything the lock screen does after a code check-in. Never throws, never costs the ack. The

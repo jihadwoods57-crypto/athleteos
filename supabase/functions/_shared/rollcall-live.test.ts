@@ -210,3 +210,16 @@ describe('liveWindowMs', () => {
     expect(liveWindowMs({ starts_at: '2026-09-02T10:00:00Z', closes_at: null })).toBeNull();
   });
 });
+
+describe('sendLiveUpdates: the APNs timestamp is the moment the content was built', () => {
+  test('uses the nowMs it is handed, never the send-time clock', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { sendLiveUpdates } = require('./rollcall-live-send') as typeof import('./rollcall-live-send');
+    const builtAt = Date.parse('2026-09-25T10:02:00Z');
+    const sent: Array<Record<string, { timestamp: number }>> = [];
+    const apns = { send: async (_t: string, p: Record<string, { timestamp: number }>) => { sent.push(p); return { ok: true, gone: false }; } };
+    const state = liveContentState(row, 'reminder', null, { teamUp: 3, teamTotal: 9, place: null, points: null });
+    await sendLiveUpdates({ rpc: async () => ({}) } as never, apns as never, [{ token: 't', state }, { token: 'u', state: { ...state, phase: 'answered' } }], builtAt);
+    expect(sent.map((p) => p.aps.timestamp)).toEqual([Math.round(builtAt / 1000), Math.round(builtAt / 1000)]);
+  });
+});

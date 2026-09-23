@@ -180,3 +180,66 @@ export function wonAthleteIds(won: unknown): Set<string> {
   return new Set((Array.isArray(won) ? won : []).map((x: unknown) =>
     typeof x === 'string' ? x : String(Object.values((x ?? {}) as Record<string, unknown>)[0] ?? '')));
 }
+
+/**
+ * The athlete's own answered card, end to end, with the I/O injected so the release rule is
+ * tested rather than trusted (fix round 3). A 'claimed' card whose push did not reach a device
+ * (it reached nobody, OR anything on the way threw) is ALWAYS released, so a later refresh can
+ * send it; otherwise the stamp would stay and every refresh would read 'already_answered' for an
+ * update no phone ever got. A claim that throws reads as 'unknown' and pushes, the pre-claim
+ * behaviour, and is never released because nothing was stamped.
+ */
+export async function runOwnCard(
+  s: { apns: boolean; card: boolean },
+  io: {
+    claim: () => Promise<AnsweredClaim>;
+    push: () => Promise<{ updated: number; revoked: number }>;
+    release: () => Promise<void>;
+  },
+): Promise<OwnCardResult> {
+  let claim: AnsweredClaim = 'unknown';
+  if (s.apns && s.card) {
+    try { claim = await io.claim(); } catch { claim = 'unknown'; }
+  }
+  const early = ownCardBeforePush({ ...s, claim });
+  if (early) return early;
+  let pushed = { updated: 0, revoked: 0 };
+  let result: OwnCardResult = 'unavailable';
+  try {
+    pushed = await io.push();
+    result = ownCardAfterPush(claim, pushed).result;
+  } catch {
+    result = 'unavailable';
+  }
+  if (claim === 'claimed' && !(pushed.updated > 0)) {
+    try { await io.release(); } catch { /* best effort: the card then waits for the close sweep */ }
+  }
+  return result;
+}
+
+/**
+ * The teammates' count updates, with the I/O injected. The APNs `timestamp` is the moment the
+ * content was BUILT, taken BEFORE the board is read: a count push built from a board read before
+ * my answer must carry an older timestamp than my answered push (built after my ack), so iOS,
+ * which ignores an update older than the one on screen, drops it instead of flipping my card
+ * back to I'M UP. Taking the clock after the read (as the first version did) inverted that.
+ */
+export async function runTeamFanOut<B, T, U extends { athleteId: string }>(io: {
+  now: () => number;
+  loadBoard: () => Promise<B | null>;
+  loadTargets: () => Promise<T[]>;
+  plan: (board: B, targets: T[], builtAtMs: number) => U[];
+  claim: (athleteIds: string[]) => Promise<Set<string>>;
+  send: (updates: U[], builtAtMs: number) => Promise<unknown>;
+}): Promise<void> {
+  const builtAt = io.now();
+  const board = await io.loadBoard();
+  if (!board) return;
+  const targets = await io.loadTargets();
+  const planned = io.plan(board, targets, builtAt);
+  if (!planned.length) return;
+  const won = await io.claim(planned.map((u) => u.athleteId));
+  const sendable = planned.filter((u) => won.has(u.athleteId));
+  if (!sendable.length) return;
+  await io.send(sendable, builtAt);
+}

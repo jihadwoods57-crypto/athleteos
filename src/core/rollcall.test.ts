@@ -5,6 +5,7 @@ import {
   CHECK_IN_LABEL, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL, ackOutcome,
   routeNotificationResponse, ACTION_OPTIONS, buttonTitleFor, ROLLCALL_BG_TASK,
   boardRouteFor, BOARD_TAP_MAX_AGE_MS, shouldEndCardLocally, refreshOutcomeOf,
+  recheckDelayFor, REFRESH_RECHECK_MS,
 } from './rollcall';
 import {
   rollCallCategoryId as serverCategoryId,
@@ -244,5 +245,20 @@ describe('shouldEndCardLocally: an answer the server could not turn into an answ
   });
   it('a refresh that failed (offline, queued answer, old server) ends it rather than leave it counting', () => {
     expect(shouldEndCardLocally(true, 'failed')).toBe(true);
+  });
+});
+
+describe('recheckDelayFor: one second look after "already answered" (a code-ack push still in flight)', () => {
+  it('schedules exactly one re-refresh, about 20 s later, after the first already_answered', () => {
+    expect(REFRESH_RECHECK_MS).toBe(20_000);
+    expect(recheckDelayFor('already_answered', 0)).toBe(20_000);
+  });
+  it('never a second time: already_answered on the re-check means the push landed, so stop', () => {
+    expect(recheckDelayFor('already_answered', 1)).toBeNull();
+  });
+  it('nothing to re-check for any other answer (sent, or one the phone acts on at once)', () => {
+    for (const o of ['sent', 'no_token', 'no_card', 'unavailable', 'failed'] as const) {
+      expect(recheckDelayFor(o, 0)).toBeNull();
+    }
   });
 });

@@ -94,6 +94,43 @@ describe('settleLiveCard', () => {
   });
 });
 
+describe('the re-check after already_answered', () => {
+  beforeEach(() => { jest.useFakeTimers(); });
+  afterEach(() => { jest.useRealTimers(); });
+  const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
+
+  test('a code-ack push that then reached nobody: the re-check ends the card', async () => {
+    mockState.refresh = { data: { ok: true, result: 'already_answered' }, error: null };
+    expect(await settleLiveCard('i1')).toBe('already_answered');
+    expect(mockState.ended).toEqual([]);
+    expect(mockState.invoked.length).toBe(1);
+    // The in-flight push reached no device and released the claim; the second look finds no card.
+    mockState.refresh = { data: { ok: true, result: 'unavailable' }, error: null };
+    jest.advanceTimersByTime(20_000);
+    await flush();
+    expect(mockState.invoked.length).toBe(2);
+    expect(mockState.ended).toEqual(['i1']);
+  });
+
+  test('already_answered again on the re-check: stop, card left alone, no third look', async () => {
+    mockState.refresh = { data: { ok: true, result: 'already_answered' }, error: null };
+    await settleLiveCard('i1');
+    jest.advanceTimersByTime(20_000);
+    await flush();
+    jest.advanceTimersByTime(60_000);
+    await flush();
+    expect(mockState.invoked.length).toBe(2);
+    expect(mockState.ended).toEqual([]);
+  });
+
+  test('sent needs no re-check', async () => {
+    await settleLiveCard('i1');
+    jest.advanceTimersByTime(60_000);
+    await flush();
+    expect(mockState.invoked.length).toBe(1);
+  });
+});
+
 describe('the drain', () => {
   test('a drained tap that lands refreshes the card instead of ending it', async () => {
     mockState.taps = [{ instanceId: 'i1', at: Date.now() - 1000 }];

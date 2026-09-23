@@ -22,7 +22,7 @@ describe('httpStatusFor', () => {
 
 // ---------------------------------------------------------------- 2026-09-23: the team on every card
 import { teamCountUpdates, mintableWindows, bearerOf, TEAM_UPDATE_MIN_GAP_MS, refreshInstanceOf, refreshVerdict, wonAthleteIds,
-  answeredClaimOf, ownCardBeforePush, ownCardAfterPush, fansOutTeam } from './logic';
+  answeredClaimOf, ownCardBeforePush, ownCardAfterPush, fansOutTeam, runOwnCard, runTeamFanOut } from './logic';
 
 describe('teamCountUpdates: one check-in moves every teammate\'s count', () => {
   const NOW = Date.parse('2026-09-25T10:03:00Z');
@@ -152,5 +152,89 @@ describe('refresh: an answer that did not come through a code still turns the ca
   test('reads the athletes a claim returned, in either row shape', () => {
     expect([...wonAthleteIds(['a', { claim_live_team_updates: 'b' }, null])]).toEqual(['a', 'b', '']);
     expect([...wonAthleteIds(null)]).toEqual([]);
+  });
+});
+
+describe('runOwnCard: a claimed card is never left stamped with no answered push (fix round 3)', () => {
+  const io = (over: Partial<{ claim: () => Promise<'claimed' | 'already_answered' | 'no_token' | 'unknown'>; push: () => Promise<{ updated: number; revoked: number }> }> = {}) => {
+    const calls: string[] = [];
+    return {
+      calls,
+      io: {
+        claim: over.claim ?? (async () => { calls.push('claim'); return 'claimed' as const; }),
+        push: over.push ?? (async () => { calls.push('push'); return { updated: 1, revoked: 0 }; }),
+        release: async () => { calls.push('release'); },
+      },
+    };
+  };
+  const live = { apns: true, card: true };
+
+  test('the push throws after the claim: the claim is released and the answer is unavailable', async () => {
+    const t = io({ push: async () => { throw new Error('board read failed'); } });
+    expect(await runOwnCard(live, t.io)).toBe('unavailable');
+    expect(t.calls).toContain('release');
+  });
+  test('the push reached nobody: released', async () => {
+    const t = io({ push: async () => ({ updated: 0, revoked: 0 }) });
+    expect(await runOwnCard(live, t.io)).toBe('unavailable');
+    expect(t.calls).toContain('release');
+  });
+  test('sent: nothing released', async () => {
+    const t = io();
+    expect(await runOwnCard(live, t.io)).toBe('sent');
+    expect(t.calls).toEqual(['claim', 'push']);
+  });
+  test('an unknown claim (un-migrated stack) is never released, since nothing was stamped', async () => {
+    const t = io({ claim: async () => 'unknown', push: async () => { throw new Error('x'); } });
+    expect(await runOwnCard(live, t.io)).toBe('unavailable');
+    expect(t.calls).not.toContain('release');
+  });
+  test('a claim that throws is unknown and still pushes (the pre-claim behaviour)', async () => {
+    const t = io({ claim: async () => { throw new Error('rpc'); } });
+    expect(await runOwnCard(live, t.io)).toBe('sent');
+  });
+  test('already answered and no card never touch the push', async () => {
+    const t = io({ claim: async () => 'already_answered' });
+    expect(await runOwnCard(live, t.io)).toBe('already_answered');
+    expect(t.calls).toEqual([]);
+    expect(await runOwnCard({ apns: true, card: false }, io().io)).toBe('no_card');
+  });
+});
+
+describe('runTeamFanOut: a count update is stamped with the moment its content was READ', () => {
+  test('the timestamp is taken before the board is read, and is the one sent', async () => {
+    const order: string[] = [];
+    let sentAt = -1;
+    let clock = 1_000_000;
+    await runTeamFanOut({
+      now: () => { order.push('now'); return clock; },
+      loadBoard: async () => { order.push('board'); clock += 5000; return { up: 1 }; },
+      loadTargets: async () => { order.push('targets'); return [{ athlete_id: 'a' }]; },
+      plan: (_b, _t, builtAt) => { order.push(`plan@${builtAt}`); return [{ athleteId: 'a' }]; },
+      claim: async (ids) => new Set(ids),
+      send: async (_u, builtAt) => { sentAt = builtAt; },
+    });
+    expect(order.slice(0, 2)).toEqual(['now', 'board']);
+    expect(order).toContain('plan@1000000');
+    // An older board's count push must carry the OLDER timestamp, so iOS drops it when my
+    // answered push (built after my ack) is already on the card.
+    expect(sentAt).toBe(1_000_000);
+  });
+  test('only the claimed athletes are sent; nothing without a board', async () => {
+    let sent: Array<{ athleteId: string }> = [];
+    await runTeamFanOut({
+      now: () => 1, loadBoard: async () => ({}), loadTargets: async () => [],
+      plan: () => [{ athleteId: 'a' }, { athleteId: 'b' }],
+      claim: async () => new Set(['b']),
+      send: async (u) => { sent = u; },
+    });
+    expect(sent.map((u) => u.athleteId)).toEqual(['b']);
+    let called = false;
+    await runTeamFanOut({
+      now: () => 1, loadBoard: async () => null, loadTargets: async () => [],
+      plan: () => [{ athleteId: 'a' }], claim: async (ids) => new Set(ids),
+      send: async () => { called = true; },
+    });
+    expect(called).toBe(false);
   });
 });
