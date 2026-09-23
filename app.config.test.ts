@@ -74,8 +74,12 @@ describe('app.json — iOS App Store compliance', () => {
     expect(opts.locationAlwaysAndWhenInUsePermission).toBe(ios.infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription);
     expect(opts.locationAlwaysPermission).toBe(ios.infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription);
     expect(opts.isIosBackgroundLocationEnabled).not.toBe(true);
-    // The plugin writes a placeholder motion string unless told not to; the app reads no motion.
-    expect(opts.motionUsagePermission).toBe(false);
+    // expo-location links CoreMotion, so App Store Connect requires NSMotionUsageDescription even
+    // though the app reads no motion (build 44 was refused with ITMS-90683 when it was omitted).
+    // It must be a real sentence, never the plugin's placeholder, and must not claim a use.
+    expect(typeof opts.motionUsagePermission).toBe('string');
+    expect(opts.motionUsagePermission).not.toMatch(/PRODUCT_NAME|—/);
+    expect(opts.motionUsagePermission).toMatch(/does not read your motion/);
   });
 
   // Dictation in the chat composer (2026-09-23). App Review rejected a boilerplate microphone
