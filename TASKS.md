@@ -122,3 +122,30 @@ Legend: [ ] open · [x] done · [~] deliberately not done (reason)
   does not show; Family plan blurb no longer says "every dashboard".
 - Ratchets re-baselined to the new, lower counts (raw font sizes 234 -> 184 in screens.css;
   off-scale spacing 216 -> 200). Boot graph +1 module (week-bars.js extracted from Progress).
+
+# Roll call, rebuilt — 2026-09-23
+
+Spec: `docs/superpowers/specs/2026-09-23-roll-call-rebuilt-design.md`. Branch:
+`feat/rollcall-rebuilt`. Shipped on the branch so far (Tasks 1 to 12): the live team board (`rb-`,
+athlete + coach), the athlete's day screen after I'm Up, the coach's four-answer setup with an
+optional place + arrive-by, the week strip, the closing summary, coach History, arrival check-in
+restored from before the 2026-09-09 removal (automatic walk-in on "Always" location, "I'm here"
+as the always-available fallback, server-side distance check that never stores coordinates), the
+morning-block score split (wake-up + arrival = 4 + 4, either alone = 8), the harness shots for
+every board/setup/history state, `docs/go-live/ROLLCALL-DEVICE-TEST.md`, and this DESIGN.md
+amendment.
+
+## Owed before this reaches a team
+
+- [ ] **Device test.** Nobody has run `ROLLCALL-DEVICE-TEST.md` on a real phone yet; everything
+      native (AlarmKit, Live Activity, region monitoring) is unverified outside the harness.
+- [ ] **Prod migration 0242** (the team-visibility RPC, arrival-on-roll-calls columns, the
+      morning-block score split, the history RPC) and four function deploys (`roll-call-ack`,
+      `roll-call-coach`, `commitment-reminders`, `commitment-escalation`) carrying the Live
+      Activity update + closing-summary changes.
+- [ ] **A native build.** The push-to-start Live Activity, the I'm Up intent on both the card and
+      the alarm, MapKit picker and `expo-maps`, and the restored location bridge all need a build;
+      none of it reaches a phone over the air.
+- [ ] **App Privacy answers** for Precise Location (now collected again after the 2026-09-09
+      removal) and updated review notes explaining "Always" location and the lock-screen card, so
+      the resubmission doesn't repeat the App Review questions the removal was avoiding.

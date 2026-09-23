@@ -90,6 +90,13 @@ const rbSeed = (o) => `const cd = await import('./js/commitment-data.js');
     occurs_on: '2026-07-23', starts_at: board.starts_at, respond_by_at: board.respond_by_at, closes_at: board.closes_at,
     opens_at: arrival ? null : T(5, 50), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     status: me.acknowledged_at ? 'acknowledged' : 'pending', acknowledged_at: me.acknowledged_at, verdict: me.verdict,
+    // The board's own asks_arrival/location fields, mirrored onto the athlete's cached row: the
+    // router's redirect() bails out of the OLD roll-call/<id> screen only when ONE of these three
+    // is set (js/screens/rollcall-board.js redirect()). Missing them here sent the arrival and
+    // both-parts shots to the retired screen instead of the rebuilt team board — a harness gap,
+    // not a product one (the server's real my_commitments row carries these for any commitment
+    // with a place, js/commitments.js).
+    location_id: O.mode === 'wake' ? null : 'loc-rb-shot', asks_arrival: board.asks_arrival, location_name: board.location_name,
     instance_status: 'scheduled' }], '2026-07-23');`;
 /** The coach's roll call (Task 10): one standing wake-up ('rc-rule', Mon to Fri 6:00 AM), its
  *  saved places, the week ahead on the frozen clock (Thu 23 Jul: Fri moved to 5:30, Tue cancelled,
