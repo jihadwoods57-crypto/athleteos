@@ -46,6 +46,9 @@ html[data-layout] body.kb-open .tabbar { transform: none; }
 /* ===== The column: every screen, every role ===== */
 html[data-layout] .viewport { padding-left: var(--s6); padding-right: var(--s6); }
 html[data-layout] .view { max-width: 720px; width: 100%; margin: 0 auto; }
+/* Onboarding rides the same 720 column (review pass A-Polish 2). Its steps fill the screen with no
+   rail, and a plan card stretched to the full iPad width left a wide empty field above the CTA. */
+html[data-layout] .ob { max-width: 720px; width: 100%; margin-left: auto; margin-right: auto; }
 
 /* ===== Bottom-anchored overlays become centered dialogs ===== */
 html[data-layout] .sheet {

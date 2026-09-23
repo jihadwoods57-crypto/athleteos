@@ -67,10 +67,6 @@ test('every literal navigation target resolves to a registered screen', () => {
 /* Screens with no door on purpose. Each one needs a reason, and the reason has to be in the code,
    not in this list. */
 const DOORLESS_BY_DESIGN = new Set([
-  // A hash-only reference gallery of verification-state specimens (0208). It exists so the amber
-  // near-collision between "left early" and "unverified" has a canonical rendering; it is opened
-  // by typing the hash, and it deliberately has no entry point in the product.
-  'states',
   // Documented legacy aliases kept for rollback (index.js): the unified meal page answers
   // #meal-confirm, and the pre-OB2 picker stays reachable as #legacy-role.
   'meal-confirm',

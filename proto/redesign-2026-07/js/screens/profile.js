@@ -150,8 +150,9 @@ export default {
       ${row('privacy', 'eye', 'Privacy &amp; your data', 'Who sees what · download your data')}
       ${ext('https://onstandard.app/terms', 'clipboard', 'Terms and conditions', 'The full agreement')}
       ${ext('https://onstandard.app/privacy', 'lock', 'Privacy policy', 'What we collect and why')}
-      ${ext('https://instagram.com/onstandard', 'camera', 'Instagram', '@onstandard')}
-      ${ext('https://x.com/onstandard', 'external', 'X', '@onstandard')}
+      ${/* Instagram and X (@onstandard) were linked here. Neither account could be confirmed as
+            OnStandard's before resubmission (review pass A-Polish 7, 2026-09-23), and a link to a
+            dead or stranger's account is an easy 2.1 note. Re-add once the founder confirms both. */''}
     </section>
 
     <h2 class="eyebrow">Account actions</h2>

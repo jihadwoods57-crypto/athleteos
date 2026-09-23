@@ -88,14 +88,17 @@ export default {
       </div>
     </section>
 
+    ${/* Off a weigh-in day the row is simply absent (review pass A-B3): it used to say "missed
+          today" on a Thursday for a Mon/Wed/Fri requirement. */''}
+    ${S.weightLine.state === 'off' ? '' : `
     <h2 class="eyebrow">Not in today's score</h2>
     <div class="sidebox">
       <div class="req-icon muted s38">${icon('scale', 19)}</div>
       <div>
-        <div class="tt">Morning Weight${S.weightLine.state === 'missed' ? ' · missed today, not scored' : ''}</div>
+        <div class="tt">Morning Weight${S.weightLine.state === 'missed' ? ' · missed today, not scored' : S.weightLine.state === 'late' ? ' · logged late' : S.weightLine.state === 'logged' ? ' · logged' : ''}</div>
         <div class="ts">${S.weightLine.state === 'open' ? esc(S.weightLine.note) + ' ' : ''}Morning weight tracks long-term progress and never lowers your daily score.</div>
       </div>
-    </div>
+    </div>`}
 
     ${reach.rows.length ? `
     <h2 class="eyebrow">How to reach ${anyVariable ? `up to ${upTotal}` : upTotal} today</h2>
@@ -118,8 +121,10 @@ export default {
     <h2 class="eyebrow">Day complete</h2>
     <div class="day-done">
       <div class="req-icon g" style="width:44px;height:44px">${icon('check', 21)}</div>
-      <div><div class="tt">Every point that was on the table is in.</div>
-      <div class="ts">${S.score} of 100. ${S.score >= ON_STANDARD ? 'It is final when the day locks at midnight.' : 'Every requirement is in; meal quality is what lifts it toward the standard.'}</div></div>
+      ${/* Not a claim that every POINT is in, on a screen that shows the points lost
+            (review pass A-M4): requirements are what is complete, not points. */''}
+      <div><div class="tt">Every requirement is in.</div>
+      <div class="ts">${S.score} of 100, final at midnight.${S.score >= ON_STANDARD ? '' : ' Meal quality is what lifts it toward the standard.'}</div></div>
     </div>`}
     <div style="height:8px"></div>
     ${S.score != null ? `<button class="btn ghost sm" id="bd-share" style="width:100%">${icon('share', 17)} Share today's score</button>

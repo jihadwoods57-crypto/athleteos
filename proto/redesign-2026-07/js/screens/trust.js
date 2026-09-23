@@ -647,7 +647,9 @@ export const mealView = {
     if (!m) {
       return `${backHead('Meal', 'Not available', 'history')}
       <div class="sidebox"><div class="req-icon b s38">${icon('clipboard', 17)}</div>
-      <div><div class="tt">Couldn't open this meal</div><div class="ts">Open it from your Activity History.</div></div></div>`;
+      <div><div class="tt">Couldn't open this meal</div><div class="ts">Open it from your Activity History.</div></div></div>
+      <div style="height:12px"></div>
+      <button class="btn primary" data-go="history">${icon('clipboard', 17)} Activity history</button>`;
     }
     // THE SAME DESIGN AS TODAY'S MEAL (founder 2026-09-14): this screen was a simpler twin of the
     // meal thread and the difference showed the moment an athlete opened yesterday's plate. It now

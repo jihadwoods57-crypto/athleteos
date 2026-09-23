@@ -1086,13 +1086,25 @@ export default {
     // (and their coach sees it), but nothing is graded, overdue, or Off-Standard, and cumulative
     // goals defer to tomorrow. Pre-activation windows already resolve to "Not required" in exec.js.
     if (S.notYetScored) {
-      const first = e.now;
+      // A window that closed AFTER the athlete joined but before they opened the app is not late on
+      // day one: nothing is graded today (review pass A-B2). It used to lead the NOW card ("Start
+      // here: Breakfast, 40g+ before 9:30 AM" at 3:20 PM) and sit under "Later today" with an amber
+      // Late pill, beside a fairness note promising nothing was overdue. It is not an action and not
+      // upcoming, so it joins "Not counted today" as a neutral row.
+      const pastWindow = (i) => !!i && i.required && i.state === 'overdue';
+      const ahead = [...(e.now ? [e.now] : []), ...(e.next ? [e.next] : []), ...e.later]
+        .filter((i) => i.state !== 'not_required' && !pastWindow(i));
+      const first = ahead[0] || null;
       const done = e.doneItems;
       // e.next (the 2nd actionable item) lives in neither e.now nor e.later — without this it
       // vanished from the activation-day screen entirely (not in Start here, Later, Logged, or
       // Not counted). Surface it under "Later today", framed positively like the rest of day one.
-      const upcoming = [...(e.next ? [e.next] : []), ...e.later].filter((i) => i.state !== 'not_required');
-      const excused = e.items.filter((i) => i.state === 'not_required');
+      const upcoming = ahead.slice(1);
+      const missedWindow = e.items.filter(pastWindow).map((i) => ({
+        ...i, color: 'gray', pill: 'Not required',
+        sub: `Closed at ${fmtClock(i.window && i.window.due)}. Not counted on your first day`,
+      }));
+      const excused = [...e.items.filter((i) => i.state === 'not_required'), ...missedWindow];
       const grp = (label, rows, opts) => rows.length
         ? `<h2 class="xgrp">${label}</h2><div class="xgroup">${rows.map((i) => grow(i, opts || {})).join('')}</div>` : '';
       return `

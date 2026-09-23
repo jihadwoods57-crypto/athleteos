@@ -4955,12 +4955,25 @@ export const S = {
   mealScoreImpact(slot) {
     try { return mealImpact(slot); } catch { return 0; }
   },
+  /* Morning Weight on the breakdown (review pass A-B3). It used to ignore the weigh-in's own
+     schedule (Mon / Wed / Fri, which #weight itself states), so a Thursday read "missed today", and
+     every logged weight took the 'late' branch: "Logged late tonight" at 7 AM. The schedule comes
+     from the same catalog the day runs on; "late" compares the real log time with the due time. */
   get weightLine() {
+    const req = (this.scheduleCatalog || []).find((r) => r && r.id === 'weight') || CATALOG.find((r) => r.id === 'weight');
+    const due = req && req.window && typeof req.window.due === 'number' ? req.window.due : WEIGHT_DUE;
+    const trend = 'Counts for your season trend; never for the daily score.';
     if (RT.weightLogged) {
-      return { label: 'Morning Weight', state: 'late', note: 'Logged late tonight. Counts for your season trend; never for the daily score.' };
+      const late = RT.weightLoggedAt != null && RT.weightLoggedAt > due;
+      return late
+        ? { label: 'Morning Weight', state: 'late', note: `Logged after ${fmtClock(due)}. ${trend}` }
+        : { label: 'Morning Weight', state: 'logged', note: `Logged today. ${trend}` };
     }
-    return minutesNow() <= WEIGHT_DUE
-      ? { label: 'Morning Weight', state: 'open', note: `Weigh in by ${fmtClock(WEIGHT_DUE)} to keep your season trend current.` }
+    if (!req || !runsToday(req, new Date().getDay())) {
+      return { label: 'Morning Weight', state: 'off', note: `Not a weigh-in day${req && req.freq && req.freq.label ? ` (${req.freq.label})` : ''}.` };
+    }
+    return minutesNow() <= due
+      ? { label: 'Morning Weight', state: 'open', note: `Weigh in by ${fmtClock(due)} to keep your season trend current.` }
       : { label: 'Morning Weight', state: 'missed', note: "Missed today. It doesn't affect your score. Weight only tracks your season trend." };
   },
   get reachPlan() { return memo('reachPlan', () => {

@@ -104,7 +104,7 @@ describe('explainCategories (spec §2.2/§2.3)', () => {
   test('a submitted check-in explains its exact quality and names what cost points (§2.3)', () => {
     const day = freshDay({ ciSubmitted: true, ci: { energy: 6, recovery: 6, sleep: 4, confidence: 8, soreness: 4, motivation: 8 } });
     const rec = explainCategories(day, OPTS).find((c: any) => c.id === 'recovery')!;
-    expect(rec.note).toMatch(/Recovery quality \d+%/);
+    expect(rec.note).toMatch(/Check-in submitted · (every question answered|\d+% of the questions answered)/);
     // v2: the merged Recovery card's headline note states check-in status and quality only —
     // it no longer names the single biggest deficit inline (that duplicated the per-metric rows
     // below it). The deficit is still visible, just in the expanded rows instead of the note.
@@ -140,7 +140,7 @@ describe('score v2 breakdown', () => {
   it('the recovery card is worth 18 and names the guaranteed part', () => {
     const rec = explainCategories(freshDay(), OPTS).find((c: any) => c.id === 'recovery')!;
     expect(rec.possible).toBe(18);
-    expect(rec.rows[0].label).toBe('Checked in tonight');
+    expect(rec.rows[0].label).toBe('Check-in submitted');
     expect(rec.rows[0].value).toBe('+9 on check-in');
   });
 
@@ -163,7 +163,7 @@ describe('score v2 breakdown', () => {
     const rec = explainCategories(freshDay(), OPTS).find((c: any) => c.id === 'recovery')!;
     expect(rec.rows.length).toBe(2);
     expect(rec.rows.some((r: any) => r.label === 'Tonight’s check-in')).toBe(false);
-    expect(rec.rows.map((r: any) => r.label)).toEqual(['Checked in tonight', 'How you answered']);
+    expect(rec.rows.map((r: any) => r.label)).toEqual(['Check-in submitted', 'Every question answered']);
   });
 });
 

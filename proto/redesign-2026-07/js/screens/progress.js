@@ -6,6 +6,7 @@ import { tierFor } from '../score-band.js';
 import { maybeShowTip } from '../tour.js';
 import { cutoverIndex } from '../score-cutover.js';
 import { ROLLCALL_OFF } from '../commitments.js';
+import { DAY } from '../day.js';
 
 /* Progress (spec §8): day one is a real baseline, never an empty tab; populated stays
    athlete-friendly — one score trend, one consistency summary, one category breakdown,
@@ -141,6 +142,16 @@ function styleBandRow() {
   <div class="pg-note">Each style measures your day differently. Compare within a band, not across.</div>`;
 }
 
+/* The empty "What's moving" line, branched on the real number of scored days (review pass A-M8).
+   It used to say "after your fourth scored day" to a 35-day athlete whenever the category detail
+   was missing, whatever the history length. */
+function trendsEmptyLine() {
+  const scored = (DAY.scoreHistory || []).filter((r) => r && r.score != null).length;
+  if (scored >= 3) return 'Your daily scores are in, but the Nutrition and Recovery detail behind them has not synced to this phone, so the trend by category is not shown.';
+  const left = 3 - scored;
+  return `Category trends appear after your fourth scored day. ${left === 1 ? 'One more day to go.' : `${left} more days to go.`}`;
+}
+
 export default {
   tab: 'progress',
   render() {
@@ -238,7 +249,7 @@ export default {
       </div>` : ''}
     </section>` : `
     <h2 class="eyebrow">What's moving</h2>
-    <div class="pl-standard pg-flush">Category trends appear after your fourth scored day.</div>`}`;
+    <div class="pl-standard pg-flush">${esc(trendsEmptyLine())}</div>`}`;
 
     // A client is chasing a body outcome, not a sport standard — their Progress tab leads with
     // weight + photos; a team athlete keeps the score-first order (unchanged). Same sections,

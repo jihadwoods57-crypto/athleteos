@@ -158,7 +158,6 @@ export const screens = {
   parent: lazy(coach, 'parent'),
   'invite-parent': lazy(coach, 'inviteParent'),
   'parent-link': lazy(coach, 'parentLink'),
-  states: lazy(() => import('./states.js')),
   notfound,
   notpermitted,
   requirement: lazy(() => import('./requirement.js')),

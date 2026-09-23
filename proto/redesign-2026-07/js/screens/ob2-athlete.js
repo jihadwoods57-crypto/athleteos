@@ -65,14 +65,14 @@ const steps = [
     id: 'why', ch: 0, cta: 'Continue',
     body: () => hero('The problem',
       'You train like it <span class="accent">matters.</span>',
-      'Practice is two hours. The other twenty (what you eat, how you sleep, what you skip) are the hours that decide the depth chart.',
+      'Practice is two hours. The other twenty-two (what you eat, how you sleep, what you skip) are the hours that decide the depth chart.',
       'Most athletes lose those hours quietly.'),
   },
   {
     id: 'gap', ch: 0, cta: 'Continue',
     body: () => hero('Why it slips',
       'What gets seen <span class="accent">gets done.</span>',
-      'Your coach sees effort at practice. Nobody sees the other twenty hours, so those hours drift, one skipped meal at a time.',
+      'Your coach sees effort at practice. Nobody sees the other twenty-two hours, so those hours drift, one skipped meal at a time.',
       'Willpower is not the problem. Visibility is.'),
   },
   {
@@ -311,10 +311,10 @@ const steps = [
         ? 'Rate both scales on the previous screen. The gap between them is exactly what OnStandard closes.'
         : m >= n
           ? `You rated this goal <b>${n}/10</b> and you say people notice at <b>${m}/10</b>. Good. That only holds while someone is watching, and OnStandard makes it hold every day, on the record.`
-          : `You rated this goal <b>${n}/10</b>, but when you skip, notice lands at <b>${m}/10</b>. That gap is where the 140 hours go, and it is exactly what OnStandard closes.`;
+          : `You rated this goal <b>${n}/10</b>, but when you skip, notice lands at <b>${m}/10</b>. That gap is where the 154 hours go, and it is exactly what OnStandard closes.`;
       return `
-        ${countStat('140 hrs', 'a week between practices, where your goal is actually won or lost',
-          '~20 unseen hours a day × 7 days')}
+        ${countStat('154 hrs', 'a week between practices, where your goal is actually won or lost',
+          '22 unseen hours a day × 7 days')}
         <div style="height:18px"></div>
         <div class="ob2-gap">
           ${meter(n * 10, { value: String(n), label: 'The goal', uid: 'gap-g' })}
