@@ -13,6 +13,10 @@ const KIND_META = {
   suspicious_login: { severity: 'warning', headline: 'Suspicious sign-in detected', actionLabel: 'Review sign-in activity' },
   account_locked: { severity: 'critical', headline: 'Your admin account was temporarily locked', actionLabel: 'Review sign-in activity' },
   recovery_used: { severity: 'critical', headline: 'Two-factor authentication was reset', actionLabel: 'Review account security' },
+  // 0245 (review pass 2026-09-23, G-R11): a person reported content. Not a security event, so it
+  // carries its own subject prefix and footer, and it is never deduped (each email is a batch of
+  // distinct reports; dropping one would break the 24-hour promise).
+  content_report: { severity: 'warning', headline: 'Content was reported', actionLabel: 'Open Command Center', prefix: 'OnStandard Safety', security: false, noDedupe: true },
 };
 // Darkened from the original palette to clear WCAG AA (4.5:1) at badge text size (11.5px) - the lighter
 // originals (#d92d3c/#b3760a/#1d6fd6) measured 3.5-4.3:1 against their tinted backgrounds, which fails.
@@ -23,6 +27,7 @@ const SEVERITY_LABEL = { critical: 'Security alert', warning: 'Security notice',
 export function metaForKind(kind) {
   return KIND_META[kind] || { severity: 'info', headline: null, actionLabel: 'Open Command Center' };
 }
+
 
 // details: Array<{label, value}> rendered as a clean key/value table. actionUrl/actionLabel render a
 // single branded CTA button. All dynamic values are HTML-escaped — details can originate from network
@@ -84,11 +89,11 @@ export function renderAlertEmail({ kind, subject, body, details, actionUrl, occu
         <tr><td style="padding:28px 32px 0"><div style="height:1px;background:#eef0f3"></div></td></tr>
         <tr><td style="padding:16px 32px 28px">
           <p style="margin:0 0 4px;font-size:12px;line-height:1.6;color:#6b7280;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
-            Automated security notification for your OnStandard Command Center admin account &middot; ${escapeHtml(when)} UTC
+            ${meta.security === false ? 'Automated safety notification from OnStandard' : 'Automated security notification for your OnStandard Command Center admin account'} &middot; ${escapeHtml(when)} UTC
           </p>
-          <p style="margin:0;font-size:12px;line-height:1.6;color:#6b7280;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+          ${meta.security === false ? '' : `<p style="margin:0;font-size:12px;line-height:1.6;color:#6b7280;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
             If this wasn't you, sign in and change your password immediately.
-          </p>
+          </p>`}
         </td></tr>
       </table>
     </td></tr>
@@ -98,7 +103,8 @@ export function renderAlertEmail({ kind, subject, body, details, actionUrl, occu
   const textLines = [headline, '', body];
   if (details && details.length) { textLines.push(''); details.forEach((d) => textLines.push(`${d.label}: ${d.value}`)); }
   if (actionUrl) { textLines.push('', `${meta.actionLabel}: ${actionUrl}`); }
-  textLines.push('', `Automated security notification · ${when} UTC`, "If this wasn't you, sign in and change your password immediately.");
+  if (meta.security === false) textLines.push('', `Automated safety notification · ${when} UTC`);
+  else textLines.push('', `Automated security notification · ${when} UTC`, "If this wasn't you, sign in and change your password immediately.");
   const text = textLines.join('\n');
 
   return { html, text };
@@ -106,12 +112,19 @@ export function renderAlertEmail({ kind, subject, body, details, actionUrl, occu
 
 export function buildResendPayload({ from, to, replyTo, kind, subject, body, details, actionUrl, occurredAt }) {
   const { html, text } = renderAlertEmail({ kind, subject, body, details, actionUrl, occurredAt });
-  const payload = { from, to: [to], subject: `OnStandard Security: ${subject}`, html, text };
+  const payload = { from, to: [to], subject: `${metaForKind(kind).prefix || 'OnStandard Security'}: ${subject}`, html, text };
   if (replyTo) payload.reply_to = replyTo;
   return payload;
 }
 
 // Suppress a repeat of the same alert kind already sent in the recent window.
 export function shouldSend(recentKinds, kind) {
+  if (metaForKind(kind).noDedupe) return true;
   return !recentKinds.includes(kind);
+}
+
+/** Where an alert of `kind` is emailed: content reports go to the support inbox when one is
+ *  configured (REPORTS_ALERT_EMAIL), everything else to the admin inbox. */
+export function alertRecipient(kind, { adminEmail = '', reportsEmail = '' } = {}) {
+  return kind === 'content_report' && reportsEmail ? reportsEmail : adminEmail;
 }

@@ -1,7 +1,7 @@
 // run: node --test supabase/functions/admin-alert/logic.test.mjs
 import test from 'node:test';
 import assert from 'node:assert';
-import { escapeHtml, metaForKind, renderAlertEmail, buildResendPayload, shouldSend } from './logic.mjs';
+import { escapeHtml, metaForKind, renderAlertEmail, buildResendPayload, shouldSend, alertRecipient } from './logic.mjs';
 
 test('escapeHtml neutralizes markup', () => {
   assert.equal(escapeHtml('<script>alert(1)</script>'), '&lt;script&gt;alert(1)&lt;/script&gt;');
@@ -64,4 +64,17 @@ test('dedupe suppresses a repeat kind', () => assert.equal(shouldSend(['new_coun
 test('dedupe allows a fresh kind', () => {
   assert.equal(shouldSend(['new_country'], 'impossible_travel'), true);
   assert.equal(shouldSend([], 'new_country'), true);
+});
+
+// 0245 (G-R11): a content report is a safety email, never deduped, and goes to support when set.
+test('content reports: never deduped, safety wording, support inbox', () => {
+  assert.equal(shouldSend(['content_report'], 'content_report'), true);
+  const p = buildResendPayload({ from: 'a@x', to: 'b@x', kind: 'content_report', subject: '1 new content report', body: 'b',
+    details: [{ label: 'Report 1: harassment', value: 'report r1 · reporter u1 · about u2' }] });
+  assert.match(p.subject, /^OnStandard Safety: 1 new content report$/);
+  assert.doesNotMatch(p.text, /change your password/);
+  assert.match(p.text, /Report 1: harassment: report r1/);
+  assert.equal(alertRecipient('content_report', { adminEmail: 'admin@x', reportsEmail: 'support@x' }), 'support@x');
+  assert.equal(alertRecipient('content_report', { adminEmail: 'admin@x' }), 'admin@x');
+  assert.equal(alertRecipient('suspicious_login', { adminEmail: 'admin@x', reportsEmail: 'support@x' }), 'admin@x');
 });

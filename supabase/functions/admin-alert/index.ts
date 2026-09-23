@@ -7,13 +7,15 @@
 //   supabase secrets set ALERT_KEY=... RESEND_API_KEY=... ADMIN_ALERT_EMAIL=you@onstandard.app
 //   supabase functions deploy admin-alert
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
-import { buildResendPayload, shouldSend } from './logic.mjs';
+import { buildResendPayload, shouldSend, alertRecipient } from './logic.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const ALERT_KEY = Deno.env.get('ALERT_KEY') ?? '';
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY') ?? '';
 const ALERT_EMAIL = Deno.env.get('ADMIN_ALERT_EMAIL') ?? '';
+// Content reports (0245) go to the support inbox when set; otherwise to ADMIN_ALERT_EMAIL.
+const REPORTS_EMAIL = Deno.env.get('REPORTS_ALERT_EMAIL') ?? '';
 const ALERT_FROM = Deno.env.get('ALERT_FROM') ?? 'OnStandard Security <alerts@onstandard.app>';
 const FUNCTIONS_BASE = Deno.env.get('FUNCTIONS_BASE') ?? `${SUPABASE_URL}/functions/v1`;
 
@@ -54,10 +56,11 @@ Deno.serve(async (req: Request) => {
   const results: Record<string, unknown> = {};
 
   // email via Resend — a proper branded HTML+text security email, not a bare plain-text line.
-  if (RESEND_API_KEY && ALERT_EMAIL) {
+  const toEmail = alertRecipient(kind, { adminEmail: ALERT_EMAIL, reportsEmail: REPORTS_EMAIL });
+  if (RESEND_API_KEY && toEmail) {
     try {
       const payload = buildResendPayload({
-        from: ALERT_FROM, to: ALERT_EMAIL, replyTo: ALERT_EMAIL,
+        from: ALERT_FROM, to: toEmail, replyTo: toEmail,
         kind, subject, body, details, actionUrl, occurredAt,
       });
       const r = await fetch('https://api.resend.com/emails', {
