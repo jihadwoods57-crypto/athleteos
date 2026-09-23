@@ -322,14 +322,16 @@ export async function startDictation(
     if (!s.started && Date.now() < strayUntil) {
       const st = await nativeState(m);
       if (!mine()) return;
-      if (st === 'starting' || st === 'recognizing') {
+      // 'stopping' is the recognizer we just aborted, still tearing down: its `end` is the stray.
+      if (st === 'starting' || st === 'recognizing' || st === 'stopping') {
         strayUntil = 0; // that was the one stray; the next `end` is ours
         if (!s.watch) {
           s.watch = unrefTimer(setTimeout(async () => {
             s.watch = null;
             if (!mine() || s.started) return;
             const later = await nativeState(m);
-            if (mine() && !s.started && (later === 'inactive' || later === null)) finishSession();
+            // Anything but a recognizer still coming up (idle, stuck tearing down, cannot say) ends it.
+            if (mine() && !s.started && later !== 'starting' && later !== 'recognizing') finishSession();
           }, WATCH_MS));
         }
         return;

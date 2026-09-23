@@ -291,6 +291,24 @@ describe('sessions never cross', () => {
     expect(__currentSessionId()).toBeNull();
   });
 
+  test('a stray arriving while the aborted recognizer is still stopping is dropped; the new session lives, then ends if it stays down', async () => {
+    jest.useFakeTimers();
+    const b: DictationEvent[] = [];
+    await startDictation(() => undefined, { sid: 'd1' });
+    const second = startDictation((e) => b.push(e), { sid: 'd2' });
+    await jest.advanceTimersByTimeAsync(1500);
+    await second;
+    mockFake.getStateAsync.mockResolvedValue('stopping');
+    fire('end'); // d1's late end while its recognizer is still tearing down
+    await settle();
+    expect(__currentSessionId()).toBe('d2');
+    expect(b).toEqual([]);
+    // Still stopping at the watchdog: nothing is coming up, so the session ends rather than strand.
+    await jest.advanceTimersByTimeAsync(2000);
+    expect(b).toEqual([{ sid: 'd2', type: 'end' }]);
+    expect(__currentSessionId()).toBeNull();
+  });
+
   test('an end is never held back once the stray window has passed, or when the recognizer cannot say', async () => {
     jest.useFakeTimers();
     const b: DictationEvent[] = [];
