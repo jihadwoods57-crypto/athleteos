@@ -328,3 +328,20 @@ describe('DICTATION_* (composer upgrade, 2026-09-23)', () => {
     expect(BRIDGE_SHIM).toContain("call('DICTATION_START', { lang: String(lang || ''), sid: String(sid || '') })");
   });
 });
+
+/* G-R7 (App Review pass 2026-09-23): the paywall asks the store for its localized prices. On a
+   binary with no store the answer is a plain { ok:false }, which the proto reads as "print the
+   catalog", exactly what it did before this call existed. */
+describe('IAP_OFFERINGS', () => {
+  test('answers unavailable, never hangs, on a build with no store', async () => {
+    const { injected, ref } = fakeRef();
+    const handled = await handleBridgeMessage(ref, { type: 'IAP_OFFERINGS', id: 41, appUserId: 'u1' } as never);
+    expect(handled).toBe(true);
+    expect(injected[0]).toContain('__onNativeResult(41,');
+    expect(injected[0]).toContain('unavailable');
+  });
+
+  test('the shim exposes iap.offerings with the signed-in user id', () => {
+    expect(BRIDGE_SHIM).toContain("offerings: function(appUserId){ return call('IAP_OFFERINGS', { appUserId: String(appUserId||'') }); }");
+  });
+});

@@ -12,7 +12,7 @@
 // `virtual: true` — a virtual mock over a real module poisons one resolver cache per worker and
 // flakes (see the repo's jest-virtual-mock-resolver-cache note).
 
-import { isIapAvailable, purchaseConsumer, restoreConsumer, configureIap } from './index';
+import { isIapAvailable, purchaseConsumer, restoreConsumer, configureIap, getConsumerOfferings } from './index';
 
 type Stub = {
   configure: jest.Mock;
@@ -22,6 +22,7 @@ type Stub = {
   purchasePackage: jest.Mock;
   purchaseStoreProduct: jest.Mock;
   restorePurchases: jest.Mock;
+  checkTrialOrIntroductoryPriceEligibility: jest.Mock;
 };
 
 const ANNUAL = 'onstandard_individual_annual';
@@ -36,6 +37,7 @@ function makeStub(over: Partial<Stub> = {}): Stub {
     purchasePackage: jest.fn().mockResolvedValue({}),
     purchaseStoreProduct: jest.fn().mockResolvedValue({}),
     restorePurchases: jest.fn().mockResolvedValue({ activeSubscriptions: [], entitlements: { active: {} } }),
+    checkTrialOrIntroductoryPriceEligibility: jest.fn().mockResolvedValue({}),
     ...over,
   };
 }
@@ -68,6 +70,7 @@ describe('iap seam — inert with no key', () => {
     await expect(purchaseConsumer(ANNUAL, UID)).resolves.toEqual({ ok: false, reason: 'unavailable' });
     await expect(restoreConsumer(UID)).resolves.toEqual({ ok: false, reason: 'unavailable' });
     await expect(configureIap(UID)).resolves.toBeUndefined();
+    await expect(getConsumerOfferings(UID)).resolves.toEqual({ ok: false, reason: 'unavailable' });
   });
 });
 
@@ -176,5 +179,73 @@ describe('iap seam — wired against a stubbed store', () => {
     // A dropped check is NOT a verdict about the account, and must not claim one.
     const broken = makeStub({ restorePurchases: jest.fn().mockRejectedValue({ code: '10', message: 'offline' }) });
     await expect(loadWired(broken).restoreConsumer(UID)).resolves.toEqual({ ok: false, reason: 'error', message: 'offline' });
+  });
+});
+
+/* G-R7 (App Review pass 2026-09-23): the paywall printed hard-coded USD in every storefront and a
+   trial line to Apple IDs that had already used theirs. These pin the store read the paywall
+   renders instead. */
+describe('iap seam: offerings for the paywall', () => {
+  afterEach(() => { jest.resetModules(); });
+
+  const MONTHLY = 'onstandard_individual_monthly';
+  const product = (id: string, over: Record<string, unknown> = {}) => ({
+    identifier: id, priceString: '€219,99', price: 219.99, currencyCode: 'EUR', pricePerMonthString: '€18,33',
+    introPrice: { price: 0, priceString: '€0', periodUnit: 'WEEK', periodNumberOfUnits: 2, cycles: 1 },
+    ...over,
+  });
+  const offerings = (...products: Array<Record<string, unknown>>) => ({
+    current: { identifier: 'default', availablePackages: products.map((p, i) => ({ identifier: `p${i}`, product: p })) },
+    all: {},
+  });
+
+  it('returns the store’s own localized price, currency and free intro period', async () => {
+    const stub = makeStub({
+      getOfferings: jest.fn().mockResolvedValue(offerings(product(ANNUAL))),
+      checkTrialOrIntroductoryPriceEligibility: jest.fn().mockResolvedValue({ [ANNUAL]: { status: 2, description: '' } }),
+    });
+    const res = await loadWired(stub).getConsumerOfferings(UID);
+    expect(res).toEqual({ ok: true, products: { [ANNUAL]: {
+      priceString: '€219,99', price: 219.99, currencyCode: 'EUR', pricePerMonthString: '€18,33',
+      trial: { count: 2, unit: 'WEEK' }, trialEligible: true,
+    } } });
+    expect(stub.checkTrialOrIntroductoryPriceEligibility).toHaveBeenCalledWith([ANNUAL]);
+  });
+
+  it('marks an Apple ID that already used its trial as ineligible', async () => {
+    const stub = makeStub({
+      getOfferings: jest.fn().mockResolvedValue(offerings(product(ANNUAL))),
+      checkTrialOrIntroductoryPriceEligibility: jest.fn().mockResolvedValue({ [ANNUAL]: { status: 1, description: '' } }),
+    });
+    const res = await loadWired(stub).getConsumerOfferings(UID);
+    expect(res.ok && res.products[ANNUAL].trialEligible).toBe(false);
+  });
+
+  it('keeps the prices when the eligibility check fails, with eligibility unknown', async () => {
+    const stub = makeStub({
+      getOfferings: jest.fn().mockResolvedValue(offerings(product(ANNUAL))),
+      checkTrialOrIntroductoryPriceEligibility: jest.fn().mockRejectedValue(new Error('offline')),
+    });
+    const res = await loadWired(stub).getConsumerOfferings(UID);
+    expect(res.ok).toBe(true);
+    expect(res.ok && res.products[ANNUAL].trialEligible).toBeNull();
+    expect(res.ok && res.products[ANNUAL].priceString).toBe('€219,99');
+  });
+
+  it('does not call a paid intro price a trial, and skips the eligibility call when nothing has a trial', async () => {
+    const stub = makeStub({
+      getOfferings: jest.fn().mockResolvedValue(offerings(product(MONTHLY, {
+        priceString: '$19.99', price: 19.99, currencyCode: 'USD', pricePerMonthString: '$19.99',
+        introPrice: { price: 9.99, priceString: '$9.99', periodUnit: 'MONTH', periodNumberOfUnits: 1, cycles: 1 },
+      }))),
+    });
+    const res = await loadWired(stub).getConsumerOfferings(UID);
+    expect(res.ok && res.products[MONTHLY].trial).toBeNull();
+    expect(stub.checkTrialOrIntroductoryPriceEligibility).not.toHaveBeenCalled();
+  });
+
+  it('reports a store failure as an error, never as an empty price list', async () => {
+    const stub = makeStub({ getOfferings: jest.fn().mockRejectedValue({ code: '10', message: 'offline' }) });
+    await expect(loadWired(stub).getConsumerOfferings(UID)).resolves.toEqual({ ok: false, reason: 'error', message: 'offline' });
   });
 });

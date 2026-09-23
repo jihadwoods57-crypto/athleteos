@@ -2022,6 +2022,25 @@ export async function iapAvailable() {
   return false;
 }
 
+/** The store's localized prices, keyed by product id, or null when there is no store answer
+    (App Review pass 2026-09-23, G-R7). null covers every case the paywall must fall back to the
+    catalog on: a browser, a native shell whose bridge predates IAP_OFFERINGS (the method is
+    feature-detected, never assumed), a store error, and a store that has not answered in 4s.
+    It never rejects: the paywall is the screen App Review reads closest, and a price read that
+    throws must not take the purchase button with it. */
+export async function iapOfferings(appUserId) {
+  try {
+    const iap = window.OnStandardNative && window.OnStandardNative.iap;
+    if (!iap || typeof iap.offerings !== 'function') return null;
+    const res = await Promise.race([
+      iap.offerings(appUserId),
+      new Promise((resolve) => setTimeout(() => resolve(null), 4000)),
+    ]);
+    if (!res || res.ok !== true || !res.products || typeof res.products !== 'object') return null;
+    return Object.keys(res.products).length ? res.products : null;
+  } catch { return null; }
+}
+
 /** Present the store purchase sheet for a product id. appUserId MUST be the profile UUID so the
     RevenueCat webhook can attribute the subscription. Returns { ok:true } | { ok:false, reason, message }. */
 export async function purchaseConsumerPlan(productId, appUserId) {
