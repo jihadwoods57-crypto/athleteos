@@ -432,6 +432,8 @@ returns double precision language sql immutable as $$
     cos(radians(lat1)) * cos(radians(lat2)) * power(sin(radians(lng2 - lng1) / 2), 2)))
 $$;
 
+-- (Redefined in section 5b at the end of this file: the geofence source may also report the OS
+-- region match with no reading. Everything below still holds for every call that sends one.)
 -- verify_arrival_at: the ONE new write path for a distance-checked arrival. It computes `within`
 -- from the instance's saved place and calls the EXISTING verify_arrival(instance, source, within,
 -- reason) — every gate that function already enforces (Verified Commitments switched on,
@@ -739,3 +741,65 @@ do $$ declare f text; begin
     execute format('grant execute on function %s to service_role', f);
   end loop;
 end $$;
+
+-- ================================================================ 5b. arrival: the region-match path (Task 6)
+-- Controller ruling 2026-09-23. The binary no longer declares UIBackgroundModes "location" (that
+-- key drew App Review 2.5.4 on 2026-09-18, and region monitoring does not need it: the OS watches
+-- the region and wakes the app). Without the mode, iOS may refuse a position reading during that
+-- background wake. So verify_arrival_at gains ONE extra input shape, and only for the geofence:
+--
+--   verify_arrival_at(instance, 'geofence', null, null, null)
+--     = "the OS matched the region the server armed". within = true, distance_m = null.
+--
+-- THE TRUST MODEL, stated once:
+--   * source 'geofence' WITH a reading: distance-checked exactly like 'manual' (below).
+--   * source 'geofence' with NO reading (lat AND lng null): trusts the OS region event. The region
+--     itself is the coach's place as handed out by my_armable_geofences (0139), only inside the
+--     arming window, only to an athlete holding a response row on the instance. This is the same
+--     trust verify_arrival(instance, 'geofence', true, null) has granted the device since 0139,
+--     and that function remains athlete-callable (0208 grants) — so this path adds no new way to
+--     claim an arrival, it only routes the existing one through the single entry point.
+--   * source 'manual' ("I'm here"): ALWAYS distance-verified. No coordinates = bad_position.
+--   * A half-given position (one of lat/lng null) is bad_position on either source.
+-- Auth stays first, before anything reveals whether the instance has a place.
+create or replace function verify_arrival_at(p_instance uuid, p_source text, p_lat double precision,
+  p_lng double precision, p_accuracy_m double precision) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare loc commitment_locations; v_dist double precision; v_within boolean; v_res jsonb; v_acc double precision;
+  v_region_match boolean := (p_source = 'geofence' and p_lat is null and p_lng is null);
+begin
+  if not v_region_match and (p_lat is null or p_lng is null
+      or p_lat not between -90 and 90 or p_lng not between -180 and 180) then
+    raise exception 'bad_position';
+  end if;
+  -- AUTH FIRST. A caller with no response row on this instance gets refused before we so much as
+  -- reveal whether the instance has a place configured (fix round 1, item 2).
+  if not exists (select 1 from commitment_responses where instance_id = p_instance and athlete_id = auth.uid()) then
+    raise exception 'not_authorized';
+  end if;
+  select l.* into loc from commitment_instances i join commitments c on c.id = i.commitment_id
+    join commitment_locations l on l.id = c.location_id where i.id = p_instance;
+  if not found then raise exception 'no_place'; end if;
+  if v_region_match then
+    -- The OS matched the armed region. No distance exists to report, and none is invented.
+    v_res := verify_arrival(p_instance, p_source, true, null);
+    return coalesce(v_res, '{}'::jsonb) || jsonb_build_object('within', true, 'distance_m', null);
+  end if;
+  v_dist := _haversine_m(p_lat, p_lng, loc.lat, loc.lng);
+  -- A non-finite accuracy (NaN/Infinity) is not evidence of a tight fix: treated as 0, never as
+  -- the full 75 m pad (fix round 1, item 3).
+  v_acc := p_accuracy_m;
+  if v_acc is null or v_acc = 'NaN'::float8 or v_acc = 'Infinity'::float8 or v_acc = '-Infinity'::float8 then
+    v_acc := 0;
+  end if;
+  v_within := v_dist <= loc.radius_m + least(greatest(v_acc, 0), 75);
+  v_res := verify_arrival(p_instance, p_source, v_within,
+    case when v_within then null else format('%s m from %s', round(v_dist), loc.name) end);
+  return coalesce(v_res, '{}'::jsonb) || jsonb_build_object('within', v_within, 'distance_m', round(v_dist));
+end $$;
+comment on function verify_arrival_at(uuid, text, double precision, double precision, double precision) is
+  'Arrival by distance to the instance''s saved place; or, for source geofence with null lat/lng only, the OS region match (within true, distance_m null). Manual always needs a position. Calls verify_arrival() for the one write path; never stores or echoes a coordinate. Auth first. 0242.';
+-- create or replace keeps the grants set in the grants block above; restated so this section
+-- stands on its own if it is ever lifted out.
+revoke all on function verify_arrival_at(uuid,text,double precision,double precision,double precision) from public, anon;
+grant execute on function verify_arrival_at(uuid,text,double precision,double precision,double precision) to authenticated;

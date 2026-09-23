@@ -48,7 +48,11 @@ describe('app.json — iOS App Store compliance', () => {
   it('location purpose strings are present and plain', () => {
     expect(ios.infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription).toMatch(/check you in when you arrive|checks you in when you walk into/i);
     expect(ios.infoPlist.NSLocationWhenInUseUsageDescription).toMatch(/checks you in when you arrive/i);
-    expect(ios.infoPlist.UIBackgroundModes).toContain('location');
+    // NO background-location mode. App Review 2.5.4 (2026-09-18) was exactly
+    // UIBackgroundModes "location" with no feature that needed persistent location, and region
+    // monitoring does not need it: the OS watches the region and wakes the app. "Always" is still
+    // requested (region monitoring needs it); the mode must never creep back.
+    expect(ios.infoPlist.UIBackgroundModes ?? []).not.toContain('location');
     for (const key of ['NSLocationWhenInUseUsageDescription', 'NSLocationAlwaysAndWhenInUseUsageDescription', 'NSLocationAlwaysUsageDescription']) {
       const v = ios.infoPlist[key];
       expect(typeof v).toBe('string');
@@ -63,7 +67,7 @@ describe('app.json — iOS App Store compliance', () => {
     expect(opts.locationWhenInUsePermission).toBe(ios.infoPlist.NSLocationWhenInUseUsageDescription);
     expect(opts.locationAlwaysAndWhenInUsePermission).toBe(ios.infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription);
     expect(opts.locationAlwaysPermission).toBe(ios.infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription);
-    expect(opts.isIosBackgroundLocationEnabled).toBe(true);
+    expect(opts.isIosBackgroundLocationEnabled).not.toBe(true);
     // The plugin writes a placeholder motion string unless told not to; the app reads no motion.
     expect(opts.motionUsagePermission).toBe(false);
   });

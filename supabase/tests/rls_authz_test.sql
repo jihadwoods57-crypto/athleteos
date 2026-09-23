@@ -4774,6 +4774,33 @@ select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'm
 select _as('eeee0000-0000-0000-0000-0000000000e1');   -- superuser bypasses grants; check as an ordinary user
 select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'manual', 999, -81.2, 10) $f$) like '%bad_position%',
   '0242: an impossible latitude is refused before any distance math');
+
+-- Task 6 (controller ruling): no UIBackgroundModes "location", so iOS may refuse a reading during a
+-- region wake. The geofence source may then report the OS region match with NO coordinates; the
+-- manual source ("I'm here") never may.
+select _superuser();
+update commitment_responses set status = 'pending', acknowledged_at = null, arrived_at = null,
+       arrival_source = null, unverified_reason = null, departed_at = null
+ where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'manual', null, null, null) $f$) like '%bad_position%',
+  '0242: manual ("I''m here") with no coordinates is bad_position: the tap is always distance-verified');
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'geofence', 28.6005, null, 10) $f$) like '%bad_position%',
+  '0242: a half-given position is bad_position even from the geofence');
+create temp table _rc_vag as
+  select verify_arrival_at((select id from _rc_place_next), 'geofence', null, null, null) as j;
+select _superuser();
+select _ok((select (j->>'within')::boolean from _rc_vag) = true,
+  '0242: geofence with null coordinates = the OS region match: within true');
+select _ok((select j ? 'distance_m' and jsonb_typeof(j->'distance_m') = 'null' from _rc_vag),
+  '0242: the region-match path reports distance_m null, never an invented number');
+select _ok((select status = 'arrived' and arrival_source = 'geofence' from commitment_responses
+             where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242: the region match writes through verify_arrival (arrived, source geofence)');
+drop table _rc_vag;
+select _as('bbbbbbbb-0000-0000-0000-000000000002');   -- no response on this instance
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'geofence', null, null, null) $f$) like '%not_authorized%',
+  '0242: the region-match path is still auth-first: no response row = not_authorized');
 select _ok(_try($f$ select _haversine_m(0,0,0,0) $f$) like 'denied%',
   '0242: _haversine_m is internal — not even a signed-in user may call it directly');
 

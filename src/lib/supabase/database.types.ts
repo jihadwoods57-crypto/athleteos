@@ -447,8 +447,9 @@ export interface Database {
         Args: {
           p_instance: string;
           p_source: string;
-          p_lat: number;
-          p_lng: number;
+          /** null (with p_lng) ONLY from source 'geofence': the OS region match (0242 5b). */
+          p_lat: number | null;
+          p_lng: number | null;
           p_accuracy_m: number | null;
         };
         Returns: {
@@ -459,7 +460,7 @@ export interface Database {
           arrival_source?: string | null;
           unverified_reason?: string | null;
           within: boolean;
-          distance_m: number;
+          distance_m: number | null;
         };
       };
       // Presence (0208). The writer commitment_responses.departed_at never had — which is why the

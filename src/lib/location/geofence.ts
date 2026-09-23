@@ -6,11 +6,16 @@
  * events nothing is registered and nothing is watched. We never read a position stream and never
  * store a coordinate.
  *
- * WHAT CHANGED IN 0242 (founder 2026-09-23). A crossing used to be reported as a bare "yes, they
- * arrived", which the server had to take on faith. Now an Enter takes ONE position reading and
- * sends it to verify_arrival_at, which measures the distance to the coach's place on the server,
- * records only the verdict (and, when it is a miss, "N m from <place>"), and discards the
- * coordinate. One reading per crossing or per "I'm here" tap; never a track.
+ * WHAT CHANGED IN 0242 (founder 2026-09-23). An Enter now tries ONE position reading and sends it
+ * to verify_arrival_at, which measures the distance to the coach's place on the server, records
+ * only the verdict (and, when it is a miss, "N m from <place>"), and discards the coordinate. One
+ * reading per crossing or per "I'm here" tap; never a track.
+ *
+ * THE BINARY HAS NO BACKGROUND-LOCATION MODE (controller ruling 2026-09-23; App Review 2.5.4 was
+ * exactly that key). Region monitoring does not need it, but without it iOS may refuse a reading
+ * during the background wake. When it does, the Enter is still reported: verify_arrival_at with
+ * source 'geofence' and NULL coordinates means "the OS matched the region the server armed"
+ * (0242 section 5b). The manual "I'm here" path is always distance-verified.
  *
  * Deliberately split: selectArmable/toRegions/handleRegionEvent are PURE (the OS and the network
  * are injected) and carry every decision worth testing. The Expo calls in index.ts are a thin
@@ -108,14 +113,21 @@ export type PositionFix = {
 };
 
 /** The arguments verify_arrival_at (0242) takes. The coordinate goes to the server exactly once,
- *  in this call; the server compares it to the coach's place and does not keep it. */
+ *  in this call; the server compares it to the coach's place and does not keep it. lat/lng are
+ *  null ONLY for the geofence region-match report (regionMatchArgs). */
 export type ArrivalArgs = {
   p_instance: string;
   p_source: 'geofence' | 'manual';
-  p_lat: number;
-  p_lng: number;
+  p_lat: number | null;
+  p_lng: number | null;
   p_accuracy_m: number | null;
 };
+
+/** The geofence report when no reading could be taken: the OS matched the armed region. The
+ *  server accepts null coordinates from the geofence source only. */
+export function regionMatchArgs(instanceId: string): ArrivalArgs {
+  return { p_instance: instanceId, p_source: 'geofence', p_lat: null, p_lng: null, p_accuracy_m: null };
+}
 
 /** Build the verify_arrival_at arguments from one fix, or null when the fix is not a real
  *  position. A missing or non-finite accuracy goes as null (the server treats that as 0 m of
@@ -149,7 +161,9 @@ export type RegionEvent = {
   region?: { identifier?: string | null } | null;
 } | null | undefined;
 
-export type RegionOutcome = 'arrival' | 'departure' | 'no_fix' | 'failed' | 'ignored';
+/** 'arrival' = reported with a reading (distance-checked); 'region_match' = no reading could be
+ *  taken, so the OS region match was reported instead. */
+export type RegionOutcome = 'arrival' | 'region_match' | 'departure' | 'failed' | 'ignored';
 
 /* Mirrors expo-location's LocationGeofencingEventType. Written out here so this file stays pure
    (no native import) and the tests can run without the module. */
@@ -162,9 +176,10 @@ const isExit = (t: unknown) => t === EXIT || t === 'exit';
 /** What the background geofence task does with one region crossing. Never throws: this runs in
  *  the few seconds iOS gives a backgrounded app, and an exception there is simply lost.
  *
- *  ENTER takes ONE reading and sends it to verify_arrival_at. No reading, no report: the athlete
- *  can still tap "I'm here", and an arrival the server never heard of is 'unverified' at worst,
- *  never a false "arrived".
+ *  ENTER tries ONE reading and sends it to verify_arrival_at (source 'geofence'), where the server
+ *  measures it. If there is no reading (iOS refused a fix in the background wake, it timed out, or
+ *  it was not a real position), the OS region match itself is reported: verify_arrival_at with
+ *  null coordinates, which the server accepts from the geofence source only.
  *
  *  EXIT reports the bare crossing to record_departure (0208) and takes no reading. The server
  *  decides what a departure means (a re-entry erases it; the grace absorbs indoor wobble), and
@@ -178,9 +193,9 @@ export async function handleRegionEvent(event: RegionEvent, deps: RegionEventDep
       let fix: PositionFix | null | undefined = null;
       try { fix = await deps.position(); } catch { fix = null; }
       const args = arrivalArgs(instanceId, 'geofence', fix);
-      if (!args) return 'no_fix';
-      const { error } = await deps.rpc('verify_arrival_at', args);
-      return error ? 'failed' : 'arrival';
+      const { error } = await deps.rpc('verify_arrival_at', args ?? regionMatchArgs(instanceId));
+      if (error) return 'failed';
+      return args ? 'arrival' : 'region_match';
     }
     if (isExit(event.eventType)) {
       const { error } = await deps.rpc('record_departure', { p_instance: instanceId });

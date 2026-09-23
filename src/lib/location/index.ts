@@ -9,6 +9,11 @@
  * hadn't opened the app that morning (i.e. exactly the athlete this feature is for) never gets
  * verified. So the task calls verify_arrival_at itself and the UI catches up on next load.
  *
+ * NO BACKGROUND-LOCATION MODE (controller ruling 2026-09-23). The binary asks for "Always" because
+ * region monitoring needs it, but does NOT declare UIBackgroundModes "location" (App Review 2.5.4
+ * on 2026-09-18 was exactly that key). The OS watches the region and wakes the app; if iOS then
+ * refuses a reading, the region match is reported without one (see geofence.ts).
+ *
  * WHAT LEAVES THE DEVICE (0242, founder 2026-09-23): ONE position reading per arrival, sent once to
  * verify_arrival_at with the instance id and the phone's own stated accuracy. The server measures
  * the distance to the coach's place, stores the verdict (and "N m from <place>" when it is a miss)
@@ -58,9 +63,9 @@ export const isLocationAvailable = (): boolean => !!Location && !!TaskManager;
 export const REPORTS_PRESENCE = true;
 
 /** How long one reading may take before we give up on it. A background region wake gets roughly
- *  ten seconds from iOS; a fix that has not arrived by then is not coming, and the task must still
- *  return before the OS suspends it. */
-const FIX_TIMEOUT_MS = 8000;
+ *  ten seconds from iOS, and without a background-location mode iOS may refuse the fix outright.
+ *  Five seconds leaves room to still send the region-match report before the OS suspends us. */
+const FIX_TIMEOUT_MS = 5000;
 
 /* ---------------------------------------------------------------- permissions */
 
@@ -257,7 +262,8 @@ export function registerGeofenceTask(): void {
     TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }: any) => {
       if (error || !data || !supabase) return;
       // BOTH edges are reported. An Enter sends ONE reading to verify_arrival_at (0242) and the
-      // server measures it; an Exit goes to record_departure (0208). An arrival is never
+      // server measures it, or the bare region match when no reading can be had; an Exit goes to
+      // record_departure (0208). An arrival is never
       // downgraded: verify_arrival coalesces arrived_at and record_departure cannot touch status.
       await handleRegionEvent(data, { rpc, position: currentPosition });
     });

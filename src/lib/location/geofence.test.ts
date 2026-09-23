@@ -95,7 +95,7 @@ describe('handleRegionEvent', () => {
   const fix = { coords: { latitude: 28.6, longitude: -81.2, accuracy: 12 } };
   const okRpc = () => jest.fn().mockResolvedValue({ data: { within: true }, error: null });
 
-  test('an Enter event reports a position, never a bare yes', async () => {
+  test('an Enter event reports a position when it can get one', async () => {
     const rpc = okRpc();
     await handleRegionEvent({ eventType: 'enter', region: { identifier: 'inst-1' } }, { rpc, position: async () => fix });
     expect(rpc).toHaveBeenCalledWith('verify_arrival_at', {
@@ -111,14 +111,19 @@ describe('handleRegionEvent', () => {
     expect(rpc.mock.calls[0][0]).toBe('verify_arrival_at');
   });
 
-  test('no reading means NOTHING is reported, not a guess', async () => {
-    const rpc = okRpc();
+  /* No UIBackgroundModes "location" (controller ruling 2026-09-23): iOS may refuse a reading
+     during a region wake. The OS region match is then reported with NO coordinates, which the
+     server accepts from the geofence source only (0242 section 5b). */
+  test('no reading: the OS region match is reported with null coordinates, source geofence', async () => {
+    const regionOnly = { p_instance: 'inst-1', p_source: 'geofence', p_lat: null, p_lng: null, p_accuracy_m: null };
     const failing = async () => { throw new Error('kCLErrorLocationUnknown'); };
-    expect(await handleRegionEvent({ eventType: 'enter', region: { identifier: 'inst-1' } }, { rpc, position: failing })).toBe('no_fix');
-    expect(await handleRegionEvent({ eventType: 'enter', region: { identifier: 'inst-1' } }, { rpc, position: async () => null })).toBe('no_fix');
     const nan = { coords: { latitude: NaN, longitude: -81.2, accuracy: 12 } };
-    expect(await handleRegionEvent({ eventType: 'enter', region: { identifier: 'inst-1' } }, { rpc, position: async () => nan })).toBe('no_fix');
-    expect(rpc).not.toHaveBeenCalled();
+    for (const position of [failing, async () => null, async () => nan]) {
+      const rpc = okRpc();
+      expect(await handleRegionEvent({ eventType: 'enter', region: { identifier: 'inst-1' } }, { rpc, position })).toBe('region_match');
+      expect(rpc).toHaveBeenCalledTimes(1);
+      expect(rpc).toHaveBeenCalledWith('verify_arrival_at', regionOnly);
+    }
   });
 
   test('a missing accuracy is sent as null, never as a made-up number', async () => {
