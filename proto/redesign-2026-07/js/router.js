@@ -1194,7 +1194,12 @@ async function boot() {
   // No live session on boot → drop any stale user-scoped state. A persisted RT.userId would
   // otherwise let the render gate paint an authed shell against cached data until the next data
   // call. Same cleanup SIGNED_OUT uses; keeps pending-onboarding scratch. (stress-test R1)
-  if (!authed && RT.userId) { try { act._wipeUserScopedState({ keepPendingOb: true }); } catch { /* never block boot */ } }
+  if (!authed && RT.userId) {
+    // The session is gone, so are its geofences (a region left armed would report arrivals for an
+    // account this phone is no longer signed in to). Not awaited: boot never waits on the bridge.
+    try { void act._disarmLocation(); } catch { /* never block boot */ }
+    try { act._wipeUserScopedState({ keepPendingOb: true }); } catch { /* never block boot */ }
+  }
   const { route, sub } = parse();
   if (!authed && !AUTH_ROUTES.includes(route)) { stashInviteCode(route, sub); location.hash = '#welcome'; return; } // hashchange → render
   if (authed && (route === 'welcome' || !location.hash)) { location.hash = '#' + routeForRole(RT.authRole || 'athlete'); return; }

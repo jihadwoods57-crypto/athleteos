@@ -339,6 +339,21 @@ export function mountCommitmentCard(root, rerender) {
     });
   });
   go('data-vc-complete', (id) => completeCommitment(id, 'manual').then(Boolean));
+  // "I'm here", restored 2026-09-23 (the roll call rebuilt; signalsAsked reads asks_arrival again,
+  // so the card offers this button). One reading, taken natively and judged by DISTANCE on the
+  // server (verify_arrival_at); a miss is recorded as unverified with "N m from <place>", never
+  // as missed, and the card then shows that reason with its dispute door. location.js is loaded on
+  // the tap because this file is in the boot graph and that one must not be.
+  go('data-vc-arrive', async (id) => {
+    const { imHere } = await import('../location.js');
+    const r = await imHere(id);
+    if (!r || r.error) return false;
+    await loadMine(true);
+    if (r.within) { VERIFY_REASON.delete(id); track(EVENTS.VC_ARRIVED, { source: 'manual' }); return true; }
+    VERIFY_REASON.set(id, r.reason || 'Couldn’t confirm your location');
+    track(EVENTS.VC_UNVERIFIED, { reason: 'distance' });
+    return true;
+  });
   root.querySelectorAll('[data-vc-open]').forEach((el) => el.addEventListener('click', (ev) => {
     if (ev.target.closest('button')) return;
     // No leading slash: router.js:86 parses the hash with `raw.split('/')`, so `#/roll-call/<id>`

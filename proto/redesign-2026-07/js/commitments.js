@@ -168,6 +168,8 @@ export const VERDICT_LABEL = {
 };
 /* A wake-up with no explicit close closes 30 minutes after the wake-up time. */
 export const ROLLCALL_CLOSE_AFTER_MIN = 30;
+/** A wake-up opens this long before its time (0242 rollcall_opens_at). */
+export const ROLLCALL_OPEN_BEFORE_MIN = 10;
 /* The card appears this long before the roll call opens, as "Opens at 6:00", with no button. */
 export const ROLLCALL_PREVIEW_MIN = 15;
 
@@ -191,15 +193,17 @@ export function closesAtOf(row) {
   return null;
 }
 
-/** When the roll call opens. Server value first; a wake-up opens AT its time; every other type an
- *  hour before its deadline (the pre-0211 rule). */
+/** When the roll call opens. Server value first; a wake-up opens 10 minutes BEFORE its time (0242
+ *  rollcall_opens_at, 2026-09-23: the lock-screen card has to be up before the minute the athlete
+ *  must answer, not on it; it opened AT the time from 0212 until then); every other type an hour
+ *  before its deadline (the pre-0211 rule). Fallbacks only: the server's opens_at always wins. */
 export function opensAtOf(row) {
   const r = row || {};
   if (r.opens_at) return r.opens_at;
   if (typeof r.opens_min === 'number' && typeof r.starts_min === 'number') {
     return isoPlusMin(r.starts_at, r.opens_min - r.starts_min);
   }
-  if (r.type === 'morning_roll_call') return r.starts_at || null;
+  if (r.type === 'morning_roll_call') return r.starts_at ? isoPlusMin(r.starts_at, -ROLLCALL_OPEN_BEFORE_MIN) : null;
   return isoPlusMin(deadlineOf(r), -60);
 }
 
@@ -288,17 +292,18 @@ export function verdictLine(row, nowISO, deadlineISO, closesISO) {
 
 /** Which signals this commitment actually asks for.
  *  A roll call IS the wake-up: pressing the button is the whole commitment, so it never asks for
- *  "completion".
+ *  "completion". It asks for arrival only when the coach attached a place (`asks_arrival`).
  *
- *  ARRIVAL IS GONE (2026-09-09, founder). Location-verified arrival was removed from the product
- *  along with the "Always" location permission it required. `asks_arrival` may still be true on
- *  old server rows, so this returns false unconditionally rather than reading the column: a
- *  commitment scheduled before the removal must not render a stage nothing can satisfy. */
+ *  ARRIVAL IS BACK (2026-09-23, founder: the roll call rebuilt). It was taken out on 2026-09-09
+ *  (8e7506bb) with the location permissions, and this returned false for every row. The place
+ *  check returns verified by DISTANCE on the server (verify_arrival_at, 0242), so the column is
+ *  read again. The arrival verdict itself is the server's (rollcall_arrival_verdict); a surface
+ *  that shows one reads that field rather than deriving its own. */
 export function signalsAsked(row) {
   if (!row) return { ack: false, arrival: false, completion: false };
   return {
     ack: row.respond_by_min != null || row.type === 'morning_roll_call',
-    arrival: false,
+    arrival: !!row.asks_arrival,
     completion: row.type !== 'morning_roll_call',
   };
 }
@@ -685,7 +690,10 @@ export function summarizeOccurrences(occ) {
 
 /* ---------------------------------------------------------------- accountability
    Founder weighting: pressing the button is a SMALL signal, arriving on time is MODERATE,
-   completing the commitment is the GREATEST. Separate from the daily 0–100 score. */
+   completing the commitment is the GREATEST. Separate from the daily 0–100 score.
+   `arrival` is live again since 2026-09-23 (founder, the roll call rebuilt): signalsAsked reads
+   asks_arrival, so a commitment with a place scores out of 100 and one without out of 70. From
+   2026-09-09 to then it weighed nothing because arrival was never asked. */
 
 export const WEIGHTS = { ack: 10, arrival: 30, completion: 60 };
 

@@ -3979,6 +3979,43 @@ body.kb-open .meal-foot { display: none; }
 .wakeface .wf-done.late .wf-eyebrow{color:var(--amber-bright)}
 @media (prefers-reduced-motion: reduce){.wakeface{transition:none;transform:none}}
 
+/* ===== Roll call: the team board (rb-, roll call rebuilt 2026-09-23) =====
+   js/team-board.js boardHtml(). Every face in the order they got up; the server's verdict picks the
+   group and the colour, one meaning each: green on time, amber late (a real warning), red missed
+   (the server only says missed after the close), neutral for not up yet, muted for excused. The
+   athlete's own face wears the blue ring. The count is a record number, not the daily score: body
+   face 800, never Archivo, never a boxed tile. Faces are captions on the page, not a card grid. */
+.rb { padding: 0 var(--s1); }
+.rb-hero { padding: var(--s2) 0 var(--s1); }
+.rb-count { display: flex; align-items: baseline; gap: var(--s2); font-size: var(--t-md); font-weight: 700; color: var(--text-2); line-height: 1.1; }
+.rb-n { font-size: var(--t-3xl); font-weight: 800; letter-spacing: var(--num-tight); font-variant-numeric: tabular-nums; color: var(--text); line-height: 1; }
+.rb-first { margin-top: var(--s2); font-size: var(--t-base); font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.rb-here { margin-top: var(--s1); font-size: var(--t-sm); font-weight: 600; color: var(--text-2); }
+.rb-hn2 { font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+.rb-you { margin-top: var(--s3); }
+.rb-empty { margin-top: var(--s4); font-size: var(--t-sm); font-weight: 600; color: var(--text-2); }
+.rb-h .rb-hn { font-size: var(--t-xs); font-weight: 700; letter-spacing: 0; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.rb-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: var(--s4) var(--s2); }
+.rb-tile { width: 100%; min-height: 44px; display: flex; flex-direction: column; align-items: center; gap: var(--s1); padding: var(--s1) 0; text-align: center; color: inherit; font: inherit; background: none; border: 0; border-radius: var(--r-card-sm); }
+button.rb-tile { cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background-color var(--dur-1) var(--ease-out); }
+button.rb-tile:active { background: var(--surface-2); }
+.rb-av { position: relative; width: 52px; height: 52px; margin-bottom: var(--s1); border-radius: var(--r-pill); background: var(--surface-3); color: var(--text-2); display: grid; place-items: center; font-size: var(--t-sm); font-weight: 800; letter-spacing: 0.02em; flex: none; }
+.rb-tile.up .rb-av { box-shadow: 0 0 0 2px var(--green-border); }
+.rb-tile.late .rb-av { box-shadow: 0 0 0 2px var(--amber-border); }
+.rb-tile.missed .rb-av { box-shadow: 0 0 0 2px var(--red-border); }
+.rb-tile.waiting .rb-av, .rb-tile.excused .rb-av { opacity: 0.55; }
+.rb-tile.me .rb-av { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--blue-bright); }
+.rb-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--t-sm); font-weight: 700; color: var(--text); }
+.rb-tile.me .rb-name { color: var(--blue-bright); }
+.rb-meta { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rb-tile.late .rb-t { color: var(--amber-bright); font-weight: 800; }
+.rb-tile.missed .rb-meta { color: var(--red-bright); font-weight: 700; }
+.rb-arr { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rb-arr.g { color: var(--green-bright); }
+.rb-arr.a { color: var(--amber-bright); }
+.rb-arr.r { color: var(--red-bright); }
+@media (prefers-reduced-motion: reduce) { button.rb-tile { transition: none; } }
+
 /* ===== Sleep (#sleep) — evidence, never a score =====
    Purple is recovery and a short night is a recovery signal, so `under` carries it. Amber is
    warning ONLY and a night below your own average is a fact, not an alarm; red is missed and this

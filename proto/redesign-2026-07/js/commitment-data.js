@@ -56,6 +56,10 @@ const RTC = {
   // can open any day of the week ahead without the two evicting each other.
   boards: new Map(),          // dayISO -> { rows, at, error }
   upcoming: new Map(),        // commitmentId -> { rows, at }
+  // The roll call rebuilt (0242): one team board per instance, one history per standing roll call.
+  // `seeded` marks a harness seed, which never refetches (see seedTeamBoardForHarness).
+  team: new Map(),            // instanceId -> { board, at, error, seeded }
+  history: new Map(),         // `${commitmentId}:${days}` -> { data, at, seeded }
 };
 
 export const VC = {
@@ -91,6 +95,12 @@ export const VC = {
   },
   /** The week ahead for one roll call (0215), or null when never loaded. */
   upcomingFor(commitmentId) { const u = RTC.upcoming.get(commitmentId); return u ? u.rows : null; },
+  /** The cached team board for one instance (0242), or null when it was never loaded. */
+  teamBoard(instanceId) { const t = RTC.team.get(instanceId); return t ? t.board : null; },
+  /** Whether the LAST team-board read for this instance failed (the board shown may be stale). */
+  teamBoardError(instanceId) { const t = RTC.team.get(instanceId); return !!(t && t.error); },
+  /** The cached coach history for one roll call, or null when never loaded. */
+  history(commitmentId, days = 30) { const h = RTC.history.get(`${commitmentId}:${days}`); return h ? h.data : null; },
 };
 
 const FRESH_MS = 30_000;
@@ -104,6 +114,18 @@ export function seedMineForHarness(rows, dayISO) {
 export function seedBoardForHarness(rows, dayISO) {
   RTC.board = Array.isArray(rows) ? rows : [];
   RTC.boardDay = dayISO || todayISO(); RTC.boardAt = Date.now(); RTC.boardError = false;
+}
+/** A team board (0242 shape) for one instance. A seeded board is STICKY: loadTeamBoard and the
+ *  live subscription return it without a network read even when forced, so a harness shot shows
+ *  exactly the board it seeded instead of whatever the stub client answers a second later. */
+export function seedTeamBoardForHarness(instanceId, board) {
+  if (!instanceId) return;
+  RTC.team.set(instanceId, { board: board || null, at: Date.now(), error: false, seeded: true });
+}
+/** A coach history (0242 rollcall_history shape) for one roll call. Sticky like the board seed. */
+export function seedHistoryForHarness(commitmentId, history, days = 30) {
+  if (!commitmentId) return;
+  RTC.history.set(`${commitmentId}:${days}`, { data: history || null, at: Date.now(), seeded: true });
 }
 
 /* ---------------------------------------------------------------- athlete reads */
@@ -588,16 +610,22 @@ export function subscribeBoard(instanceId, onChange, isIdle) {
 export function subscribeMine(athleteId, onChange, isIdle) {
   return liveWatch(`rollcall_mine:${athleteId}`, `athlete_id=eq.${athleteId}`, onChange, isIdle);
 }
-function liveWatch(name, filter, onChange, isIdle) {
+/* `cadence(live, idle)` overrides the poll interval (the team board polls fast even with the socket
+   up; see subscribeTeamBoard). Absent, the three constants above decide. */
+function liveWatch(name, filter, onChange, isIdle, cadence) {
   const c = sb();
   let live = false, stopped = false, timer = null, ch = null;
+  const wait = () => {
+    const idle = !!(isIdle && isIdle());
+    if (typeof cadence === 'function') return cadence(live, idle);
+    return idle ? LIVE_IDLE_MS : live ? LIVE_SLOW_MS : LIVE_FAST_MS;
+  };
   const tick = () => {
     if (stopped) return;
     try { onChange({ via: 'poll', live }); } catch { /* the caller's problem */ }
-    const ms = (isIdle && isIdle()) ? LIVE_IDLE_MS : live ? LIVE_SLOW_MS : LIVE_FAST_MS;
-    timer = setTimeout(tick, ms);
+    timer = setTimeout(tick, wait());
   };
-  timer = setTimeout(tick, live ? LIVE_SLOW_MS : LIVE_FAST_MS);
+  timer = setTimeout(tick, typeof cadence === 'function' ? wait() : (live ? LIVE_SLOW_MS : LIVE_FAST_MS));
   if (c && typeof c.channel === 'function') {
     try {
       ch = c.channel(name)
@@ -625,6 +653,130 @@ export async function loadRollcallSummary(commitmentId, days = 14) {
     if (error) return null;
     return Array.isArray(data) ? data : [];
   } catch { return null; }
+}
+
+/* ---------------------------------------------------------------- roll call rebuilt (0242)
+   The team board, the coach's history, the "I'm here" distance check and the coach's saved place.
+   Every read keeps the fetcher contract: null means the read FAILED (render an error with a
+   retry), never "nobody" or "no history". */
+
+const TEAM_FRESH_MS = 8_000;   // the board moves by the second at 6 AM; a repaint may reuse 8 s
+const TEAM_POLL_MS = 8_000;    // poll floor while the roll call is open
+
+/** The team board for one instance: every responder in the order they got up, with the server's
+ *  verdicts (rollcall_team_board, 0242). Returns the board, the last good board when this read
+ *  failed (VC.teamBoardError says so), or null when there has never been one. */
+export async function loadTeamBoard(instanceId, force = false) {
+  if (!instanceId) return null;
+  const have = RTC.team.get(instanceId);
+  if (have && have.seeded) return have.board;
+  if (!force && have && !have.error && Date.now() - have.at < TEAM_FRESH_MS) return have.board;
+  const c = sb();
+  const fail = () => {
+    RTC.team.set(instanceId, { board: have ? have.board : null, at: have ? have.at : 0, error: true });
+    return have ? have.board : null;
+  };
+  if (!c) return fail();
+  try {
+    const { data, error } = await c.rpc('rollcall_team_board', { p_instance: instanceId });
+    if (error || !data || typeof data !== 'object') return fail();
+    RTC.team.set(instanceId, { board: data, at: Date.now(), error: false });
+    return data;
+  } catch { return fail(); }
+}
+
+/** Watch one instance's team board. `onChange(board)` fires once right away and then with a FRESH
+ *  board on every tick: a Realtime row event, or the poll. The poll runs every 8 s while the roll
+ *  call is open WHETHER OR NOT the socket is up, because an athlete's Realtime feed only carries
+ *  their own response row (cr_read, 0138): a teammate's check-in reaches them only through the
+ *  board read. Once the board has closed it slows to once a minute. Returns unsubscribe(). */
+export function subscribeTeamBoard(instanceId, onChange, opts = {}) {
+  if (!instanceId || typeof onChange !== 'function') return () => {};
+  const fast = Number(opts.pollMs) > 0 ? Number(opts.pollMs) : TEAM_POLL_MS;
+  let stopped = false, busy = false;
+  const refresh = async () => {
+    if (stopped || busy) return;
+    busy = true;
+    try {
+      const b = await loadTeamBoard(instanceId, true);
+      if (b && !stopped) { try { onChange(b); } catch { /* the caller's problem */ } }
+    } finally { busy = false; }
+  };
+  const isIdle = () => {
+    const b = VC.teamBoard(instanceId);
+    const close = Date.parse((b && b.closes_at) || '');
+    return isFinite(close) && Date.now() > close;
+  };
+  const w = liveWatch(`rollcall_team:${instanceId}`, `instance_id=eq.${instanceId}`,
+    () => { void refresh(); }, isIdle, (live, idle) => (idle ? LIVE_IDLE_MS : fast));
+  void refresh();
+  return () => { stopped = true; w.stop(); };
+}
+
+/** The coach's history for one standing roll call (rollcall_history, 0242): team on-time rate and
+ *  trend, and per athlete mornings, on time, late, missed, rate, trend, streak and first-up count,
+ *  lowest rate first. null = FAILED (or not staff), never an empty history. */
+export async function loadRollcallHistory(commitmentId, days = 30, force = false) {
+  if (!commitmentId) return null;
+  const key = `${commitmentId}:${days}`;
+  const have = RTC.history.get(key);
+  if (have && have.seeded) return have.data;
+  if (!force && have && Date.now() - have.at < FRESH_MS) return have.data;
+  const c = sb(); if (!c) return null;
+  try {
+    const { data, error } = await c.rpc('rollcall_history', { p_commitment: commitmentId, p_days: days });
+    if (error || !data || typeof data !== 'object') return null;
+    RTC.history.set(key, { data, at: Date.now() });
+    return data;
+  } catch { return null; }
+}
+
+/** Arrival by distance (verify_arrival_at, 0242): ONE reading goes up, the server measures the
+ *  distance to the instance's saved place, records arrived or unverified ("400 m from Weight
+ *  room", never missed) and throws the position away. Returns { ok, within, distance_m } or
+ *  { ok: false, error } ('bad_position', 'no_place', 'not_authorized', or the transport's).
+ *  In the app, "I'm here" goes through location.js imHere(), which takes the reading natively; this
+ *  is the same write for a caller that already holds a reading. NOT queued offline: the verdict is
+ *  about where the athlete is NOW, and replaying it later would verify the wrong moment. */
+export async function arriveAt(instanceId, source, coords) {
+  const lat = coords ? Number(coords.lat) : NaN, lng = coords ? Number(coords.lng) : NaN;
+  if (!isFinite(lat) || !isFinite(lng)) return { ok: false, error: 'bad_position' };
+  const c = sb(); if (!c || !instanceId) return { ok: false, error: 'unavailable' };
+  const acc = Number(coords.accuracy);
+  try {
+    const { data, error } = await c.rpc('verify_arrival_at', {
+      p_instance: instanceId, p_source: source || 'manual',
+      p_lat: lat, p_lng: lng, p_accuracy_m: isFinite(acc) ? acc : null });
+    if (error) return { ok: false, error: String(error.message || 'failed') };
+    const t = RTC.team.get(instanceId);
+    if (t && !t.seeded) t.at = 0;   // the next board read shows the arrival
+    RTC.mineAt = 0;
+    return { ok: true, within: !!(data && data.within),
+      distance_m: data && typeof data.distance_m === 'number' ? data.distance_m : null };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e || 'failed') }; }
+}
+
+/** Save the coach's place (save_commitment_place, 0242): insert, or update when `place.id` is set.
+ *  `ownerId` + `kind` ('team' | 'practice') name the ONE owner the server requires. The radius is
+ *  held to 100..1000 m server-side. Returns { ok: true, id } or { ok: false, error } with the
+ *  server's code: 'radius_min' | 'radius_max' | 'name_required' | 'team_or_practice_required' |
+ *  'not_authorized', or the transport's message. */
+export async function savePlace(place, ownerId, kind) {
+  const c = sb(); if (!c || !place) return { ok: false, error: 'unavailable' };
+  const team = ownerId ? (kind === 'practice' ? null : ownerId) : (place.team_id || null);
+  const practice = ownerId ? (kind === 'practice' ? ownerId : null) : (place.practice_id || null);
+  const p = {
+    ...(place.id ? { id: place.id } : {}),
+    name: place.name, address: place.address == null ? null : place.address,
+    lat: Number(place.lat), lng: Number(place.lng), radius_m: Math.round(Number(place.radius_m)),
+    team_id: team, practice_id: practice,
+  };
+  try {
+    const { data, error } = await c.rpc('save_commitment_place', { p });
+    if (error || !data) return { ok: false, error: String((error && error.message) || 'failed') };
+    RTC.locationsAt = 0;
+    return { ok: true, id: data };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e || 'failed') }; }
 }
 
 /* ---------------------------------------------------------------- rollups */

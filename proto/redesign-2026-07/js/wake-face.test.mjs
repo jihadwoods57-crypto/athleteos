@@ -79,3 +79,12 @@ test('arming with nothing due and nothing ahead is idle; with a morning ahead it
   assert.equal(r, 'armed');
   _resetWakeFace();
 });
+
+test('the face rings at the wake-up time, not at the 10-minute-early open (0242)', () => {
+  // Opens at 6:00 (the server's opens_at), rings at 6:10. At 6:00 the roll call is answerable, but
+  // a full-screen alarm face ten minutes before the alarm would be a second, earlier alarm.
+  const early = wake({ opens_at: iso(0), starts_at: iso(10), respond_by_at: iso(15), closes_at: iso(40) });
+  assert.equal(wakeFaceTarget([early], nowISO), null);
+  assert.equal(nextWakeFaceAt([early], NOW), NOW + 10 * 60000);
+  assert.equal(wakeFaceTarget([early], iso(10)).instance_id, 'w1');
+});
