@@ -1,4 +1,4 @@
-import { digestBody, breakthroughCopy, minutesLate, platformCopy, LATE_ACTION_LABEL } from './logic';
+import { digestBody, breakthroughCopy, minutesLate, platformCopy, LATE_ACTION_LABEL, closingSummary, summaryRoute } from './logic';
 import { CHECK_IN_LABEL } from '../_shared/rollcall-category';
 
 describe('digestBody', () => {
@@ -64,5 +64,65 @@ describe('breakthroughCopy: the LATE lock-screen state', () => {
   });
   it('uses the label the device registers at launch', () => {
     expect(LATE_ACTION_LABEL).toBe(CHECK_IN_LABEL);
+  });
+});
+
+// ---------------------------------------------------------------- the closing summary (2026-09-23)
+describe('closingSummary: one push to the coach when the window closes', () => {
+  test('closing summary names the late and the missed', () => {
+    const s = closingSummary({ total: 12, rows: [
+      ...Array(10).fill({ verdict: 'on_standard', name: 'X' }),
+      { verdict: 'late', name: 'Tyrek Malone', acknowledged_at: '2026-09-25T10:08:00Z', late_label: '6:08' },
+      { verdict: 'missed', name: 'Tommy Vargas' }, ] });
+    expect(s.title).toBe('Roll call closed: 10 of 12 on time');
+    expect(s.body).toContain('Tyrek was late (6:08)');
+    expect(s.body).toContain('Tommy missed');
+  });
+  test("the founder's example, word for word", () => {
+    const s = closingSummary({ total: 12, rows: [
+      ...Array(9).fill({ verdict: 'on_standard', name: 'X' }),
+      { verdict: 'late', name: 'Tyrek Malone', late_label: '6:08' },
+      { verdict: 'missed', name: 'Tommy Vargas' },
+      { verdict: 'missed', name: 'Ray Ellis' }, ] });
+    expect(s.body).toBe('Tyrek was late (6:08). Tommy and Ray missed. Tap to nudge them.');
+  });
+  test("the late time is read in the roll call's own zone when no label is given", () => {
+    const s = closingSummary({ total: 2, timezone: 'America/New_York', rows: [
+      { verdict: 'on_standard', name: 'A B' },
+      { verdict: 'late', name: 'Tyrek Malone', acknowledged_at: '2026-09-25T10:08:00Z' }, ] });
+    expect(s.body).toBe('Tyrek was late (6:08).');
+  });
+  test('several late read as one sentence', () => {
+    const s = closingSummary({ total: 3, rows: [
+      { verdict: 'on_standard', name: 'A' },
+      { verdict: 'late', name: 'Tyrek Malone', late_label: '6:08' },
+      { verdict: 'late', name: 'Sam Oduya', late_label: '6:11' }, ] });
+    expect(s.title).toBe('Roll call closed: 1 of 3 on time');
+    expect(s.body).toBe('Tyrek (6:08) and Sam (6:11) were late.');
+  });
+  test('everyone on time says so', () => {
+    const s = closingSummary({ total: 2, rows: [{ verdict: 'on_standard', name: 'A' }, { verdict: 'on_standard', name: 'B' }] });
+    expect(s.title).toBe('Roll call closed: 2 of 2 on time');
+    expect(s.body).toBe('Everyone was up on time.');
+  });
+  test('a long miss list names four and counts the rest', () => {
+    const rows = ['Al Ng', 'Bo Ek', 'Cy Po', 'Di Ru', 'Ed Ma', 'Fy Lo'].map((name) => ({ verdict: 'missed', name }));
+    expect(closingSummary({ total: 6, rows }).body).toBe('Al, Bo, Cy, Di and 2 more missed. Tap to nudge them.');
+  });
+  test('two athletes with one first name are told apart', () => {
+    const s = closingSummary({ total: 3, rows: [
+      { verdict: 'on_standard', name: 'Tommy Ray' },
+      { verdict: 'missed', name: 'Tommy Vargas' },
+      { verdict: 'missed', name: 'Ray Ellis' }, ] });
+    expect(s.body).toBe('Tommy Vargas and Ray missed. Tap to nudge them.');
+  });
+  test('excused athletes are out of the count, answers under review are named as such', () => {
+    const s = closingSummary({ total: 2, rows: [
+      { verdict: 'on_standard', name: 'A' }, { verdict: 'excused', name: 'E' }, { verdict: 'review', name: 'Rex Hall' }] });
+    expect(s.title).toBe('Roll call closed: 1 of 2 on time');
+    expect(s.body).toBe('Rex needs your review.');
+  });
+  test('the tap opens the board on the misses, as a path, never a query string', () => {
+    expect(summaryRoute('abc')).toBe('rollcall-board/abc/missed');
   });
 });

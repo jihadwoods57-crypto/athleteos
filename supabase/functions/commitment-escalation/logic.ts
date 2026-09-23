@@ -57,3 +57,75 @@ export function breakthroughCopy(
 /** The button on the late push. A roll call is still answerable until it closes, so it carries a
  *  "CHECK IN NOW" rather than the on-time label; the device registers this label at launch. */
 export const LATE_ACTION_LABEL = 'Check in now';
+
+// ---------------------------------------------------------------- the closing summary (2026-09-23)
+// One push to the coach when the window CLOSES, for every roll call (the digest above is opt-in and
+// fires at the deadline). Built from rollcall_team_board_svc (0242), so it counts exactly what the
+// board shows: `total` leaves excused athletes out, on time is on_standard only.
+
+export type SummaryRow = {
+  verdict: string; name?: string | null; acknowledged_at?: string | null;
+  /** Preformatted clock for a late answer ("6:08"); computed from acknowledged_at when absent. */
+  late_label?: string | null;
+};
+export type SummaryBoard = { total?: number; timezone?: string | null; rows: SummaryRow[] };
+
+/** How many names a list spells out before "and N more". */
+export const SUMMARY_NAMES_MAX = 4;
+
+/** "6:08" (no AM/PM: the coach set the time and knows which half of the day it is). */
+export function clockShort(iso: string | null | undefined, tz: string | null | undefined): string {
+  const t = Date.parse(iso ?? '');
+  if (!Number.isFinite(t)) return '';
+  const fmt = (zone: string) => {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: zone, hour: 'numeric', minute: '2-digit', hour12: true }).formatToParts(new Date(t));
+    const h = parts.find((p) => p.type === 'hour')?.value ?? '';
+    const m = parts.find((p) => p.type === 'minute')?.value ?? '';
+    return h && m ? `${h}:${m}` : '';
+  };
+  try { return fmt(tz || 'UTC'); } catch { return fmt('UTC'); }
+}
+
+function listNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  if (names.length > SUMMARY_NAMES_MAX) {
+    return `${names.slice(0, SUMMARY_NAMES_MAX).join(', ')} and ${names.length - SUMMARY_NAMES_MAX} more`;
+  }
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+export function closingSummary(board: SummaryBoard): { title: string; body: string } {
+  const rows = (board.rows ?? []).filter((r) => r.verdict !== 'excused');
+  const total = Number.isFinite(Number(board.total)) && board.total != null ? Number(board.total) : rows.length;
+  const onTime = rows.filter((r) => r.verdict === 'on_standard').length;
+
+  // First names, unless two people on this roll call share one: then the full name, so the coach
+  // never nudges the wrong Tommy.
+  const first = (n: string | null | undefined) => (n ?? '').trim().split(/\s+/)[0] || 'An athlete';
+  const counts = new Map<string, number>();
+  for (const r of rows) counts.set(first(r.name), (counts.get(first(r.name)) ?? 0) + 1);
+  const who = (r: SummaryRow) => ((counts.get(first(r.name)) ?? 0) > 1 ? (r.name ?? '').trim() : first(r.name));
+  const lateAt = (r: SummaryRow) => (r.late_label ?? '').trim() || clockShort(r.acknowledged_at, board.timezone);
+
+  const parts: string[] = [];
+  const late = rows.filter((r) => r.verdict === 'late');
+  if (late.length === 1) {
+    const at = lateAt(late[0]);
+    parts.push(`${who(late[0])} was late${at ? ` (${at})` : ''}.`);
+  } else if (late.length > 1) {
+    parts.push(`${listNames(late.map((r) => { const at = lateAt(r); return at ? `${who(r)} (${at})` : who(r); }))} were late.`);
+  }
+  const review = rows.filter((r) => r.verdict === 'review');
+  if (review.length) parts.push(`${listNames(review.map(who))} ${review.length === 1 ? 'needs' : 'need'} your review.`);
+  const missed = rows.filter((r) => r.verdict === 'missed');
+  if (missed.length) parts.push(`${listNames(missed.map(who))} missed. Tap to nudge them.`);
+  if (!parts.length) parts.push('Everyone was up on time.');
+
+  return { title: `Roll call closed: ${onTime} of ${total} on time`, body: parts.join(' ') };
+}
+
+/** The summary's tap target: the board, opened on the misses. A PATH, never a query string
+ *  (ruling R2, 2026-09-23): deep links in this app are path segments. */
+export function summaryRoute(instanceId: string): string {
+  return `rollcall-board/${instanceId}/missed`;
+}

@@ -11,15 +11,21 @@
 //   4. THE CLOSE (0239): every wake-up whose close just passed has its lock-screen card ENDED in the
 //      `missed` state for whoever never answered, and its update tokens cleared. Before this the red
 //      "CHECK IN" card kept counting past a close the server refuses, until iOS timed it out.
+//      2026-09-23: a check-in no longer ends the card, so the close also ends every ANSWERED card,
+//      in its answered state with the final team count.
+//   5. THE CLOSING SUMMARY (2026-09-23): at the close of EVERY wake-up (not opt-in, unlike L3), one
+//      push to the commitment's creator and the team's coaches: "Roll call closed: 10 of 12 on
+//      time" / "Tyrek was late (6:08). Tommy and Ray missed. Tap to nudge them." Once per instance
+//      (claim_rollcall_summary, summary_sent_at). The tap opens the board on the misses.
 //
 // L4 GUARDIAN IS DEFERRED. `escalation.notify_guardian_on_miss` exists in the config shape but is off
 // by default and no guardian rung is built here — a follow-up commit adds it once the founder
 // confirms the default and the guardianship link (0008). This fn ships L2 + L3 only.
-import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
-import { digestBody, breakthroughCopy, platformCopy, LATE_ACTION_LABEL } from './logic.ts';
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.110.0';
+import { digestBody, breakthroughCopy, platformCopy, LATE_ACTION_LABEL, closingSummary, summaryRoute } from './logic.ts';
 import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
-import { pushLiveActivity, loadLiveCard } from '../_shared/rollcall-live-send.ts';
-import { rollCallPushData } from '../_shared/rollcall-live.ts';
+import { pushLiveActivity, loadLiveCard, loadTeamBoard } from '../_shared/rollcall-live-send.ts';
+import { rollCallPushData, teamFields, type TeamBoard } from '../_shared/rollcall-live.ts';
 import { signCoachCode, signRollCallCode } from '../_shared/rollcall-code.ts';
 import { COACH_DIGEST_CATEGORY, ROLLCALL_CHANNEL, rollCallCategoryId } from '../_shared/rollcall-category.ts';
 // Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
@@ -70,6 +76,71 @@ async function push(messages: Array<Record<string, unknown>>) {
   return out;
 }
 
+/** Coach code for one recipient on one instance (see the L3 digest below for why one per coach). */
+async function coachCodeFor(instId: string, coachId: string): Promise<string> {
+  return ACK_SECRET
+    ? await signCoachCode(ACK_SECRET, {
+        instanceId: instId, coachId, deadlineMs: Date.now() + COACH_CODE_TTL_MS, iatMs: Date.now(),
+      })
+    : '';
+}
+
+/** The closing summary for one closed instance. Once per instance (claim_rollcall_summary). The
+ *  claim is taken only after the board has been read, so an unreadable board leaves
+ *  summary_sent_at empty (the close sweep itself claims each instance once, via live_ended_at, so
+ *  there is no automatic retry; the empty column is the trace). Recipients: the digest's staff query
+ *  (rollcall_digest.coach_ids: active team staff, or the practice owner) plus the commitment's
+ *  creator. Returns whether a summary was sent. */
+async function sendClosingSummary(
+  svc: SupabaseClient, instId: string, board: TeamBoard | null, timezone: string | null,
+): Promise<boolean> {
+  if (!board || !(Number(board.total) > 0)) return false;
+  const { data: claimed } = await svc.rpc('claim_rollcall_summary', { p_instance: instId });
+  if (claimed !== true) return false;
+
+  const recipients = new Set<string>();
+  try {
+    const { data: digest } = await svc.rpc('rollcall_digest', { p_instance: instId });
+    for (const id of ((digest as Digest | null)?.coach_ids ?? [])) if (id) recipients.add(id);
+  } catch { /* best effort */ }
+  try {
+    const { data: inst } = await svc.from('commitment_instances')
+      .select('commitments(created_by)').eq('id', instId).maybeSingle();
+    const rel = (inst as { commitments?: { created_by?: string | null } | Array<{ created_by?: string | null }> } | null)?.commitments;
+    const createdBy = Array.isArray(rel) ? rel[0]?.created_by : rel?.created_by;
+    if (createdBy) recipients.add(createdBy);
+  } catch { /* best effort */ }
+  if (!recipients.size) return false;
+
+  const s = closingSummary({ ...(board as unknown as { total: number; rows: Array<{ verdict: string }> }), timezone });
+  const ids = [...recipients];
+  // Durable row first (the winback rule). The kind reuses the escalation's so the bell row
+  // deep-links to the same coach board (notif-feed.js `commitment_escalation`).
+  try {
+    await svc.from('notifications').insert(ids.map((uid) => ({
+      user_id: uid, kind: `commitment_escalation:${instId}`, title: s.title, body: s.body,
+    })));
+  } catch { /* best-effort: a feed-row failure must never block the push */ }
+  const { data: toks } = await svc.from('device_tokens').select('token,user_id').in('user_id', ids);
+  const msgs: Array<Record<string, unknown>> = [];
+  for (const t of (toks ?? []) as Array<{ token: string; user_id: string }>) {
+    const coachCode = await coachCodeFor(instId, t.user_id);
+    msgs.push({
+      to: t.token,
+      title: s.title,
+      body: s.body,
+      // A PATH, never a query string (ruling R2): the board, opened on the misses.
+      data: { route: summaryRoute(instId), coach_code: coachCode },
+      categoryId: coachCode ? COACH_DIGEST_CATEGORY : undefined,
+      channelId: ROLLCALL_CHANNEL,
+      priority: 'high',
+      sound: 'default',
+    });
+  }
+  await push(msgs);
+  return true;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
   if (!CRON_KEY || !safeEqual(req.headers.get('x-commitment-key') ?? '', CRON_KEY)) {
@@ -111,6 +182,7 @@ Deno.serve(async (req: Request) => {
     if (page_rows.length < CLAIM_LIMIT) break;
   }
   const live = { started: 0, updated: 0, ended: 0, revoked: 0, skipped: 0, closed: 0 };
+  let summaries = 0;
   const apnsCfg = apnsFromEnv((k) => Deno.env.get(k));
 
   // -------------------------------------------------------------- the close: the card comes down
@@ -128,19 +200,36 @@ Deno.serve(async (req: Request) => {
       for (const c of list) {
         live.closed++;
         const ids = Array.isArray(c.athlete_ids) ? c.athlete_ids : [];
-        if (apns && ids.length) {
-          const card = await loadLiveCard(svc, c.instance_id);
-          if (card) {
-            const r = await pushLiveActivity({ svc, apns, card, phase: 'missed', athleteIds: ids, nowMs: Date.now() });
+        const card = await loadLiveCard(svc, c.instance_id);
+        const board = await loadTeamBoard(svc, c.instance_id);
+        const team = (id: string) => teamFields(board, id);
+        if (apns && card) {
+          if (ids.length) {
+            const r = await pushLiveActivity({ svc, apns, card, phase: 'missed', athleteIds: ids, team, nowMs: Date.now() });
+            live.ended += r.ended; live.revoked += r.revoked; live.skipped += r.skipped;
+          }
+          // The answered cards stayed up after the tap (2026-09-23); the close takes them down in
+          // their answered state, with the final count, place and points.
+          const answered = (board?.rows ?? []).filter((r) => r.acknowledged_at && !ids.includes(r.athlete_id));
+          if (answered.length) {
+            const r = await pushLiveActivity({
+              svc, apns, card, phase: 'answered', end: true,
+              athleteIds: answered.map((r) => r.athlete_id),
+              checkedInAt: new Map(answered.map((r) => [r.athlete_id, String(r.acknowledged_at)])),
+              team, nowMs: Date.now(),
+            });
             live.ended += r.ended; live.revoked += r.revoked; live.skipped += r.skipped;
           }
         }
         try { await svc.rpc('clear_live_activity_tokens', { p_instance: c.instance_id }); } catch { /* best effort */ }
+        try {
+          if (await sendClosingSummary(svc, c.instance_id, board, card?.timezone ?? null)) summaries++;
+        } catch { /* the summary is a courtesy; the board is the record */ }
       }
     }
   } catch { /* the RPC may not exist on an un-migrated stack; the ladder below is unaffected */ }
 
-  if (!rows.length) return json({ missed: 0, breakthrough: 0, digests: 0, live });
+  if (!rows.length) return json({ missed: 0, breakthrough: 0, digests: 0, live, summaries });
 
   // -------------------------------------------------------------- Live Activity: turn it red
   // Runs BEFORE the breakthrough push, for the same reason it does in commitment-reminders: the
@@ -160,9 +249,12 @@ Deno.serve(async (req: Request) => {
     for (const [instanceId, missedRows] of byInstance) {
       const card = await loadLiveCard(svc, instanceId);
       if (!card) continue;
+      const board = await loadTeamBoard(svc, instanceId);
       const c = breakthroughCopy('morning_roll_call', card.title, card.respond_by_at, nowMs);
       const r = await pushLiveActivity({
         svc, apns, card, phase: 'late',
+        // The count rides every update: a content state replaces the whole card.
+        team: (id) => teamFields(board, id),
         athleteIds: [...new Set(missedRows.map((x) => x.athlete_id))],
         alert: { title: c.title, body: c.body, sound: 'default' },
         nowMs,
@@ -303,5 +395,5 @@ Deno.serve(async (req: Request) => {
     digests++;
   }
 
-  return json({ missed: rows.length, breakthrough: breakSent, digests, live });
+  return json({ missed: rows.length, breakthrough: breakSent, digests, live, summaries });
 });

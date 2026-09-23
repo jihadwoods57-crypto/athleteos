@@ -4348,6 +4348,107 @@ select _ok((select r->>'avatar_path' from jsonb_array_elements(rollcall_team_boa
 select _superuser();   -- storage refuses a direct delete; the suite's rollback removes the object
 drop table _rc_bj;
 
+-- ---- Task 4: the service-only pieces (the lock screen, live) ----
+-- rollcall_team_board_svc and its six siblings are for the edge functions' service role ONLY.
+-- Every one is tried as anon, as a responder on the roll call, and as the coach who owns it.
+create temp table _rc_t4calls (sql text);
+insert into _rc_t4calls values
+  ('select rollcall_team_board_svc((select id from _rc_b))'),
+  ('select * from rollcall_live_card((select id from _rc_b))'),
+  ('select * from claim_rollcall_card_opens(1)'),
+  ('select * from rollcall_live_update_targets((select id from _rc_b))'),
+  ('select * from claim_live_team_updates((select id from _rc_b), array[''eeee0000-0000-0000-0000-0000000000e1''::uuid], 60)'),
+  ('select * from rollcall_window_rows_svc(''eeee0000-0000-0000-0000-0000000000e1''::uuid, 7)'),
+  ('select claim_rollcall_summary((select id from _rc_b))');
+grant select on _rc_t4calls to authenticated, anon;
+grant select on _rc_b to service_role;
+set role anon;
+select _ok((select bool_and(_try(sql) like 'denied(42501)%') from _rc_t4calls),
+  '0242 task 4: anon can execute none of the service-only roll call functions');
+select _as('eeee0000-0000-0000-0000-0000000000e1');   -- a responder on the roll call
+select _ok((select bool_and(_try(sql) like 'denied(42501)%') from _rc_t4calls),
+  '0242 task 4: a signed-in athlete on the roll call can execute none of them');
+select _as('11111111-0000-0000-0000-000000000001');   -- coach_1, staff who owns it
+select _ok((select bool_and(_try(sql) like 'denied(42501)%') from _rc_t4calls),
+  '0242 task 4: not even the coach who owns the roll call can execute them');
+select _superuser();
+set role service_role;
+select _ok(_try($f$ select rollcall_team_board_svc((select id from _rc_b)) $f$) = 'ok',
+  '0242 task 4: the service role reads the board with no session');
+select _superuser();
+
+-- the same board, one body: what staff read through the door is exactly what the service reads
+create temp table _rc_bs as select rollcall_team_board_svc((select id from _rc_b)) as j;
+grant select on _rc_bs to authenticated;
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((select j from _rc_bs) = rollcall_team_board((select id from _rc_b)),
+  '0242 task 4: rollcall_team_board_svc returns exactly the board staff read');
+select _superuser();
+select _ok(rollcall_team_board_svc(gen_random_uuid()) is null,
+  '0242 task 4: the service board of an unknown instance is null, not an error');
+drop table _rc_bs;
+
+-- the card learns the open (10 minutes before the start) and whether it asks an arrival
+select _ok((select opens_at = starts_at - interval '10 minutes' and asks_arrival = false
+              from rollcall_live_card((select id from _rc_b))),
+  '0242 task 4: the live card carries the open, 10 minutes before the start, and asks_arrival');
+
+-- the window rows: e2's roll call (started 20 min ago, closes in 10) is still answerable
+select _ok((select count(*) = 1 from rollcall_window_rows_svc('eeee0000-0000-0000-0000-0000000000e2', 7) w
+             where w.instance_id = (select id from _rc_b)
+               and w.opens_at = (select starts_at - interval '10 minutes' from commitment_instances where id = (select id from _rc_b))),
+  '0242 task 4: an athlete''s open roll call is in their window rows, bounded by its open');
+select _ok(not exists (select 1 from rollcall_window_rows_svc('bbbbbbbb-0000-0000-0000-000000000002', 7) w
+                        where w.instance_id = (select id from _rc_b)),
+  '0242 task 4: another team''s athlete gets no window for it');
+
+-- the throttle: one team-count update per card per minute, atomically
+insert into rollcall_live_tokens (athlete_id, instance_id, kind, token)
+  values ('eeee0000-0000-0000-0000-0000000000e1', (select id from _rc_b), 'update', 'tok-e1-0242'),
+         ('eeee0000-0000-0000-0000-0000000000e2', (select id from _rc_b), 'update', 'tok-e2-0242');
+select _ok((select array_agg(a) from claim_live_team_updates((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2']::uuid[], 60) a)
+           @> array['eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2']::uuid[],
+  '0242 task 4: a card never updated is claimed for a team-count update');
+select _ok(not exists (select 1 from claim_live_team_updates((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e1']::uuid[], 60)),
+  '0242 task 4: the same card is not claimed again inside the minute');
+select _ok((select array_agg(a) from claim_live_team_updates((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e1']::uuid[], 0) a) = array['eeee0000-0000-0000-0000-0000000000e1']::uuid[],
+  '0242 task 4: gap 0 stamps unconditionally (the athlete''s own answered update)');
+select _ok((select phase_hint from rollcall_live_update_targets((select id from _rc_b))
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 'answered'
+       and (select phase_hint from rollcall_live_update_targets((select id from _rc_b))
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2') = 'late',
+  '0242 task 4: the update targets say which phase each card is in');
+delete from rollcall_live_tokens where token in ('tok-e1-0242', 'tok-e2-0242');
+
+-- the closing summary is claimed once per instance
+select _ok(claim_rollcall_summary((select id from _rc_b)) and not claim_rollcall_summary((select id from _rc_b)),
+  '0242 task 4: the closing summary is claimed exactly once');
+update commitment_instances set summary_sent_at = null where id = (select id from _rc_b);
+
+-- the card opens at the OPEN: a roll call starting in 5 minutes (opened 5 minutes ago) is claimed
+-- once, with the athletes still pending on it; the one who already answered is left off
+update commitment_instances set starts_at = now() + interval '5 minutes', respond_by_at = now() + interval '10 minutes',
+       card_opened_at = null, live_ended_at = null where id = (select id from _rc_b);
+create temp table _rc_open as select * from claim_rollcall_card_opens(500);
+select _ok((select athlete_ids @> array['eeee0000-0000-0000-0000-0000000000e2']::uuid[]
+               and not (athlete_ids @> array['eeee0000-0000-0000-0000-0000000000e1']::uuid[])
+              from _rc_open where instance_id = (select id from _rc_b)),
+  '0242 task 4: the card opens at the open, for the athletes still pending');
+select _ok(not exists (select 1 from claim_rollcall_card_opens(500) where instance_id = (select id from _rc_b)),
+  '0242 task 4: a card is opened once per instance');
+drop table _rc_open;
+update commitment_instances set starts_at = now() + interval '15 minutes', respond_by_at = now() + interval '20 minutes',
+       card_opened_at = null where id = (select id from _rc_b);
+select _ok(not exists (select 1 from claim_rollcall_card_opens(500) where instance_id = (select id from _rc_b)),
+  '0242 task 4: no card before the open (15 minutes out)');
+-- put the fixture back as the board section left it
+update commitment_instances set starts_at = now() - interval '20 minutes', respond_by_at = now() - interval '15 minutes',
+       card_opened_at = null where id = (select id from _rc_b);
+drop table _rc_t4calls;
+
 -- ---- arrival: a place on the roll call, arrive by the start, 10 minutes of grace ----
 insert into commitment_locations (id, team_id, name, lat, lng, created_by)
   values ('cccc0242-0000-0000-0000-0000000000a1', '77777777-1111-0000-0000-000000000001', 'Weight Room', 28.6, -81.2,

@@ -1,5 +1,5 @@
 // supabase/functions/_shared/rollcall-code.test.ts
-import { signRollCallCode, signCoachCode, verifyRollCallCode } from './rollcall-code';
+import { signRollCallCode, signCoachCode, signWindowCode, verifyRollCallCode } from './rollcall-code';
 
 const SECRET = 'test-secret-please-change';
 const base = { instanceId: 'inst-1', athleteId: 'ath-1', deadlineMs: 1_000_000, iatMs: 900_000 };
@@ -105,5 +105,59 @@ describe('rollcall-code kinds', () => {
     const forged = Buffer.from(JSON.stringify({ ...claims, k: 'c' })).toString('base64url');
     const r = await verifyRollCallCode(SECRET, `${forged}.${sig}`, base.deadlineMs, 60_000, 'coach');
     expect(r).toEqual({ ok: false, reason: 'bad_sig' });
+  });
+});
+
+// ---------------------------------------------------------------- window codes (2026-09-23)
+// A WINDOW code is minted days ahead, handed to the native Live Activity / alarm, and spent from
+// the lock screen with the app closed. It is bound to one athlete + one instance + that instance's
+// own window, so it is valid only while that roll call is answerable, however long ago it was signed.
+describe('window codes', () => {
+  const opensMs = Date.UTC(2026, 8, 25, 10, 50), closesMs = Date.UTC(2026, 8, 25, 11, 30);
+  const GRACE = 10 * 60 * 1000;
+
+  test('a window code verifies anywhere inside the window, days after it was signed', async () => {
+    const code = await signWindowCode('s', { instanceId: 'i', athleteId: 'a', opensMs, closesMs });
+    const r = await verifyRollCallCode('s', code, Date.UTC(2026, 8, 25, 11, 1), GRACE, 'athlete');
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.claims.window).toBe(true);
+      expect(r.claims.athleteId).toBe('a');
+      expect(r.claims.iatMs).toBe(opensMs);
+      expect(r.claims.deadlineMs).toBe(closesMs);
+    }
+  });
+  test('a window code is refused after the window', async () => {
+    const code = await signWindowCode('s', { instanceId: 'i', athleteId: 'a', opensMs, closesMs });
+    const r = await verifyRollCallCode('s', code, Date.UTC(2026, 8, 25, 12, 0), GRACE, 'athlete');
+    expect(r).toEqual({ ok: false, reason: 'expired' });
+  });
+  test('the window is open-15 min to close+10 min, whatever grace the caller passes', async () => {
+    const code = await signWindowCode('s', { instanceId: 'i', athleteId: 'a', opensMs, closesMs });
+    const at = (ms: number) => verifyRollCallCode('s', code, ms, 0, 'athlete');
+    expect((await at(opensMs - 15 * 60e3)).ok).toBe(true);
+    expect((await at(closesMs + 10 * 60e3)).ok).toBe(true);
+    expect(await at(closesMs + 10 * 60e3 + 1)).toEqual({ ok: false, reason: 'expired' });
+    expect(await at(opensMs - 15 * 60e3 - 1)).toEqual({ ok: false, reason: 'not_yet' });
+  });
+  test('a window code is an ATHLETE credential: the coach door refuses it', async () => {
+    const code = await signWindowCode('s', { instanceId: 'i', athleteId: 'a', opensMs, closesMs });
+    expect(await verifyRollCallCode('s', code, opensMs, GRACE, 'coach')).toEqual({ ok: false, reason: 'bad_kind' });
+    const claims = JSON.parse(Buffer.from(code.split('.')[0], 'base64url').toString());
+    expect(claims.w).toBe(1);
+    expect(claims.k).toBeUndefined();
+  });
+  test('the w claim is signed: stripping it off a window code breaks the signature', async () => {
+    const code = await signWindowCode('s', { instanceId: 'i', athleteId: 'a', opensMs, closesMs });
+    const [payload, sig] = code.split('.');
+    const claims = JSON.parse(Buffer.from(payload, 'base64url').toString());
+    delete claims.w;
+    const forged = Buffer.from(JSON.stringify(claims)).toString('base64url');
+    expect(await verifyRollCallCode('s', `${forged}.${sig}`, opensMs, GRACE, 'athlete')).toEqual({ ok: false, reason: 'bad_sig' });
+  });
+  test('an ordinary one-shot code is unchanged: no window, grace from the caller', async () => {
+    const code = await signRollCallCode(SECRET, base);
+    const r = await verifyRollCallCode(SECRET, code, base.deadlineMs, 60_000);
+    expect(r.ok && r.claims.window).toBe(false);
   });
 });

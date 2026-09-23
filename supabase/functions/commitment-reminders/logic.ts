@@ -154,3 +154,17 @@ export function codeDeadlineMs(row: { closes_at?: string | null; respond_by_at?:
   const d = ms(row.respond_by_at);
   return Number.isFinite(d) ? d : nowMs;
 }
+
+/** Which Live Activity phase a claimed rung pushes, and whether it may START a card (2026-09-23).
+ *
+ *  The card now goes up at the OPEN, 10 minutes before the start (0242 rollcall_opens_at), through
+ *  its own once-per-instance claim (claim_rollcall_card_opens). The start-time rung is still the
+ *  loud moment (the coach's words, with sound), but for an instance the open already claimed it
+ *  only UPDATES the card that is there: starting a second one would stack two cards on a phone
+ *  whose app never got to report its update token. When the open never ran (a roll call made at
+ *  5:55 for 6:00), the start-time rung starts the card as it always has. A follow-up rung never
+ *  starts one. */
+export function cardPlanAtRung(row: ReminderRow, cardOpened: boolean): { phase: 'initial' | 'reminder'; allowStart: boolean } {
+  if (!isInitialPush(row)) return { phase: 'reminder', allowStart: false };
+  return { phase: 'initial', allowStart: !cardOpened };
+}

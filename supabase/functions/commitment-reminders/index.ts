@@ -18,10 +18,10 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { signRollCallCode } from '../_shared/rollcall-code.ts';
 import { rollCallCategoryId, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL } from '../_shared/rollcall-category.ts';
-import { composeReminderPush, codeDeadlineMs, platformCopy, isInitialPush, type ReminderRow } from './logic.ts';
+import { composeReminderPush, codeDeadlineMs, platformCopy, isInitialPush, cardPlanAtRung, clockIn, type ReminderRow } from './logic.ts';
 import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
-import { pushLiveActivity, loadLiveCard } from '../_shared/rollcall-live-send.ts';
-import { rollCallPushData } from '../_shared/rollcall-live.ts';
+import { pushLiveActivity, loadLiveCard, loadTeamBoard, windowCodesFor, ackUrlFor } from '../_shared/rollcall-live-send.ts';
+import { rollCallPushData, teamFields } from '../_shared/rollcall-live.ts';
 // Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
 // refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
 import { sendExpoPush } from '../_shared/expo-push.mjs';
@@ -66,6 +66,47 @@ Deno.serve(async (req: Request) => {
     materialized = Number(data) || 0;
   } catch { /* best-effort */ }
 
+  // ---------------------------------------------------------------- the card opens at the OPEN
+  // 2026-09-23 (spec correction 7): a wake-up opens 10 minutes before its start (0242
+  // rollcall_opens_at), and its Live Activity goes up then, by itself, on every pending athlete's
+  // iPhone. It carries each athlete's WINDOW code and the ack URL in its attributes, so the card's
+  // I'm Up posts the check-in with the app closed. The alert is SILENT: the card lights the screen,
+  // but the loud moment stays the start (the alarm, or the start-time rung below, which then
+  // UPDATES this card with the coach's words and the sound instead of starting a second one).
+  // Claimed once per instance (card_opened_at), before the early return: a tick with no reminder
+  // rungs due still has cards to open. No notification here: an athlete whose card did not start
+  // still gets the start-time notification, exactly as before.
+  const opened = { instances: 0, started: 0, skipped: 0, revoked: 0 };
+  const apnsForOpen = apnsFromEnv((k) => Deno.env.get(k));
+  if (apnsForOpen) {
+    try {
+      const { data: opens } = await svc.rpc('claim_rollcall_card_opens', { p_limit: 200 });
+      const list = (Array.isArray(opens) ? opens : []) as Array<{ instance_id: string; athlete_ids: string[] | null }>;
+      if (list.length) {
+        const apns = new ApnsClient(apnsForOpen);
+        for (const o of list) {
+          opened.instances++;
+          const ids = Array.isArray(o.athlete_ids) ? o.athlete_ids : [];
+          if (!ids.length) continue;
+          const card = await loadLiveCard(svc, o.instance_id);
+          if (!card) continue;
+          const board = await loadTeamBoard(svc, o.instance_id);
+          const dl = clockIn(card.respond_by_at, card.timezone);
+          const title = card.title || 'Wake-Up Roll Call';
+          const r = await pushLiveActivity({
+            svc, apns, card, phase: 'initial', athleteIds: ids, allowStart: true,
+            alert: { title: card.coach_name || title, body: dl ? `${title} · up by ${dl}` : title, sound: '' },
+            team: (id) => teamFields(board, id),
+            ackCodes: await windowCodesFor(ACK_SECRET, card, ids),
+            ackUrl: ackUrlFor(SUPABASE_URL),
+            nowMs: Date.now(),
+          });
+          opened.started += r.started + r.updated; opened.skipped += r.skipped; opened.revoked += r.revoked;
+        }
+      }
+    } catch { /* the RPC may not exist on an un-migrated stack; the rungs below are unaffected */ }
+  }
+
   // Claim + mark in one call. Anything returned here is ours to deliver and will not be
   // returned to a concurrent run. `p_limit` (migration 0148, capacity audit F8) bounds each
   // call, so a burst that crosses more due reminders than one page could ever hold no longer
@@ -86,7 +127,7 @@ Deno.serve(async (req: Request) => {
     due.push(...rows);
     if (rows.length < CLAIM_LIMIT) break;
   }
-  if (!due.length) return json({ sent: 0, pushed: 0, materialized });
+  if (!due.length) return json({ sent: 0, pushed: 0, materialized, opened });
 
   // Who is speaking (0211): the coach on the first push of a roll call, OnStandard after that.
   // Composed once per claimed row so the durable bell row and the push say the same thing.
@@ -148,11 +189,28 @@ Deno.serve(async (req: Request) => {
       list.push(d);
       byInstance.set(d.instance_id, list);
     }
+    // Which instances already had their card opened at the open (card_opened_at, 0242). Unknown
+    // (a read failure, an un-migrated stack) reads as NOT opened, which is the pre-0242 behaviour:
+    // the start-time rung starts the card itself.
+    const cardOpened = new Set<string>();
+    if (byInstance.size) {
+      try {
+        const { data: inst } = await svc
+          .from('commitment_instances').select('id,card_opened_at')
+          .in('id', [...byInstance.keys()]).not('card_opened_at', 'is', null);
+        for (const r of (inst ?? []) as Array<{ id: string }>) cardOpened.add(r.id);
+      } catch { /* best effort */ }
+    }
+    const ackUrl = ackUrlFor(SUPABASE_URL);
     for (const [instanceId, rows] of byInstance) {
       const card = await loadLiveCard(svc, instanceId);
       if (!card) continue;
-      // The rung that fires AT the start time opens the activity; any later rung updates it.
-      const phase = isInitialPush(rows[0]) ? 'initial' : 'reminder';
+      // The start-time rung UPDATES the card the open started (or starts it, when the open never
+      // ran); any later rung updates it. Every update carries the team count, because a content
+      // state replaces the whole card: an update without it would zero the count on screen.
+      const plan = cardPlanAtRung(rows[0], cardOpened.has(instanceId));
+      const phase = plan.phase;
+      const board = await loadTeamBoard(svc, instanceId);
       const c = copy.get(rows[0])!;
       // Two sends when some of this instance's athletes have a real alarm armed: the same card,
       // the same words, one with the sound and one without.
@@ -163,6 +221,10 @@ Deno.serve(async (req: Request) => {
         const r = await pushLiveActivity({
           svc, apns, card, phase,
           athleteIds: ids,
+          allowStart: plan.allowStart,
+          team: (id) => teamFields(board, id),
+          ackCodes: plan.allowStart ? await windowCodesFor(ACK_SECRET, card, ids) : undefined,
+          ackUrl,
           // The card IS the notification now, so its alert is what lights the phone up and plays
           // the sound. Same words the suppressed notification would have carried.
           alert: { title: c.title, body: c.subtitle ?? c.body, sound },
@@ -261,5 +323,5 @@ Deno.serve(async (req: Request) => {
   const pushed = pushOut.sent;
   if (pushOut.failed) console.error('commitment-reminders: push refused', pushOut.failed, pushOut.errors.join('; '));
 
-  return json({ sent: recorded, pushed, claimed: due.length, materialized, live, suppressed });
+  return json({ sent: recorded, pushed, claimed: due.length, materialized, live, suppressed, opened });
 });

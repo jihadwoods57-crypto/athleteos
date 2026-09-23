@@ -92,26 +92,22 @@ comment on function rollcall_arrival_verdict(text, timestamptz, timestamptz, int
   'Arrival verdict: excused | on_standard | late | unverified | pending | missed. Pure. Never missed before arrive-by + grace; a phone that could not confirm the place is unverified, never missed. 0242.';
 
 -- ================================================================ 2. the team board
-create or replace function rollcall_team_board(p_instance uuid) returns jsonb
+-- Two functions, ONE body. rollcall_team_board_svc builds the board with no caller check and is
+-- granted to service_role ONLY (the grants block at the end revokes it from public, anon and
+-- authenticated): roll-call-ack reads it after a lock-screen check-in to move every teammate's
+-- Live Activity, and commitment-escalation reads it at the close for the coach's summary. Neither
+-- has a user session. rollcall_team_board is the user-facing door: the caller check, then the
+-- same body. Being SECURITY DEFINER, it runs the _svc call as the owner, so the revoke on _svc
+-- does not reach it. (Task 4, 2026-09-23.)
+create or replace function rollcall_team_board_svc(p_instance uuid) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare
   i commitment_instances; c commitments; v_now timestamptz := now();
   v_close timestamptz; v_out jsonb;
 begin
-  if not vc_enabled() then raise exception 'Verified Commitments is currently switched off'; end if;
   select * into i from commitment_instances where id = p_instance;
-  if not found then raise exception 'not_authorized'; end if;   -- never confirm an id exists
+  if not found then return null; end if;
   select * into c from commitments where id = i.commitment_id;
-  if not (
-       commitment_owner_is_staff(c.team_id, c.practice_id)
-    or (exists (select 1 from commitment_responses r where r.instance_id = p_instance and r.athlete_id = auth.uid())
-        and ((c.team_id is not null and exists (select 1 from team_members m
-                where m.team_id = c.team_id and m.athlete_id = auth.uid() and m.status = 'active'))
-          or (c.practice_id is not null and exists (select 1 from practice_clients pc
-                where pc.practice_id = c.practice_id and pc.client_id = auth.uid() and pc.status = 'active'))))
-  ) then
-    raise exception 'not_authorized';
-  end if;
 
   v_close := rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at);
 
@@ -154,6 +150,30 @@ begin
       order by o.acknowledged_at nulls last, o.name) from ordered o), '[]'::jsonb)
   ) into v_out;
   return v_out;
+end $$;
+comment on function rollcall_team_board_svc(uuid) is
+  'The team board body with NO caller check: service_role only (roll-call-ack Live Activity counts, commitment-escalation closing summary). Null for an unknown instance. 0242.';
+
+create or replace function rollcall_team_board(p_instance uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+  i commitment_instances; c commitments;
+begin
+  if not vc_enabled() then raise exception 'Verified Commitments is currently switched off'; end if;
+  select * into i from commitment_instances where id = p_instance;
+  if not found then raise exception 'not_authorized'; end if;   -- never confirm an id exists
+  select * into c from commitments where id = i.commitment_id;
+  if not (
+       commitment_owner_is_staff(c.team_id, c.practice_id)
+    or (exists (select 1 from commitment_responses r where r.instance_id = p_instance and r.athlete_id = auth.uid())
+        and ((c.team_id is not null and exists (select 1 from team_members m
+                where m.team_id = c.team_id and m.athlete_id = auth.uid() and m.status = 'active'))
+          or (c.practice_id is not null and exists (select 1 from practice_clients pc
+                where pc.practice_id = c.practice_id and pc.client_id = auth.uid() and pc.status = 'active'))))
+  ) then
+    raise exception 'not_authorized';
+  end if;
+  return rollcall_team_board_svc(p_instance);
 end $$;
 comment on function rollcall_team_board(uuid) is
   'Roll call team board: every responder in the order they got up. Roster-safe fields only (no coordinates, device times or notes). Responders still on the team, or staff of the owner. 0242.';
@@ -497,6 +517,160 @@ end $$;
 comment on function save_commitment_place(jsonb) is
   'Insert/update a commitment_locations row for the caller''s named team or practice (exactly one, exact-matched on update). New places floor at 100 m (radius_min), cap at 1000 m (radius_max); blank name is name_required. 0242.';
 
+-- ================================================================ 6. the lock screen, live (Task 4)
+-- The server half of the rebuilt Live Activity (spec corrections 4-7). Everything here is service
+-- only; the second grants block below revokes it from public, anon and authenticated.
+--
+--   last_update_at   the throttle: at most one team-count update per athlete card per minute.
+--   card_opened_at   the once-per-instance claim that STARTS the card at the open (10 minutes
+--                    before the start), apart from the start-time notification rung.
+--   summary_sent_at  the once-per-instance guard on the coach's closing summary.
+alter table rollcall_live_tokens add column if not exists last_update_at timestamptz;
+alter table commitment_instances add column if not exists card_opened_at timestamptz;
+alter table commitment_instances add column if not exists summary_sent_at timestamptz;
+comment on column rollcall_live_tokens.last_update_at is
+  'Last team-count Live Activity update sent to this update token (roll-call-ack throttle, 60 s). 0242.';
+comment on column commitment_instances.card_opened_at is
+  'When commitment-reminders claimed this wake-up to START its Live Activity at the open (claim_rollcall_card_opens). 0242.';
+comment on column commitment_instances.summary_sent_at is
+  'When the coach''s closing summary push was claimed for this instance (claim_rollcall_summary): once per instance. 0242.';
+
+-- The card RPC learns the window's OPEN (for the window code) and whether the roll call asks an
+-- arrival (the card's points: 8 alone, 4 with arrival). Same body as 0239 plus two columns; the
+-- return type changes, so drop + create.
+drop function if exists rollcall_live_card(uuid);
+create function rollcall_live_card(p_instance uuid)
+returns table (
+  instance_id uuid, title text, coach_name text, message text,
+  starts_at timestamptz, respond_by_at timestamptz, closes_at timestamptz,
+  timezone text, action_label text,
+  opens_at timestamptz, asks_arrival boolean
+)
+language sql security definer set search_path = public as $$
+  select
+    ci.id,
+    coalesce(c.title, 'Wake-Up Roll Call'),
+    coalesce(p.full_name, ''),
+    coalesce(ci.message_override, c.message, ''),
+    ci.starts_at,
+    ci.respond_by_at,
+    rollcall_closes_at(c.type, ci.respond_by_at, ci.starts_at, ci.ends_at),
+    coalesce(c.timezone, 'UTC'),
+    c.action_label,
+    rollcall_opens_at(c.type, ci.starts_at, ci.respond_by_at, c.starts_min, c.opens_min),
+    c.location_id is not null
+  from commitment_instances ci
+  join commitments c on c.id = ci.commitment_id
+  left join profiles p on p.id = c.created_by
+  where ci.id = p_instance;
+$$;
+
+-- Start the card at the OPEN. Claims each wake-up once (card_opened_at), from its open until its
+-- deadline, and returns the athletes still pending on it. A cron tick that runs late still starts
+-- the card; one that runs after the deadline leaves it to the start-time rung and the late push.
+create or replace function claim_rollcall_card_opens(p_limit int default 200)
+returns table (instance_id uuid, athlete_ids uuid[])
+language plpgsql security definer set search_path = public as $$
+begin
+  if not vc_enabled() then return; end if;
+  return query
+  with due as (
+    select i.id
+      from commitment_instances i
+      join commitments c on c.id = i.commitment_id
+     where c.type = 'morning_roll_call'
+       and c.active
+       and i.status = 'scheduled'
+       and i.card_opened_at is null
+       and i.live_ended_at is null
+       and now() >= rollcall_opens_at(c.type, i.starts_at, i.respond_by_at, c.starts_min, c.opens_min)
+       and now() <  coalesce(i.respond_by_at, i.starts_at)
+     order by i.starts_at
+     limit greatest(1, p_limit)
+       for update of i skip locked
+  ), claimed as (
+    update commitment_instances i set card_opened_at = now()
+      from due where i.id = due.id
+    returning i.id
+  )
+  select cl.id,
+         coalesce((select array_agg(r.athlete_id) from commitment_responses r
+                    where r.instance_id = cl.id and r.status = 'pending' and r.acknowledged_at is null
+                      and vc_enabled(r.athlete_id)), array[]::uuid[])
+    from claimed cl;
+end $$;
+
+-- Every live update token on one instance, with the throttle stamp and the phase the card is in
+-- now, so a team-count update never flips an amber (reminder) card back to blue. The reminder
+-- test mirrors commitment-reminders isInitialPush: a rung that fired more than a minute after the
+-- start was a follow-up.
+create or replace function rollcall_live_update_targets(p_instance uuid)
+returns table (athlete_id uuid, token text, last_update_at timestamptz, phase_hint text)
+language sql stable security definer set search_path = public as $$
+  select t.athlete_id, t.token, t.last_update_at,
+    case
+      when r.acknowledged_at is not null then 'answered'
+      when now() > coalesce(i.respond_by_at, i.starts_at) then 'late'
+      when exists (select 1 from unnest(coalesce(r.reminded_offsets, array[]::smallint[])) o
+                    where coalesce(i.respond_by_at, i.starts_at) - make_interval(mins => o::int)
+                          > i.starts_at + interval '1 minute') then 'reminder'
+      else 'initial'
+    end
+  from rollcall_live_tokens t
+  join commitment_instances i on i.id = t.instance_id
+  left join commitment_responses r on r.instance_id = t.instance_id and r.athlete_id = t.athlete_id
+  where t.instance_id = p_instance and t.kind = 'update' and t.revoked_at is null;
+$$;
+
+-- The throttle, atomically: stamp last_update_at on the named athletes' update tokens that were
+-- not updated in the last p_gap_sec seconds, and return exactly those athletes. Two check-ins in
+-- the same second cannot both win the same card. p_gap_sec = 0 stamps unconditionally (the
+-- athlete's own answered update).
+create or replace function claim_live_team_updates(p_instance uuid, p_athletes uuid[], p_gap_sec int default 60)
+returns setof uuid
+language sql security definer set search_path = public as $$
+  update rollcall_live_tokens t set last_update_at = now()
+   where t.instance_id = p_instance and t.kind = 'update' and t.revoked_at is null
+     and t.athlete_id = any(p_athletes)
+     and (p_gap_sec <= 0 or t.last_update_at is null
+          or t.last_update_at <= now() - make_interval(secs => p_gap_sec))
+  returning t.athlete_id;
+$$;
+
+-- The windows an athlete's phone should hold codes for: their own wake-ups, not yet closed,
+-- starting within p_days (1..14). roll-call-ack's authenticated mint route reads this with the
+-- caller's VERIFIED user id; the function itself trusts no caller, which is why it is service only.
+create or replace function rollcall_window_rows_svc(p_athlete uuid, p_days int default 7)
+returns table (instance_id uuid, opens_at timestamptz, closes_at timestamptz)
+language sql stable security definer set search_path = public as $$
+  select i.id,
+         rollcall_opens_at(c.type, i.starts_at, i.respond_by_at, c.starts_min, c.opens_min),
+         rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at)
+    from commitment_responses r
+    join commitment_instances i on i.id = r.instance_id
+    join commitments c on c.id = i.commitment_id
+   where r.athlete_id = p_athlete
+     and c.type = 'morning_roll_call'
+     and c.active
+     and i.status = 'scheduled'
+     and r.status <> 'excused'
+     and rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at) > now()
+     and i.starts_at < now() + make_interval(days => least(greatest(coalesce(p_days, 7), 1), 14))
+   order by i.starts_at
+   limit 50;
+$$;
+
+-- The closing summary goes out once per instance: true for exactly one caller.
+create or replace function claim_rollcall_summary(p_instance uuid) returns boolean
+language sql security definer set search_path = public as $$
+  with u as (
+    update commitment_instances set summary_sent_at = now()
+     where id = p_instance and summary_sent_at is null
+    returning id
+  )
+  select exists (select 1 from u);
+$$;
+
 -- ================================================================ grants
 do $$ declare f text; begin
   foreach f in array array['rollcall_team_board(uuid)', 'rollcall_history(uuid,int)',
@@ -508,3 +682,15 @@ do $$ declare f text; begin
   end loop;
 end $$;
 revoke all on function _haversine_m(double precision,double precision,double precision,double precision) from public, anon, authenticated;
+
+-- Task 4: service only. Not even a signed-in user may call these; the edge functions reach them
+-- with the service role.
+do $$ declare f text; begin
+  foreach f in array array['rollcall_team_board_svc(uuid)', 'rollcall_live_card(uuid)',
+                           'claim_rollcall_card_opens(int)', 'rollcall_live_update_targets(uuid)',
+                           'claim_live_team_updates(uuid,uuid[],int)', 'rollcall_window_rows_svc(uuid,int)',
+                           'claim_rollcall_summary(uuid)'] loop
+    execute format('revoke all on function %s from public, anon, authenticated', f);
+    execute format('grant execute on function %s to service_role', f);
+  end loop;
+end $$;

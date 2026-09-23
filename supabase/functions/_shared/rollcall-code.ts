@@ -49,19 +49,33 @@ function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
 export type RollCallClaims = {
   instanceId: string; subjectId: string; athleteId: string;
   deadlineMs: number; iatMs: number; kind: CodeKind;
+  /** True on a WINDOW code (claim `w: 1`): `iatMs` is the window's open and `deadlineMs` its close,
+   *  not a mint instant and an expiry. See signWindowCode. */
+  window: boolean;
 };
 
-export type VerifyFailure = 'malformed' | 'bad_sig' | 'expired' | 'bad_kind';
+/** 'not_yet' is a window code spent more than WINDOW_EARLY_MS before its roll call opens. */
+export type VerifyFailure = 'malformed' | 'bad_sig' | 'expired' | 'bad_kind' | 'not_yet';
+
+/** A window code is spendable from 15 minutes before the open (a phone clock that runs fast, an
+ *  alarm the athlete set early) to 10 minutes after the close (a tap queued offline that reaches us
+ *  late). The RPC judges the answer itself; these bounds only limit the credential. */
+export const WINDOW_EARLY_MS = 15 * 60 * 1000;
+export const WINDOW_LATE_MS = 10 * 60 * 1000;
 
 async function sign(
   secret: string,
   c: { instanceId: string; subjectId: string; deadlineMs: number; iatMs: number },
   kind: CodeKind,
+  window = false,
 ): Promise<string> {
   const body: Record<string, unknown> = { i: c.instanceId, a: c.subjectId, d: c.deadlineMs, t: c.iatMs };
   // Only the coach kind carries `k`. Athlete codes stay byte-identical to what shipped in 0144, so
   // this module can be deployed ahead of, or behind, its callers without invalidating a live code.
   if (kind === 'coach') body.k = 'c';
+  // Only a window code carries `w`, inside the signed payload: stripping it breaks the signature,
+  // so a window code can never be replayed as a one-shot code with a different reading of `t`.
+  if (window) body.w = 1;
   const payload = b64urlEncode(enc.encode(JSON.stringify(body)));
   const sig = b64urlEncode(await hmac(secret, payload));
   return `${payload}.${sig}`;
@@ -75,6 +89,20 @@ export async function signRollCallCode(
   return sign(secret, { instanceId: c.instanceId, subjectId: c.athleteId, deadlineMs: c.deadlineMs, iatMs: c.iatMs }, 'athlete');
 }
 
+/** Mint a WINDOW code (2026-09-23): the credential the native Live Activity and alarm hold so a
+ *  lock-screen tap can post the check-in itself with the app closed. It is minted up to 7 days
+ *  ahead, so it cannot carry a "fresh" mint time; instead it is bound to one athlete, one instance
+ *  and that instance's own window (open to close), and it is only valid inside it. Kind stays
+ *  'athlete': it authorizes exactly what a one-shot athlete code does, for a longer but fixed span.
+ *  `t` carries the open, so ack_commitment_by_token's "a phone cannot have tapped before the code
+ *  existed" bound becomes "cannot have tapped before the window opened", which is also true. */
+export async function signWindowCode(
+  secret: string,
+  c: { instanceId: string; athleteId: string; opensMs: number; closesMs: number },
+): Promise<string> {
+  return sign(secret, { instanceId: c.instanceId, subjectId: c.athleteId, deadlineMs: c.closesMs, iatMs: c.opensMs }, 'athlete', true);
+}
+
 /** Mint a COACH code: authorizes "Got it" / "Nudge them" for that one coach on that one instance.
  *  It is a strictly wider credential than an athlete code, which is why it is a separate kind. */
 export async function signCoachCode(
@@ -85,7 +113,8 @@ export async function signCoachCode(
 }
 
 /** Verify a code AND assert its kind. `expectKind` defaults to 'athlete' so the pre-existing ack
- *  call site keeps its exact meaning; the coach endpoint must pass 'coach' explicitly. */
+ *  call site keeps its exact meaning; the coach endpoint must pass 'coach' explicitly.
+ *  A window code ignores `graceMs`: its bounds are its own window (WINDOW_EARLY_MS / WINDOW_LATE_MS). */
 export async function verifyRollCallCode(
   secret: string, code: string, nowMs: number, graceMs: number, expectKind: CodeKind = 'athlete',
 ): Promise<{ ok: true; claims: RollCallClaims } | { ok: false; reason: VerifyFailure }> {
@@ -96,18 +125,25 @@ export async function verifyRollCallCode(
   try { given = b64urlDecode(code.slice(dot + 1)); } catch { return { ok: false, reason: 'malformed' }; }
   const expected = await hmac(secret, payload);
   if (!timingSafeEqual(expected, given)) return { ok: false, reason: 'bad_sig' };
-  let obj: { i?: unknown; a?: unknown; d?: unknown; t?: unknown; k?: unknown };
+  let obj: { i?: unknown; a?: unknown; d?: unknown; t?: unknown; k?: unknown; w?: unknown };
   try { obj = JSON.parse(new TextDecoder().decode(b64urlDecode(payload))); } catch { return { ok: false, reason: 'malformed' }; }
   const subjectId = String(obj.a ?? '');
   const claims: RollCallClaims = {
     instanceId: String(obj.i ?? ''), subjectId, athleteId: subjectId,
     deadlineMs: Number(obj.d), iatMs: Number(obj.t),
     kind: obj.k === 'c' ? 'coach' : 'athlete',
+    window: obj.w === 1,
   };
   if (!claims.instanceId || !claims.subjectId || !Number.isFinite(claims.deadlineMs)) return { ok: false, reason: 'malformed' };
   // Kind BEFORE expiry: a coach code presented to the athlete endpoint is the wrong credential
   // whether or not it is still fresh, and 'expired' would misdescribe it in the logs.
   if (claims.kind !== expectKind) return { ok: false, reason: 'bad_kind' };
+  if (claims.window) {
+    if (!Number.isFinite(claims.iatMs)) return { ok: false, reason: 'malformed' };
+    if (nowMs < claims.iatMs - WINDOW_EARLY_MS) return { ok: false, reason: 'not_yet' };
+    if (nowMs > claims.deadlineMs + WINDOW_LATE_MS) return { ok: false, reason: 'expired' };
+    return { ok: true, claims };
+  }
   if (nowMs > claims.deadlineMs + graceMs) return { ok: false, reason: 'expired' };
   return { ok: true, claims };
 }

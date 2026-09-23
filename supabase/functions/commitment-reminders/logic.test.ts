@@ -142,3 +142,19 @@ describe('codeDeadlineMs', () => {
     expect(codeDeadlineMs({ closes_at: null, respond_by_at: null }, 42)).toBe(42);
   });
 });
+
+// ---------------------------------------------------------------- 2026-09-23: the card opens at the open
+import { cardPlanAtRung } from './logic';
+describe('cardPlanAtRung: who may START a card at a rung', () => {
+  const initial = { ...base, fires_at: '2026-09-01T10:00:00Z', offset_min: 5 };
+  const reminder = { ...base, fires_at: '2026-09-01T10:03:00Z', offset_min: 2 };
+  test('the start-time rung updates a card the open already started, and starts none of its own', () => {
+    expect(cardPlanAtRung(initial, true)).toEqual({ phase: 'initial', allowStart: false });
+  });
+  test('the start-time rung may still start a card when the open never ran (made at 5:55)', () => {
+    expect(cardPlanAtRung(initial, false)).toEqual({ phase: 'initial', allowStart: true });
+  });
+  test('a follow-up rung never starts a card', () => {
+    expect(cardPlanAtRung(reminder, false)).toEqual({ phase: 'reminder', allowStart: false });
+  });
+});

@@ -7,7 +7,8 @@
 // and the only one that can hold a countdown the phone ticks on its own. So the roll call now has
 // two surfaces working together, each doing what only it can:
 //
-//   THE LIVE ACTIVITY is the PRESENCE. It appears at 6:00 and stays until the roll call closes:
+//   THE LIVE ACTIVITY is the PRESENCE. It appears at the open (10 minutes before the start, since
+//   2026-09-23) and stays until the roll call closes, the check-in included:
 //   the coach's name, the state colour, and a timer that counts down to the deadline and then up
 //   past it. Nothing has to arrive for it to stay truthful, because the device ticks the clock.
 //
@@ -40,6 +41,12 @@ export type LiveAttributes = {
   coachInitials: string;
   /** The coach's own button words. Optional on the wire so an older widget still decodes. */
   actionLabel?: string;
+  /** The WINDOW code (rollcall-code.ts signWindowCode) for this athlete + instance, so the card's
+   *  I'm Up intent can post the check-in itself with the app closed. "" when the secret is unset
+   *  or the instance has no close; the widget then falls back to recording locally. 2026-09-23. */
+  ackCode: string;
+  /** Where to post it: `${SUPABASE_URL}/functions/v1/roll-call-ack`. "" when unknown. */
+  ackUrl: string;
 };
 
 /** Everything that changes as the morning runs. Mirrors `RollCallAttributes.ContentState`. */
@@ -53,7 +60,67 @@ export type LiveContentState = {
   checkedInEpoch: number | null;
   /** The coach's message, trimmed to one lock-screen line. Empty when there is none. */
   line: string;
+  /** 2026-09-23: the team on the card. Up so far (on standard or late) and the roll call's total
+   *  (excused athletes left out, exactly as the team board counts). 0 / 0 when unknown. */
+  teamUp: number;
+  teamTotal: number;
+  /** This athlete's place in line once their answer counts; null before (or under review). */
+  place: number | null;
+  /** What the answer banks toward today's score (pointsFor); null until it counts. */
+  points: number | null;
 };
+
+/** The team fields of the content state. */
+export type LiveTeam = Pick<LiveContentState, 'teamUp' | 'teamTotal' | 'place' | 'points'>;
+export const NO_TEAM: LiveTeam = { teamUp: 0, teamTotal: 0, place: null, points: null };
+
+/** The morning's 8 points are one budget shared by every assigned part (Task 1, NIGHT_SHIFT =
+ *  WAKEUP_SHIFT = 8, weightsForAssigned). The card shows the ROLL CALL's own share: all 8 when it
+ *  is a wake-up alone, 4 when it also asks for an arrival (4 + 4). A Recovery Standard on the same
+ *  day could make it 8/3, but the card has no business reading the sleep standard; the day screen
+ *  shows the exact figure. */
+export function pointsFor(asksArrival: boolean | null | undefined): number {
+  return asksArrival ? 4 : 8;
+}
+
+/** The slice of rollcall_team_board (0242) the card reads. */
+export type BoardRow = {
+  athlete_id: string; verdict: string; place: number | null;
+  acknowledged_at?: string | null; name?: string | null;
+};
+export type TeamBoard = {
+  instance_id?: string; total: number; up: number; asks_arrival?: boolean | null; rows: BoardRow[];
+};
+
+/** Team fields for one athlete off the board. Place and points only once their answer COUNTS
+ *  (the board gives a place to on_standard and late only; an answer under review has none). */
+export function teamFields(board: TeamBoard | null | undefined, athleteId: string): LiveTeam {
+  if (!board) return { ...NO_TEAM };
+  const row = (board.rows ?? []).find((r) => r.athlete_id === athleteId);
+  const place = row && row.place != null && Number.isFinite(Number(row.place)) ? Number(row.place) : null;
+  return {
+    teamUp: Number(board.up) || 0,
+    teamTotal: Number(board.total) || 0,
+    place,
+    points: place == null ? null : pointsFor(board.asks_arrival),
+  };
+}
+
+/** The window a window code is bound to: the open (rollcall_opens_at, 0242) and the close. A card
+ *  read by an older RPC has no opens_at, so the 0242 default (10 minutes before the start) stands
+ *  in. Null when there is no close: a code with no end is not a code we mint. */
+export function liveWindowMs(card: { opens_at?: string | null; starts_at?: string | null; closes_at?: string | null }):
+  { opensMs: number; closesMs: number } | null {
+  const closesMs = Date.parse(card.closes_at ?? '');
+  if (!Number.isFinite(closesMs)) return null;
+  let opensMs = Date.parse(card.opens_at ?? '');
+  if (!Number.isFinite(opensMs)) {
+    const starts = Date.parse(card.starts_at ?? '');
+    if (!Number.isFinite(starts)) return null;
+    opensMs = starts - 10 * 60 * 1000;
+  }
+  return { opensMs, closesMs };
+}
 
 /** A Live Activity is capped at 160 points tall on the lock screen and truncated past it, so the
  *  coach's message gets ONE line. The whole message stays in the notification body, the bell row
@@ -81,13 +148,15 @@ export function liveContentState(row: {
   respond_by_at?: string | null;
   closes_at?: string | null;
   message?: string | null;
-}, phase: LivePhase, checkedInAtIso?: string | null): LiveContentState {
+}, phase: LivePhase, checkedInAtIso?: string | null, team?: LiveTeam | null): LiveContentState {
   return {
     phase,
     deadlineEpoch: sec(row.respond_by_at),
     closesEpoch: sec(row.closes_at),
     checkedInEpoch: checkedInAtIso ? sec(checkedInAtIso) : null,
     line: liveLine(row.message),
+    ...NO_TEAM,
+    ...(team ?? {}),
   };
 }
 
@@ -191,6 +260,21 @@ export function liveUpdatePayload(
       'content-state': state,
       ...(alert ? { alert: apsAlert(alert) } : {}),
       'stale-date': state.phase === 'late' ? state.closesEpoch || undefined : state.deadlineEpoch || undefined,
+    },
+  };
+}
+
+/** The athlete's own check-in (2026-09-23). It used to END the card; now the card STAYS, in the
+ *  answered state, carrying their place, their points and the team count until the roll call
+ *  closes (the close sweep in commitment-escalation ends it). No alert: the athlete is holding the
+ *  phone. Stale at the close, when the answered card has nothing left to say. */
+export function liveAnsweredUpdate(state: LiveContentState, nowMs: number = Date.now()): Record<string, unknown> {
+  return {
+    aps: {
+      timestamp: Math.round(nowMs / 1000),
+      event: 'update',
+      'content-state': { ...state, phase: 'answered' },
+      'stale-date': state.closesEpoch || undefined,
     },
   };
 }
