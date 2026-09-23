@@ -217,7 +217,10 @@ describe('property: computeDerived score never exceeds its evidence ceiling', ()
 describe('evidenceFromDayRow (mirrors the 0193 trigger gates)', () => {
   const D = '2026-07-03'; // pre-cutover, so the v1 carry gate is live
   it('grants nothing for an empty row', () => {
-    expect(evidenceFromDayRow({ date: D, meals: {}, checkin: {} })).toEqual({ nutritionPossible: false, checkinPossible: false, commitmentPresent: false, wakeupAssigned: false, wakeupEarned: false });
+    // arrivalAssigned/arrivalEarned added alongside wakeupAssigned/wakeupEarned (Task 1,
+    // 2026-09-23): arrival is the morning's twin and is wired into evidenceFromDayRow the same
+    // unconditional way, so an empty row reads false for both pairs.
+    expect(evidenceFromDayRow({ date: D, meals: {}, checkin: {} })).toEqual({ nutritionPossible: false, checkinPossible: false, commitmentPresent: false, wakeupAssigned: false, wakeupEarned: false, arrivalAssigned: false, arrivalEarned: false });
   });
   it('unlocks nutrition when any meal is logged', () => {
     expect(evidenceFromDayRow({ date: D, meals: { breakfast: true }, checkin: {} }).nutritionPossible).toBe(true);

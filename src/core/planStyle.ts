@@ -36,7 +36,7 @@
 //
 // MIRRORED BY proto/redesign-2026-07/js/plan-style.js — planStyleParity.test.ts locks the two together.
 import type { ScoringProfile } from './types';
-import { PROFILE_WEIGHTS as ENGINE_PROFILE_WEIGHTS, WAKEUP_SHIFT, SLEEP_SHIFT } from './scoringProfiles';
+import { PROFILE_WEIGHTS as ENGINE_PROFILE_WEIGHTS, WAKEUP_SHIFT, SLEEP_SHIFT, NIGHT_SHIFT } from './scoringProfiles';
 
 export type PlanStyle = 'structured' | 'guided' | 'intuitive';
 export type StyleSource = 'team' | 'pro' | 'preference' | 'self' | 'legacy' | 'default';
@@ -79,10 +79,13 @@ export interface StyleWeights {
   /** The coach-assigned Recovery Standard. Optional so every persisted mix and fixture that
    *  predates it stays valid; absent reads as 0. Worth nothing today: see SLEEP_SHIFT. */
   sleep?: number;
+  /** The coach-assigned arrival (optional location check). Optional for the same grandfathering
+   *  reason sleep is. Shares the SAME night budget as wakeup/sleep (2026-09-23). */
+  arrival?: number;
 }
 
 /** Per-component ceiling. NOTHING may exceed these. Mirrors proto plan-style.js WEIGHT_CAPS. */
-export const WEIGHT_CAPS: StyleWeights = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: WAKEUP_SHIFT, sleep: SLEEP_SHIFT };
+export const WEIGHT_CAPS: StyleWeights = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: WAKEUP_SHIFT, sleep: SLEEP_SHIFT, arrival: NIGHT_SHIFT };
 
 /** Headline mix per goal profile — v2. Plan style no longer re-weights the score — it shapes HOW
  *  nutrition is computed (knobsFor). Re-exported straight from scoringProfiles.ts (the RN engine's

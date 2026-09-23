@@ -25,7 +25,8 @@ const OPTIONS = [
   // so bringing the feature back is one constant, not an archaeology exercise.
   // (0211): the morning group text as a measurable roll call. Shares the
   // 'commitments' capability because it IS a commitment (type morning_roll_call).
-  { grp: 'standard', key: 'commitments',     cap: null,             icon: 'sun',       title: 'Roll call',     sub: 'A time, a grace period, your message. One tap answers it', go: 'coach-wakeup-new' },
+  // ONE WAY IN (roll call rebuilt, 2026-09-23): the four-answer setup. Wake-up, arrival, or both.
+  { grp: 'standard', key: 'commitments',     cap: null,             icon: 'sun',       title: 'Roll call',     sub: 'Wake-up, arrival, or both. A live board of who’s in', go: 'rollcall-new' },
   // Verified Commitments (0138). Distinct from 'schedule' above, which excuses an athlete for a
   // stretch of days; this SCHEDULES the thing they're accountable for in the first place.
   { grp: 'standard', key: 'commitments',     cap: null,             icon: 'clock',     title: 'Schedule a commitment', sub: 'Practice, lift, study hall. Verified', go: 'coach-commit-manage' },

@@ -129,6 +129,7 @@ export default {
         ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
       ${row('connected-standards', 'bolt', 'Activity standards', 'Steps, distance and workouts · verified from your device')}
+      ${row('location-consent', 'target', 'Location check-in', 'How showing up at a place is confirmed')}
     </section>
 
     <h2 class="eyebrow">Your record</h2>

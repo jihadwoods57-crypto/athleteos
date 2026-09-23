@@ -13,7 +13,7 @@
  * Decisions are pure (wakeFaceTarget / nextWakeFaceAt) so they are tested; the DOM half is thin.
  */
 import { WAKEUP_TYPE } from './wakeup-morning.js';
-import { wakeupPhase, opensAtOf, deadlineOf, closesAtOf, fmtAt, offsetFor, lateMinutes, DEFAULT_ACTION } from './commitments.js';
+import { wakeupPhase, deadlineOf, closesAtOf, fmtAt, offsetFor, lateMinutes, DEFAULT_ACTION } from './commitments.js';
 
 /** How long the answered state stays up before the face leaves on its own. */
 export const WAKE_FACE_LINGER_MS = 2600;
@@ -25,6 +25,11 @@ export const WAKE_FACE_DRAIN_MS = 4000;
 const isWake = (r) => r && r.type === WAKEUP_TYPE && r.instance_status !== 'cancelled';
 const unanswered = (r) => !r.acknowledged_at && r.status !== 'excused' && r.status !== 'acknowledged'
   && !(r.verdict && r.verdict !== 'pending');
+/* The face rings at the wake-up TIME, not at the open. Since 0242 (2026-09-23) a wake-up opens 10
+   minutes before its time so the lock-screen card can be up first; the alarm itself still sounds at
+   the time the coach set, and a full-screen face ten minutes early would be a second, earlier
+   alarm. So the face waits for starts_at, while the answer is accepted from the open. */
+const ringsAt = (r) => Date.parse((r && r.starts_at) || '');
 
 /**
  * The wake-up the face should be showing right now, or null.
@@ -35,17 +40,19 @@ export function wakeFaceTarget(rows, nowISO, dismissed) {
   const skip = dismissed || new Set();
   const live = rows.filter((r) => isWake(r) && unanswered(r) && !skip.has(String(r.instance_id)))
     .filter((r) => { const p = wakeupPhase(r, nowISO); return p === 'open' || p === 'late'; })
+    .filter((r) => { const t = ringsAt(r); return !isFinite(t) || Date.parse(nowISO || '') >= t; })
     .sort((a, b) => Date.parse(a.starts_at || '') - Date.parse(b.starts_at || ''));
   return live[0] || null;
 }
 
-/** The next instant an unanswered wake-up opens, in epoch ms, or null when none is ahead. */
+/** The next instant an unanswered wake-up rings (its start time, see ringsAt), in epoch ms, or null
+ *  when none is ahead. */
 export function nextWakeFaceAt(rows, nowMs) {
   if (!Array.isArray(rows)) return null;
   let best = null;
   for (const r of rows) {
     if (!isWake(r) || !unanswered(r)) continue;
-    const t = Date.parse(opensAtOf(r) || '');
+    const t = ringsAt(r);
     if (!isFinite(t) || t <= nowMs) continue;
     if (best == null || t < best) best = t;
   }
@@ -207,8 +214,15 @@ function settle(row, at) {
   e.innerHTML = answeredHtml(row, at, deps && deps.points ? Number(deps.points()) : 0);
   e.classList.add('answered');
   try { if (deps && deps.buzz) deps.buzz('success'); } catch { /* no-op */ }
-  e.addEventListener('click', hideWakeFace, { once: true });
-  setTimeout(() => { if (el() === e) hideWakeFace(); }, WAKE_FACE_LINGER_MS);
+  // Then the team board (roll call rebuilt, 2026-09-23): the athlete just got up, and the board is
+  // where they see who else is. A tap goes now; otherwise it goes when the moment has lingered.
+  const toBoard = () => {
+    if (el() !== e) return;
+    hideWakeFace();
+    try { if (typeof location !== 'undefined' && row && row.instance_id) location.hash = `#rollcall-board/${row.instance_id}`; } catch { /* no router here */ }
+  };
+  e.addEventListener('click', toBoard, { once: true });
+  setTimeout(toBoard, WAKE_FACE_LINGER_MS);
   try { if (deps && deps.onAnswered) deps.onAnswered(row.instance_id); } catch { /* no-op */ }
 }
 

@@ -143,3 +143,78 @@ export function dropCoachAction(
 ): QueuedCoachAction[] {
   return q.filter((x) => !(x.code === code && x.action === action));
 }
+
+/** A tap waiting in the native pending store. `board` is set by the alarm's own button (the
+ *  coach's words, RollCallAttackDayIntent), which opens OnStandard; Stop and the lock-screen card
+ *  check in without opening anything and leave it unset. */
+export type PendingBoardTap = { instanceId: string; at: number; board?: boolean };
+
+/** The id shape a route may carry. A commitment instance id is a UUID; anything else that could
+ *  close the injected string or climb out of the hash is refused rather than escaped. 48 keeps the
+ *  whole route inside ProtoApp's deliverRoute bound (64), which drops anything longer silently. */
+const BOARD_ID = /^[A-Za-z0-9_-]{1,48}$/;
+
+/** A board tap older than this routes nowhere. The pending store is drained on the next foreground,
+ *  which can be hours after the alarm (the athlete pressed the button, put the phone down, and
+ *  opened OnStandard at lunch); landing that open on the morning's board would hijack it. */
+export const BOARD_TAP_MAX_AGE_MS = 15 * 60 * 1000;
+
+/**
+ * Where the app should land after draining taps: the team board for the newest FRESH tap the
+ * alarm's opening button made, or null to stay where it is. The route string is fixed here and the
+ * board screen itself arrives in the proto (Task 9).
+ */
+export function boardRouteFor(taps: PendingBoardTap[] | null | undefined, nowMs: number = Date.now()): string | null {
+  if (!Array.isArray(taps)) return null;
+  let best: PendingBoardTap | null = null;
+  for (const t of taps) {
+    if (!t || t.board !== true || typeof t.instanceId !== 'string' || !BOARD_ID.test(t.instanceId)) continue;
+    const at = Number(t.at);
+    if (!Number.isFinite(at) || nowMs - at > BOARD_TAP_MAX_AGE_MS) continue;
+    if (!best || at >= Number(best.at)) best = t;
+  }
+  return best ? `rollcall-board/${best.instanceId}` : null;
+}
+
+/** What roll-call-ack's refresh route said about this athlete's own card (the server's
+ *  OwnCardResult), or 'failed' when it could not be reached or refused:
+ *    sent / already_answered   the server turned the card (now, or earlier): leave it be
+ *    no_token / no_card        the server holds no card it can reach: this phone must end its own
+ *    unavailable               APNs down, or the push reached nobody */
+export type RefreshOutcome = 'sent' | 'already_answered' | 'no_token' | 'no_card' | 'unavailable' | 'failed';
+
+const REFRESH_RESULTS = new Set<RefreshOutcome>(['sent', 'already_answered', 'no_token', 'no_card', 'unavailable']);
+
+/** Read the refresh route's answer. Anything unexpected is 'failed', which ends the card. */
+export function refreshOutcomeOf(data: unknown, error: unknown): RefreshOutcome {
+  if (error || !data || typeof data !== 'object') return 'failed';
+  const d = data as { ok?: unknown; result?: unknown };
+  if (d.ok !== true || typeof d.result !== 'string') return 'failed';
+  return REFRESH_RESULTS.has(d.result as RefreshOutcome) ? (d.result as RefreshOutcome) : 'failed';
+}
+
+/**
+ * After an answer that did not come through a window code, whether THIS device should end its
+ * lock-screen card itself. Only when the server says it turned the card (now or already) is the
+ * card left to the server. An older binary ends it as the app always did, and so does a phone
+ * whose card the server cannot reach (its token never uploaded, no card, APNs down, a failed or
+ * refused refresh): otherwise that card would sit on I'M UP until iOS timed it out.
+ */
+export function shouldEndCardLocally(hasAckPoster: boolean, outcome: RefreshOutcome): boolean {
+  if (!hasAckPoster) return true;
+  return !(outcome === 'sent' || outcome === 'already_answered');
+}
+
+/** How long after an 'already_answered' refresh the phone looks once more. */
+export const REFRESH_RECHECK_MS = 20_000;
+
+/**
+ * 'already_answered' can be read while the code ack's own answered push is still in flight; if
+ * that push then reaches no device it releases its claim, and nobody would ever try again. So the
+ * FIRST 'already_answered' schedules one re-refresh after REFRESH_RECHECK_MS (attempt 0 -> 1).
+ * On the re-check, 'already_answered' again means the push landed: stop. Any other answer on the
+ * re-check is handled by shouldEndCardLocally as usual. Returns the delay, or null for none.
+ */
+export function recheckDelayFor(outcome: RefreshOutcome, attempt: number): number | null {
+  return outcome === 'already_answered' && attempt === 0 ? REFRESH_RECHECK_MS : null;
+}

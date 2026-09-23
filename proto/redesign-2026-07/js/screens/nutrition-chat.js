@@ -220,11 +220,11 @@ export default {
     <div class="thread nc-thread" id="nc-thread" role="log" aria-label="Nutrition chat">
       <div class="msg-status" id="nc-status">Loading your conversation…</div>
     </div>
-    <div class="chat-dock">
+    <div class="chat-dock dock-end">
       ${aiDisclaimer()}
       <div class="nc-target" id="nc-target" hidden></div>
       ${composer({ inputId: 'nc-msg', sendId: 'nc-send', placeholder: 'Ask about this meal…', sendLabel: 'Send', atEnd: true })}
-      <div id="nc-note" style="min-height:18px"></div>
+      <div id="nc-note" class="cmp-note"></div>
     </div>`;
   },
 

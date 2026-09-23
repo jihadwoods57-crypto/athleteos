@@ -413,10 +413,11 @@ export interface Database {
       regenerate_my_team_code: { Args: Record<string, never>; Returns: string };
       set_my_practice_code: { Args: { new_code: string }; Returns: string };
       regenerate_my_practice_code: { Args: Record<string, never>; Returns: string };
-      // Verified Commitments (0139). Only the two the NATIVE layer calls are typed here — the
+      // Verified Commitments (0139). Only the ones the NATIVE layer calls are typed here — the
       // proto WebView reaches the rest through supabase-js untyped, exactly like every other
-      // proto RPC. Note that verify_arrival takes a BOOLEAN, not a position: the comparison to
-      // the coach's geofence happens on device and the coordinate is discarded there.
+      // proto RPC. Since 0242 the native layer calls verify_arrival_at with ONE position reading:
+      // the server computes the distance to the coach's place, never stores the coordinate, and
+      // hands the verdict to verify_arrival (still typed below, no longer called from here).
       my_armable_geofences: {
         Args: { p_limit?: number | null };
         Returns: {
@@ -440,6 +441,26 @@ export interface Database {
           presence: string;
           arrival_source: string | null;
           unverified_reason: string | null;
+        };
+      };
+      verify_arrival_at: {
+        Args: {
+          p_instance: string;
+          p_source: string;
+          /** null (with p_lng) ONLY from source 'geofence': the OS region match (0242 5b). */
+          p_lat: number | null;
+          p_lng: number | null;
+          p_accuracy_m: number | null;
+        };
+        Returns: {
+          status?: string;
+          arrived_at?: string | null;
+          departed_at?: string | null;
+          presence?: string;
+          arrival_source?: string | null;
+          unverified_reason?: string | null;
+          within: boolean;
+          distance_m: number | null;
         };
       };
       // Presence (0208). The writer commitment_responses.departed_at never had — which is why the

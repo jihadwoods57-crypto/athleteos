@@ -660,7 +660,7 @@ export function composer({
   inputId = '', sendId = '', placeholder = '', inputLabel = placeholder, sendLabel = 'Send',
   sendIcon = 'arrowUp', sendIconSize = 17, sendStyle = '', wrapStyle = '',
   autocompleteOff = true, decorativeSend = false, attachId = '', attachLabel = 'Attach a photo',
-  aiId = '', aiLabel = 'Ask the AI Nutritionist', atEnd = false,
+  aiId = '', aiLabel = 'Ask the AI Nutritionist', atEnd = false, dictate = atEnd,
 } = {}) {
   const sendAttrs = `class="send"${sendId ? ` id="${sendId}"` : ''}${sendStyle ? ` style="${sendStyle}"` : ''}`;
   const sendEl = decorativeSend
@@ -695,6 +695,16 @@ export function composer({
   // The shape is the phone's, too: one pill, the text on the left, send tucked INSIDE its right
   // edge (.field), with the attach button the only thing outside it. The old bar was three
   // separate 48px objects in a row, which is a toolbar, not a message box.
+  // DICTATION (composer upgrade, 2026-09-23). Every conversation-ending box gets a microphone in
+  // the slot send occupies, the way Messages and the Claude app do: mic while the box is empty,
+  // send once there is something to send, a stop control while listening. It renders on every
+  // atEnd composer but SHOWS only under html.can-dictate, which js/dictation.js sets once the
+  // native shell confirms speech recognition can actually run here; on the web, and on a binary
+  // built before the speech module, it stays display:none and the box is exactly what it was.
+  // js/dictation.js owns the taps (one delegated listener), so no screen wires anything.
+  const micEl = dictate
+    ? `<button type="button" class="cmp-mic" aria-label="Dictate a message" aria-pressed="false">${icon('mic', 19)}<span class="cmp-mic-stop" aria-hidden="true"></span></button>`
+    : '';
   const idAttr = inputId ? ` id="${inputId}"` : '';
   const common = ` placeholder="${esc(placeholder)}" aria-label="${esc(inputLabel)}"${autocompleteOff ? ' autocomplete="off"' : ''}`;
   const fieldEl = atEnd
@@ -705,6 +715,7 @@ export function composer({
     <div class="field">
       ${fieldEl}
       ${aiEl}
+      ${micEl}
       ${sendEl}
     </div>
   </div>`;

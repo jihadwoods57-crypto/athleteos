@@ -111,8 +111,10 @@ export const WAKEUP_SHIFT = NIGHT_SHIFT;
 /** The most sleep can carry: the same whole night budget, on a day nothing shares it. */
 export const SLEEP_SHIFT = NIGHT_SHIFT;
 
-/** Per-component ceiling, mirroring the 0193 evidence-ceiling slots. NOTHING may exceed these. */
-export const WEIGHT_CAPS = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: WAKEUP_SHIFT, sleep: SLEEP_SHIFT };
+/** Per-component ceiling, mirroring the 0193 evidence-ceiling slots. NOTHING may exceed these.
+ *  `arrival` (the coach-assigned location check, 2026-09-23) shares the SAME night budget as
+ *  wakeup/sleep, so its cap is NIGHT_SHIFT too — never a third slot added on top. */
+export const WEIGHT_CAPS = { nutrition: 0.82, recovery: 0.09, commitment: 0, checkin: 0.09, wakeup: WAKEUP_SHIFT, sleep: SLEEP_SHIFT, arrival: NIGHT_SHIFT };
 /* The wake-up cap is WAKEUP_SHIFT itself, never a literal. scoreIntegrity.ts derives the server's
    ceiling from the live weights and planStyleCaps.test.ts asserts the two are equal, so a cap
    written as an aspiration (0.08 while the shift is still 0) would make the server clamp every
@@ -168,26 +170,24 @@ export function weightsForWakeupDay(profile) {
  */
 export function weightsForAssigned(profile, assigned = {}) {
   const base = weightsFor(null, profile);
-  const n = (assigned.wakeup ? 1 : 0) + (assigned.sleep ? 1 : 0);
-  if (!n || !NIGHT_SHIFT) return { ...base, wakeup: 0, sleep: 0 };
-  // The night's budget is split between whichever of the two the coach actually assigned, so the
-  // total taken from the check-in is NIGHT_SHIFT whether one is on or both are.
+  const parts = ['wakeup', 'sleep', 'arrival'];
+  const n = parts.filter((k) => assigned[k]).length;
+  if (!n || !NIGHT_SHIFT) return { ...base, wakeup: 0, sleep: 0, arrival: 0 };
+  // ONE morning/night budget (NIGHT_SHIFT) split evenly across whatever the coach assigned:
+  // wake-up, sleep standard, arrival (2026-09-23). Taken half from recovery, half from the
+  // check-in, so nutrition's 82 never moves and the day always sums to 1.
   const each = NIGHT_SHIFT / n;
   const half = NIGHT_SHIFT / 2;
-  return {
-    ...base,
-    recovery: base.recovery - half,
-    checkin: base.checkin - half,
-    wakeup: assigned.wakeup ? each : 0,
-    sleep: assigned.sleep ? each : 0,
-  };
+  const out = { ...base, recovery: base.recovery - half, checkin: base.checkin - half };
+  for (const k of parts) out[k] = assigned[k] ? each : 0;
+  return out;
 }
 
 /** True when every component is within its cap AND the mix sums to 1 (within float slop).
  *  Exported so the caps test can sweep every preset and every override permutation. */
 export function weightsWithinCaps(w) {
   if (!w) return false;
-  const keys = ['nutrition', 'recovery', 'commitment', 'checkin', 'wakeup', 'sleep'];
+  const keys = ['nutrition', 'recovery', 'commitment', 'checkin', 'wakeup', 'sleep', 'arrival'];
   let sum = 0;
   for (const k of keys) {
     // An absent slot is 0, not invalid: every persisted mix and every fixture predates `sleep`.

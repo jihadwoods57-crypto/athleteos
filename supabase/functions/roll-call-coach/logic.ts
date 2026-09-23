@@ -8,6 +8,7 @@ export type CoachAction = 'seen' | 'nudge' | 'schedule';
 
 export type CoachFailure =
   | 'malformed' | 'bad_sig' | 'bad_kind' | 'expired'   // credential
+  | 'not_yet'                                          // a window code, early (never reached: a window code is an athlete code, refused as bad_kind first)
   | 'bad_action' | 'flag_off' | 'not_authorized'       // request
   | 'rate_limited' | 'no_instance' | 'db_error';       // outcome
 
@@ -32,6 +33,7 @@ export function httpStatusForCoach(reason: CoachFailure): number {
     case 'malformed':
     case 'bad_kind':
     case 'bad_sig': return 401;
+    case 'not_yet':
     case 'expired': return 410;
     case 'bad_action': return 400;
     case 'flag_off':

@@ -2684,16 +2684,16 @@ function requirementsSection(P, athleteId) {
     ${rc ? `
     <div class="lrow" role="listitem"><div class="lic">${icon('sun', 17)}</div>
       <div class="lm"><div class="lt">${esc(rc.title || 'Roll call')}</div><div class="ls">${rc.starts_min != null ? `${esc(fmtMin(Number(rc.starts_min)))} · ` : ''}${esc(rc.audience_label || 'Everyone')}</div></div></div>
-    ${/* Straight to the composer is what created DUPLICATE roll calls: its draft starts blank
-          unless editWakeup(rule) loaded one, and nothing on this path did. Commitments is the door
-          that resolves the real rule first, and its Edit button is the only caller that ever did
-          it right. */''}
-    <div class="lrow" data-go="coach-commit-manage">
+    ${/* Straight to the old composer is what created DUPLICATE roll calls: its draft started
+          blank unless editWakeup(rule) loaded one. The week strip (roll call rebuilt, 2026-09-23)
+          is addressed by the commitment id, so it can only ever open THIS roll call: move or
+          cancel one morning there, or Edit roll call for the standing time and message. */''}
+    <div class="lrow" data-go="rollcall-week/${esc(rc.commitment_id)}">
       <div class="lic ca-lic-blue">${icon('edit', 17)}</div>
-      <div class="lm"><div class="lt">Change the roll call</div><div class="ls">Time, window, message, alarm</div></div>
+      <div class="lm"><div class="lt">Change the roll call</div><div class="ls">Move or cancel a morning, or change the time</div></div>
       ${icon('chevron', 17)}
     </div>` : `
-    <div class="lrow" data-go="coach-wakeup-new">
+    <div class="lrow" data-go="rollcall-new">
       <div class="lic ca-lic-blue">${icon('plus', 17)}</div>
       <div class="lm"><div class="lt">Set a roll call</div><div class="ls">None scheduled for this ${CD.kind === 'practice' ? 'practice' : 'team'}</div></div>
       ${icon('chevron', 17)}
@@ -3526,13 +3526,18 @@ export const coachMeal = {
       <div class="tm-note" id="rx-note">Press and hold any message to react to it.</div>
     </div>`;
     })()}
-    <div class="chat-dock disc-dock">
+    <div class="chat-dock disc-dock dock-end">
     ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment', attachId: 'cm-attach', aiId: 'cm-ai', atEnd: true })}
     <div class="composer-attach-pending" id="cm-attach-pending" hidden></div>
-    <div id="cm-note" style="font-size:12.5px;font-weight:600;color:var(--red-bright);margin:6px 2px 0;min-height:16px"></div>
+    <div id="cm-note" class="cmp-note cmp-err"></div>
     </div>
     </section>
-
+    ${/* Private notes sit AFTER the discussion (fix round 1, 2026-09-23). Inside it, the sticky
+          comment bar's range covered them, and the private-note box the coach was typing in sat
+          under that bar. Out here the bar's sticky range ends above them. They are hidden unless
+          there are notes or the coach opened the box, so the comment bar is still the last thing
+          on the screen in the ordinary case; .cm-after gives them breathing room at the edge. */''}
+    <div class="cm-after">
     ${(() => {
       // Private notes (0068): coach-only margin notes the athlete NEVER sees (RLS-enforced).
       const notes = Array.isArray(MC.comments) ? privateNotes(MC.comments) : [];
@@ -3547,7 +3552,7 @@ export const coachMeal = {
         ${composer({ inputId: 'cm-note-input', sendId: 'cm-note-send', placeholder: 'Private note. The athlete never sees this…', sendLabel: 'Save note', sendIcon: 'lock', sendStyle: 'background:linear-gradient(150deg, var(--purple), var(--purple-deep))' })}
       </div>`;
     })()}
-    <div style="height:10px"></div>
+    </div>
     </div>`;
   },
   mount(root, { sub }) {

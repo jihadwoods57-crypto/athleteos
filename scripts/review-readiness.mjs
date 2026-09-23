@@ -187,7 +187,11 @@ await guard('app config', HARD, async () => {
   const plist = cfg.ios?.infoPlist || {};
   check('no location purpose strings or background mode (2.5.4)', !Object.keys(plist).some((k) => /Location/.test(k)) && !(plist.UIBackgroundModes || []).includes('location'), 'clean');
   const perms = cfg.android?.permissions || [];
-  check('no leftover location or microphone permissions', !perms.some((p) => /LOCATION|RECORD_AUDIO/.test(p)), perms.length ? perms.map((p) => p.replace('android.permission.', '')).join(', ') : 'none', SOFT);
+  // RECORD_AUDIO is expected since 2026-09-23 (dictation; added by the expo-speech-recognition
+  // plugin, not listed here), so only location is still checked in this list.
+  check('no leftover location permissions', !perms.some((p) => /LOCATION/.test(p)), perms.length ? perms.map((p) => p.replace('android.permission.', '')).join(', ') : 'none', SOFT);
+  const mic = String(plist.NSMicrophoneUsageDescription || '');
+  check('microphone purpose string is the real one (5.1.1)', !!mic && !/PRODUCT_NAME/.test(mic) && /tap the mic in a chat/i.test(mic), mic ? 'dictation' : 'missing');
   check('camera priming button says Continue (5.1.1(iv))', /data-act="primeCamera"[^>]*>Continue</.test(readFileSync(join(ROOT, 'proto/redesign-2026-07/js/screens/camera.js'), 'utf8')), 'camera.js');
   check('assets/proto.zip is committed (the OTA ships it)', existsSync(join(ROOT, 'assets/proto.zip')), 'present');
 });

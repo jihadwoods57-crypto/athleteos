@@ -120,6 +120,16 @@ describe('sending', () => {
     expect(h.authorization).toMatch(/^bearer eyJ/);
   });
 
+  it('passes a count-only priority (5) through to the header', async () => {
+    const calls: Array<{ init: RequestInit }> = [];
+    const fake = (async (_url: string, init: RequestInit) => {
+      calls.push({ init });
+      return new Response('', { status: 200 });
+    }) as unknown as typeof fetch;
+    await new ApnsClient(cfg, undefined, fake).send('DEADBEEF', payload, Date.now(), 5);
+    expect((calls[0].init.headers as Record<string, string>)['apns-priority']).toBe('5');
+  });
+
   it('uses the sandbox host only when told to', async () => {
     const fake = (async () => new Response('', { status: 200 })) as unknown as typeof fetch;
     expect(new ApnsClient({ ...cfg, sandbox: true }, undefined, fake).host).toBe(APNS_HOST_SANDBOX);

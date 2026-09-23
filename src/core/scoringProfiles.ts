@@ -35,6 +35,10 @@ export interface ProfileWeights {
    *  existing row, fixture and persisted mix stays valid unchanged; absent reads as 0 everywhere.
    *  Per-day for the same reason wakeup is, and currently worth nothing: see SLEEP_SHIFT. */
   sleep?: number;
+  /** The coach-assigned arrival (optional location check). Optional for the same grandfathering
+   *  reason sleep is. Per-day, shares the SAME night budget as wakeup/sleep (NIGHT_SHIFT) rather
+   *  than taking a slot of its own — see weightsForAssigned (2026-09-23). */
+  arrival?: number;
 }
 
 /** Headline mix per profile — score v2. MUST equal proto plan-style.js PROFILE_WEIGHTS;
@@ -106,22 +110,20 @@ export function weightsForWakeupDay(profile: ScoringProfile): ProfileWeights {
  */
 export function weightsForAssigned(
   profile: ScoringProfile,
-  assigned: { wakeup?: boolean; sleep?: boolean } = {},
+  assigned: { wakeup?: boolean; sleep?: boolean; arrival?: boolean } = {},
 ): ProfileWeights {
   const base = PROFILE_WEIGHTS[profile] ?? PROFILE_WEIGHTS.athlete;
-  const n = (assigned.wakeup ? 1 : 0) + (assigned.sleep ? 1 : 0);
-  if (!n || !NIGHT_SHIFT) return { ...base, wakeup: 0, sleep: 0 };
-  // The night's budget is split between whichever of the two the coach actually assigned, so the
-  // total taken from the check-in is NIGHT_SHIFT whether one is on or both are.
+  const parts: (keyof typeof assigned)[] = ['wakeup', 'sleep', 'arrival'];
+  const n = parts.filter((k) => assigned[k]).length;
+  if (!n || !NIGHT_SHIFT) return { ...base, wakeup: 0, sleep: 0, arrival: 0 };
+  // ONE morning/night budget (NIGHT_SHIFT) split evenly across whatever the coach assigned:
+  // wake-up, sleep standard, arrival (2026-09-23). Taken half from recovery, half from the
+  // check-in, so nutrition's 82 never moves and the day always sums to 1.
   const each = NIGHT_SHIFT / n;
   const half = NIGHT_SHIFT / 2;
-  return {
-    ...base,
-    recovery: base.recovery - half,
-    checkin: base.checkin - half,
-    wakeup: assigned.wakeup ? each : 0,
-    sleep: assigned.sleep ? each : 0,
-  };
+  const out: ProfileWeights = { ...base, recovery: base.recovery - half, checkin: base.checkin - half };
+  for (const k of parts) out[k] = assigned[k] ? each : 0;
+  return out;
 }
 
 /** Map a user's GOAL to the platform-owned scoring profile. A solo client never gets a coach to

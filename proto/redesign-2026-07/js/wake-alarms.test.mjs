@@ -9,7 +9,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { alarmsFor, alarmTitle, alarmButtonLabel, MAX_ALARMS, HORIZON_DAYS, DEFAULT_BUTTON } from './wake-alarms.js';
+import { alarmsFor, alarmTitle, alarmButtonLabel, MAX_ALARMS, HORIZON_DAYS, DEFAULT_BUTTON, withAckCodes, fetchAckCodes, _resetAckCodes, ACK_CODES_TTL_MS } from './wake-alarms.js';
 
 const NOW = Date.parse('2026-09-11T12:00:00Z');
 const inHours = (h) => new Date(NOW + h * 3600000).toISOString();
@@ -147,4 +147,139 @@ test('a coach who named no button gets the app own roll-call word', () => {
 test('the button label is bounded, because iOS truncates it without saying so', () => {
   // 24 is the coach composer own maxlength; this is the backstop for anything that gets past it.
   assert.equal(alarmButtonLabel({ action_label: 'y'.repeat(200) }).length, 24);
+});
+
+/* The window codes (roll-call-ack's mint). Alarms are armed days ahead, so the code that lets Stop
+   check in with the app closed has to be fetched for the week and handed to each alarm. */
+const MINT = {
+  ok: true,
+  ack_url: 'https://x.supabase.co/functions/v1/roll-call-ack',
+  codes: [
+    { instance_id: 'i1', code: 'c0de-1', opens_at: '2026-09-12T05:50:00Z', closes_at: '2026-09-12T06:30:00Z' },
+    { instance_id: 'i9', code: 'c0de-9', opens_at: '2026-09-13T05:50:00Z', closes_at: '2026-09-13T06:30:00Z' },
+  ],
+};
+
+test('each alarm carries its own window code and the URL to post it to', () => {
+  const alarms = alarmsFor([row(), row({ instance_id: 'i2', starts_at: inHours(40) })], NOW);
+  const out = withAckCodes(alarms, MINT);
+  assert.equal(out[0].ackCode, 'c0de-1');
+  assert.equal(out[0].ackUrl, MINT.ack_url);
+  // No code minted for i2: it still arms, and the app drains the tap instead.
+  assert.equal(out[1].ackCode, undefined);
+  assert.equal(out[1].ackUrl, undefined);
+});
+
+test('a code minted for the OLD window is never attached after the coach moved the morning (M1)', () => {
+  // The coach moved i1 from 6:00 to 7:15 inside the mint's 30-minute cache: the cached code's
+  // window (5:50 to 6:30) no longer brackets the alarm, so the alarm arms without it.
+  const moved = alarmsFor([row({ starts_at: new Date(Date.parse('2026-09-12T07:15:00Z')).toISOString() })], NOW);
+  const out = withAckCodes(moved, MINT);
+  assert.equal(out[0].ackCode, undefined);
+  assert.equal(out[0].ackUrl, undefined);
+  // A mint from before windows were carried still attaches, as before.
+  const old = { ...MINT, codes: [{ instance_id: 'i1', code: 'c0de-1' }] };
+  assert.equal(withAckCodes(moved, old)[0].ackCode, 'c0de-1');
+});
+
+test('a failed or odd mint arms every alarm exactly as before', () => {
+  const alarms = alarmsFor([row()], NOW);
+  for (const bad of [null, undefined, { ok: false }, { ok: true, ack_url: 'http://plain/ack', codes: MINT.codes }, { ok: true, codes: 'x' }]) {
+    const out = withAckCodes(alarms, bad);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].ackCode, undefined);
+    assert.equal(out[0].instanceId, 'i1');
+  }
+});
+
+test('the mint is asked once, with the athlete own session, and cached', async () => {
+  _resetAckCodes();
+  const calls = [];
+  const client = { functions: { invoke: async (name, opts) => { calls.push([name, opts]); return { data: MINT, error: null }; } } };
+  const a = await fetchAckCodes(client, NOW, ['i1']);
+  const b = await fetchAckCodes(client, NOW + 60000, ['i1', 'i9']);
+  assert.deepEqual(calls, [['roll-call-ack', { body: { action: 'codes' } }]]);
+  assert.equal(a, b);
+  // A new instance the cache has never seen asks again.
+  await fetchAckCodes(client, NOW + 120000, ['i-new']);
+  assert.equal(calls.length, 2);
+  // After the TTL, it asks again even for known ids.
+  await fetchAckCodes(client, NOW + 120000 + ACK_CODES_TTL_MS, ['i1']);
+  assert.equal(calls.length, 3);
+});
+
+test('a mint that fails costs nothing but the code', async () => {
+  _resetAckCodes();
+  const client = { functions: { invoke: async () => ({ data: null, error: { message: '401' } }) } };
+  assert.equal(await fetchAckCodes(client, NOW), null);
+  _resetAckCodes();
+  assert.equal(await fetchAckCodes(null, NOW), null);
+  _resetAckCodes();
+  const throwing = { functions: { invoke: async () => { throw new Error('offline'); } } };
+  assert.equal(await fetchAckCodes(throwing, NOW), null);
+});
+
+test('a failed mint is cached too, so a signed-out phone does not ask on every foreground beat', async () => {
+  _resetAckCodes();
+  let n = 0;
+  const client = { functions: { invoke: async () => { n++; return { data: null, error: { message: '401' } }; } } };
+  assert.equal(await fetchAckCodes(client, NOW, ['i1']), null);
+  assert.equal(await fetchAckCodes(client, NOW + 60000, ['i1']), null);
+  assert.equal(await fetchAckCodes(client, NOW + 29 * 60000, ['i1']), null);
+  assert.equal(n, 1);
+  await fetchAckCodes(client, NOW + ACK_CODES_TTL_MS, ['i1']);
+  assert.equal(n, 2, 'the TTL still ends the negative cache');
+});
+
+test('a morning the mint had no code for is not re-asked every beat', async () => {
+  _resetAckCodes();
+  let n = 0;
+  const client = { functions: { invoke: async () => { n++; return { data: MINT, error: null }; } } };
+  await fetchAckCodes(client, NOW, ['i1', 'i2']); // i2 has no code in MINT
+  const again = await fetchAckCodes(client, NOW + 60000, ['i1', 'i2']);
+  assert.equal(n, 1);
+  assert.equal(again, MINT);
+});
+
+test('signing in clears a cached failure, so the athlete gets codes at once, not in 30 minutes', async () => {
+  _resetAckCodes();
+  let n = 0;
+  let listener = null;
+  let signedIn = false;
+  const client = {
+    auth: { onAuthStateChange: (cb) => { listener = cb; return { data: { subscription: { unsubscribe() {} } } }; } },
+    functions: { invoke: async () => { n++; return signedIn ? { data: MINT, error: null } : { data: null, error: { message: '401' } }; } },
+  };
+  assert.equal(await fetchAckCodes(client, NOW, ['i1']), null); // signed out: the 401 is cached
+  assert.equal(n, 1);
+  assert.equal(typeof listener, 'function', 'the cache watches the session');
+  signedIn = true;
+  listener('SIGNED_IN', {});
+  assert.equal(await fetchAckCodes(client, NOW + 60000, ['i1']), MINT);
+  assert.equal(n, 2);
+  // supabase-js re-emits SIGNED_IN on a return to the foreground: good codes are NOT thrown away.
+  listener('SIGNED_IN', {});
+  assert.equal(await fetchAckCodes(client, NOW + 120000, ['i1']), MINT);
+  assert.equal(n, 2);
+  // Listening once per client, however many syncs run.
+  let registrations = 0;
+  const c2 = { auth: { onAuthStateChange: () => { registrations++; } }, functions: client.functions };
+  _resetAckCodes();
+  await fetchAckCodes(c2, NOW, ['i1']);
+  await fetchAckCodes(c2, NOW + ACK_CODES_TTL_MS, ['i1']);
+  assert.equal(registrations, 1);
+});
+
+test('signing out clears the cache too, so the next athlete on this phone never gets the last one codes', async () => {
+  _resetAckCodes();
+  let listener = null;
+  let n = 0;
+  const client = {
+    auth: { onAuthStateChange: (cb) => { listener = cb; } },
+    functions: { invoke: async () => { n++; return { data: MINT, error: null }; } },
+  };
+  await fetchAckCodes(client, NOW, ['i1']);
+  listener('SIGNED_OUT', null);
+  await fetchAckCodes(client, NOW + 1000, ['i1']);
+  assert.equal(n, 2);
 });

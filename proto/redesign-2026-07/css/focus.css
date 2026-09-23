@@ -156,7 +156,7 @@
   .co-chip, .btn.ghost, .btn.sm, .bk, .ai-full-toggle, .hd-avatar,
   .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .mt-retry,
   .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button, .id-act,
-  .composer button.send, .composer .ai-ask, .composer .attach,
+  .composer button.send, .composer .ai-ask, .composer .attach, .composer .cmp-mic,
   .ev-x, .cm-rm, .std-chip, .cp-name,
   .lm-more, .quote.rq, .rc-x, .jump-latest, .out-retry, .nct-meal
 ) {
@@ -166,7 +166,7 @@
   .co-chip, .btn.ghost, .btn.sm, .bk, .ai-full-toggle, .hd-avatar,
   .si-forgot, .si-link, .chip, .pw-seg, .mq-skip, .markread, .lnk, .mt-retry,
   .tour-skip, .est-note .link, .fr-ok, .iv-x, .composer-attach-pending button, .id-act,
-  .composer button.send, .composer .ai-ask, .composer .attach,
+  .composer button.send, .composer .ai-ask, .composer .attach, .composer .cmp-mic,
   .ev-x, .cm-rm, .std-chip, .cp-name,
   .lm-more, .quote.rq, .rc-x, .jump-latest, .out-retry, .nct-meal
 )::after {

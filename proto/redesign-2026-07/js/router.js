@@ -17,6 +17,11 @@ import { initGestures, gestureActive, afterGesture } from './gestures.js';
 // search box and a profile field, and #device outlives every render() so this is wired once here
 // rather than in seven mounts. Inert until something focusable is actually focused.
 initKeyboard();
+// Same shape for the composer's microphone (2026-09-23): one set of delegated listeners for every
+// conversation box, and html.can-dictate only once the native shell says recognition can run.
+// Loaded lazily (lint:boot): nothing needs it before the first frame, and the mic stays hidden
+// until it has asked the native side anyway.
+import('./dictation.js').then((m) => m.initDictation()).catch(() => { /* no mic, the box still works */ });
 // The wide-screen tier (iPad): html[data-layout] is set here once and kept current on rotate and
 // Split View resize. A tier change re-lays the shell out; render() reads it for the panes.
 initLayout(() => { if (window.__render) window.__render(); });
@@ -302,6 +307,7 @@ const WRITE_ROUTES = {
   'coach-plan-set': 'changing the standard', 'coach-standards-manage': 'setting an activity standard',
   'coach-commit-edit': 'scheduling a commitment', 'coach-commit-manage': 'scheduling a commitment',
   'coach-wakeup-new': 'a roll call', 'coach-wakeup-edit': 'a roll call',
+  'rollcall-new': 'a roll call',
   'pass-grant': 'granting a pass', 'team-diet': 'the team diet tools',
 };
 // Every role's tab-root routes → their tab id (role guards elsewhere keep roles apart).
@@ -392,7 +398,10 @@ function currentScroll() { const vp = document.getElementById('viewport'); retur
  * targets; return ±1 where it should have returned 0 and a real detail screen stops being
  * reachable by Back at all. Neither throws, and neither shows up in a screenshot. */
 export function lateralStep(curRoute, curSub, target) {
-  const [root, sub] = target.split('/');
+  // The whole rest of the path is the sub: the roll-call board's siblings are `<id>` and
+  // `<id>/day`, and reading only the first segment made Team -> Your day a push.
+  const [root, ...rest] = target.split('/');
+  const sub = rest.join('/');
   if (root !== curRoute || !sub) return 0;
   const mod = modOf(curRoute);
   const subs = mod && Array.isArray(mod.subs) ? mod.subs : null;
@@ -701,6 +710,20 @@ function render(opts) {
     && (mod.nav || 'athlete') === 'athlete' && !mod.anyRole && !AUTH_ROUTES.includes(route)) {
     location.hash = '#' + routeForRole(RT.authRole);
     return;
+  }
+  /* A RETIRED ROUTE HANDS OVER BEFORE IT PAINTS (roll call rebuilt, 2026-09-23). A module may
+     declare `redirect({ sub })`: the route it has been replaced by, or null to render itself.
+     Asked here, before a byte of the old screen reaches #device, so an old deep link (a push from
+     last week, a restored hash) lands on the new screen with no frame of the retired one. Replace,
+     not push: Back from the new screen goes where the athlete came from, never to the alias.
+     NAV_DIR is still unconsumed, so the arrival keeps the direction of the tap that caused it. */
+  if (!denied && typeof mod.redirect === 'function') {
+    let to = null;
+    try { to = mod.redirect({ sub }); } catch { to = null; }
+    if (to && to !== full) {
+      try { location.replace('#' + to); } catch { location.hash = '#' + to; }
+      return;
+    }
   }
   // A tab ROOT stamps the active tab (covers boot deep-links and role switches); every other
   // screen inherits the ORIGIN tab from the stack, so a detail opened from Profile keeps
@@ -1085,12 +1108,50 @@ window.__render = function () {
    swallowed if the user is already typing, leaving picker options or a name one tap late — the
    screen's next interaction repaints from the now-warm cache. What the guard can NOT mask is the
    hang class this listener exists for: a screen stuck on a skeleton or a bookless state has no
-   focusable field, so its arrival always paints. */
+   focusable field, so its arrival always paints.
+   Second guard (2026-09-23, revised after review): no repaint while a `.sheet-scrim` sheet is
+   open, DEFERRED rather than dropped. The roll call board's Nudge/Override sheet (also the
+   coach-athlete More sheet, the week-day sheet) is appended outside the normal render tree and
+   can warm the book on first open (`responseIdFor`) when the coach lands straight on a screen
+   with no roster load yet in flight — the sheet's own fetch is exactly what fires this event.
+   Without the guard, `window.__render()` tears down and rebuilds the whole screen via
+   `__screenCleanup`, which unconditionally closes any open sheet, so the coach saw Nudge/Override
+   for one frame and then nothing, on precisely the athletes it exists for (not-yet-up, missed).
+   The guard checks `.sheet-scrim` specifically, not every `overlayOpen()` marker: the tour,
+   image viewer, members sheet and tapback picker live at body level, outside `#device`, so a
+   repaint here never touches them either way — dropping their arrival bought nothing, only lost
+   it. A dropped arrival is remembered (`pendingBookArrival`) and replayed the moment the last
+   `.sheet-scrim` leaves the document (watched by a scoped MutationObserver, armed only while a
+   replay is owed), so a coach who closes the sheet still lands on a screen that has caught up —
+   `CD.kind` labels, the `rosterLoaded` dead-link guard, and the More template's rows are never
+   stuck on pre-arrival state.
+   First guard unchanged: no repaint while the user is typing in a field. A rebuild would eat any
+   text a screen only captures on its own control taps (the commitment composer), and data
+   arrival is a courtesy paint — typing wins. The cost is real and accepted: a form screen whose
+   fields render before the book lands (the commitment composer, pass-grant) can have its one
+   arrival repaint swallowed if the user is already typing, leaving picker options or a name one
+   tap late — the screen's next interaction repaints from the now-warm cache. What that guard can
+   NOT mask is the hang class this listener exists for: a screen stuck on a skeleton or a bookless
+   state has no focusable field, so its arrival always paints (or, if a sheet is open over it,
+   paints as soon as the sheet closes). */
+let pendingBookArrival = false;
+let bookArrivalObserver = null;
+function replayBookArrivalWhenSheetCloses() {
+  if (bookArrivalObserver) return;
+  bookArrivalObserver = new MutationObserver(() => {
+    if (document.querySelector('.sheet-scrim')) return;
+    bookArrivalObserver.disconnect();
+    bookArrivalObserver = null;
+    if (pendingBookArrival) { pendingBookArrival = false; window.__render(); }
+  });
+  bookArrivalObserver.observe(document.body, { childList: true, subtree: true });
+}
 window.addEventListener('onstd:book-arrival', () => {
   const mod = modOf(parse().route);
   if (!mod || (mod.nav !== 'coach' && mod.nav !== 'trainer' && mod.nav !== 'operator')) return;
   const el = document.activeElement;
   if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && el.closest && el.closest('#device')) return;
+  if (document.querySelector('.sheet-scrim')) { pendingBookArrival = true; replayBookArrivalWhenSheetCloses(); return; }
   window.__render();
 });
 
@@ -1194,7 +1255,12 @@ async function boot() {
   // No live session on boot → drop any stale user-scoped state. A persisted RT.userId would
   // otherwise let the render gate paint an authed shell against cached data until the next data
   // call. Same cleanup SIGNED_OUT uses; keeps pending-onboarding scratch. (stress-test R1)
-  if (!authed && RT.userId) { try { act._wipeUserScopedState({ keepPendingOb: true }); } catch { /* never block boot */ } }
+  if (!authed && RT.userId) {
+    // The session is gone, so are its geofences (a region left armed would report arrivals for an
+    // account this phone is no longer signed in to). Not awaited: boot never waits on the bridge.
+    try { void act._disarmLocation(); } catch { /* never block boot */ }
+    try { act._wipeUserScopedState({ keepPendingOb: true }); } catch { /* never block boot */ }
+  }
   const { route, sub } = parse();
   if (!authed && !AUTH_ROUTES.includes(route)) { stashInviteCode(route, sub); location.hash = '#welcome'; return; } // hashchange → render
   if (authed && (route === 'welcome' || !location.hash)) { location.hash = '#' + routeForRole(RT.authRole || 'athlete'); return; }

@@ -23,12 +23,17 @@ import {
   isHealthAvailable, healthConnected, connectHealth, readRecoverySample,
   readActivity, observeActivity, type HealthScope,
 } from '../lib/health';
+import {
+  isLocationAvailable, getPermissionState, requestPermission,
+  refreshGeofences, disarmAll, checkArrival, REPORTS_PRESENCE, walkInAllowed,
+} from '../lib/location';
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { syncWakeAlarms, wakeAlarmState, cancelWakeAlarmFor } from '../lib/notify/wakeAlarms';
-import { drainLiveActivityTaps } from '../lib/notify/rollcall';
-import { endLiveActivity } from '../../modules/rollcall-live';
+import { drainLiveActivityTaps, settleLiveCard } from '../lib/notify/rollcall';
 import { getPushToken } from '../lib/notify';
 import { getFlag } from '../store/flagsStore';
+import { requestMapPick } from '../lib/maps/pickRequest';
+import { dictationStatus, startDictation, stopDictation, abortDictation, type DictationEvent } from '../lib/voice/nativeSpeech';
 
 type Ref = React.RefObject<WebView | null>;
 
@@ -72,11 +77,34 @@ export type BridgeMessage =
   | { type: 'HEALTH_CONNECT_SCOPED'; id: number; scopes?: string[] }
   | { type: 'HEALTH_READ_ACTIVITY'; id: number; from?: string; to?: string }
   | { type: 'HEALTH_OBSERVE_ACTIVITY'; id: number }
-  // Verified Commitments (0139). Note what is absent: no message carries a coordinate in either
-  // The ONE place a coordinate legitimately crosses this bridge: a COACH standing at their own
-  // facility, deliberately capturing it as a scheduled place. That is the coach recording a
-  // location they chose, not the app observing where a person goes — the opposite of what the
-  // athlete-side messages above are careful never to do.
+  // Verified Commitments (0139), restored 2026-09-23 and verified by DISTANCE on the server (0242).
+  // No LOCATION_* message carries the device's position across THIS bridge: LOCATION_CHECK takes
+  // one reading natively, sends it to verify_arrival_at, and hands the proto back the verdict
+  // ({ within, reason, distance_m }). The coach's old "use where I'm standing" (LOCATION_PLACE) is
+  // not restored: coaches pick places on a map.
+  | { type: 'LOCATION_AVAILABLE'; id: number }
+  | { type: 'LOCATION_PERMISSION'; id: number; background?: boolean }
+  | { type: 'LOCATION_ARM'; id: number }
+  | { type: 'LOCATION_DISARM'; id: number }
+  | { type: 'LOCATION_CHECK'; id: number; instanceId?: string }
+  // The athlete said no to location earlier: iOS never shows the prompt again, so the only way
+  // back is the app's own page in Settings (final fix round, item 2).
+  | { type: 'LOCATION_SETTINGS' }
+  // The coach's map (roll call rebuilt, 2026-09-23). Opens the native full-screen place picker
+  // and replies { place: { name, address, lat, lng, radius_m } }, or { place: null } on Cancel.
+  // The only coordinate that crosses the bridge is the one the coach chose on that map (never the
+  // device's own position), and nothing on either side logs it. One at a time: a second request while the map is open is refused.
+  | { type: 'MAP_PICK'; id: number; initial?: { lat?: number; lng?: number; radius_m?: number; name?: string } }
+  // Dictation in the chat composer (2026-09-23). AVAILABLE answers { available, onDevice,
+  // permission } and never prompts; START prompts the first time and resolves { ok, onDevice } or
+  // { ok:false, code }; the words then stream to the page through window.__onDictation(event)
+  // until an { type:'end' }. STOP lets the recognizer deliver its last words; ABORT drops them.
+  // Only the athlete's own words cross, only to the page, and nothing on either side logs them.
+  | { type: 'DICTATION_AVAILABLE'; id: number }
+  // `sid` is the page's name for the session; every event carries it back (fix round 1).
+  | { type: 'DICTATION_START'; id: number; lang?: string; sid?: string }
+  | { type: 'DICTATION_STOP'; sid?: string }
+  | { type: 'DICTATION_ABORT'; sid?: string }
   | { __log: { level: string; msg: string } };
 
 /** Serialize a value for safe injection into `window.__onNativeResult(id, <here>)`. */
@@ -92,6 +120,11 @@ function safeJson(value: unknown): string {
   return out;
 }
 
+/** Push one dictation event into the page (window.__onDictation, js/dictation.js). */
+function dictationEvent(ref: Ref, e: DictationEvent) {
+  ref.current?.injectJavaScript(`window.__onDictation && window.__onDictation(${safeJson(e)}); true;`);
+}
+
 function resolve(ref: Ref, id: number, value: unknown, error?: string) {
   const js = `window.__onNativeResult && window.__onNativeResult(${id}, ${safeJson(value)}, ${safeJson(error ?? null)}); true;`;
   ref.current?.injectJavaScript(js);
@@ -103,6 +136,10 @@ function resolve(ref: Ref, id: number, value: unknown, error?: string) {
 // keys the proto legitimately owns are served: the supabase session (`sb-<ref>-auth-token`
 // + its chunk suffixes) and the app's own `onstd-*` flags (biolock). Everything else is
 // refused with an explicit error.
+/** Every SECURE_SET write. Same option as src/lib/supabase/secureStorage.ts, the other writer of
+ *  the session keys. keychainAccessible is iOS-only; Android ignores it. */
+const SECURE_WRITE_OPTS: SecureStore.SecureStoreOptions = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK };
+
 function secureKeyAllowed(key: unknown): key is string {
   return typeof key === 'string' && (key.startsWith('sb-') || key.startsWith('onstd-'));
 }
@@ -193,7 +230,14 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
     case 'SECURE_SET':
       if (!secureKeyAllowed(msg.key)) return denySecureKey(ref, msg.id);
       try {
-        await SecureStore.setItemAsync(msg.key, msg.value);
+        // AFTER_FIRST_UNLOCK, not the iOS default (WHEN_UNLOCKED): the proto writes the Supabase
+        // session through here, and the walk-in check-in reads it from a background region wake
+        // with the phone LOCKED. The default class is unreadable then, so the arrival RPC went out
+        // anonymous and recorded nothing. The proto deletes each item before it writes it, and
+        // expo-secure-store applies the class on ADD, so every refresh moves the session over.
+        // Applies to every allowed key (sb-*, onstd-*): none needs WHEN_UNLOCKED; the one other
+        // secret-ish item, onstd-biolock, is a flag read at launch in the foreground.
+        await SecureStore.setItemAsync(msg.key, msg.value, SECURE_WRITE_OPTS);
         resolve(ref, msg.id, true);
       } catch (e) {
         resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
@@ -246,7 +290,11 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
          athlete who tapped "I'm up" in the app watched the Live Activity keep counting down at
          them until iOS timed it out. Fire-and-forget: the ack is already recorded server-side, and
          a device with no Live Activity (Android, older iOS, push-to-start never fired) no-ops. */
-      try { await endLiveActivity(String(msg.instanceId || '')); } catch { /* best effort */ }
+      //
+      // Since 2026-09-23 the card is not simply ended: the server turns it to the answered card
+      // ("You're up · 4th") through roll-call-ack's refresh route, and ends it at the close. It is
+      // still ended HERE on an older binary, or when the refresh fails (an answer queued offline).
+      try { await settleLiveCard(String(msg.instanceId || '')); } catch { /* best effort */ }
       // And the alarm for it must not ring. An answer queued offline at 5:58 followed by the 6:00
       // alarm for the same roll call is the one "why is it still going off" nobody forgives.
       try { cancelWakeAlarmFor(String(msg.instanceId || '')); } catch { /* best effort */ }
@@ -344,6 +392,96 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
       } catch (e) {
         resolve(ref, msg.id, false, String((e as Error)?.message ?? e));
       }
+      return true;
+    case 'LOCATION_AVAILABLE':
+      // False on any binary built without expo-location — an OTA update can land on such a build,
+      // and the arrival affordance simply stays hidden rather than throwing.
+      try {
+        // `presence` (0208) is ABSENT on every binary built before region exits were reported,
+        // which is exactly what makes it usable as a capability probe: the proto reads a missing
+        // field as false and stops claiming a minimum-stay is enforced. Never widen this to a
+        // truthy default.
+        // `walkIn` false = the WALK_IN switch has walk-in off on this platform: the proto then
+        // never offers "Always" and shows "I'm here" only.
+        resolve(ref, msg.id, {
+          available: isLocationAvailable(),
+          state: await getPermissionState(),
+          presence: REPORTS_PRESENCE,
+          walkIn: walkInAllowed(),
+        });
+      } catch (e) {
+        resolve(ref, msg.id, { available: false, state: 'unavailable', presence: false, walkIn: false }, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'LOCATION_PERMISSION':
+      // Foreground first, background only when the athlete has seen the explainer and asked for it.
+      try {
+        resolve(ref, msg.id, await requestPermission(!!msg.background));
+      } catch (e) {
+        resolve(ref, msg.id, 'unavailable', String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'LOCATION_ARM':
+      // Register geofences for whatever is inside its window right now. `capped` is surfaced so
+      // the UI can tell the athlete which commitments need a tap instead of leaving them
+      // silently unverified (iOS caps an app at 20 monitored regions).
+      try {
+        resolve(ref, msg.id, await refreshGeofences());
+      } catch (e) {
+        resolve(ref, msg.id, { armed: 0, capped: 0, state: 'unavailable', walkIn: 'unavailable' }, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'LOCATION_DISARM':
+      try {
+        await disarmAll();
+        resolve(ref, msg.id, true);
+      } catch (e) {
+        resolve(ref, msg.id, false, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'LOCATION_SETTINGS':
+      void Linking.openSettings().catch(() => undefined);
+      return true;
+    case 'LOCATION_CHECK':
+      // The "I'm here" tap: one reading, sent natively to verify_arrival_at, which measures the
+      // distance on the server. A NEGATIVE verdict is recorded as 'unverified' with "Not at
+      // <place>", never as 'missed'. The proto gets { within, reason, distance_m } back.
+      try {
+        resolve(ref, msg.id, await checkArrival(String(msg.instanceId || '')));
+      } catch (e) {
+        resolve(ref, msg.id, { within: false, reason: 'Something went wrong', distance_m: null }, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'MAP_PICK':
+      // Errors ('map-unavailable', 'map-busy') still carry { place: null }, so a page that ignores
+      // the error reads it exactly as a Cancel.
+      try {
+        resolve(ref, msg.id, { place: await requestMapPick(msg.initial) });
+      } catch (e) {
+        resolve(ref, msg.id, { place: null }, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'DICTATION_AVAILABLE':
+      // False on any binary built without expo-speech-recognition (an OTA can land on one), and
+      // the proto keeps the mic hidden.
+      try {
+        resolve(ref, msg.id, await dictationStatus());
+      } catch (e) {
+        resolve(ref, msg.id, { available: false, onDevice: false, permission: 'undetermined' }, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'DICTATION_START':
+      try {
+        resolve(ref, msg.id, await startDictation((ev) => dictationEvent(ref, ev), { lang: msg.lang || undefined, sid: msg.sid || undefined }));
+      } catch (e) {
+        resolve(ref, msg.id, { ok: false, code: 'failed' }, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'DICTATION_STOP':
+      stopDictation(msg.sid || undefined);
+      return true;
+    case 'DICTATION_ABORT':
+      abortDictation(msg.sid || undefined);
       return true;
     case 'REVIEW_REQUEST': {
       /* Ask the OS to show its rating prompt. Resolves TRUE only when we actually asked.
@@ -456,6 +594,34 @@ export const BRIDGE_SHIM = `
       connectScoped: function(scopes){ return call('HEALTH_CONNECT_SCOPED', { scopes: Array.isArray(scopes) ? scopes : [] }); },
       readActivity: function(from, to){ return call('HEALTH_READ_ACTIVITY', { from: String(from||''), to: String(to||'') }); },
       observeActivity: function(){ return call('HEALTH_OBSERVE_ACTIVITY', {}); }
+    },
+    // Verified Commitments. check() returns { within, reason, distance_m }: the verdict the server
+    // computed from one reading. No coordinate crosses this boundary in either direction.
+    location: {
+      available: function(){ return call('LOCATION_AVAILABLE', {}); },
+      request: function(background){ return call('LOCATION_PERMISSION', { background: !!background }); },
+      arm: function(){ return call('LOCATION_ARM', {}); },
+      disarm: function(){ return call('LOCATION_DISARM', {}); },
+      check: function(instanceId){ return call('LOCATION_CHECK', { instanceId: String(instanceId||'') }); },
+      settings: function(){ post({ type: 'LOCATION_SETTINGS' }); }
+    },
+    // The coach's map. pick({ lat, lng, radius_m, name }?) resolves the saved place
+    // { name, address, lat, lng, radius_m }, or null when the coach cancels. Rejects only when no
+    // map can open ('map-unavailable') or one is already open ('map-busy').
+    // Dictation (composer upgrade, 2026-09-23). available() never prompts; start() does, the first
+    // time. Words arrive at window.__onDictation({ sid, type:'text', text, final }) until
+    // { sid, type:'end' }; the page drops any sid it has left.
+    dictation: {
+      available: function(){ return call('DICTATION_AVAILABLE', {}); },
+      start: function(lang, sid){ return call('DICTATION_START', { lang: String(lang || ''), sid: String(sid || '') }); },
+      stop: function(sid){ post({ type: 'DICTATION_STOP', sid: String(sid || '') }); },
+      abort: function(sid){ post({ type: 'DICTATION_ABORT', sid: String(sid || '') }); }
+    },
+    maps: {
+      pick: function(initial){
+        return call('MAP_PICK', initial && typeof initial === 'object' ? { initial: initial } : {})
+          .then(function(r){ return r && r.place ? r.place : null; });
+      }
     },
   };
 

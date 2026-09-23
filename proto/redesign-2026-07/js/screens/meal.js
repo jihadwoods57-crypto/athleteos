@@ -1325,7 +1325,7 @@ export const thread = {
   tab: 'home',
   // Founder feedback 2026-07-16: the tab bar + camera FAB covered the composer, and "take
   // another photo" is the wrong primary action on a meal that's already logged. Nav hides
-  // here; the back head and Back Home carry the exits.
+  // here; the back head carries the exit (the header's back control, 2026-09-23).
   hideTabs: true,
   render({ sub }) {
     const slot = sub || MEAL.key || 'dinner';
@@ -1433,10 +1433,10 @@ export const thread = {
     ${/* THE DOCK, scoped to this section (screens.css .disc .chat-dock): sticky to the bottom of
           the screen only while the discussion is on screen, so it rides up to meet you the moment
           the conversation scrolls into view and never covers the plate or the breakdown above. */''}
-    <div class="chat-dock disc-dock">
+    <div class="chat-dock disc-dock dock-end">
     ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: 'Ask about this meal…', sendLabel: 'Send', attachId: 'meal-attach', atEnd: true })}
     <div class="composer-attach-pending" id="meal-attach-pending" hidden></div>
-    <div id="chat-note" style="min-height:18px"></div>
+    <div id="chat-note" class="cmp-note"></div>
     </div>` : ''}
     </section>`;
 
@@ -1486,20 +1486,14 @@ export const thread = {
     // on time", so naming the slot up here too would state it twice on the screen whose own rule
     // is each fact exactly once. The coach could see a name for their athlete's plate and the
     // athlete could not; this is the read side of that fix.
-    // A quiet exit, not a second green CTA (2026-08-06): the meal is already logged — the only
-    // green verdict on this screen is the confirm card at the top. A full-width "Done" in the
-    // log-action color, sitting directly under a send composer, was two primary buttons
-    // competing for the same thumb.
-    // It is LAST again (2026-09-07, founder). It sat above the conversation from 2026-09-03,
-    // because at the bottom the keyboard brought it down onto the keys with the message box
-    // floating a button's height above it. That was the right fix in the wrong place: an exit
-    // belongs at the end, and the keyboard case is handled at its source instead. body.kb-open
-    // (keyboard.js) takes the whole foot away while typing, so what rests on the keys is the
-    // message box and nothing else, which is what Messages does.
-    const backHome = `<div class="meal-foot">
-      <button class="btn ghost meal-back" data-go="home" aria-label="Back to home">${icon('back', 16)} Back to Home</button>
-    </div>`;
-    return `<div class="meal-screen">${backHead(M.dish || M.name, dupFlagged ? 'Duplicate photo' : '', 'home')}${execTop}${next}${photoBlock}${breakdown}${discussion}${backHome}</div>`;
+    // THE EXIT IS THE HEADER'S BACK CONTROL (composer upgrade, 2026-09-23). "Back to Home" sat
+    // under the message box as a full button, so the bottom of this screen was a pill floating
+    // over a grey band with an exit slab beneath it (the founder's screenshot). The 2026-09-07
+    // ruling put the exit last; the founder's 2026-09-23 ask is that the bottom be ONE flush bar
+    // like Messages. So the way out is the back chevron at the top of the page (backHead below,
+    // sticky, falling back to Home), the same as every other pushed screen, and the message box
+    // is the last thing on the screen, flush with its bottom edge (.chat-dock.dock-end).
+    return `<div class="meal-screen">${backHead(M.dish || M.name, dupFlagged ? 'Duplicate photo' : '', 'home')}${execTop}${next}${photoBlock}${breakdown}${discussion}</div>`;
   },
 
   async mount(root, { sub }) {

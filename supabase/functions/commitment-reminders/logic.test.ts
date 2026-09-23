@@ -142,3 +142,68 @@ describe('codeDeadlineMs', () => {
     expect(codeDeadlineMs({ closes_at: null, respond_by_at: null }, 42)).toBe(42);
   });
 });
+
+// ---------------------------------------------------------------- 2026-09-23: the card opens at the open
+import { cardPlanAtRung } from './logic';
+describe('cardPlanAtRung: who may START a card at a rung', () => {
+  const initial = { ...base, fires_at: '2026-09-01T10:00:00Z', offset_min: 5 };
+  const reminder = { ...base, fires_at: '2026-09-01T10:03:00Z', offset_min: 2 };
+  test('the start-time rung updates a card the open already started, and starts none of its own', () => {
+    expect(cardPlanAtRung(initial, true)).toEqual({ phase: 'initial', allowStart: false });
+  });
+  test('the start-time rung may still start a card when the open never ran (made at 5:55)', () => {
+    expect(cardPlanAtRung(initial, false)).toEqual({ phase: 'initial', allowStart: true });
+  });
+  test('a follow-up rung never starts a card', () => {
+    expect(cardPlanAtRung(reminder, false)).toEqual({ phase: 'reminder', allowStart: false });
+  });
+});
+
+// ------------------------------------------------ fix round 1 (review round 1, Minor #2): the
+// starters/updaters × loud/quiet fan-out, extracted so it is tested directly.
+import { splitStartGroups } from './logic';
+describe('splitStartGroups: the start-time rung fan-out', () => {
+  const armed = new Set(['b']);
+  const isArmed = (id: string) => armed.has(id);
+
+  test('a fresh start goes only to the athlete just claimed; everyone else is update-only', () => {
+    const groups = splitStartGroups(['a', 'b', 'c'], isArmed, new Set(['a']));
+    expect(groups).toEqual([
+      { ids: ['a'], sound: 'default', allowStart: true },
+      { ids: ['c'], sound: 'default', allowStart: false },
+      { ids: ['b'], sound: '', allowStart: false },
+    ]);
+  });
+
+  test('an armed athlete who was just claimed still gets the quiet channel, and still starts', () => {
+    const groups = splitStartGroups(['b'], isArmed, new Set(['b']));
+    expect(groups).toEqual([{ ids: ['b'], sound: '', allowStart: true }]);
+  });
+
+  test('nobody just claimed: every group is update-only, none omitted for being empty', () => {
+    const groups = splitStartGroups(['a', 'b'], isArmed, new Set());
+    expect(groups).toEqual([
+      { ids: ['a'], sound: 'default', allowStart: false },
+      { ids: ['b'], sound: '', allowStart: false },
+    ]);
+  });
+
+  test('duplicate athlete ids are collapsed once', () => {
+    const groups = splitStartGroups(['a', 'a'], isArmed, new Set(['a']));
+    expect(groups).toEqual([{ ids: ['a'], sound: 'default', allowStart: true }]);
+  });
+
+  test('no athletes: no groups', () => {
+    expect(splitStartGroups([], isArmed, new Set())).toEqual([]);
+  });
+});
+
+import { reminderRoute } from './logic';
+
+describe('reminderRoute (roll call rebuilt, 2026-09-23)', () => {
+  test('a wake-up reminder opens its team board; a plain commitment keeps its detail', () => {
+    expect(reminderRoute('morning_roll_call', 'i1')).toBe('rollcall-board/i1');
+    expect(reminderRoute('study_hall', 'i1')).toBe('roll-call/i1');
+    expect(reminderRoute(undefined, 'i1')).toBe('roll-call/i1');
+  });
+});

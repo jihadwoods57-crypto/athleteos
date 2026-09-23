@@ -441,3 +441,49 @@ records what the CSS now says.
   nothing scrolled is legible above it.
 - **`qc-capture.mjs --touch`** renders a 700px+ width as the iPad does; `--scroll-by N` shoots
   mid-scroll.
+
+## Amendments · 2026-09-23 the team board
+
+- **One prefix per screen, not one prefix for all of it.** The board and the athlete's day sheet
+  are `rb-`. The coach's setup, week strip and history are their OWN families: `rs-` (setup),
+  `rw-` (week), `rh-` (history) (`screens.css`, headed "the coach's setup, week and history
+  (rs-, rw-, rh-)"). `screens.css` is one flat namespace (2026-08-25 amendment); a History rule
+  named `rb-...` would give one screen two families in it, which is the thing that rule exists
+  to prevent.
+- **Six states, one ladder.** A face is on time (`.up`, green ring), late (`.late`, amber ring,
+  and the time itself in `.rb-t` amber), not up yet (`.waiting`, grey ring, `--text-3`), missed
+  (`.missed`, red ring, only after the window closes, never before), excused (`.excused`, no ring
+  at all: the face just dims to 55% opacity), or, in arrival mode only, unverified (`.unverified`,
+  no ring, a neutral "place not confirmed" caption). Late and missed follow the same score-tier
+  rule as everywhere else: amber is a real warning, red means missed, never assigned early.
+- **The athlete's own face is the one exception to the status ring.** `.rb-tile.me .rb-av` wears
+  a blue ring (`var(--blue-bright)`) regardless of status, with a `var(--bg)` gap so it reads as
+  an outline, not a seventh status colour; `.rb-tile.me .rb-name` matches in blue. Selection blue,
+  same rule as the 2026-09-22 amendment, just spent on "this is you" instead of "this is chosen."
+- **Record numbers stay off Archivo.** `.rb-n` (the live team count), `.rb-bk-n` (points banked)
+  and every count in coach History are body-face numbers with `font-variant-numeric: tabular-nums`
+  and weight, not the score typeface. Archivo is reserved for the daily score; a 30-day on-time
+  rate or a first-up count is a record, not a score, even where it is large on the page.
+- **Uppercase eyebrows stay section-only.** `.rb-h` (via `.eyebrow`, the Late / Not up yet /
+  Missed group headers inside the grid) is the tracked caps header the 2026-09-22 rule allows.
+  `.rb-hn`, the count riding beside it, is `letter-spacing: 0`, a number, not a header, so it
+  does not inherit the caps treatment just because it sits next to one. `.rb-meta`, `.rb-arr` and
+  `.rb-line` are sentence case at `--t-xs`/`--t-sm`, same as any other caption, because they are
+  per-athlete facts, not headers.
+
+## Amendments · 2026-09-23 the composer
+
+- **The bottom of a thread is one flush bar.** Every thread screen (meal page, past meal, full
+  chat, the coach's meal view) ends with its `.chat-dock.dock-end`: flush with the screen's bottom
+  edge in both keyboard states, carrying the home-indicator inset itself. Nothing renders under the
+  message box. A screen's exit is its header back control, never a button under the composer.
+- **The keyboard is one motion.** The shell shortens on the keyboard's own duration and curve
+  (`--kb-ms`, `--kb-ease`, fed by the native keyboardWillShow/WillHide), and a thread resting on
+  its newest message is held there every frame. No style that the keyboard changes may switch in
+  one frame: animate it on `--kb-ms`/`--kb-ease` or do not change it.
+- **The mic lives in send's slot.** Empty box: mic. Text or a photo: send (blue). Listening: a blue
+  stop control with a voice ring, and nothing else (dictation never sends). The mic shows only under
+  `html.can-dictate`. Listening is selection blue, never red.
+- **Empty notes take no room.** A thread's one-line note (`.cmp-note`) is `display: none` while
+  empty; no composer holds an empty line open under itself.
+

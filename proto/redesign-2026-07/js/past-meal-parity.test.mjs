@@ -35,7 +35,7 @@ test('the past-meal screen renders the same four blocks through the same functio
   assert.match(trust, /<div class="lm-status">/, 'the logged status line');
   assert.doesNotMatch(trust, /<section class="mt-confirm">/, 'the retired confirmation card');
   assert.match(trust, /<section class="disc" id="meal-disc"/, 'the Team discussion section');
-  assert.match(trust, /<div class="chat-dock disc-dock">/, 'the docked composer');
+  assert.match(trust, /<div class="chat-dock disc-dock dock-end">/, 'the docked composer, flush with the bottom edge');
   assert.match(trust, /class="disc-open" id="open-full-chat"/, 'the aimed door to the full chat');
   assert.match(trust, /`nutrition-chat\/\$\{m\.id\}`/);
   assert.match(trust, /hideTabs: true/, 'no tab bar over a logged meal, as on today\'s');

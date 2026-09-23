@@ -33,6 +33,9 @@ struct RollCallLiveActivity: Widget {
       RollCallLockScreenView(context: context)
         .activityBackgroundTint(Color.black.opacity(0.55))
         .activitySystemActionForegroundColor(.white)
+        // The card body's tap opens that morning's team board (ProtoApp maps this URL to
+        // #rollcall-board/<id>). The I'm Up button keeps its own intent.
+        .widgetURL(URL(string: "onstandard://roll-call/\(context.attributes.instanceId)"))
     } dynamicIsland: { context in
       let palette = RollCallPalette(phase: RollCallPhase.from(context.state.phase))
       return DynamicIsland {
@@ -55,6 +58,7 @@ struct RollCallLiveActivity: Widget {
       } minimal: {
         Image(systemName: palette.symbol).foregroundStyle(palette.ink)
       }
+      .widgetURL(URL(string: "onstandard://roll-call/\(context.attributes.instanceId)"))
     }
   }
 
@@ -64,7 +68,7 @@ struct RollCallLiveActivity: Widget {
     case .initial:  return context.attributes.coachName.isEmpty ? context.attributes.title : context.attributes.coachName
     case .reminder: return context.attributes.title
     case .late:     return "You're late"
-    case .answered: return "Checked in"
+    case .answered: return RollCallCopy.answeredHeadline(place: context.state.place)
     case .missed:   return "Missed"
     }
   }
@@ -79,8 +83,17 @@ struct RollCallLockScreenView: View {
   private var phase: RollCallPhase { RollCallPhase.from(context.state.phase) }
   private var palette: RollCallPalette { RollCallPalette(phase: phase) }
 
+  /// Whether the team row shows. A card from a server that predates the count carries 0 of 0 and
+  /// draws exactly the card it always drew.
+  private var showsTeam: Bool { context.state.teamTotal > 0 }
+
+  /// THE 160-POINT BUDGET, measured in SF line heights (about 1.19x the point size): padding 24,
+  /// header 31, gap 8, kicker 13 + 2 + clock + 2 + team row 13, gap 8, line 16. At 40 pt the clock
+  /// plus the team row came to about 164, so the clock gives up 6 pt ONLY on a card that shows the
+  /// team (about 157, the same margin the card had before the row existed). A card without the row
+  /// keeps the 40 pt clock and comes to about 149.
   var body: some View {
-    VStack(alignment: .leading, spacing: 10) {
+    VStack(alignment: .leading, spacing: 8) {
       header
       HStack(alignment: .center, spacing: 12) {
         VStack(alignment: .leading, spacing: 2) {
@@ -88,7 +101,15 @@ struct RollCallLockScreenView: View {
             .font(.system(size: 11, weight: .heavy))
             .tracking(1.4)
             .foregroundStyle(.white.opacity(0.55))
-          RollCallClock(state: context.state, palette: palette, size: 40)
+          RollCallClock(state: context.state, palette: palette, size: showsTeam ? 34 : 40)
+          if showsTeam {
+            // Quiet on purpose: the clock is the card, this is the room around it.
+            Text("\(context.state.teamUp) of \(context.state.teamTotal) up")
+              .font(.system(size: 11, weight: .semibold))
+              .monospacedDigit()
+              .foregroundStyle(.white.opacity(0.55))
+              .lineLimit(1)
+          }
         }
         Spacer(minLength: 0)
         if phase.isOpen { checkInButton }
@@ -101,7 +122,7 @@ struct RollCallLockScreenView: View {
       }
     }
     .padding(.horizontal, 16)
-    .padding(.vertical, 14)
+    .padding(.vertical, 12)
   }
 
   private var header: some View {
@@ -135,7 +156,12 @@ struct RollCallLockScreenView: View {
   @ViewBuilder
   private var checkInButton: some View {
     if #available(iOS 17.0, *) {
-      Button(intent: RollCallCheckInIntent(instanceId: context.attributes.instanceId)) {
+      // The window code rides with the button, so the tap posts itself with OnStandard closed.
+      Button(intent: RollCallCheckInIntent(
+        instanceId: context.attributes.instanceId,
+        ackCode: context.attributes.ackCode,
+        ackUrl: context.attributes.ackUrl
+      )) {
         Text(phase == .late ? "CHECK IN" : (context.attributes.actionLabel ?? "I’M UP").uppercased())
           .font(.system(size: 14, weight: .heavy))
           .foregroundStyle(.white)
@@ -153,7 +179,7 @@ struct RollCallLockScreenView: View {
       return context.attributes.coachName.isEmpty ? context.attributes.title : context.attributes.coachName
     case .reminder: return context.attributes.title
     case .late:     return "You're late"
-    case .answered: return "Checked in"
+    case .answered: return RollCallCopy.answeredHeadline(place: context.state.place)
     case .missed:   return "Missed"
     }
   }
@@ -182,7 +208,10 @@ struct RollCallLockScreenView: View {
     case .initial:  return context.state.line
     case .reminder: return "On Standard until \(Self.clock.string(from: context.state.deadline))."
     case .late:     return "Check in now. Your coach can see this."
-    case .answered: return "Checked in at \(Self.clock.string(from: context.state.checkedIn ?? Date()))."
+    case .answered:
+      // What the answer banked, once it counts. Until then (or from an older server), the time.
+      if let points = context.state.points, points > 0 { return "+\(points) to today's score" }
+      return "Checked in at \(Self.clock.string(from: context.state.checkedIn ?? Date()))."
     case .missed:   return "Closed with no answer. Tomorrow starts fresh."
     }
   }
@@ -192,6 +221,33 @@ struct RollCallLockScreenView: View {
     f.dateFormat = "h:mm a"
     return f
   }()
+}
+
+// MARK: - words
+
+/// The answered card's words, shared by the lock screen and the Dynamic Island so the two never
+/// say different things about the same answer.
+@available(iOS 16.2, *)
+enum RollCallCopy {
+  /// "You're up · 4th", or "You're up" when there is no place yet (an answer under review, or a
+  /// server that predates the board).
+  static func answeredHeadline(place: Int?) -> String {
+    guard let place = place, place > 0 else { return "You're up" }
+    return "You're up · \(ordinal(place))"
+  }
+
+  /// English ordinals, spelled out by hand so the card reads the same on every locale the app
+  /// ships in (the rest of the card is English too). 11th, 12th and 13th are the exceptions.
+  static func ordinal(_ n: Int) -> String {
+    let tens = n % 100
+    if tens >= 11 && tens <= 13 { return "\(n)th" }
+    switch n % 10 {
+    case 1: return "\(n)st"
+    case 2: return "\(n)nd"
+    case 3: return "\(n)rd"
+    default: return "\(n)th"
+    }
+  }
 }
 
 // MARK: - the number

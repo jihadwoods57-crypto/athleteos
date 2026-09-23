@@ -3685,8 +3685,8 @@ update public.feature_flags set kill_switch = false where name = 'verified_commi
 -- ---- the clock, pure ----
 select _ok(rollcall_closes_at('morning_roll_call', '2026-09-01T10:05:00Z'::timestamptz, '2026-09-01T10:00:00Z'::timestamptz, null::timestamptz) = '2026-09-01T10:30:00Z'::timestamptz,
   '0212: a wake-up with no ends_at closes 30 minutes after the WAKE-UP time');
-select _ok(rollcall_opens_at('morning_roll_call', '2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:05:00Z'::timestamptz, 360::smallint, null::smallint) = '2026-09-01T10:00:00Z'::timestamptz,
-  '0212: a wake-up opens AT its time, not before');
+select _ok(rollcall_opens_at('morning_roll_call', '2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:05:00Z'::timestamptz, 360::smallint, null::smallint) = '2026-09-01T09:50:00Z'::timestamptz,
+  '0212 (0242): a wake-up opens 10 minutes before its time (was: AT its time)');
 select _ok(rollcall_opens_at('practice', '2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:05:00Z'::timestamptz, 360::smallint, null::smallint) = '2026-09-01T09:05:00Z'::timestamptz,
   '0212: every other type keeps the hour-before rule');
 
@@ -4235,6 +4235,946 @@ select _ok(_try($q$delete from meal_views$q$) <> 'ok' or (select count(*) from m
 select _superuser();
 select _ok((select count(*) from meal_views) = 2, '0229: exactly the two legitimate rows exist');
 delete from meal_views;
+
+-- ================================================================ 0242: roll call rebuilt (part A)
+-- The team board every athlete on a roll call can read (and nobody else), the coach's history,
+-- the 10-minute open, and the assigned arrival inside the one night budget of the ceiling.
+-- Reuses the 0138 cast: team T1, coach_1 (staff), coach_2 (stranger), athletes e1 / e2,
+-- athlete B (T2, a stranger), commitment ccccdddd-...-c1. Hand-timed relative to now().
+select _superuser();
+select set_config('request.jwt.claim.sub', '', false);
+update public.feature_flags set kill_switch = false where name = 'verified_commitments';
+
+-- ---- the open, pure ----
+select _ok(rollcall_opens_at('morning_roll_call', '2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:05:00Z'::timestamptz, 360::smallint, null::smallint) = '2026-09-01T09:50:00Z'::timestamptz,
+  '0242: a wake-up opens 10 minutes before its start');
+select _ok(rollcall_opens_at('morning_roll_call', '2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:05:00Z'::timestamptz, 360::smallint, 350::smallint) = '2026-09-01T09:50:00Z'::timestamptz
+       and rollcall_opens_at('morning_roll_call', '2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:05:00Z'::timestamptz, 360::smallint, 360::smallint) = '2026-09-01T10:00:00Z'::timestamptz,
+  '0242: an explicit opens_min still wins over the 10-minute default');
+select _ok(rollcall_opens_at('practice', '2026-09-01T10:00:00Z'::timestamptz, '2026-09-01T10:05:00Z'::timestamptz, 360::smallint, null::smallint) = '2026-09-01T09:05:00Z'::timestamptz,
+  '0242: every other type keeps the hour-before rule');
+
+-- ---- the team board fixture: today's roll call started 20 min ago, grace 5, closes in 10 ----
+-- e1 answered on time (on_standard, first up); e2 has not answered (pending). Every other T1
+-- response on the instance is excused so the counts are exact.
+update commitments set opens_min = null, location_id = null where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+update commitment_instances set starts_at = now() - interval '20 minutes', respond_by_at = now() - interval '15 minutes',
+       ends_at = null, arrive_by_at = null, status = 'scheduled', skipped = false
+ where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date;
+create temp table _rc_b as
+  select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date;
+grant select on _rc_b to authenticated, anon;
+select _ok((select count(*) from _rc_b) = 1, '0242: (fixture) today''s roll call exists');
+insert into commitment_responses (instance_id, athlete_id)
+  select (select id from _rc_b), a from unnest(array['eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2']::uuid[]) a
+  on conflict do nothing;
+update commitment_responses set status = 'excused', acknowledged_at = null, arrived_at = null
+ where instance_id = (select id from _rc_b)
+   and athlete_id not in ('eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2');
+update commitment_responses set status = 'acknowledged', acknowledged_at = now() - interval '18 minutes', ack_source = 'app',
+       arrived_at = null, sync_review = false, review_resolution = null, device_tapped_at = null
+ where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+update commitment_responses set status = 'pending', acknowledged_at = null, ack_source = null,
+       arrived_at = null, sync_review = false, review_resolution = null, device_tapped_at = null
+ where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+
+-- ---- who may read it ----
+select _as('eeee0000-0000-0000-0000-0000000000e2');   -- a responder who has NOT answered yet
+select _ok(_try($f$ select rollcall_team_board((select id from _rc_b)) $f$) = 'ok',
+  '0242: an athlete on the roll call can read the team board');
+select _ok((select jsonb_array_length(rollcall_team_board((select id from _rc_b))->'rows')) >= 2,
+  '0242: an athlete on the roll call sees the whole team, not only their own row');
+select _ok(not exists (
+             select 1 from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r, jsonb_object_keys(r) k
+              where k in ('lat','lng','latitude','longitude','accuracy_m','device_tapped_at','dispute_note','excused_reason','review_note','correction_note'))
+           and not (rollcall_team_board((select id from _rc_b)) ?| array['lat','lng']),
+  '0242: the board carries no coordinates and no private notes');
+select _ok((select array_agg(k order by k) from jsonb_object_keys(rollcall_team_board((select id from _rc_b))->'rows'->0) k)
+           = array['acknowledged_at','arrival_verdict','arrived_at','athlete_id','avatar_path','name','place','verdict'],
+  '0242: a board row is exactly the roster-safe fields');
+select _as('bbbbbbbb-0000-0000-0000-000000000002');   -- athlete B, on T2
+select _ok(_try($f$ select rollcall_team_board((select id from _rc_b)) $f$) like 'denied%not_authorized%',
+  '0242: an athlete on another team cannot read the board');
+select _as('22222222-0000-0000-0000-000000000002');   -- coach_2, stranger
+select _ok(_try($f$ select rollcall_team_board((select id from _rc_b)) $f$) like 'denied%not_authorized%',
+  '0242: a stranger coach cannot read the board');
+select _as('99999999-0000-0000-0000-000000000009');   -- rando
+select _ok(_try($f$ select rollcall_team_board(gen_random_uuid()) $f$) <> 'ok',
+  '0242: an unknown instance is refused');
+select _as('11111111-0000-0000-0000-000000000001');   -- coach_1, staff (not a responder)
+select _ok(_try($f$ select rollcall_team_board((select id from _rc_b)) $f$) = 'ok',
+  '0242: staff read the board of their own roll call');
+-- e5 was removed from T1 in the 0140 section: a stale response row must not reopen the board
+select _superuser();
+insert into commitment_responses (instance_id, athlete_id, status)
+  values ((select id from _rc_b), 'eeee0000-0000-0000-0000-0000000000e5', 'excused')
+  on conflict (instance_id, athlete_id) do update set status = 'excused';
+select _ok(not exists (select 1 from team_members where athlete_id = 'eeee0000-0000-0000-0000-0000000000e5' and status = 'active'),
+  '0242: (fixture) e5 is off the team and holds a response row');
+select _as('eeee0000-0000-0000-0000-0000000000e5');
+select _ok(_try($f$ select rollcall_team_board((select id from _rc_b)) $f$) like 'denied%not_authorized%',
+  '0242: an athlete removed from the team cannot read the board through an old response row');
+
+-- ---- what it says ----
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+create temp table _rc_bj as select rollcall_team_board((select id from _rc_b)) as j;
+select _superuser();
+select _ok((select j->'rows'->0->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1'
+               and (j->'rows'->0->>'place')::int = 1
+               and j->'rows'->0->>'verdict' = 'on_standard' from _rc_bj),
+  '0242: the first one up leads the board, place 1, on standard');
+select _ok((select r->>'verdict' = 'pending' and jsonb_typeof(r->'place') = 'null' and jsonb_typeof(r->'acknowledged_at') = 'null'
+              from _rc_bj, jsonb_array_elements(j->'rows') r where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2'),
+  '0242: an athlete not up yet is pending with no place');
+select _ok((select (j->>'up')::int = 1 and (j->>'total')::int = 2 and (j->>'arrived')::int = 0 from _rc_bj),
+  '0242: up / total count the team, and an excused athlete leaves the total');
+select _ok((select coalesce(bool_and(r->>'verdict' = 'excused'), true) from _rc_bj, jsonb_array_elements(j->'rows') r
+             where r->>'athlete_id' not in ('eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2')),
+  '0242: an excused athlete still appears, marked excused');
+select _ok((select j->>'title' = 'Morning Roll Call' and j->>'coach_name' = 'Coach One'
+               and j->>'asks_arrival' = 'false' and jsonb_typeof(j->'location_name') = 'null'
+               and (j->>'closes_at')::timestamptz = (j->>'starts_at')::timestamptz + interval '30 minutes'
+               and (select bool_and(jsonb_typeof(r->'arrival_verdict') = 'null') from jsonb_array_elements(j->'rows') r)
+             from _rc_bj),
+  '0242: the header reads title, coach, close; with no place there is no arrival verdict');
+select _ok((select jsonb_typeof(r->'avatar_path') = 'null' from _rc_bj, jsonb_array_elements(j->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242: no uploaded picture, no avatar path');
+insert into storage.objects (bucket_id, name, owner) values ('avatars', 'eeee0000-0000-0000-0000-0000000000e2/avatar.jpg', 'eeee0000-0000-0000-0000-0000000000e2');
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok((select r->>'avatar_path' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') = 'eeee0000-0000-0000-0000-0000000000e2/avatar.jpg',
+  '0242: an uploaded picture is the avatars object path');
+select _superuser();   -- storage refuses a direct delete; the suite's rollback removes the object
+drop table _rc_bj;
+
+-- ---- Task 4: the service-only pieces (the lock screen, live) ----
+-- rollcall_team_board_svc and its six siblings are for the edge functions' service role ONLY.
+-- Every one is tried as anon, as a responder on the roll call, and as the coach who owns it.
+create temp table _rc_t4calls (sql text);
+insert into _rc_t4calls values
+  ('select rollcall_team_board_svc((select id from _rc_b))'),
+  ('select * from rollcall_live_card((select id from _rc_b))'),
+  ('select * from claim_rollcall_card_opens(1)'),
+  ('select * from claim_rollcall_card_starts((select id from _rc_b), array[''eeee0000-0000-0000-0000-0000000000e1''::uuid])'),
+  ('select release_rollcall_card_start((select id from _rc_b), array[''eeee0000-0000-0000-0000-0000000000e1''::uuid])'),
+  ('select * from rollcall_live_update_targets((select id from _rc_b))'),
+  ('select * from claim_live_team_updates((select id from _rc_b), array[''eeee0000-0000-0000-0000-0000000000e1''::uuid], 60)'),
+  ('select * from rollcall_window_rows_svc(''eeee0000-0000-0000-0000-0000000000e1''::uuid, 7)'),
+  ('select claim_rollcall_summary((select id from _rc_b))'),
+  ('select claim_live_answered_update((select id from _rc_b), ''eeee0000-0000-0000-0000-0000000000e1''::uuid)'),
+  ('select release_live_answered_update((select id from _rc_b), ''eeee0000-0000-0000-0000-0000000000e1''::uuid)');
+grant select on _rc_t4calls to authenticated, anon;
+grant select on _rc_b to service_role;
+set role anon;
+select _ok((select bool_and(_try(sql) like 'denied(42501)%') from _rc_t4calls),
+  '0242 task 4: anon can execute none of the service-only roll call functions');
+select _as('eeee0000-0000-0000-0000-0000000000e1');   -- a responder on the roll call
+select _ok((select bool_and(_try(sql) like 'denied(42501)%') from _rc_t4calls),
+  '0242 task 4: a signed-in athlete on the roll call can execute none of them');
+select _as('11111111-0000-0000-0000-000000000001');   -- coach_1, staff who owns it
+select _ok((select bool_and(_try(sql) like 'denied(42501)%') from _rc_t4calls),
+  '0242 task 4: not even the coach who owns the roll call can execute them');
+select _superuser();
+set role service_role;
+select _ok(_try($f$ select rollcall_team_board_svc((select id from _rc_b)) $f$) = 'ok',
+  '0242 task 4: the service role reads the board with no session');
+select _superuser();
+
+-- the same board, one body: what staff read through the door is exactly what the service reads
+create temp table _rc_bs as select rollcall_team_board_svc((select id from _rc_b)) as j;
+grant select on _rc_bs to authenticated;
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((select j from _rc_bs) = rollcall_team_board((select id from _rc_b)),
+  '0242 task 4: rollcall_team_board_svc returns exactly the board staff read');
+select _superuser();
+select _ok(rollcall_team_board_svc(gen_random_uuid()) is null,
+  '0242 task 4: the service board of an unknown instance is null, not an error');
+drop table _rc_bs;
+
+-- the card learns the open (10 minutes before the start) and whether it asks an arrival
+select _ok((select opens_at = starts_at - interval '10 minutes' and asks_arrival = false
+              from rollcall_live_card((select id from _rc_b))),
+  '0242 task 4: the live card carries the open, 10 minutes before the start, and asks_arrival');
+
+-- the window rows: e2's roll call (started 20 min ago, closes in 10) is still answerable
+select _ok((select count(*) = 1 from rollcall_window_rows_svc('eeee0000-0000-0000-0000-0000000000e2', 7) w
+             where w.instance_id = (select id from _rc_b)
+               and w.opens_at = (select starts_at - interval '10 minutes' from commitment_instances where id = (select id from _rc_b))),
+  '0242 task 4: an athlete''s open roll call is in their window rows, bounded by its open');
+select _ok(not exists (select 1 from rollcall_window_rows_svc('bbbbbbbb-0000-0000-0000-000000000002', 7) w
+                        where w.instance_id = (select id from _rc_b)),
+  '0242 task 4: another team''s athlete gets no window for it');
+
+-- the throttle: one team-count update per card per minute, atomically
+insert into rollcall_live_tokens (athlete_id, instance_id, kind, token)
+  values ('eeee0000-0000-0000-0000-0000000000e1', (select id from _rc_b), 'update', 'tok-e1-0242'),
+         ('eeee0000-0000-0000-0000-0000000000e2', (select id from _rc_b), 'update', 'tok-e2-0242');
+select _ok((select array_agg(a) from claim_live_team_updates((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2']::uuid[], 60) a)
+           @> array['eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2']::uuid[],
+  '0242 task 4: a card never updated is claimed for a team-count update');
+select _ok(not exists (select 1 from claim_live_team_updates((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e1']::uuid[], 60)),
+  '0242 task 4: the same card is not claimed again inside the minute');
+select _ok((select array_agg(a) from claim_live_team_updates((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e1']::uuid[], 0) a) = array['eeee0000-0000-0000-0000-0000000000e1']::uuid[],
+  '0242 task 4: gap 0 stamps unconditionally (the athlete''s own answered update)');
+select _ok((select phase_hint from rollcall_live_update_targets((select id from _rc_b))
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 'answered'
+       and (select phase_hint from rollcall_live_update_targets((select id from _rc_b))
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2') = 'late',
+  '0242 task 4: the update targets say which phase each card is in');
+
+-- the answered transition is never throttled by a count-only stamp (Task 5 fix round 2): a
+-- teammate's count update stamped e2's card a moment ago, carrying e2's OLD phase; e2 then
+-- answers, and the answered update must still be claimed (and only once)
+select _ok(exists (select 1 from claim_live_team_updates((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e2']::uuid[], 0)),
+  '0242 task 5: (fixture) a count update just stamped e2''s card');
+select _ok(claim_live_answered_update((select id from _rc_b), 'eeee0000-0000-0000-0000-0000000000e2') = 'claimed',
+  '0242 task 5: an answer seconds after a count update is still claimed for its answered update');
+select _ok(claim_live_answered_update((select id from _rc_b), 'eeee0000-0000-0000-0000-0000000000e2') = 'already_answered',
+  '0242 task 5: the answered update is claimed once per card (a re-posted code sends nothing twice)');
+select _ok(not exists (select 1 from claim_live_team_updates((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e2']::uuid[], 60)),
+  '0242 task 5: the answered update also counts as the card''s latest update for the count throttle');
+select release_live_answered_update((select id from _rc_b), 'eeee0000-0000-0000-0000-0000000000e2');
+select _ok(claim_live_answered_update((select id from _rc_b), 'eeee0000-0000-0000-0000-0000000000e2') = 'claimed',
+  '0242 task 5: a released claim (the push reached nobody) can be claimed again');
+select _ok(claim_live_answered_update((select id from _rc_b), 'bbbbbbbb-0000-0000-0000-000000000002') = 'no_token',
+  '0242 task 5: an athlete with no live card token is told so (the phone ends its own card)');
+update rollcall_live_tokens set revoked_at = now() where token = 'tok-e1-0242';
+select _ok(claim_live_answered_update((select id from _rc_b), 'eeee0000-0000-0000-0000-0000000000e1') = 'no_token',
+  '0242 task 5: a revoked token is no card');
+delete from rollcall_live_tokens where token in ('tok-e1-0242', 'tok-e2-0242');
+
+-- the closing summary is claimed once per instance
+select _ok(claim_rollcall_summary((select id from _rc_b)) and not claim_rollcall_summary((select id from _rc_b)),
+  '0242 task 4: the closing summary is claimed exactly once');
+update commitment_instances set summary_sent_at = null where id = (select id from _rc_b);
+
+-- the card opens at the OPEN, per ATHLETE (fix round 2026-09-23 — commitment_responses
+-- .card_started_at, not the instance-level card_opened_at), AND only for a START-ELIGIBLE
+-- athlete (fix round 1, review round 1, Important #1): an unrevoked push-to-start token, no
+-- unrevoked update token yet on this instance. All live tokens were deleted just above, so e1/e2
+-- currently hold none.
+update commitment_instances set starts_at = now() + interval '5 minutes', respond_by_at = now() + interval '10 minutes',
+       card_opened_at = null, live_ended_at = null where id = (select id from _rc_b);
+update commitment_responses set card_started_at = null
+ where instance_id = (select id from _rc_b)
+   and athlete_id in ('eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2');
+select _ok(not exists (select 1 from claim_rollcall_card_opens(500) where instance_id = (select id from _rc_b)),
+  '0242 fix round 1: a pending athlete with no push-to-start token yet is not claimed');
+
+-- e2 registers a start token: now they are start-eligible, and the open pass claims them.
+insert into rollcall_live_tokens (athlete_id, instance_id, kind, token)
+  values ('eeee0000-0000-0000-0000-0000000000e2', null, 'start', 'tok-e2-start-0242');
+create temp table _rc_open as select * from claim_rollcall_card_opens(500);
+select _ok((select athlete_ids @> array['eeee0000-0000-0000-0000-0000000000e2']::uuid[]
+               and not (athlete_ids @> array['eeee0000-0000-0000-0000-0000000000e1']::uuid[])
+              from _rc_open where instance_id = (select id from _rc_b)),
+  '0242 task 4: the card opens at the open, for the start-eligible athletes still pending');
+select _ok(not exists (select 1 from claim_rollcall_card_opens(500) where instance_id = (select id from _rc_b)),
+  '0242 fix round: the same athlete is not claimed twice by the open pass');
+drop table _rc_open;
+
+-- fix round 1 (review round 1, Important #1): a claim whose push did not genuinely reach a
+-- device is released, so the very next tick's claim retries it instead of leaving the athlete
+-- silently claimed for the rest of the morning.
+select release_rollcall_card_start((select id from _rc_b), array['eeee0000-0000-0000-0000-0000000000e2']::uuid[]);
+select _ok((select card_started_at is null from commitment_responses
+             where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'),
+  '0242 fix round 1: release_rollcall_card_start clears the claim');
+create temp table _rc_open2 as select * from claim_rollcall_card_opens(500);
+select _ok((select athlete_ids @> array['eeee0000-0000-0000-0000-0000000000e2']::uuid[]
+              from _rc_open2 where instance_id = (select id from _rc_b)),
+  '0242 fix round 1: a released claim is picked back up by the very next tick');
+drop table _rc_open2;
+
+-- an athlete who already has an unrevoked UPDATE token for this instance (a card already exists)
+-- is never claimed for a fresh start, even with a start token and card_started_at null — claiming
+-- one would risk starting a second activity on a phone that just hasn't reported back yet.
+update commitment_responses set card_started_at = null
+ where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+insert into rollcall_live_tokens (athlete_id, instance_id, kind, token)
+  values ('eeee0000-0000-0000-0000-0000000000e2', (select id from _rc_b), 'update', 'tok-e2-update-0242');
+select _ok(not exists (select 1 from claim_rollcall_card_starts((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e2']::uuid[])),
+  '0242 fix round 1: an athlete who already has an update token (a card already exists) is never claimed for a fresh start');
+delete from rollcall_live_tokens where token = 'tok-e2-update-0242';
+
+-- fix round 1 (review round 1, Minor #1): claim_rollcall_card_starts also requires active
+-- membership, same as the board and the window codes.
+update team_members set status = 'removed' where team_id = '77777777-1111-0000-0000-000000000001'
+  and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+select _ok(not exists (select 1 from claim_rollcall_card_starts((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e2']::uuid[])),
+  '0242 fix round 1: a removed athlete is never claimed for a start, even start-eligible');
+update team_members set status = 'active' where team_id = '77777777-1111-0000-0000-000000000001'
+  and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+
+-- claim_rollcall_card_starts is the start-time rung's own retry, per athlete: with e2 back to
+-- start-eligible + active, it claims a still-pending, never-started athlete the open missed...
+select _ok((select array_agg(a) from claim_rollcall_card_starts((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2']::uuid[]) a)
+           = array['eeee0000-0000-0000-0000-0000000000e2']::uuid[],
+  '0242 fix round: claim_rollcall_card_starts claims a still-pending, start-eligible athlete missed by the open (e1 already answered, so is never a start candidate)');
+-- ...and never claims the same athlete twice, so a card already attempted is never started again
+-- (the one thing the once-per-athlete claim still protects: no second Live Activity stacked on a
+-- phone whose app never got to report its update token).
+select _ok(not exists (select 1 from claim_rollcall_card_starts((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e2']::uuid[])),
+  '0242 fix round: the same athlete is not claimed twice by claim_rollcall_card_starts');
+
+update commitment_instances set starts_at = now() + interval '15 minutes', respond_by_at = now() + interval '20 minutes',
+       card_opened_at = null where id = (select id from _rc_b);
+select _ok(not exists (select 1 from claim_rollcall_card_opens(500) where instance_id = (select id from _rc_b)),
+  '0242 task 4: no card before the open (15 minutes out)');
+-- put the fixture back as the board section left it
+update commitment_instances set starts_at = now() - interval '20 minutes', respond_by_at = now() - interval '15 minutes',
+       card_opened_at = null where id = (select id from _rc_b);
+update commitment_responses set card_started_at = null
+ where instance_id = (select id from _rc_b)
+   and athlete_id in ('eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2');
+delete from rollcall_live_tokens where token = 'tok-e2-start-0242';
+drop table _rc_t4calls;
+
+-- ---- fix round 2026-09-23 (Task 3/4 family): active membership, on the window codes and the board ----
+-- e2 is removed from T1 (status -> 'removed'), their commitment_responses row on _rc_b left
+-- exactly as it was (still 'pending'): a stale response row must not be enough, exactly as
+-- section 8 already proves for rollcall_team_board's CALLER check — this is the same rule
+-- applied to the CONTENT of rollcall_window_rows_svc and rollcall_team_board_svc.
+select _as('11111111-0000-0000-0000-000000000001');   -- (fixture) baseline: e2 is still active
+select _ok((select r->>'athlete_id' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') is not null,
+  '0242 fix round: (fixture) e2 is on the board while still an active member');
+select _superuser();
+select _ok(exists (select 1 from rollcall_window_rows_svc('eeee0000-0000-0000-0000-0000000000e2', 7)
+                    where instance_id = (select id from _rc_b)),
+  '0242 fix round: (fixture) e2''s own roll call mints a window while still an active member');
+
+update team_members set status = 'removed' where team_id = '77777777-1111-0000-0000-000000000001'
+  and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+
+select _ok(not exists (select 1 from rollcall_window_rows_svc('eeee0000-0000-0000-0000-0000000000e2', 7)
+                        where instance_id = (select id from _rc_b)),
+  '0242 fix round: a removed athlete mints no window codes for the roll call (Task 3)');
+
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((select r->>'athlete_id' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') is null,
+  '0242 fix round: a removed athlete''s pending row no longer shows on the board (Task 4)');
+select _ok((select (j->>'total')::int from (select rollcall_team_board((select id from _rc_b)) as j) x) = 1,
+  '0242 fix round: total drops to just e1 once e2 (pending, removed) leaves the board');
+select _superuser();
+select _ok(not exists (select 1 from jsonb_array_elements(rollcall_team_board_svc((select id from _rc_b))->'rows') r
+                        where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2'),
+  '0242 fix round: rollcall_team_board_svc (the edge functions'' own read) applies the same gate');
+
+-- put e2 back exactly as the rest of the suite expects them
+update team_members set status = 'active' where team_id = '77777777-1111-0000-0000-000000000001'
+  and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((select r->>'athlete_id' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') is not null,
+  '0242 fix round: (fixture restored) e2 is back on the board, active again');
+select _superuser();
+
+-- ---- arrival: a place on the roll call, arrive by the start, 10 minutes of grace ----
+insert into commitment_locations (id, team_id, name, lat, lng, created_by)
+  values ('cccc0242-0000-0000-0000-0000000000a1', '77777777-1111-0000-0000-000000000001', 'Weight Room', 28.6, -81.2,
+          '11111111-0000-0000-0000-000000000001');
+update commitments set location_id = 'cccc0242-0000-0000-0000-0000000000a1', arrival_grace_min = 10
+ where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+update commitment_instances set arrive_by_at = starts_at where id = (select id from _rc_b);
+update commitment_responses set arrived_at = now() - interval '15 minutes'   -- 5 min after arrive-by: on standard
+ where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+update commitment_responses set arrived_at = now() - interval '5 minutes'    -- 15 min after arrive-by: late
+ where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+create temp table _rc_bj as select rollcall_team_board((select id from _rc_b)) as j;
+select _superuser();
+select _ok((select j->>'asks_arrival' = 'true' and j->>'location_name' = 'Weight Room' and (j->>'arrived')::int = 2 from _rc_bj),
+  '0242: a roll call with a place asks for arrival and names the place');
+select _ok((select r->>'arrival_verdict' from _rc_bj, jsonb_array_elements(j->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1') = 'on_standard'
+       and (select r->>'arrival_verdict' from _rc_bj, jsonb_array_elements(j->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') = 'late',
+  '0242: arrival inside the grace is on standard, after it is late');
+select _ok((select coalesce(bool_and(r->>'arrival_verdict' = 'excused'), true) from _rc_bj, jsonb_array_elements(j->'rows') r
+             where r->>'athlete_id' not in ('eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2')),
+  '0242: an excused athlete''s arrival is excused, never missed');
+drop table _rc_bj;
+update commitment_responses set arrived_at = null
+ where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+select _ok((select r->>'arrival_verdict' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') = 'pending',
+  '0242: not arrived before the close is pending');
+update commitment_instances set starts_at = now() - interval '40 minutes', respond_by_at = now() - interval '35 minutes',
+       arrive_by_at = now() - interval '40 minutes' where id = (select id from _rc_b);
+select _ok((select r->>'arrival_verdict' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') = 'missed',
+  '0242: not arrived after the close is missed');
+-- arrive-by LATER than the wake-up's close: wake-up started 31 min ago (closed 1 min ago),
+-- arrive by start + 45, grace 10. Still 24 minutes to get there: pending, never missed.
+update commitment_instances set starts_at = now() - interval '31 minutes', respond_by_at = now() - interval '26 minutes',
+       arrive_by_at = now() + interval '14 minutes' where id = (select id from _rc_b);
+select _ok((select r->>'arrival_verdict' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') = 'pending',
+  '0242: an arrival is never missed before its own deadline + grace, even after the wake-up closes');
+-- a phone that could not confirm the place is unverified, never missed, even after every deadline
+update commitment_instances set starts_at = now() - interval '2 hours', respond_by_at = now() - interval '115 minutes',
+       arrive_by_at = now() - interval '2 hours' where id = (select id from _rc_b);
+update commitment_responses set status = 'unverified', unverified_reason = 'Could not confirm the location'
+ where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+select _ok((select r->>'arrival_verdict' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') = 'unverified',
+  '0242: a phone that could not confirm the place reads unverified on the board, never missed');
+update commitment_responses set status = 'pending', unverified_reason = null
+ where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+-- the pure function, at its boundaries (arrive by 10:00, grace 10, wake-up closes 10:30)
+select _ok(rollcall_arrival_verdict('acknowledged', '2026-09-01T10:10:00Z', '2026-09-01T10:00:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T11:00:00Z') = 'on_standard'
+       and rollcall_arrival_verdict('acknowledged', '2026-09-01T10:10:01Z', '2026-09-01T10:00:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T11:00:00Z') = 'late'
+       and rollcall_arrival_verdict('pending', null, '2026-09-01T10:00:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T10:30:00Z') = 'pending'
+       and rollcall_arrival_verdict('pending', null, '2026-09-01T10:00:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T10:30:01Z') = 'missed'
+       and rollcall_arrival_verdict('pending', null, '2026-09-01T10:45:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T10:31:00Z') = 'pending'
+       and rollcall_arrival_verdict('pending', null, '2026-09-01T10:45:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T10:55:00Z') = 'pending'
+       and rollcall_arrival_verdict('pending', null, '2026-09-01T10:45:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T10:55:01Z') = 'missed',
+  '0242 arrival verdict: on time at grace, late one second after, missed only after BOTH the close and arrive-by + grace');
+select _ok(rollcall_arrival_verdict('unverified', null, '2026-09-01T10:00:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T12:00:00Z') = 'unverified'
+       and rollcall_arrival_verdict('excused', null, '2026-09-01T10:00:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T12:00:00Z') = 'excused'
+       and rollcall_arrival_verdict('excused', '2026-09-01T11:00:00Z', '2026-09-01T10:00:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T12:00:00Z') = 'excused'
+       and rollcall_arrival_verdict('arrived', '2026-09-01T10:05:00Z', '2026-09-01T10:00:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T12:00:00Z') = 'on_standard',
+  '0242 arrival verdict: unverified is never missed, excused is never judged, a confirmed arrival wins');
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select rollcall_arrival_verdict('pending', null, now(), 10, now(), now()) $f$) = 'ok',
+  '0242 arrival verdict: callable by a signed-in user (the client shares the definition)');
+select _superuser();
+-- ---- 0242 section 7 (Task 8 fix round 1): the board's mode and the athlete's arrival verdict ----
+-- Here the roll call (c1) is a morning_roll_call with the Weight Room place; its instance started 2
+-- hours ago with arrive-by at the start, so e2 (not arrived, pending) is missed on arrival and e1
+-- (arrived 15 minutes into the old fixture clock) is judged by the server.
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok((rollcall_team_board((select id from _rc_b))->>'mode') = 'both',
+  '0242 s7: a morning roll call with a place is mode both');
+select _ok((select x->>'arrival_verdict' from jsonb_array_elements(my_commitments(current_date, current_date)) x
+             where x->>'instance_id' = (select id::text from _rc_b)) = 'missed',
+  '0242 s7: my_commitments carries the athlete''s arrival verdict from the one definition (missed)');
+select _ok((select x->>'arrival_verdict' from jsonb_array_elements(my_commitments(current_date, current_date)) x
+             where x->>'instance_id' = (select id::text from _rc_b))
+         = (select r->>'arrival_verdict' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2'),
+  '0242 s7: the card and the board read the same arrival verdict');
+select _superuser();
+update commitments set type = 'practice' where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok((rollcall_team_board((select id from _rc_b))->>'mode') = 'arrival',
+  '0242 s7: any other type with a place is mode arrival');
+select _superuser();
+select _ok((rollcall_team_board_svc((select id from _rc_b))->>'mode') = 'arrival',
+  '0242 s7: the service board carries the same mode');
+update commitments set type = 'morning_roll_call', location_id = null where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok((rollcall_team_board((select id from _rc_b))->>'mode') = 'wake',
+  '0242 s7: a morning roll call with no place is mode wake');
+select _ok((select jsonb_typeof(x->'arrival_verdict') = 'null' and x ? 'arrival_verdict'
+              from jsonb_array_elements(my_commitments(current_date, current_date)) x
+             where x->>'instance_id' = (select id::text from _rc_b)),
+  '0242 s7: with no place, my_commitments carries arrival_verdict null');
+select _superuser();
+update commitments set location_id = 'cccc0242-0000-0000-0000-0000000000a1' where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+update commitments set location_id = null where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+delete from commitment_locations where id = 'cccc0242-0000-0000-0000-0000000000a1';
+-- today's roll call is still OPEN for the history below (it must not count as a morning yet)
+update commitment_instances set starts_at = now() - interval '20 minutes', respond_by_at = now() - interval '15 minutes',
+       arrive_by_at = null where id = (select id from _rc_b);
+
+-- ---- history: six past mornings, one skipped, hand-built for e1 and e2 only ----
+-- (k = days ago)  e1                      e2
+--   1             on time (first up)      missed
+--   2             on time (first up)      excused: leaves the denominator
+--   3             late                    on time (first up)
+--   4             on time (first up)      on time
+--   5             missed                  on time (first up)
+--   6             SKIPPED DAY: never a morning, whatever its rows say (e1 "answered" it)
+-- Every morning starts exactly k days before now(), and now() is fixed for the whole suite
+-- (one transaction), so the window edges are deterministic at any hour.
+delete from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on < current_date;
+insert into commitment_instances (id, commitment_id, occurs_on, starts_at, respond_by_at, status, skipped)
+  select ('cccc0242-0000-0000-0000-00000000000' || k)::uuid, 'ccccdddd-0000-0000-0000-0000000000c1', current_date - k,
+         now() - make_interval(days => k), now() - make_interval(days => k) + interval '5 minutes',
+         case when k = 6 then 'cancelled' else 'scheduled' end, k = 6
+    from generate_series(1, 6) k;
+insert into commitment_responses (instance_id, athlete_id, status, acknowledged_at, ack_source)
+  select ('cccc0242-0000-0000-0000-00000000000' || v.k)::uuid, v.a::uuid, v.st,
+         case when v.off is null then null else now() - make_interval(days => v.k) + make_interval(mins => v.off) end,
+         case when v.off is null then null else 'app' end
+    from (values
+      (1, 'eeee0000-0000-0000-0000-0000000000e1', 'acknowledged', 2),
+      (1, 'eeee0000-0000-0000-0000-0000000000e2', 'missed',       null),
+      (2, 'eeee0000-0000-0000-0000-0000000000e1', 'acknowledged', 1),
+      (2, 'eeee0000-0000-0000-0000-0000000000e2', 'excused',      null),
+      (3, 'eeee0000-0000-0000-0000-0000000000e1', 'acknowledged', 12),
+      (3, 'eeee0000-0000-0000-0000-0000000000e2', 'acknowledged', 3),
+      (4, 'eeee0000-0000-0000-0000-0000000000e1', 'acknowledged', 1),
+      (4, 'eeee0000-0000-0000-0000-0000000000e2', 'acknowledged', 4),
+      (5, 'eeee0000-0000-0000-0000-0000000000e1', 'missed',       null),
+      (5, 'eeee0000-0000-0000-0000-0000000000e2', 'acknowledged', 2),
+      (6, 'eeee0000-0000-0000-0000-0000000000e1', 'acknowledged', 1),
+      (6, 'eeee0000-0000-0000-0000-0000000000e2', 'missed',       null)
+    ) v(k, a, st, off)
+  on conflict (instance_id, athlete_id) do update
+    set status = excluded.status, acknowledged_at = excluded.acknowledged_at, ack_source = excluded.ack_source;
+
+select _as('11111111-0000-0000-0000-000000000001');   -- coach_1, staff
+select _ok(_try($f$ select rollcall_history('ccccdddd-0000-0000-0000-0000000000c1', 30) $f$) = 'ok',
+  '0242: staff read the history');
+create temp table _rc_hj as select rollcall_history('ccccdddd-0000-0000-0000-0000000000c1', 30) as j;
+create temp table _rc_hj2 as select rollcall_history('ccccdddd-0000-0000-0000-0000000000c1', 2) as j;
+create temp table _rc_hj4 as select rollcall_history('ccccdddd-0000-0000-0000-0000000000c1', 4) as j;
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select rollcall_history('ccccdddd-0000-0000-0000-0000000000c1', 30) $f$) like 'denied%not_authorized%',
+  '0242: an athlete cannot read the history');
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok(_try($f$ select rollcall_history('ccccdddd-0000-0000-0000-0000000000c1', 30) $f$) like 'denied%not_authorized%',
+  '0242: a stranger coach cannot read the history');
+select _superuser();
+select _ok((select j ? 'team_on_time_pct' and j ? 'team_trend' and jsonb_typeof(j->'athletes') = 'array' from _rc_hj)
+       and (select array_agg(k order by k) from _rc_hj, jsonb_object_keys(j->'athletes'->0) k)
+           = array['athlete_id','avatar_path','first_up','late','missed','mornings','name','on_time','on_time_pct','streak','trend'],
+  '0242: the history carries exactly the agreed keys');
+select _ok((select (a->>'mornings')::int = 5 and (a->>'on_time')::int = 3 and (a->>'late')::int = 1 and (a->>'missed')::int = 1
+               and (a->>'on_time_pct')::int = 60 and (a->>'streak')::int = 2
+              from _rc_hj, jsonb_array_elements(j->'athletes') a where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242: e1: 5 mornings (the skipped day and today''s open one are not mornings), 3 on time, streak 2');
+select _ok((select (a->>'mornings')::int = 4 and (a->>'on_time')::int = 3 and (a->>'missed')::int = 1
+               and (a->>'on_time_pct')::int = 75 and (a->>'streak')::int = 0
+              from _rc_hj, jsonb_array_elements(j->'athletes') a where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2'),
+  '0242: e2: an excused morning leaves the denominator; a miss yesterday means no streak');
+select _ok((select (a->>'first_up')::int from _rc_hj, jsonb_array_elements(j->'athletes') a
+             where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1') = 3
+       and (select (a->>'first_up')::int from _rc_hj, jsonb_array_elements(j->'athletes') a
+             where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') = 2,
+  '0242: first up counts the mornings an athlete answered before everyone else');
+select _ok((select (j->>'team_on_time_pct')::int = 67 from _rc_hj),
+  '0242: the team rate is every on-time morning over every morning (6 of 9)');
+select _ok((select j->'athletes'->0->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1' from _rc_hj),
+  '0242: the history leads with the athlete who most needs the coach (lowest rate first)');
+select _ok((select (a->>'mornings')::int from _rc_hj2, jsonb_array_elements(j->'athletes') a
+             where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1') = 2,
+  '0242: the window bounds the history (2 days = 2 mornings)');
+-- 4 days: the midpoint is 2 days ago. e1 recent half = day 1 (on time, 100%); early half = days
+-- 2, 3, 4 (on, late, on: 67%). Over 30 days every morning is in the recent half: no trend.
+select _ok((select (a->>'trend')::int from _rc_hj4, jsonb_array_elements(j->'athletes') a
+             where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1') = 33
+       and (select jsonb_typeof(a->'trend') from _rc_hj, jsonb_array_elements(j->'athletes') a
+             where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1') = 'null',
+  '0242: trend is the recent half''s on-time rate minus the early half''s, null without both');
+drop table _rc_hj4;
+drop table _rc_hj;
+drop table _rc_hj2;
+
+-- ---- history, ARRIVAL ONLY (Task 10 fix round 1): scored on the arrival verdict ----
+-- The same six mornings, now a Practice at the Weight Room with arrive-by at each start (grace 10).
+-- Arrivals:  e1  day 1 +2m (on time, first here), day 3 +25m (late), day 4 never (missed)
+--            e2  day 1 +5m (on time), day 3 +1m (on time, first here), day 4 +3m (on time, first here)
+-- Their old acknowledgements are left in place: an arrival-only history must ignore them.
+insert into commitment_locations (id, team_id, name, lat, lng, created_by)
+  values ('cccc0242-0000-0000-0000-0000000000a3', '77777777-1111-0000-0000-000000000001', 'Weight Room', 28.6, -81.2,
+          '11111111-0000-0000-0000-000000000001');
+update commitments set type = 'practice', location_id = 'cccc0242-0000-0000-0000-0000000000a3', arrival_grace_min = 10
+ where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+update commitment_instances set arrive_by_at = starts_at where id::text like 'cccc0242-%';
+update commitment_responses set arrived_at = null where instance_id::text like 'cccc0242-%';
+update commitment_responses r set arrived_at = i.starts_at + make_interval(mins => v.off)
+  from commitment_instances i, (values
+    (1, 'eeee0000-0000-0000-0000-0000000000e1', 2), (3, 'eeee0000-0000-0000-0000-0000000000e1', 25),
+    (1, 'eeee0000-0000-0000-0000-0000000000e2', 5), (3, 'eeee0000-0000-0000-0000-0000000000e2', 1),
+    (4, 'eeee0000-0000-0000-0000-0000000000e2', 3)) v(k, a, off)
+ where i.id = ('cccc0242-0000-0000-0000-00000000000' || v.k)::uuid and r.instance_id = i.id and r.athlete_id = v.a::uuid;
+-- day 2 and day 5 carry no arrivals at all; e2 day 2 is excused
+-- today's roll call is moved to later today, so it is not a decided morning under the arrival rule
+update commitment_instances set starts_at = now() + interval '1 hour', respond_by_at = now() + interval '65 minutes'
+ where id = (select id from _rc_b);
+select _as('11111111-0000-0000-0000-000000000001');
+create temp table _rc_ha as select rollcall_history('ccccdddd-0000-0000-0000-0000000000c1', 30) as j;
+select _superuser();
+select _ok((select (a->>'on_time')::int = 1 and (a->>'late')::int = 1 and (a->>'missed')::int = 3
+               and (a->>'mornings')::int = 5 and (a->>'first_up')::int = 1
+              from _rc_ha, jsonb_array_elements(j->'athletes') a where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 arrival history: e1 is scored on arrivals (1 on time, 1 late, 3 missed), not on old acknowledgements');
+select _ok((select (a->>'on_time')::int = 3 and (a->>'missed')::int = 1 and (a->>'mornings')::int = 4
+               and (a->>'first_up')::int = 2
+              from _rc_ha, jsonb_array_elements(j->'athletes') a where a->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2'),
+  '0242 arrival history: e2 on time 3 of 4 (excused leaves the denominator), first here twice');
+drop table _rc_ha;
+update commitments set type = 'morning_roll_call', location_id = null where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+delete from commitment_locations where id = 'cccc0242-0000-0000-0000-0000000000a3';
+delete from commitment_instances where id::text like 'cccc0242-%';
+drop table _rc_b;
+
+-- ---- the night ceiling counts an assigned arrival ----
+-- No nutrition evidence, so the ceiling is (check-in slot) + (night 8 if earned): 18 on an
+-- ordinary day, 10 once the night is assigned, +8 once it is earned.
+delete from days where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and date between current_date - 3 and current_date;
+insert into days (athlete_id, date, meals, checkin, quick_added, score) values
+  ('eeee0000-0000-0000-0000-0000000000e1', current_date,     '{}', '{"submitted":true,"arrival":{"assigned":true,"verdict":"missed"}}', '[]', 100),
+  ('eeee0000-0000-0000-0000-0000000000e1', current_date - 1, '{}', '{"arrival":{"assigned":true,"verdict":"on_standard"}}', '[]', 100),
+  ('eeee0000-0000-0000-0000-0000000000e1', current_date - 2, '{}', '{"submitted":true,"arrival":{"assigned":true,"verdict":"late"}}', '[]', 100),
+  ('eeee0000-0000-0000-0000-0000000000e1', current_date - 3, '{}', '{"submitted":true,"arrival":{"assigned":true,"verdict":"pending"}}', '[]', 100);
+select _ok((select score from days where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and date = current_date) = 10,
+  '0242 ceiling: a missed arrival is assigned and earns nothing: the check-in slot shrinks to 10');
+select _ok((select score from days where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and date = current_date - 1) = 8,
+  '0242 ceiling: an on-time arrival earns the night''s 8 on its own');
+select _ok((select score from days where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and date = current_date - 2) = 18,
+  '0242 ceiling: a late arrival earns the night part too (10 + 8)');
+select _ok((select score from days where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and date = current_date - 3) = 18,
+  '0242 ceiling: a pending arrival is not assigned: an ordinary day');
+delete from days where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and date between current_date - 3 and current_date;
+
+-- ---- 0242 (part B): arrival verified by distance on the server; new places at least 100 m ----
+select _superuser();
+select _ok(round(_haversine_m(28.60, -81.20, 28.60, -81.20)) = 0, '0242: zero distance');
+select _ok(abs(_haversine_m(28.6000, -81.2000, 28.6009, -81.2000) - 100) < 3, '0242: ~100 m north is ~100 m');
+
+-- ---- save_commitment_place: new places floor at 100 m, cap at 1000 m, staff-only, owner-scoped ----
+select _as('11111111-0000-0000-0000-000000000001');   -- coach_1, staff of T1
+select _ok(_try($f$ select save_commitment_place('{"team_id":"77777777-1111-0000-0000-000000000001","name":"Too small","lat":28.6,"lng":-81.2,"radius_m":60}'::jsonb) $f$) like '%radius_min%',
+  '0242: new places cannot be smaller than 100 m');
+select _ok(_try($f$ select save_commitment_place('{"team_id":"77777777-1111-0000-0000-000000000001","name":"Too big","lat":28.6,"lng":-81.2,"radius_m":1500}'::jsonb) $f$) like '%radius_max%',
+  '0242: new places cannot be larger than 1000 m');
+select _ok(_try($f$ select save_commitment_place('{"name":"No owner","lat":28.6,"lng":-81.2,"radius_m":150}'::jsonb) $f$) like '%team_or_practice_required%',
+  '0242: a place must name a team or a practice; team_members has no role to guess one from');
+select _as('22222222-0000-0000-0000-000000000002');   -- coach_2, stranger to T1
+select _ok(_try($f$ select save_commitment_place('{"team_id":"77777777-1111-0000-0000-000000000001","name":"Intruder","lat":28.6,"lng":-81.2,"radius_m":150}'::jsonb) $f$) like '%not_authorized%',
+  '0242: a stranger coach cannot save a place for another team');
+select _as('11111111-0000-0000-0000-000000000001');
+create temp table _rc_place as
+  select save_commitment_place('{"team_id":"77777777-1111-0000-0000-000000000001","name":"Weight room","lat":28.6,"lng":-81.2,"radius_m":150}'::jsonb) as id;
+select _ok((select id is not null from _rc_place), '0242: staff save a 150 m place');
+select _ok((select radius_m = 150 and name = 'Weight room' and team_id = '77777777-1111-0000-0000-000000000001'
+              from commitment_locations, _rc_place where commitment_locations.id = _rc_place.id),
+  '0242: the saved place carries the team, name and radius given');
+-- an update to the same place, by id, still scoped to the caller's own team
+select _ok(_try($f$ select save_commitment_place(jsonb_build_object('id', (select id from _rc_place),
+    'team_id','77777777-1111-0000-0000-000000000001','name','Weight Room B','lat',28.6,'lng',-81.2,'radius_m',200)) $f$) = 'ok',
+  '0242: staff can update their own place');
+select _ok((select name = 'Weight Room B' and radius_m = 200 from commitment_locations, _rc_place where commitment_locations.id = _rc_place.id),
+  '0242: the update landed');
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok(_try($f$ select save_commitment_place(jsonb_build_object('id', (select id from _rc_place),
+    'team_id','77777777-1111-0000-0000-000000000001','name','Hijacked','lat',28.6,'lng',-81.2,'radius_m',200)) $f$) like '%not_authorized%',
+  '0242: a stranger coach cannot update another team''s place');
+
+-- ---- fix round 1, item 3: blank/missing names raise name_required, never a raw constraint error ----
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select save_commitment_place('{"team_id":"77777777-1111-0000-0000-000000000001","name":"   ","lat":28.6,"lng":-81.2,"radius_m":150}'::jsonb) $f$) like '%name_required%',
+  '0242: a blank (whitespace-only) name raises name_required, not a raw constraint error');
+select _ok(_try($f$ select save_commitment_place('{"team_id":"77777777-1111-0000-0000-000000000001","lat":28.6,"lng":-81.2,"radius_m":150}'::jsonb) $f$) like '%name_required%',
+  '0242: a missing name raises name_required');
+
+-- ---- fix round 1, item 1: exactly one owner, exact-matched — never an OR across both ----
+-- commitment_owner_is_staff(v_team, v_practice) passes if the caller is staff of EITHER owner. The
+-- old guard only checked "not (both null)", so a coach of T1 who ALSO named a practice_id they do
+-- not own could pass the staff check on their own team_id and, with the update's old
+-- `team_id = v_team or practice_id = v_practice` OR-match, rewrite a place that belongs to that
+-- practice alone. Both the guard (num_nonnulls = 1) and the update's match (is not distinct from,
+-- both columns) are fixed below.
+select _superuser();
+insert into commitment_locations (id, team_id, name, lat, lng, radius_m, created_by)
+  values ('cccc0242-0000-0000-0000-0000000000b2', '77777777-2222-0000-0000-000000000002', 'T2 victim place', 28.7, -81.3, 200,
+          '22222222-0000-0000-0000-000000000002');
+select _as('11111111-0000-0000-0000-000000000001');   -- coach_1, staff of T1 ONLY (not of T2, not of any practice)
+select _ok(_try($f$ select save_commitment_place(jsonb_build_object(
+    'id','cccc0242-0000-0000-0000-0000000000b2','team_id','77777777-1111-0000-0000-000000000001',
+    'practice_id','88888888-0000-0000-0000-000000000001','name','Rewritten','lat',28.6,'lng',-81.2,'radius_m',150)) $f$)
+  like '%team_or_practice_required%',
+  '0242: sending BOTH a team_id and a practice_id is refused before the staff check, not OR-matched through it');
+select _ok(_try($f$ select save_commitment_place(jsonb_build_object(
+    'id','cccc0242-0000-0000-0000-0000000000b2','team_id','77777777-1111-0000-0000-000000000001',
+    'name','Rewritten','lat',28.6,'lng',-81.2,'radius_m',150)) $f$) like '%not_authorized%',
+  '0242: a coach of T1 cannot rewrite T2''s place by naming only their own team_id (exact-match miss, not an OR-match hit)');
+select _superuser();
+select _ok((select name = 'T2 victim place' and team_id = '77777777-2222-0000-0000-000000000002' and radius_m = 200
+              from commitment_locations where id = 'cccc0242-0000-0000-0000-0000000000b2'),
+  '0242: the victim place is untouched by either attempt');
+delete from commitment_locations where id = 'cccc0242-0000-0000-0000-0000000000b2';
+
+-- ---- fixture: a future roll call whose commitment now points at that place (0215 pattern) ----
+select _superuser();
+create temp table _rc_place_next as
+  select id, occurs_on from commitment_instances
+   where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and starts_at > now()
+   order by occurs_on limit 1;
+grant select on _rc_place_next to authenticated, anon;
+select _ok((select count(*) from _rc_place_next) = 1, '0242: (fixture) a future roll call exists');
+update commitments set location_id = (select id from _rc_place), arrival_grace_min = 10, arrive_by_min = 355
+ where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+update commitment_instances set arrive_by_at = starts_at where id = (select id from _rc_place_next);
+insert into commitment_responses (instance_id, athlete_id, status, acknowledged_at, arrived_at, arrival_source, unverified_reason)
+  values ((select id from _rc_place_next), 'eeee0000-0000-0000-0000-0000000000e1', 'pending', null, null, null, null)
+  on conflict (instance_id, athlete_id) do update
+    set status = 'pending', acknowledged_at = null, arrived_at = null, arrival_source = null, unverified_reason = null;
+
+-- ---- verify_arrival_at: 400 m away is refused, 55 m away is verified, nothing is echoed back ----
+select _as('eeee0000-0000-0000-0000-0000000000e1');   -- an adult: not gated by minor consent (vc2)
+select _ok((verify_arrival_at((select id from _rc_place_next), 'manual', 28.6036, -81.2, 10)->>'within')::boolean = false,
+  '0242: 400 m away is not within a 150 m bubble (now 200 m after the update above)');
+select _superuser();
+-- c1 is a MORNING roll call: its status is the wake-up's and an arrival never moves it (fix round
+-- 2, N1). "Unverified" lives in unverified_reason with no arrived_at, never in status, never missed.
+select _ok((select status = 'pending' and arrived_at is null and unverified_reason is not null from commitment_responses
+             where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242: verify_arrival_at outside the bubble still writes through verify_arrival (unverified, never missed)');
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+create temp table _rc_vaj as
+  select verify_arrival_at((select id from _rc_place_next), 'manual', 28.6005, -81.2, 10) as j;
+select _superuser();
+select _ok((select (j->>'within')::boolean from _rc_vaj) = true, '0242: 55 m away is within');
+select _ok((select j->>'arrived_at' is not null and j->>'status' = 'pending' from _rc_vaj),
+  '0242: within, verify_arrival records the arrival (one write path); a morning''s wake-up status stays');
+select _ok((select not (j ?| array['lat','lng','latitude','longitude']) from _rc_vaj),
+  '0242: verify_arrival_at never echoes the position back');
+select _ok((select j ? 'distance_m' and j ? 'within' from _rc_vaj), '0242: the caller gets ok/within/distance_m');
+drop table _rc_vaj;
+
+-- fix round 1, item 3: a non-finite accuracy (NaN — however the client managed to send it) is
+-- treated as 0 m of pad, never the full 75 m. The place is now 200 m (updated above); ~230 m away
+-- is outside a 200 m+0 pad but would have been INSIDE a 200 m+75 buggy pad.
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok((verify_arrival_at((select id from _rc_place_next), 'manual', 28.60207, -81.2, 'NaN'::float8)->>'within')::boolean = false,
+  '0242: a non-finite accuracy (NaN) pads by 0 m, never the full 75 m');
+
+-- fix round 1, item 2: a caller with NO response row on the instance is refused before we so much
+-- as reveal whether the instance has a place — never no_place, always not_authorized.
+select _as('bbbbbbbb-0000-0000-0000-000000000002');   -- athlete B, on T2, holds no response on this T1 instance
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'manual', 28.6005, -81.2, 10) $f$) like '%not_authorized%',
+  '0242: a caller with no response on the instance is refused not_authorized, never no_place');
+
+select _as('eeee0000-0000-0000-0000-0000000000e1');   -- superuser bypasses grants; check as an ordinary user
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'manual', 999, -81.2, 10) $f$) like '%bad_position%',
+  '0242: an impossible latitude is refused before any distance math');
+
+-- Task 6 (controller ruling): no UIBackgroundModes "location", so iOS may refuse a reading during a
+-- region wake. The geofence source may then report the OS region match with NO coordinates; the
+-- manual source ("I'm here") never may.
+select _superuser();
+update commitment_responses set status = 'pending', acknowledged_at = null, arrived_at = null,
+       arrival_source = null, unverified_reason = null, departed_at = null
+ where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'manual', null, null, null) $f$) like '%bad_position%',
+  '0242: manual ("I''m here") with no coordinates is bad_position: the tap is always distance-verified');
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'geofence', 28.6005, null, 10) $f$) like '%bad_position%',
+  '0242: a half-given position is bad_position even from the geofence');
+create temp table _rc_vag as
+  select verify_arrival_at((select id from _rc_place_next), 'geofence', null, null, null) as j;
+select _superuser();
+select _ok((select (j->>'within')::boolean from _rc_vag) = true,
+  '0242: geofence with null coordinates = the OS region match: within true');
+select _ok((select j ? 'distance_m' and jsonb_typeof(j->'distance_m') = 'null' from _rc_vag),
+  '0242: the region-match path reports distance_m null, never an invented number');
+select _ok((select arrived_at is not null and status = 'pending' and arrival_source = 'geofence' from commitment_responses
+             where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242: the region match writes through verify_arrival (arrived_at, source geofence)');
+drop table _rc_vag;
+select _as('bbbbbbbb-0000-0000-0000-000000000002');   -- no response on this instance
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'geofence', null, null, null) $f$) like '%not_authorized%',
+  '0242: the region-match path is still auth-first: no response row = not_authorized');
+select _ok(_try($f$ select _haversine_m(0,0,0,0) $f$) like 'denied%',
+  '0242: _haversine_m is internal — not even a signed-in user may call it directly');
+
+-- ---- 0242 section 8 (final review I1, item 7, M2, M6): arrival after the close; no distance stored ----
+-- The stored reason names the place only. The distance goes back to the athlete in the reply and
+-- nowhere else: staff read unverified_reason, and coaches see Arrived / Not arrived only.
+select _superuser();
+update commitment_responses set status = 'pending', acknowledged_at = null, arrived_at = null,
+       arrival_source = null, unverified_reason = null, departed_at = null
+ where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+create temp table _rc_far as
+  select verify_arrival_at((select id from _rc_place_next), 'manual', 28.6036, -81.2, 10) as j;
+select _superuser();
+select _ok((select (j->>'distance_m')::int between 350 and 450 from _rc_far),
+  '0242 s8: the athlete still gets the distance back in the reply to their own tap');
+select _ok((select unverified_reason = 'Not at Weight Room B' from commitment_responses
+             where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 s8: the stored reason names the place, never the distance (staff can read it)');
+select _ok((select coalesce(j->>'unverified_reason', '') not like '% m from %' from _rc_far),
+  '0242 s8: no "N m from" anywhere in what is stored or echoed as the reason');
+drop table _rc_far;
+
+-- A morning with a place, the wake-up MISSED at its close, the arrival still open: walking in
+-- writes the arrival and leaves the wake-up answer and its missed verdict exactly as they were.
+update commitment_instances
+   set starts_at = now() - interval '40 minutes', respond_by_at = now() - interval '35 minutes',
+       ends_at = null, arrive_by_at = now() + interval '5 minutes'
+ where id = (select id from _rc_place_next);
+update commitment_responses set status = 'missed', acknowledged_at = null, arrived_at = null,
+       arrival_source = null, unverified_reason = null, departed_at = null
+ where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'geofence', null, null, null) $f$) = 'ok',
+  '0242 s8: an arrival inside the arrival window is accepted after the wake-up closed');
+select _superuser();
+select _ok((select arrived_at is not null and acknowledged_at is null and status = 'missed'
+              from commitment_responses
+             where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 s8: an arrival never writes the wake-up answer time, and the missed wake-up stays missed');
+select _ok((select r->>'verdict' = 'missed' and r->>'arrival_verdict' = 'on_standard'
+              from jsonb_array_elements(rollcall_team_board_svc((select id from _rc_place_next))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 s8: the board keeps the wake-up missed and shows the arrival on time');
+
+-- After the arrival close (greatest(the roll call close, arrive-by + grace)): refused, nothing written.
+update commitment_instances
+   set starts_at = now() - interval '2 hours', respond_by_at = now() - interval '115 minutes',
+       ends_at = null, arrive_by_at = now() - interval '2 hours'
+ where id = (select id from _rc_place_next);
+update commitment_responses set status = 'missed', acknowledged_at = null, arrived_at = null,
+       arrival_source = null, unverified_reason = null, departed_at = null
+ where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'geofence', null, null, null) $f$) like '%arrival_closed%',
+  '0242 s8: the region-match path after the close is refused arrival_closed (was: clamped and written)');
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'manual', 28.6005, -81.2, 10) $f$) like '%arrival_closed%',
+  '0242 s8: an I''m here tap after the close is refused arrival_closed');
+select _ok(_try($f$ select verify_arrival((select id from _rc_place_next), 'geofence', true, null) $f$) like '%arrival_closed%',
+  '0242 s8: the old direct verify_arrival door is closed after the close too');
+select _superuser();
+select _ok((select arrived_at is null and acknowledged_at is null and status = 'missed'
+              from commitment_responses
+             where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 s8: a refused late arrival writes nothing: missed stays missed');
+
+-- ---- 0242 fix round 2 (N1): arriving BEFORE the wake-up answer leaves the wake-up pending ----
+-- A morning's status is the wake-up's. Every nudge pipeline gates on status = 'pending', so an
+-- arrival (walk-in or I'm here) before I'm Up must not move it: the reminder, the lock-screen card
+-- and the missed claim still see the athlete, and I'm Up afterwards still works.
+select _superuser();
+update commitments set reminder_offsets_min = '{5}', active = true where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+update commitment_instances
+   set starts_at = now() - interval '2 minutes', respond_by_at = now() + interval '3 minutes',
+       ends_at = null, arrive_by_at = now() + interval '20 minutes', status = 'scheduled',
+       live_ended_at = null
+ where id = (select id from _rc_place_next);
+update commitment_responses set status = 'pending', acknowledged_at = null, arrived_at = null,
+       arrival_source = null, unverified_reason = null, departed_at = null, reminded_offsets = '{}',
+       card_started_at = null, ack_source = null
+ where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+insert into rollcall_live_tokens (athlete_id, instance_id, kind, token)
+  values ('eeee0000-0000-0000-0000-0000000000e1', null, 'start', 'tok-e1-n1-start');
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'geofence', null, null, null) $f$) = 'ok',
+  '0242 N1: an arrival before the wake-up answer is accepted');
+select _superuser();
+select _ok((select status = 'pending' and acknowledged_at is null and arrived_at is not null
+              from commitment_responses
+             where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 N1: the arrival writes arrived_at only; the wake-up row stays pending');
+select _ok(exists (select 1 from claim_due_commitment_reminders(10, 500) c
+                    where c.instance_id = (select id from _rc_place_next)
+                      and c.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 N1: the arrived-but-not-up athlete is still claimed for the reminder');
+select _ok(exists (select 1 from claim_rollcall_card_opens(500) c
+                    where c.instance_id = (select id from _rc_place_next)
+                      and 'eeee0000-0000-0000-0000-0000000000e1' = any(c.athlete_ids)),
+  '0242 N1: the arrived-but-not-up athlete is still claimed for the lock-screen card');
+select _ok((select r->>'verdict' = 'pending' and r->>'arrival_verdict' = 'on_standard'
+              from jsonb_array_elements(rollcall_team_board_svc((select id from _rc_place_next))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 N1: the board judges the two apart: wake-up pending, arrival on time');
+-- I'm Up afterwards still works, and keeps the arrival.
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select ack_commitment((select id from _rc_place_next)) $f$) = 'ok',
+  '0242 N1: I''m Up after arriving still works');
+select _superuser();
+select _ok((select acknowledged_at is not null and arrived_at is not null
+              from commitment_responses
+             where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 N1: after I''m Up the row carries both the answer and the arrival');
+
+-- The missed claim still sees an athlete who arrived and never tapped I'm Up.
+update commitment_responses set status = 'pending', acknowledged_at = null, ack_source = null,
+       arrived_at = now() - interval '1 minute', arrival_source = 'geofence'
+ where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+update commitment_instances set respond_by_at = now() - interval '1 minute' where id = (select id from _rc_place_next);
+select _ok(exists (select 1 from claim_missed_commitments(10, array['eeee0000-0000-0000-0000-0000000000e1']::uuid[], 500) c
+                    where c.instance_id = (select id from _rc_place_next)),
+  '0242 N1: an athlete who arrived but never answered is still claimed as missed');
+
+-- The not-confirmed branch leaves a morning's status alone too; the arrival reads unverified.
+update commitment_instances set respond_by_at = now() + interval '3 minutes' where id = (select id from _rc_place_next);
+update commitment_responses set status = 'pending', acknowledged_at = null, arrived_at = null,
+       arrival_source = null, unverified_reason = null
+ where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _try($f$ select verify_arrival_at((select id from _rc_place_next), 'manual', 28.6036, -81.2, 10) $f$);
+select _superuser();
+select _ok((select status = 'pending' and unverified_reason is not null
+              from commitment_responses
+             where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 N1: a failed place check on a morning keeps the wake-up pending');
+select _ok((select r->>'arrival_verdict' = 'unverified'
+              from jsonb_array_elements(rollcall_team_board_svc((select id from _rc_place_next))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 N1: and the arrival still reads unverified (rollcall_arrival_status)');
+delete from rollcall_live_tokens where token = 'tok-e1-n1-start';
+
+-- R2-3 (fix round 3): a NON-morning place commitment keeps 0208's transition through the
+-- redefined verify_arrival: pending -> arrived (only a morning's status is left alone).
+select _superuser();
+create temp table _r23 as select id from commitment_instances
+  where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2' order by occurs_on desc limit 1;
+grant select on _r23 to authenticated, anon;
+insert into commitment_responses (instance_id, athlete_id, status)
+  values ((select id from _r23), 'eeee0000-0000-0000-0000-0000000000e1', 'pending')
+  on conflict (instance_id, athlete_id) do nothing;
+update commitment_instances set starts_at = now() - interval '10 minutes', arrive_by_at = now() + interval '5 minutes',
+       ends_at = now() + interval '110 minutes', status = 'scheduled'
+ where id = (select id from _r23);
+update commitment_responses set status = 'pending', acknowledged_at = null, arrived_at = null,
+       arrival_source = null, unverified_reason = null, departed_at = null, completed_at = null
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
+   and instance_id = (select id from _r23);
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select verify_arrival_at((select id from _r23), 'geofence', null, null, null) $f$) = 'ok',
+  '0242 R2-3: an arrival on an arrival-only (non-morning) place commitment is accepted');
+select _superuser();
+select _ok((select status = 'arrived' and arrived_at is not null from commitment_responses
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
+               and instance_id = (select id from _r23)),
+  '0242 R2-3: a non-morning commitment still moves pending -> arrived');
+drop table _r23;
+
+-- M2: a commitment may only point at its own owner's place.
+insert into commitment_locations (id, team_id, name, lat, lng, radius_m, created_by)
+  values ('cccc0242-0000-0000-0000-0000000000b3', '77777777-2222-0000-0000-000000000002', 'T2 place', 28.7, -81.3, 200,
+          '22222222-0000-0000-0000-000000000002');
+select _ok(_try($f$ update commitments set location_id = 'cccc0242-0000-0000-0000-0000000000b3'
+                     where id = 'ccccdddd-0000-0000-0000-0000000000c1' $f$) like '%location_not_yours%',
+  '0242 s8: a T1 commitment cannot be pointed at a T2 place (M2)');
+select _ok((select location_id = (select id from _rc_place) from commitments where id = 'ccccdddd-0000-0000-0000-0000000000c1'),
+  '0242 s8: the commitment still points at its own place');
+delete from commitment_locations where id = 'cccc0242-0000-0000-0000-0000000000b3';
+
+-- M6: _haversine_m pins its search_path.
+select _ok((select coalesce(array_to_string(proconfig, ','), '') like '%search_path=%'
+              from pg_proc where proname = '_haversine_m'),
+  '0242 s8: _haversine_m has a pinned search_path');
+
+select _superuser();
+update commitments set location_id = null, arrive_by_min = null where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+-- restore this response row to the same untouched state materialization left it in, rather than
+-- deleting it: a later section may still count responses on this (dynamically-chosen) instance.
+update commitment_responses set status = 'pending', acknowledged_at = null, ack_source = null,
+       arrived_at = null, arrival_source = null, unverified_reason = null, departed_at = null,
+       completed_at = null
+ where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+delete from commitment_locations where id in (select id from _rc_place);
+drop table _rc_place_next;
+drop table _rc_place;
 
 -- ================================================================ scoreboard
 select _superuser();

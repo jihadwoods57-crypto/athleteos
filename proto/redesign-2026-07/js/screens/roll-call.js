@@ -12,10 +12,10 @@
    never "Missed", and always offers a way to say so. */
 import { icon } from '../icons.js';
 import { track, EVENTS } from '../analytics.js';
-import { backHead, esc } from '../components.js';
+import { backHead, esc, skeletonRows } from '../components.js';
 import { fmtMin } from '../requirements.js';
-import { deriveCommitment, TYPE_LABEL, fmtAt, offsetFor, VERDICT, wakeupPhase, deadlineOf, closesAtOf, opensAtOf, graceMinOf, sourceOf, SOURCE } from '../commitments.js';
-import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal, subscribeMine } from '../commitment-data.js';
+import { deriveCommitment, TYPE_LABEL, fmtAt, offsetFor, VERDICT, wakeupPhase, deadlineOf, closesAtOf, opensAtOf, graceMinOf, sourceOf, SOURCE, athleteRollcallRoute, boardRoute } from '../commitments.js';
+import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal, subscribeMine, todayISO, nativeCaps } from '../commitment-data.js';
 import { pushTokenState, RT, S, act } from '../state.js';
 import { wakeAlarmState } from '../wake-alarms.js';
 
@@ -50,9 +50,19 @@ function stageStrip(d) {
 
 /** The live card for Home. Returns '' when the commitment isn't visible yet (before it opens,
  *  or after the coach cancelled it) — Home renders nothing rather than an empty shell. */
+/** A wake-up for today (or earlier) lives on the team board now; tomorrow's preview keeps the
+ *  detail screen, which is where this phone's alarm for that morning is explained. The rule is
+ *  commitments.js athleteRollcallRoute, shared with every other door. */
+function boardFor(row) {
+  return !!row && !!row.instance_id && athleteRollcallRoute(row, todayISO()) === boardRoute(row.instance_id);
+}
+
 export function commitmentCard(d) {
   if (!d || !d.visible) return '';
   const id = esc(d.instance_id || '');
+  // A wake-up opens the team board (roll call rebuilt, 2026-09-23); everything else keeps its
+  // detail screen. `go` is already escaped (id is).
+  const go = boardFor(d) ? `rollcall-board/${id}` : `roll-call/${id}`;
 
   if (d.collapsed) {
     /* An answer queued OFFLINE (commitment-data.js patchLocal sets pendingSync) is recorded on
@@ -60,7 +70,7 @@ export function commitmentCard(d) {
        a promise the app could not keep: the server stamps its own time when the queue drains and
        may rule it late or put it under review. Neutral until it lands. */
     if (d.pendingSync && d.type === 'morning_roll_call') {
-      return `<div class="xrow-item" data-go="roll-call/${id}">
+      return `<div class="xrow-item" data-go="${go}">
       <div class="xico sm muted">${icon('clock', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">Answered on this phone · sends when you reconnect</div></div>
@@ -72,7 +82,7 @@ export function commitmentCard(d) {
     // this, "Mark complete" quietly upgraded an amber card to a clean green one while the score
     // still withheld the arrival weight.
     if (d.stage === 'completed' && d.presence === 'left_early') {
-      return `<div class="xrow-item warn" data-go="roll-call/${id}">
+      return `<div class="xrow-item warn" data-go="${go}">
       <div class="xico sm gold">${icon('clock', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}</div></div>
@@ -82,7 +92,7 @@ export function commitmentCard(d) {
     // A LATE wake-up answer (0211) keeps its receipt amber and says how late: it counts as an
     // answer, and it is never dressed as an on-time one.
     if (d.stage === 'acknowledged' && d.verdict === VERDICT.LATE) {
-      return `<div class="xrow-item warn" data-go="roll-call/${id}">
+      return `<div class="xrow-item warn" data-go="${go}">
       <div class="xico sm gold">${icon('clock', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}</div></div>
@@ -91,7 +101,7 @@ export function commitmentCard(d) {
     }
     // A delayed-sync tap waiting on the coach (0212): neither green nor amber.
     if (d.stage === 'review') {
-      return `<div class="xrow-item" data-go="roll-call/${id}">
+      return `<div class="xrow-item" data-go="${go}">
       <div class="xico sm muted">${icon('clock', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)} · Your coach will review it</div></div>
@@ -99,7 +109,7 @@ export function commitmentCard(d) {
     </div>`;
     }
     if (d.stage === 'acknowledged' && d.source === SOURCE.OVERRIDE) {
-      return `<div class="xrow-item green" data-go="roll-call/${id}">
+      return `<div class="xrow-item green" data-go="${go}">
       <div class="xico sm green">${icon('check', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}</div></div>
@@ -111,7 +121,7 @@ export function commitmentCard(d) {
     const excused = d.stage === 'excused';
     const pill = d.stage === 'completed' ? 'Completed' : excused ? 'Excused'
       : d.type === 'morning_roll_call' ? 'On Standard' : 'Checked in';
-    return `<div class="xrow-item ${excused ? '' : 'green'}" data-go="roll-call/${id}">
+    return `<div class="xrow-item ${excused ? '' : 'green'}" data-go="${go}">
       <div class="xico sm" style="${excused ? 'background:var(--surface-2);color:var(--text-3)' : 'background:var(--green-surface);color:var(--green-bright)'}">${icon('check', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}</div></div>
@@ -121,7 +131,7 @@ export function commitmentCard(d) {
 
   // The last 15 minutes before the open (0212): the card is there, the button is not.
   if (d.stage === 'upcoming') {
-    return `<div class="xrow-item" data-go="roll-call/${id}">
+    return `<div class="xrow-item" data-go="${go}">
       <div class="xico sm blue">${icon('sun', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)}${d.coach_name ? esc(` · ${d.coach_name}`) : ''}</div></div>
@@ -160,7 +170,7 @@ export function commitmentCard(d) {
   // "Couldn't verify" are opposite claims: one is evidence, the other is the absence of it, and
   // an athlete must never read the second as the first. The word "missed" appears in neither.
   if (d.stage === 'left_early') {
-    return `<div class="xrow-item warn" data-go="roll-call/${id}">
+    return `<div class="xrow-item warn" data-go="${go}">
       <div class="xico sm gold">${icon('clock', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(d.confirmLine)} · Counts unless corrected</div></div>
@@ -181,7 +191,7 @@ export function commitmentCard(d) {
     // A CLOSED wake-up with no answer is the one place the word "missed" is earned (0211): the
     // deadline passed, the late window passed, and the record says so. Red, not amber.
     const wakeMissed = !un && d.type === 'morning_roll_call';
-    return `<div class="xrow-item${un ? '' : wakeMissed ? ' red' : ' warn'}" data-go="roll-call/${id}">
+    return `<div class="xrow-item${un ? '' : wakeMissed ? ' red' : ' warn'}" data-go="${go}">
       <div class="xico sm" style="${un ? 'background:var(--surface-2);color:var(--text-3)' : wakeMissed ? 'background:var(--red-surface);color:var(--red)' : 'background:var(--amber-surface);color:var(--amber-bright)'}">${icon(un ? 'shield' : 'bolt', 16)}</div>
       <div class="xr"><div class="xa">${esc(d.title)}</div>
       <div class="xb">${esc(sub)}</div></div>
@@ -190,8 +200,11 @@ export function commitmentCard(d) {
   }
 
   // Live: the coach's words own this card.
+  // An app build from before location came back cannot take a reading (final review I-2): no
+  // I'm here button, and one line with the real cause instead (below).
+  const noLocation = !d.canAck && d.canArrive && !nativeCaps().location;
   const action = d.canAck ? `data-vc-ack="${id}"`
-    : d.canArrive ? `data-vc-arrive="${id}"`
+    : d.canArrive && !noLocation ? `data-vc-arrive="${id}"`
     : d.canComplete ? `data-vc-complete="${id}"` : '';
   const actionText = d.canAck ? d.actionLabel
     : d.canArrive ? (d.actionLabel && d.stage !== 'open' ? 'I’m here' : d.actionLabel)
@@ -248,6 +261,7 @@ export function commitmentCard(d) {
     ${d.confirmLine && (d.stage === 'awaiting_arrival' || d.stage === 'arrived') ? `<div class="vc-ctx">${icon(d.presence === 'provisional' ? 'clock' : 'check', 13)} ${esc(d.confirmLine)}</div>` : ''}
     ${stageStrip(d)}
     ${action ? `<button class="xcta" ${action}>${icon('check', 18)} ${esc(actionText)}</button>` : ''}
+    ${noLocation ? `<div class="vc-ctx">${icon('pin', 13)} Update OnStandard to check in by location.</div>` : ''}
     ${action && SAVE_FAILED.get(d.instance_id) ? `<div class="vc-ctx" style="color:var(--amber-bright)">${icon('bolt', 13)} ${esc(SAVE_FAILED.get(d.instance_id))}</div>` : ''}
   </section>`;
 }
@@ -308,7 +322,11 @@ export function mountCommitmentCard(root, rerender) {
       // and a dead write leaves a note the card renders instead of resetting in silence.
       let ok = false;
       try { ok = await fn(id); } catch { ok = false; }
-      if (ok) {
+      // A handler may answer { note } instead of true/false: the action did not happen, and the
+      // card should say exactly why rather than the generic signal line.
+      if (ok && typeof ok === 'object' && ok.note) {
+        SAVE_FAILED.set(id, ok.note);
+      } else if (ok) {
         SAVE_FAILED.delete(id);
         try { if (navigator.vibrate) navigator.vibrate(14); } catch { /* no-op */ }
       } else {
@@ -326,7 +344,7 @@ export function mountCommitmentCard(root, rerender) {
         kind: `rollcall_answered:${id}`,
         title: `${(S.athlete && S.athlete.first) || 'Your athlete'} answered the roll call`,
         body: `${row.title || 'Roll call'} · Tap to see who is in.`,
-        route: `coach-commitments/${id}`,
+        route: `rollcall-board/${id}`,
       });
       if (at) track(EVENTS.VC_ACKNOWLEDGED, {
         type: row.type,
@@ -339,12 +357,38 @@ export function mountCommitmentCard(root, rerender) {
     });
   });
   go('data-vc-complete', (id) => completeCommitment(id, 'manual').then(Boolean));
+  // "I'm here", restored 2026-09-23 (the roll call rebuilt; signalsAsked reads asks_arrival again,
+  // so the card offers this button). One reading, taken natively and judged by DISTANCE on the
+  // server (verify_arrival_at); a miss is recorded as unverified with "Not at <place>", never
+  // as missed, and the card then shows how far away they were (from the reply, never stored). The
+  // phone is asked for While Using first when it never was (checkInHere). location.js is loaded on
+  // the tap because this file is in the boot graph and that one must not be.
+  go('data-vc-arrive', async (id) => {
+    const place = (VC.instance(id) || {}).location_name || 'the check-in spot';
+    const { checkInHere, hereErrorLine } = await import('../location.js');
+    // Home has no room for the explanation: a phone never asked goes to the detail screen, where
+    // the ask card explains While Using before the phone's own prompt (item 2).
+    const onDetail = !!root.querySelector('#vc-loc-ask');
+    const r = await checkInHere(id, { prompt: onDetail });
+    if (r && r.error === 'ask-first') { location.hash = `#roll-call/${id}`; return { note: hereErrorLine(r) }; }
+    // No location on this build, a No in Settings, a dismissed prompt: said plainly, nothing saved.
+    if (!r || r.error) return { note: hereErrorLine(r || { error: 'failed' }) };
+    await loadMine(true);
+    if (r.within) { VERIFY_REASON.delete(id); track(EVENTS.VC_ARRIVED, { source: 'manual' }); return true; }
+    // Too far: say how far, from the server's own measurement.
+    VERIFY_REASON.set(id, typeof r.distance_m === 'number'
+      ? `${Math.round(r.distance_m)} m from ${place}`
+      : (r.reason || 'Couldn’t confirm your location'));
+    track(EVENTS.VC_UNVERIFIED, { reason: 'distance' });
+    return true;
+  });
   root.querySelectorAll('[data-vc-open]').forEach((el) => el.addEventListener('click', (ev) => {
     if (ev.target.closest('button')) return;
     // No leading slash: router.js:86 parses the hash with `raw.split('/')`, so `#/roll-call/<id>`
     // yields an empty route name and silently falls back to Home. The static `data-go` paths in
     // this same file (:53, :66) already use the correct form.
-    location.hash = `#roll-call/${el.getAttribute('data-vc-open')}`;
+    const vid = el.getAttribute('data-vc-open');
+    location.hash = boardFor(VC.instance(vid)) ? `#rollcall-board/${vid}` : `#roll-call/${vid}`;
   }));
 }
 
@@ -499,6 +543,17 @@ function wakeupDetail(row, d) {
     <input class="input" id="vc-dispute-note" maxlength="200" placeholder="What actually happened? (optional)" aria-label="What actually happened" autocomplete="off">
     <button class="btn ghost wk-dispute-btn" id="vc-dispute">Something wrong? Tell your coach</button>` : `
     <div class="wk-gap"></div><div class="ts wk-center">Reported. Your coach can see this and correct it.</div>`) : ''}
+  ${/* Tomorrow's preview is the one wake-up this screen still shows (the rest open the board).
+        Once its window is open it is never a dead end: the board is where the morning is. */''}
+  ${phase !== 'before' ? `
+    <div class="wk-gap"></div>
+    <section class="card rows">
+      <div class="lrow" data-go="${esc(boardRoute(row.instance_id))}" role="button" tabindex="0">
+        <div class="lic">${icon('users', 15)}</div>
+        <div class="lm"><div class="lt">See the team board</div><div class="ls">Who’s up, who’s late, first up</div></div>
+        ${icon('chevron', 14, 'class="ic-chevron"')}
+      </div>
+    </section>` : ''}
   ${howItWorks(row, clock, d)}
   <div class="wk-foot"></div>`;
 }
@@ -543,6 +598,14 @@ export function resolveState(sub, m = RESOLVE) {
 
 export default {
   tab: 'home',
+  /* Today's wake-up (or an earlier one) is the team board now (roll call rebuilt, 2026-09-23).
+     The router asks this before it paints, so an old push or a restored hash never shows a frame
+     of this screen for it. An id that is not cached yet renders the skeleton below, and the
+     repaint after loadMine asks again. */
+  redirect({ sub }) {
+    const row = VC.instance(sub);
+    return boardFor(row) ? boardRoute(row.instance_id) : null;
+  },
   render({ sub }) {
     const row = VC.instance(sub);
     if (!row) {
@@ -558,8 +621,10 @@ export default {
         <div style="height:12px"></div>
         <button class="btn ghost" data-go="home" style="width:100%">Back to home</button>`;
       }
-      return `${backHead('Check-in', 'Loading…', 'home')}
-      <section class="card pad"><div class="ts">Loading your check-in…</div></section>`;
+      /* The same skeleton the team board draws while it loads: almost every link into this route
+         is a roll call that will hand over to the board the moment the row resolves, so the
+         handover reads as the board filling in, not as one screen replaced by another. */
+      return `${backHead('Roll call', 'Loading…', 'home')}${skeletonRows(4, 'Loading your check-in')}`;
     }
     const d = deriveCommitment(row, new Date().toISOString());
     if (row.type === 'morning_roll_call') return wakeupDetail(row, d);
@@ -605,6 +670,10 @@ export default {
 
     ${d.canAck ? `<div style="height:12px"></div>
       <button class="btn green" data-vc-ack="${esc(row.instance_id)}" style="width:100%">${icon('check', 19)} ${esc(d.actionLabel)}</button>` : ''}
+    ${d.canArrive && !d.canAck ? (nativeCaps().location
+      ? `<button class="btn green vc-here" data-vc-arrive="${esc(row.instance_id)}">${icon('pin', 19)} I’m here</button>
+      <div id="vc-loc-ask" class="vc-loc-ask"></div>`
+      : `<div class="vc-ctx vc-noloc">${icon('pin', 13)} Update OnStandard to check in by location.</div>`) : ''}
     ${d.canComplete ? `<div style="height:12px"></div>
       <button class="btn green" data-vc-complete="${esc(row.instance_id)}" style="width:100%">${icon('check', 19)} Mark complete</button>` : ''}
     ${/* The card's failure note, on the detail screen too: a deep-linked athlete whose write
@@ -624,6 +693,9 @@ export default {
   },
 
   mount(root, { sub }) {
+    // Belt and braces for a render the router did not start (the redirect above is the path):
+    // replace(), not a push, so Back from the board never returns to this screen.
+    if (boardFor(VC.instance(sub))) { location.replace(`#${boardRoute(sub)}`); return; }
     if (!VC.instance(sub) && shouldResolve(sub)) {
       // Settle on BOTH outcomes: a rejection that left `pending` set would strand the screen
       // on "Loading…" with no attempt ever allowed again.
@@ -634,6 +706,21 @@ export default {
       loadMine(true).then(settle, settle);
     }
     mountCommitmentCard(root, () => window.__render && window.__render());
+    // The location ask for this check-in (item 2), painted once the phone has answered. location.js
+    // is loaded here, on the detail screen, because this file is in the boot graph.
+    const askSlot = root.querySelector('#vc-loc-ask');
+    if (askSlot) {
+      const row = VC.instance(sub) || {};
+      import('../location.js').then((L) => {
+        const fill = () => {
+          if (!askSlot.isConnected) return;
+          askSlot.innerHTML = L.locationAskFor(row.location_name || 'the check-in spot', !!RT.locationOptOut);
+        };
+        L.mountLocationAsk(askSlot, () => L.probeLocation().then(fill, fill));
+        fill();
+        Promise.all([L.probeConsent(), L.probeLocation()]).then(fill, fill);
+      }, () => { /* no card; the I'm here tap still asks */ });
+    }
     void paintAlarmLine(root, VC.instance(sub));
 
     // The push-readiness card (0211) can only be drawn once the native shell has answered; when

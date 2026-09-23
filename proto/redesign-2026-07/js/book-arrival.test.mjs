@@ -63,3 +63,43 @@ test('the router repaints the current operator screen on arrival', () => {
   assert.ok(src.includes("addEventListener('onstd:book-arrival'"),
     'router.js must listen for onstd:book-arrival — without the listener the dispatch repaints nothing');
 });
+
+/* 2026-09-23 review (Important 1): a book arrival while the coach's Nudge/Override sheet is open
+ * used to just drop the repaint — no crash, no replay, so `CD.kind` labels, the `rosterLoaded`
+ * dead-link guard and the More template's rows stayed stale until some UNRELATED repaint. The fix
+ * has two halves and both must survive a refactor together: (1) the listener must not call
+ * window.__render() while a `.sheet-scrim` sits in the document — it must defer instead, and
+ * (2) something must replay that deferred arrival once the sheet is gone, or (1) alone just
+ * turns "closes itself" into "never catches up". Source-level, same reasoning as the tests
+ * above: importing router.js pulls in the whole screens/index.js tree for a module that has
+ * real side effects at import time (initLayout/initGestures/initKeyboard), which is exactly why
+ * this file has stayed source-scanning since 2026-08-23. */
+test('a book arrival while the sheet is open is deferred, not dropped, and replays once it closes', () => {
+  const src = readFileSync(join(HERE, 'router.js'), 'utf8');
+  const start = src.indexOf("addEventListener('onstd:book-arrival'");
+  assert.ok(start >= 0, 'the onstd:book-arrival listener must exist');
+  const body = src.slice(start, start + 1200);
+
+  // Half 1: no repaint while the sheet is open. The sheet-scrim check must come BEFORE the
+  // unconditional window.__render() call inside this listener, and must return without calling
+  // it — otherwise the guard from Important 1's failure scenario is gone again.
+  const guardAt = body.indexOf("querySelector('.sheet-scrim')");
+  const renderAt = body.indexOf('window.__render();');
+  assert.ok(guardAt >= 0, 'the listener must check for an open .sheet-scrim before repainting');
+  assert.ok(renderAt >= 0 && guardAt < renderAt,
+    'the .sheet-scrim check must gate the unconditional window.__render() call, not follow it');
+  const guardLine = body.slice(guardAt - 40, guardAt + 120);
+  assert.ok(!/window\.__render\(\)/.test(body.slice(guardAt, guardAt + 60)),
+    'the branch that finds an open sheet must not itself call window.__render() synchronously');
+  assert.match(guardLine, /pendingBookArrival\s*=\s*true/,
+    'finding an open sheet must remember the deferred arrival (pendingBookArrival), or half 2 has nothing to replay');
+
+  // Half 2: one repaint after the sheet closes. Something must watch for the sheet leaving the
+  // document and then call window.__render() — gated on the same pending flag, so an arrival
+  // that was never deferred does not cause an extra repaint on some later, unrelated sheet close.
+  assert.ok(/new MutationObserver/.test(src),
+    'nothing observes the sheet closing, so a deferred arrival can never replay');
+  const replaySrc = src.slice(src.indexOf('function replayBookArrivalWhenSheetCloses'));
+  assert.match(replaySrc.slice(0, 600), /if\s*\(pendingBookArrival\)\s*\{\s*pendingBookArrival\s*=\s*false;\s*window\.__render\(\);/,
+    'the replay must clear pendingBookArrival and call window.__render() exactly once when the sheet is gone');
+});

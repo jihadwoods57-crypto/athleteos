@@ -1,8 +1,9 @@
 import { RT } from '../state.js';
 import { icon } from '../icons.js';
-import { backHead, esc } from '../components.js';
+import { backHead, esc, skeletonRows } from '../components.js';
 import { morningSummary, wakeClock, WAKEUP_TYPE } from '../wakeup-morning.js';
 import { VC, loadBoard } from '../commitment-data.js';
+import { boardRoute, ROLLCALL_OFF } from '../commitments.js';
 import { CD, bookId, loadBook } from '../coach-data.js';
 import * as roles from '../roles.js';
 
@@ -41,21 +42,41 @@ function needRow(r) {
    import from the connected-standards module. */
 const homeOf = () => (RT.authRole === 'trainer' ? 'trainer' : 'coach-home');
 
+/* Which book today's board has answered for, so a cold open says "loading" rather than "no wake-up
+   was set" to a coach who has one. Keyed by the book (final review M-2): a module-global boolean
+   survived a sign-out, so the NEXT coach in the same session got "No wake-up was set" with no
+   repaint. '' = settled with no book at all, which is an answer too (never a skeleton forever). */
+let LOADED_FOR = null;
+const loadedNow = () => LOADED_FOR !== null && LOADED_FOR === (bookId() || '');
+
 export default {
   // 'operator', not 'coach': the router admits coach AND trainer under 'operator', and the Home
   // card hands every operator here once the window shuts. Under 'coach' a trainer got the
   // not-permitted screen for their own roll call's summary.
   nav: 'operator', tab: 'home',
+  /* RETIRED AS A DESTINATION (roll call rebuilt, 2026-09-23). The team board is the morning's
+     summary once the window shuts: first up, the split, and the Missed group with a nudge on
+     every face. Old links (a restored hash, an old build's Home card) land there, opened on the
+     misses, before this screen paints (router.js redirect). What stays below is the honest
+     empty state for a book with no wake-up today, and the loading state before the board
+     answers. */
+  redirect() {
+    if (ROLLCALL_OFF) return null;
+    const inst = instanceOf();
+    return inst ? boardRoute(inst.instance_id, 'missed') : null;
+  },
   render() {
     const inst = instanceOf();
+    if (!inst && !loadedNow()) return `${backHead('Roll call', 'Loading…', homeOf())}${skeletonRows(4, 'Loading this morning')}`;
     if (!inst) {
       return `${backHead('This morning', '', homeOf())}
       <div class="sidebox">
         <div class="req-icon muted s38">${icon('clock', 17)}</div>
         <div><div class="tt">No wake-up was set</div>
-        <div class="ts">Set one from the create menu and this fills in the next morning.</div></div>
+        <div class="ts">Set one up and this fills in the next morning.</div></div>
       </div>
-      <div class="wk-gap"></div>`;
+      <div class="wk-gap"></div>
+      <button class="btn primary" data-go="rollcall-new">Set a roll call</button>`;
     }
     const s = morningSummary(inst);
     const pct = s.total ? Math.round((s.onTime / s.total) * 100) : 0;
@@ -125,11 +146,14 @@ export default {
        set" to a coach who has one. book-arrival.test.mjs is the gate that caught it. */
     if (!bookId()) { await loadBook(false, CD.kind); }
     const id = bookId();
-    if (id) {
-      await loadBoard(id, CD.kind);
-      if (root.isConnected) window.__render();
-      sizeBar();
-    }
+    if (id) await loadBoard(id, CD.kind);
+    const key = id || '';
+    const first = LOADED_FOR !== key;
+    LOADED_FOR = key;
+    // The first answer for THIS book repaints, once: it turns the skeleton into the board (the
+    // redirect) or into the honest empty state. Every later mount would otherwise repaint into itself.
+    if (root.isConnected && first) window.__render();
+    sizeBar();
     /* Delegated on the screen root: #view is replaced on every paint, so a listener bound to a
        row would die with the repaint the load above triggers. */
     root.addEventListener('click', async (e) => {

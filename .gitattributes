@@ -44,3 +44,8 @@ proto/redesign-2026-07/**/*.md   text eol=lf
 # this is the last mile of the same bug the header describes; fixing the proto sources alone got
 # the bundle byte-stable but left this file dirtying the tree on every build.)
 src/proto/protoVersion.ts        text eol=lf
+
+# patch-package patches (2026-09-23). EAS uploads THIS working tree and applies them on a Linux
+# builder against LF sources, so a checkout that turned a patch into CRLF would fail to apply and
+# fail the build. Always LF.
+patches/*.patch                  text eol=lf

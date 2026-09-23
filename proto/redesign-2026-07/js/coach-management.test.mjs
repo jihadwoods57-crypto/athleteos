@@ -23,7 +23,10 @@ test('every athlete event kind routes the coach to the right door', () => {
   assert.equal(at(`weight_logged:${U}`).route, `coach-athlete/${U}`);
   assert.equal(at(`checkin_logged:${U}`).route, `coach-athlete/${U}`);
   assert.equal(at(`training_logged:${U}`).route, `coach-athlete/${U}`);
-  assert.equal(at(`rollcall_answered:${U}`).route, `coach-commitments/${U}`);
+  // Roll call rebuilt (2026-09-23): an answer opens that morning's team board, and the closing
+  // summary's bell row opens it on the misses, the same route its push carries.
+  assert.equal(at(`rollcall_answered:${U}`).route, `rollcall-board/${U}`);
+  assert.equal(at(`commitment_escalation:${U}`).route, `rollcall-board/${U}/missed`);
   assert.equal(at(`athlete_message:${U}`).route, `coach-meal/${U}`);
   assert.equal(at(`athlete_closing:${U}`).route, `coach-athlete/${U}`);
   assert.equal(at('weight_logged:abc').route, null, 'a malformed suffix routes nowhere, never somewhere wrong');
@@ -103,7 +106,10 @@ test('the Requirements tab shows windows, targets and roll call with a door to c
   assert.match(block, /coach-plan-set\//, 'a door to edit the standard');
   assert.match(block, /data-go="coach-plan\/\$\{/, 'a door to the targets');
   assert.match(block, /morning_roll_call/, 'the roll call card reads the board');
-  assert.match(block, /coach-wakeup-(edit|new)/);
+  // Roll call rebuilt (2026-09-23): the retired composer's routes became the week strip (a roll
+  // call exists) and the setup (none yet).
+  assert.match(block, /rollcall-week\//);
+  assert.match(block, /data-go="rollcall-new"/);
 });
 
 /* ---------- the AI Nutritionist's read ---------- */

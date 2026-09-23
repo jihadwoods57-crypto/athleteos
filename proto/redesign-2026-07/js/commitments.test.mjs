@@ -153,12 +153,36 @@ test('an excused response is never rendered as missed', () => {
   assert.equal(d.canAck, false);
 });
 
-test('the stage strip reports the stages a commitment actually asks for', () => {
-  // asks_arrival may still be true on rows scheduled before arrival was removed; the strip must
-  // never offer a stage the product can no longer satisfy.
+test('a commitment with a location walks acknowledged → arrived → completed', () => {
+  const base = { ...rollCall, type: 'strength', title: 'Lift', asks_arrival: true,
+                 arrive_by_at: '2026-07-22T09:50:00Z', min_dwell_min: 45 };
+  const ack = deriveCommitment(
+    { ...base, status: 'acknowledged', acknowledged_at: '2026-07-22T08:48:00Z' },
+    '2026-07-22T09:20:00Z', EDT);
+  assert.equal(ack.stage, 'awaiting_arrival');
+  assert.equal(ack.canArrive, true);
+
+  const arrived = deriveCommitment(
+    { ...base, status: 'arrived', acknowledged_at: '2026-07-22T08:48:00Z',
+      arrived_at: '2026-07-22T09:43:00Z', arrival_source: 'geofence' },
+    '2026-07-22T10:00:00Z', EDT);
+  assert.equal(arrived.stage, 'arrived');
+  assert.equal(arrived.canComplete, true);
+  assert.equal(arrived.confirmLine, 'Arrived at the facility at 5:43 AM');
+
+  const done = deriveCommitment(
+    { ...base, status: 'completed', acknowledged_at: '2026-07-22T08:48:00Z',
+      arrived_at: '2026-07-22T09:43:00Z', completed_at: '2026-07-22T11:05:00Z' },
+    '2026-07-22T11:30:00Z', EDT);
+  assert.equal(done.stage, 'completed');
+  assert.equal(done.canComplete, false);
+  assert.equal(done.confirmLine, 'Completed at 7:05 AM');
+});
+
+test('the stage strip reports the three stages a commitment actually asks for', () => {
   const d = deriveCommitment({ ...rollCall, asks_arrival: true, type: 'practice' },
     '2026-07-22T08:50:00Z', EDT);
-  assert.deepEqual(d.stages.map(s => s.key), ['acknowledged', 'completed']);
+  assert.deepEqual(d.stages.map(s => s.key), ['acknowledged', 'arrived', 'completed']);
   const rc = deriveCommitment(rollCall, '2026-07-22T08:50:00Z', EDT);
   assert.deepEqual(rc.stages.map(s => s.key), ['acknowledged']);
 });
@@ -244,6 +268,15 @@ test('a roll call asks for a response but never for completion', () => {
     { ack: true, arrival: false, completion: false });
 });
 
+test('arrival is back (2026-09-23): a roll call with a place asks for it', () => {
+  // 8e7506bb forced arrival:false for every row when location was taken out on 2026-09-09. The
+  // roll call rebuilt brings the place check back, so signalsAsked reads asks_arrival again.
+  assert.deepEqual(signalsAsked(inst({ type: 'morning_roll_call', asks_arrival: true })),
+    { ack: true, arrival: true, completion: false });
+  assert.deepEqual(signalsAsked(inst({ asks_arrival: true })),
+    { ack: true, arrival: true, completion: true });
+});
+
 test('a commitment with no location does not ask for arrival', () => {
   assert.deepEqual(signalsAsked(inst({ asks_arrival: false })),
     { ack: true, arrival: false, completion: true });
@@ -258,18 +291,26 @@ test('a perfect commitment scores 100 percent', () => {
   const r = accountability([inst({
     acknowledged_at: '2026-07-22T08:48:00Z', arrived_at: '2026-07-22T09:43:00Z',
     completed_at: '2026-07-22T11:05:00Z', status: 'completed' })]);
-  assert.equal(r.earned, 70);      // ack 10 + completion 60; arrival is no longer asked
-  assert.equal(r.possible, 70);
+  assert.equal(r.earned, 100);
+  assert.equal(r.possible, 100);
   assert.equal(r.pct, 100);
 });
 
-test('a missed wake-up does not cascade — finishing still earns the completion weight', () => {
+test('a missed wake-up does not cascade — arriving and finishing keeps 90', () => {
   const r = accountability([inst({
     acknowledged_at: null, arrived_at: '2026-07-22T09:43:00Z',
     completed_at: '2026-07-22T11:05:00Z', status: 'completed' })]);
-  assert.equal(r.earned, 60);      // completion only
-  assert.equal(r.possible, 70);
-  assert.equal(r.pct, 86);
+  assert.equal(r.earned, 90);
+  assert.equal(r.possible, 100);
+  assert.equal(r.pct, 90);
+});
+
+test('arriving after the arrival deadline earns nothing for arrival', () => {
+  const r = accountability([inst({
+    acknowledged_at: '2026-07-22T08:48:00Z',
+    arrived_at: '2026-07-22T10:30:00Z', status: 'arrived' })]);
+  assert.equal(r.earned, 10);
+  assert.equal(r.possible, 100);
 });
 
 test('excused leaves the denominator entirely', () => {
@@ -278,7 +319,7 @@ test('excused leaves the denominator entirely', () => {
     inst({ acknowledged_at: '2026-07-22T08:48:00Z', arrived_at: '2026-07-22T09:43:00Z',
            completed_at: '2026-07-22T11:05:00Z', status: 'completed' }),
   ]);
-  assert.equal(r.possible, 70);
+  assert.equal(r.possible, 100);
   assert.equal(r.pct, 100);
 });
 
@@ -295,7 +336,7 @@ test('an empty range reports null rather than a fake zero', () => {
   assert.equal(accountability(null).pct, null);
 });
 
-test('morning readiness reports the lines the coach reads', () => {
+test('morning readiness reports the three lines the coach reads', () => {
   const rows = [
     inst({ acknowledged_at: '2026-07-22T08:48:00Z', arrived_at: '2026-07-22T09:43:00Z',
            completed_at: '2026-07-22T11:05:00Z', status: 'completed' }),
@@ -304,9 +345,9 @@ test('morning readiness reports the lines the coach reads', () => {
   ];
   const m = morningReadiness(rows);
   assert.deepEqual(m.wake, { done: 1, total: 2 });
-  assert.deepEqual(m.arrival, { done: 0, total: 0 });   // arrival is no longer asked for
+  assert.deepEqual(m.arrival, { done: 2, total: 2 });
   assert.deepEqual(m.completion, { done: 2, total: 2 });
-  assert.equal(m.pct, 93); // 130 earned / 140 possible
+  assert.equal(m.pct, 95); // 190 earned / 200 possible
 });
 
 test('the streak counts clean days, skips empty days, and breaks on a real miss', () => {
@@ -415,6 +456,15 @@ test('leaving early is never converted into missed or unverified', () => {
   assert.notEqual(d.stage, 'unverified');
 });
 
+test('a sustained early departure forfeits the arrival weight', () => {
+  const onTime = accountability([{ ...lift, presence: 'confirmed' }]);
+  const left   = accountability([{ ...lift, presence: 'left_early',
+                                   departed_at: '2026-07-22T09:52:00Z' }]);
+  // Same denominator: they were asked for the same thing either way.
+  assert.equal(onTime.possible, left.possible);
+  assert.equal(onTime.earned - left.earned, WEIGHTS.arrival);
+});
+
 test('an unresolved stay still counts, so a score never runs backwards mid-session', () => {
   // The athlete is sitting in the room doing exactly what was asked. Docking them now and
   // silently restoring it later is the failure mode this rule exists to prevent.
@@ -422,6 +472,24 @@ test('an unresolved stay still counts, so a score never runs backwards mid-sessi
   const done = accountability([{ ...lift, presence: 'confirmed' }]);
   assert.equal(mid.earned, done.earned);
   assert.equal(mid.pct, done.pct);
+});
+
+test('morning readiness counts an early departure as an arrival not made', () => {
+  const m = morningReadiness([{ ...lift, presence: 'left_early',
+                                departed_at: '2026-07-22T09:52:00Z' }]);
+  assert.equal(m.arrival.total, 1);
+  assert.equal(m.arrival.done, 0);
+});
+
+test('leaving early breaks a clean-day streak; staying does not', () => {
+  const day = (presence, extra) => ({
+    ...lift, occurs_on: '2026-07-22', completed_at: '2026-07-22T11:00:00Z',
+    presence, ...extra,
+  });
+  assert.equal(commitmentStreak([day('confirmed')], '2026-07-22'), 1);
+  assert.equal(
+    commitmentStreak([day('left_early', { departed_at: '2026-07-22T09:52:00Z' })], '2026-07-22'),
+    0);
 });
 
 test('completing after an early departure keeps the verdict on the receipt', () => {
@@ -491,7 +559,9 @@ test('windows: the server values win, then the same fallbacks the SQL applies', 
   assert.equal(closesAtOf({ ...rollCall, type: 'practice' }), null);
   assert.equal(opensAtOf({ ...rollCall, opens_at: '2026-07-22T08:30:00Z' }), '2026-07-22T08:30:00Z');
   assert.equal(opensAtOf({ ...rollCall, opens_min: 275 }), '2026-07-22T08:35:00.000Z');
-  assert.equal(opensAtOf(rollCall), '2026-07-22T08:45:00Z');       // a wake-up opens AT its time
+  // A wake-up opens 10 minutes BEFORE its time (0242 rollcall_opens_at): the lock-screen card has
+  // to be up before the minute the athlete must answer, not on it. Fallback only; opens_at wins.
+  assert.equal(opensAtOf(rollCall), '2026-07-22T08:35:00.000Z');
   assert.equal(opensAtOf({ ...rollCall, type: 'practice' }), '2026-07-22T08:15:00.000Z');
   assert.equal(graceMinOf(rollCall), 30);
   assert.equal(graceMinOf({ ...rollCall, grace_min: 5 }), 5);
@@ -730,4 +800,102 @@ test('tomorrowRollcall reads tomorrow from the athlete rows, moved and skipped i
   assert.equal(off.skipped, true);
   assert.equal(off.moved, false);
   assert.equal(tomorrowRollcall([], '2026-09-02'), null);
+});
+
+/* ---------------------------------------------------------------- fix round 1 (2026-09-23)
+   A roll call with a place, once answered, sat on "awaiting arrival" with an I'm here button
+   forever. It settles once the close and the arrive-by + grace have BOTH passed. */
+import { arrivalWindowOver } from './commitments.js';
+
+const placed = {
+  ...rollCall, asks_arrival: true, location_name: 'Weight room',
+  status: 'acknowledged', acknowledged_at: '2026-07-22T08:50:00Z',
+  closes_at: '2026-07-22T09:15:00Z', arrive_by_at: '2026-07-22T09:30:00Z',
+};
+
+test('a placed roll call keeps I\'m here until the close and the arrive-by + grace pass', () => {
+  const d = deriveCommitment(placed, '2026-07-22T09:35:00Z', EDT);   // past close, inside grace
+  assert.equal(d.stage, 'awaiting_arrival');
+  assert.equal(d.canArrive, true);
+  assert.equal(arrivalWindowOver(placed, Date.parse('2026-07-22T09:40:00Z')), false, 'the minute of arrive-by + 10 still counts');
+  assert.equal(arrivalWindowOver(placed, Date.parse('2026-07-22T09:40:01Z')), true);
+  assert.equal(arrivalWindowOver({ ...placed, arrival_grace_min: 0 }, Date.parse('2026-07-22T09:31:00Z')), true);
+  assert.equal(arrivalWindowOver({ asks_arrival: true }, Date.now()), false, 'no times known: never over');
+});
+
+test('past the window the button goes and the server\'s arrival verdict joins the receipt', () => {
+  const after = '2026-07-22T10:00:00Z';
+  const missed = deriveCommitment({ ...placed, arrival_verdict: 'missed' }, after, EDT);
+  assert.equal(missed.stage, 'acknowledged');
+  assert.equal(missed.canArrive, false);
+  assert.equal(missed.collapsed, true);
+  assert.equal(missed.arrivalVerdict, 'missed');
+  assert.match(missed.confirmLine, /^Checked in at .* · not at Weight room$/);
+  assert.equal(missed.statusColor, 'a');
+  const unv = deriveCommitment({ ...placed, arrival_verdict: 'unverified' }, after, EDT);
+  assert.match(unv.confirmLine, /place not confirmed/);
+  assert.equal(unv.statusColor, 'g', 'unverified is never a warning');
+});
+
+test('past the window with no server arrival verdict it is the settled check-in receipt', () => {
+  const d = deriveCommitment(placed, '2026-07-22T10:00:00Z', EDT);
+  assert.equal(d.stage, 'acknowledged');
+  assert.equal(d.canArrive, false);
+  assert.match(d.confirmLine, /^Checked in at [^·]+$/);
+  assert.equal(d.statusColor, 'g');
+});
+
+/* Fix round 2 (N1): the wake-up and the place check are judged apart. Arriving before tapping
+   I'm Up is not an answer, so Home still offers I'm Up; it used to show a green "Arrived" with no
+   button while the wake-up quietly went missed. */
+test('a morning with a place: arrived but not up still offers I’m Up', () => {
+  const row = { ...rollCall, asks_arrival: true, location_name: 'Weight room',
+    closes_at: '2026-07-22T09:45:00Z', arrived_at: '2026-07-22T08:50:00Z' };
+  const d = deriveCommitment(row, '2026-07-22T08:55:00Z');
+  assert.equal(d.canAck, true, 'I’m Up is still offered');
+  assert.notEqual(d.stage, 'arrived');
+  // Late but before the close: still the ack, relabelled.
+  const late = deriveCommitment(row, '2026-07-22T09:20:00Z');
+  assert.equal(late.canAck, true);
+  // Once they tap, the arrived receipt is back.
+  const up = deriveCommitment({ ...row, status: 'acknowledged', acknowledged_at: '2026-07-22T08:56:00Z' }, '2026-07-22T08:57:00Z');
+  assert.equal(up.canAck, false);
+  assert.equal(up.stage, 'arrived');
+});
+
+test('an arrival-only commitment still settles on its arrival (unchanged)', () => {
+  const row = { ...rollCall, type: 'practice', asks_arrival: true, location_name: 'Stadium',
+    arrived_at: '2026-07-22T08:50:00Z', status: 'arrived' };
+  assert.equal(deriveCommitment(row, '2026-07-22T08:55:00Z').stage, 'arrived');
+});
+
+/* Fix round 3 (R2-1): one client mirror of rollcall_arrival_status. A morning's "place not
+   confirmed" lives in unverified_reason with no arrived_at (its status is the wake-up's), and it
+   must stay a gap in evidence, never a missed arrival that drops the record or breaks the streak. */
+test('arrivalStatus mirrors the server: morning and arrival-only, confirmed and not', async () => {
+  const { arrivalStatus, accountability, morningReadiness, commitmentStreak } = await import('./commitments.js');
+  const day = '2026-07-22';
+  const morning = { ...rollCall, asks_arrival: true, occurs_on: day, status: 'acknowledged',
+    acknowledged_at: '2026-07-22T08:50:00Z' };
+  const mUnverified = { ...morning, unverified_reason: 'Not at Weight room', arrived_at: null };
+  const mArrived = { ...morning, arrived_at: '2026-07-22T09:00:00Z', unverified_reason: null, arrival_verdict: 'on_standard' };
+  const arrival = { ...rollCall, type: 'practice', asks_arrival: true, occurs_on: day, respond_by_min: null };
+  const aUnverified = { ...arrival, status: 'unverified', unverified_reason: 'Not at Stadium', arrived_at: null };
+  const aArrived = { ...arrival, status: 'arrived', arrived_at: '2026-07-22T09:00:00Z', arrival_verdict: 'on_standard' };
+
+  assert.equal(arrivalStatus(mUnverified), 'unverified', 'morning, place not confirmed');
+  assert.equal(arrivalStatus(mArrived), 'acknowledged', 'morning, arrived: the wake-up status, arrival in arrived_at');
+  assert.equal(arrivalStatus(aUnverified), 'unverified', 'arrival-only, not confirmed');
+  assert.equal(arrivalStatus(aArrived), 'arrived', 'arrival-only, arrived');
+  assert.equal(arrivalStatus({ ...mUnverified, status: 'excused' }), 'excused', 'excused wins');
+
+  // The morning with an unconfirmed place: the arrival is out of the denominator, not a miss.
+  assert.equal(morningReadiness([mUnverified]).arrival.total, 0);
+  assert.equal(accountability([mUnverified]).pct, 100, 'the answered wake-up alone, all earned');
+  assert.equal(commitmentStreak([mUnverified], day), 1, 'the streak survives a gap in evidence');
+  // The arrival-only unconfirmed row: the same rule, as before.
+  assert.equal(morningReadiness([aUnverified]).arrival.total, 0);
+  // Arrived rows count their arrival.
+  assert.equal(morningReadiness([mArrived]).arrival.total, 1);
+  assert.equal(morningReadiness([aArrived]).arrival.total, 1);
 });

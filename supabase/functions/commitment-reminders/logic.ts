@@ -154,3 +154,58 @@ export function codeDeadlineMs(row: { closes_at?: string | null; respond_by_at?:
   const d = ms(row.respond_by_at);
   return Number.isFinite(d) ? d : nowMs;
 }
+
+/** Which Live Activity phase a claimed rung pushes, and whether it may START a card for ONE
+ *  athlete (2026-09-23, per-athlete fix round).
+ *
+ *  The card now goes up at the OPEN, 10 minutes before the start (0242 rollcall_opens_at), through
+ *  a claim per ATHLETE, not per instance (claim_rollcall_card_opens / claim_rollcall_card_starts;
+ *  see commitment_responses.card_started_at) — a once-per-INSTANCE claim meant an athlete whose
+ *  first attempt never reached Apple, or who registered a start token after the open, never got a
+ *  card for the rest of the morning. The start-time rung is still the loud moment (the coach's
+ *  words, with sound); `alreadyStarted` says whether THIS athlete's start was already claimed
+ *  (whether or not it actually reached the device) — only then does starting a second one risk
+ *  stacking two cards on a phone whose app never got to report its update token. A follow-up rung
+ *  never starts one. */
+export function cardPlanAtRung(row: ReminderRow, alreadyStarted: boolean): { phase: 'initial' | 'reminder'; allowStart: boolean } {
+  if (!isInitialPush(row)) return { phase: 'reminder', allowStart: false };
+  return { phase: 'initial', allowStart: !alreadyStarted };
+}
+
+/** One push group for the start-time rung: which athletes, what sound, and whether this group
+ *  may attempt a fresh card START (2026-09-23, fix round 1 — review round 1, Minor #2).
+ *
+ *  Extracted from the rung's orchestration so the starters/updaters × loud/quiet fan-out is
+ *  tested directly rather than only ever exercised end to end. `sound: ''` is the quiet channel
+ *  for an athlete whose own alarm is already ringing (isArmed); `allowStart: true` is only ever
+ *  set for an athlete `justClaimed` names — one the caller just atomically claimed a fresh start
+ *  for (claim_rollcall_card_starts). Everyone else in the batch already has a claim (accepted, or
+ *  awaiting release) or no start token at all, and must only be sent an update, never a second
+ *  start attempt. */
+export type StartPushGroup = { ids: string[]; sound: 'default' | ''; allowStart: boolean };
+
+export function splitStartGroups(
+  athleteIds: string[],
+  isArmed: (athleteId: string) => boolean,
+  justClaimed: Set<string>,
+): StartPushGroup[] {
+  const uniq = [...new Set(athleteIds)];
+  const loud = uniq.filter((id) => !isArmed(id));
+  const quiet = uniq.filter((id) => isArmed(id));
+  const out: StartPushGroup[] = [];
+  for (const [ids, sound] of [[loud, 'default'], [quiet, '']] as Array<[string[], 'default' | '']>) {
+    if (!ids.length) continue;
+    const starters = ids.filter((id) => justClaimed.has(id));
+    const updaters = ids.filter((id) => !justClaimed.has(id));
+    if (starters.length) out.push({ ids: starters, sound, allowStart: true });
+    if (updaters.length) out.push({ ids: updaters, sound, allowStart: false });
+  }
+  return out;
+}
+
+/** The reminder push's tap target: a wake-up opens its team board (roll call rebuilt,
+ *  2026-09-23); every other commitment its detail. Older pushes' roll-call/<id> is handed over by
+ *  the proto before it paints. */
+export function reminderRoute(type: string | null | undefined, instanceId: string): string {
+  return type === 'morning_roll_call' ? `rollcall-board/${instanceId}` : `roll-call/${instanceId}`;
+}

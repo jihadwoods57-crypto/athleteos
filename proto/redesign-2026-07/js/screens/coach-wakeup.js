@@ -27,9 +27,10 @@ import { ROLLCALL_OFF } from '../commitments.js';
 
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DOW_FULL = DAYS_LONG;
-const GRACES = [0, 2, 5, 10, 15];
-const CLOSE_CHOICES = [15, 30, 45, 60];
-const CLOSE_DEFAULT_MIN = 30;
+/* Exported for the rebuilt setup (rollcall-setup.js), which asks the same window questions. */
+export const GRACES = [0, 2, 5, 10, 15];
+export const CLOSE_CHOICES = [15, 30, 45, 60];
+export const CLOSE_DEFAULT_MIN = 30;
 
 /* Writing prompts, NOT defaults. See the header. */
 export const PRESETS = [
@@ -38,7 +39,7 @@ export const PRESETS = [
   'Roll call. Let’s attack the day.',
 ];
 
-const canSchedule = () => {
+export const canSchedule = () => {
   if (CD.kind === 'practice') return true;
   const role = CD.extras ? CD.extras.myRole : null;
   if (!CD.extras) return true;
@@ -87,10 +88,10 @@ export function editWakeup(row) {
 /** Start a fresh draft. */
 export function newWakeup() { DRAFT = null; }
 
-const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
-const minOf = (v) => { const m = /^(\d{1,2}):(\d{2})$/.exec(v || ''); return m ? Math.min(1439, +m[1] * 60 + +m[2]) : null; };
+export const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+export const minOf = (v) => { const m = /^(\d{1,2}):(\d{2})$/.exec(v || ''); return m ? Math.min(1439, +m[1] * 60 + +m[2]) : null; };
 
-const daysLabel = (days) => {
+export const daysLabel = (days) => {
   const d = (days || []).map(Number).sort();
   if (!d.length) return 'No days picked';
   if (d.length === 7) return 'Every day';
@@ -164,11 +165,14 @@ export function wakeupPayload(d, owner, kind, tz) {
  *  clears the draft and replaces itself with the composer. */
 export const coachWakeupNew = {
   nav: 'operator', tab: 'home', transient: true,
+  /* RETIRED (roll call rebuilt, 2026-09-23): one way in, rollcall-new. Kept as a route so an old
+     link still lands; the router asks this before painting, so nothing of this screen shows. */
+  redirect() { return ROLLCALL_OFF ? 'coach-home' : 'rollcall-new'; },
   render() { if (ROLLCALL_OFF) return ''; newWakeup(); return ''; },
   // Switched off (see ROLLCALL_OFF): the menu entry that led here is gone, so the only way in is
   // a restored hash or an old deep link. Send those home rather than into a composer whose save
   // the server would refuse.
-  mount() { location.replace(ROLLCALL_OFF ? '#coach-home' : '#coach-wakeup-edit'); },
+  mount() { location.replace(ROLLCALL_OFF ? '#coach-home' : '#rollcall-new'); },
 };
 
 /** The whole composer, replaced by one honest screen while the feature is off. */
@@ -190,6 +194,13 @@ const field = (label, control, hint) => `
 
 export const coachWakeupEdit = {
   nav: 'operator', tab: 'home', transient: true,
+  /* RETIRED (roll call rebuilt, 2026-09-23): the rebuilt setup edits a roll call by id. A draft
+     loaded by editWakeup carries that id; with none this was always a new roll call. Switched off,
+     the honest switched-off screen below still renders. */
+  redirect() {
+    if (ROLLCALL_OFF) return null;
+    return DRAFT && DRAFT.id ? `rollcall-new/${DRAFT.id}` : 'rollcall-new';
+  },
   render() {
     const back = CD.kind === 'practice' ? 'trainer' : 'coach-home';
     if (ROLLCALL_OFF) return switchedOffScreen(back);

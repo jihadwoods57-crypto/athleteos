@@ -45,6 +45,41 @@ import { weekdayDate } from './fmt-date.js';
    ================================================================================ */
 export const ROLLCALL_OFF = false;
 
+/* ================================================================================
+   ONE WAY IN (roll call rebuilt, 2026-09-23). The rebuilt screens own the roll call: the live
+   board (rollcall-board/<instanceId>), setup (rollcall-new[/<commitmentId>]), the week
+   (rollcall-week/<commitmentId>) and history. These live here, in the boot graph's pure module,
+   so every door (Home cards, the bell, local notifications, the retired routes' redirects) asks
+   the same question the same way without importing a lazy screen.
+   ================================================================================ */
+
+/* The mark rollcall-setup.js leaves on an arrival-only roll call (upsert_commitment stores
+   `escalation` as given). A Practice with a place made in the general composer has none. */
+export const ROLLCALL_MARK = 'rollcall';
+/* The non-morning types an arrival-only roll call can be (rollcall-setup.js ARRIVAL_KINDS). */
+export const ROLLCALL_ARRIVAL_TYPES = ['practice', 'strength', 'team_meeting', 'class'];
+
+/** A standing commitment (a RULE row) the roll call screens own: every wake-up, and an
+ *  arrival-only row the setup screen made (it carries the mark and a place). */
+export const isRollcall = (r) => !!r && (r.type === 'morning_roll_call'
+  || (!!r.location_id && ROLLCALL_ARRIVAL_TYPES.includes(r.type)
+      && !!(r.escalation && typeof r.escalation === 'object' && r.escalation[ROLLCALL_MARK] === true)));
+
+/** The team board for one instance. `view` is '' | 'day' | 'missed' (path subs, never a query). */
+export const boardRoute = (instanceId, view = '') =>
+  `rollcall-board/${instanceId}${view ? `/${view}` : ''}`;
+
+/** Where an ATHLETE's wake-up row opens: the board for today's morning or an earlier one, the
+ *  detail screen for tomorrow's preview (it explains this phone's alarm for that morning) and for
+ *  every other commitment type. `today` is the phone's YYYY-MM-DD. */
+export function athleteRollcallRoute(row, today) {
+  const id = row && row.instance_id;
+  if (!id) return null;
+  const boardable = !ROLLCALL_OFF && row.type === 'morning_roll_call'
+    && (!row.occurs_on || !today || String(row.occurs_on) <= String(today));
+  return boardable ? boardRoute(id) : `roll-call/${id}`;
+}
+
 export const TYPE_LABEL = {
   morning_roll_call: 'Roll call',
   practice:          'Practice',
@@ -168,6 +203,8 @@ export const VERDICT_LABEL = {
 };
 /* A wake-up with no explicit close closes 30 minutes after the wake-up time. */
 export const ROLLCALL_CLOSE_AFTER_MIN = 30;
+/** A wake-up opens this long before its time (0242 rollcall_opens_at). */
+export const ROLLCALL_OPEN_BEFORE_MIN = 10;
 /* The card appears this long before the roll call opens, as "Opens at 6:00", with no button. */
 export const ROLLCALL_PREVIEW_MIN = 15;
 
@@ -191,15 +228,17 @@ export function closesAtOf(row) {
   return null;
 }
 
-/** When the roll call opens. Server value first; a wake-up opens AT its time; every other type an
- *  hour before its deadline (the pre-0211 rule). */
+/** When the roll call opens. Server value first; a wake-up opens 10 minutes BEFORE its time (0242
+ *  rollcall_opens_at, 2026-09-23: the lock-screen card has to be up before the minute the athlete
+ *  must answer, not on it; it opened AT the time from 0212 until then); every other type an hour
+ *  before its deadline (the pre-0211 rule). Fallbacks only: the server's opens_at always wins. */
 export function opensAtOf(row) {
   const r = row || {};
   if (r.opens_at) return r.opens_at;
   if (typeof r.opens_min === 'number' && typeof r.starts_min === 'number') {
     return isoPlusMin(r.starts_at, r.opens_min - r.starts_min);
   }
-  if (r.type === 'morning_roll_call') return r.starts_at || null;
+  if (r.type === 'morning_roll_call') return r.starts_at ? isoPlusMin(r.starts_at, -ROLLCALL_OPEN_BEFORE_MIN) : null;
   return isoPlusMin(deadlineOf(r), -60);
 }
 
@@ -288,20 +327,42 @@ export function verdictLine(row, nowISO, deadlineISO, closesISO) {
 
 /** Which signals this commitment actually asks for.
  *  A roll call IS the wake-up: pressing the button is the whole commitment, so it never asks for
- *  "completion".
+ *  "completion". It asks for arrival only when the coach attached a place (`asks_arrival`).
  *
- *  ARRIVAL IS GONE (2026-09-09, founder). Location-verified arrival was removed from the product
- *  along with the "Always" location permission it required. `asks_arrival` may still be true on
- *  old server rows, so this returns false unconditionally rather than reading the column: a
- *  commitment scheduled before the removal must not render a stage nothing can satisfy. */
+ *  ARRIVAL IS BACK (2026-09-23, founder: the roll call rebuilt). It was taken out on 2026-09-09
+ *  (8e7506bb) with the location permissions, and this returned false for every row. The place
+ *  check returns verified by DISTANCE on the server (verify_arrival_at, 0242), so the column is
+ *  read again. The arrival verdict itself is the server's (rollcall_arrival_verdict); a surface
+ *  that shows one reads that field rather than deriving its own. */
 export function signalsAsked(row) {
   if (!row) return { ack: false, arrival: false, completion: false };
   return {
     ack: row.respond_by_min != null || row.type === 'morning_roll_call',
-    arrival: false,
+    arrival: !!row.asks_arrival,
     completion: row.type !== 'morning_roll_call',
   };
 }
+
+/** Default arrival grace in minutes when the row does not carry one (0242 rollcall_arrival_verdict). */
+export const ARRIVAL_GRACE_DEFAULT_MIN = 10;
+/** Whether the place check can no longer be answered: past BOTH the roll call's close and the
+ *  arrive-by + grace (the server's missed rule, rollcall_arrival_verdict: an arrival is never over
+ *  before its own deadline, even when the wake-up closes first). With neither time known, never. */
+export function arrivalWindowOver(row, nowT) {
+  const r = row || {};
+  const grace = typeof r.arrival_grace_min === 'number' ? r.arrival_grace_min : ARRIVAL_GRACE_DEFAULT_MIN;
+  const byT = Date.parse(r.arrive_by_at || '');
+  const closeT = Date.parse(closesAtOf(r) || '');
+  const ends = [isFinite(byT) ? byT + grace * 60000 : NaN, closeT].filter(isFinite);
+  return ends.length > 0 && nowT > Math.max(...ends);
+}
+/* The receipt's arrival half, from the server's arrival_verdict. pending/excused add nothing. */
+const ARRIVAL_RECEIPT = {
+  on_standard: (where) => `at ${where}`,
+  late: (where) => `late to ${where}`,
+  missed: (where) => `not at ${where}`,
+  unverified: () => 'place not confirmed',
+};
 
 const arrivedOnTime = (row) => row.arrived_at != null &&
   (!row.arrive_by_at || Date.parse(row.arrived_at) <= Date.parse(row.arrive_by_at));
@@ -449,7 +510,13 @@ export function deriveCommitment(row, nowISO, offMinOverride) {
       confirmLine: `Completed at ${at(r.completed_at)}` };
   }
 
-  if (r.arrived_at) {
+  // A wake-up and its place check are judged APART (fix round 2, N1). Arriving before tapping I'm Up
+  // is not an answer: the wake-up still needs its tap, so a morning with arrived_at and no
+  // acknowledged_at falls through to the clock below, which offers I'm Up (and says late / missed
+  // exactly as for anyone else). It used to stop here on a green "Arrived" with no button, and the
+  // morning then went missed.
+  const upStillOwed = r.type === 'morning_roll_call' && asks.ack && !r.acknowledged_at;
+  if (r.arrived_at && !upStillOwed) {
     const where = r.location_name || 'the facility';
 
     // The coach asked for a minimum stay and it has not been met yet. Blue, not green: a session
@@ -497,11 +564,18 @@ export function deriveCommitment(row, nowISO, offMinOverride) {
       : base.source === SOURCE.ACCEPTED ? `Tap time accepted · tapped ${at(r.device_tapped_at || r.acknowledged_at)}`
       : late ? `Late${base.lateMin ? ` · ${base.lateMin} min` : ''} · checked in at ${at(r.acknowledged_at)}`
       : `Checked in at ${at(r.acknowledged_at)}`;
-    if (asks.arrival) {
+    if (asks.arrival && !arrivalWindowOver(r, nowT)) {
       return { ...base, stage: 'awaiting_arrival', canArrive: true, statusColor: 'b', confirmLine: confirm };
     }
-    return { ...base, stage: 'acknowledged', collapsed: true, statusColor: late ? 'a' : 'g',
-      confirmLine: confirm };
+    // The place check's window is over (fix round 1, 2026-09-23): the card used to sit on
+    // "awaiting arrival" with an I'm here button forever. It settles into the receipt, carrying
+    // the SERVER's arrival verdict when there is one (rollcall_arrival_verdict via my_commitments),
+    // never one derived here.
+    const av = asks.arrival ? r.arrival_verdict : null;
+    const avLine = ARRIVAL_RECEIPT[av] ? ARRIVAL_RECEIPT[av](r.location_name || 'the facility') : '';
+    const warn = late || av === 'late' || av === 'missed';
+    return { ...base, stage: 'acknowledged', collapsed: true, statusColor: warn ? 'a' : 'g',
+      arrivalVerdict: av || null, confirmLine: avLine ? `${confirm} · ${avLine}` : confirm };
   }
 
   // Nothing recorded yet — now the clock decides.
@@ -685,9 +759,27 @@ export function summarizeOccurrences(occ) {
 
 /* ---------------------------------------------------------------- accountability
    Founder weighting: pressing the button is a SMALL signal, arriving on time is MODERATE,
-   completing the commitment is the GREATEST. Separate from the daily 0–100 score. */
+   completing the commitment is the GREATEST. Separate from the daily 0–100 score.
+   `arrival` is live again since 2026-09-23 (founder, the roll call rebuilt): signalsAsked reads
+   asks_arrival, so a commitment with a place scores out of 100 and one without out of 70. From
+   2026-09-09 to then it weighed nothing because arrival was never asked. */
 
 export const WEIGHTS = { ack: 10, arrival: 30, completion: 60 };
+
+/** The status an ARRIVAL is judged from: the client mirror of the server's
+ *  rollcall_arrival_status (0242 section 2b). On a morning roll call `status` belongs to the
+ *  wake-up and an arrival never moves it (fix round 2, N1), so a place the phone could not confirm
+ *  lives in unverified_reason with no arrived_at. Excused wins; otherwise the status unchanged
+ *  (arrival-only types still carry 'unverified' in status). The ONE client copy: every client-side
+ *  arrival judgement goes through it (fix round 3, R2-1). */
+export function arrivalStatus(r) {
+  if (!r) return null;
+  if (r.status === 'excused') return 'excused';
+  if (!r.arrived_at && r.unverified_reason) return 'unverified';
+  return r.status || null;
+}
+/** A gap in evidence for the place check: never a miss, so it leaves the denominator. */
+export const arrivalUnverified = (r) => arrivalStatus(r) === 'unverified';
 
 export function accountability(rows) {
   let earned = 0, possible = 0;
@@ -697,7 +789,7 @@ export function accountability(rows) {
     const asks = signalsAsked(r);
     // 'unverified' removes only the signals it could not verify. A missed WAKE-UP never
     // cascades into arrival or completion: each signal is weighed on its own.
-    const verified = r.status !== 'unverified';
+    const verified = !arrivalUnverified(r);
     // A delayed-sync review (0212) is suspended: it leaves both earned and possible until resolved.
     if (asks.ack && !isUnderReview(r)) {
       possible += WEIGHTS.ack;
@@ -724,7 +816,7 @@ export function morningReadiness(rows) {
   for (const r of list) {
     if (r.status === 'excused') continue;
     const asks = signalsAsked(r);
-    const verified = r.status !== 'unverified';
+    const verified = !arrivalUnverified(r);
     if (asks.ack && !isUnderReview(r)) { wake.total++; if (r.acknowledged_at && r.review_resolution !== 'missed') wake.done++; }
     if (asks.arrival && verified) { arrival.total++; if (arrivalCounts(r)) arrival.done++; }
     if (asks.completion && verified) { completion.total++; if (r.completed_at) completion.done++; }
@@ -737,7 +829,7 @@ function dayIsClean(dayRows) {
   for (const r of dayRows) {
     if (r.status === 'excused') continue;
     const asks = signalsAsked(r);
-    const verified = r.status !== 'unverified';
+    const verified = !arrivalUnverified(r);
     if (asks.ack && !isUnderReview(r) && (!r.acknowledged_at || r.review_resolution === 'missed')) return false;
     if (asks.arrival && verified && !arrivalCounts(r)) return false;
     if (asks.completion && verified && !r.completed_at) return false;
@@ -796,6 +888,8 @@ export function commitmentReminders(rows, todayISO) {
         at: Math.max(0, anchor - n),
         instanceId: r.instance_id,
         instance_id: r.instance_id,
+        // The door the notification opens (notify-plan.js): a wake-up opens its team board.
+        type: r.type || null,
         title: (r.title && String(r.title).trim()) || TYPE_LABEL[r.type] || 'Commitment',
         body: r.respond_by_min != null
           ? `Respond by ${fmtMin(r.respond_by_min)}.`

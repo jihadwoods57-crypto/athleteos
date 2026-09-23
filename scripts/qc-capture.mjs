@@ -26,7 +26,6 @@ import { sbStubSource, ROSTER_ATHLETES, BOOK_CLIENTS } from '../web/landing-src/
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const BASE = 'http://localhost:8799/index.html';
 
 /** One seeded wake-up row, `startedMinAgo` minutes into its window on the page's own clock. */
 const rcSeed = (startedMinAgo) => `const cd = await import('./js/commitment-data.js');
@@ -41,6 +40,132 @@ const rcSeed = (startedMinAgo) => `const cd = await import('./js/commitment-data
     status: 'pending', verdict: 'pending', acknowledged_at: null, instance_status: 'scheduled' };
   cd.seedMineForHarness([row], day);`;
 const TODAY = '2026-07-23';
+/** The composer's bottom bar (composer upgrade, 2026-09-23). `dictOn` stands in for the native
+ *  speech module through dictation.js's harness seam, so the mic shows as it does on a phone that
+ *  can dictate; `toEnd` rests the thread on its newest message, where the bar is flush with the
+ *  bottom edge. `listen` taps the mic and plays a live transcript and a voice level into the box.
+ *  qc-capture cannot raise a real keyboard: these are the resting and listening states only. */
+const dictOn = `const dm = await import('./js/dictation.js');
+  await dm.setDictationBackendForHarness({ available: async () => ({ available: true, onDevice: true }),
+    start: async () => ({ ok: true, onDevice: true }), stop() {}, abort() {} });`;
+const toEnd = `await new Promise((r) => setTimeout(r, 250));
+  const vp = document.querySelector('.viewport'); if (vp) { vp.style.scrollBehavior = 'auto'; vp.scrollTop = vp.scrollHeight; }`;
+const listen = `const mic = document.querySelector('.chat-dock .composer .cmp-mic, .composer.at-end .cmp-mic');
+  if (!mic) console.error('composer shot: no .cmp-mic in the dock');
+  else { mic.click(); await new Promise((r) => setTimeout(r, 60));
+    const sid = (await import('./js/dictation.js')).currentDictationSid();
+    window.__onDictation({ sid, type: 'text', text: 'two eggs, turkey bacon and a bowl of oatmeal with', final: false });
+    window.__onDictation({ sid, type: 'level', value: 0.55 }); }`;
+const typed = `const box = document.querySelector('.chat-dock .composer textarea');
+  if (box) { box.value = 'Was the rice portion right?'; box.dispatchEvent(new Event('input', { bubbles: true })); }`;
+/** The team board (roll call rebuilt, 2026-09-23), seeded through the harness seams on the frozen
+ *  clock: twelve athletes, the signed-in athlete ('seed-athlete') 4th at 6:01. `o.now` is the
+ *  shot's clock; anyone whose tap is after it is not up yet, and once the board has closed the
+ *  not-up are missed (the server's rule, applied here because the seed stands in for the server).
+ *  `o.me` 'open' leaves the athlete unanswered; `o.mode` is the board's mode. */
+const rbSeed = (o) => `const cd = await import('./js/commitment-data.js');
+  const O = ${JSON.stringify(o)};
+  const T = (h, m) => new Date(2026, 6, 23, h, m, 0).toISOString();
+  const now = T(O.now[0], O.now[1]);
+  const arrival = O.mode === 'arrival';
+  const closed = !arrival && Date.parse(now) > Date.parse(T(6, 30));
+  const P = [
+    ['r1', 'DeShawn Cole', 5, 52, 'on_standard', 6, 31], ['r2', 'Andre Wells', 5, 57, 'on_standard', 6, 38],
+    ['r3', 'Jaylen Brooks', 6, 0, 'on_standard', null, null], ['seed-athlete', 'Marcus Reed', 6, 1, 'on_standard', 6, 41],
+    ['r5', 'Kofi Owusu', 6, 2, 'on_standard', 6, 44], ['r6', 'Luis Soto', 6, 3, 'on_standard', null, null],
+    ['r7', 'Ben Price', 6, 4, 'on_standard', 6, 40], ['r8', 'Chris James', 6, 5, 'on_standard', null, null],
+    ['r9', 'Tyrek Malone', 6, 8, 'late', 6, 57], ['r10', 'Tommy Vargas', null, null, 'pending', null, null],
+    ['r11', 'Ray Gomez', null, null, 'pending', null, null], ['r12', 'Eli Walker', null, null, 'pending', null, null],
+  ];
+  const meOpen = O.me === 'open';
+  const byT = arrival ? T(15, 30) : T(6, 45);
+  let place = 0;
+  const rows = P.map(([id, name, h, m, v, ah, am]) => {
+    let ack = h == null ? null : T(h, m);
+    if (ack && Date.parse(ack) > Date.parse(now)) ack = null;
+    if (id === 'seed-athlete' && meOpen) ack = null;
+    let verdict = ack ? v : (closed ? 'missed' : 'pending');
+    if (arrival) { ack = null; verdict = 'pending'; }
+    // Arrival-only runs in the afternoon: the same spread, moved to 3:00 to 3:45.
+    let arr = ah == null ? null : (arrival ? T(ah + 9, am - 30 < 0 ? am + 30 : am - 30) : T(ah, am));
+    if (arr && Date.parse(arr) > Date.parse(now)) arr = null;
+    if (id === 'seed-athlete' && meOpen) arr = null;
+    // The server's arrival rule (rollcall_arrival_verdict): missed only once BOTH the roll call's
+    // close and the be-there time + 10 grace have passed (final review M-4: this seed used to keep
+    // everyone "Not here yet" forever).
+    const arrClosed = Date.parse(now) > Math.max(arrival ? 0 : Date.parse(T(6, 30)), Date.parse(byT) + 600000);
+    const av = O.mode === 'wake' ? null
+      : arr ? (Date.parse(arr) > Date.parse(byT) + 600000 ? 'late' : 'on_standard')
+      : id === 'r6' ? 'unverified' : arrClosed ? 'missed' : 'pending';
+    return { athlete_id: id, name, avatar_path: null, acknowledged_at: ack, arrived_at: arr,
+      verdict, arrival_verdict: av, place: (verdict === 'on_standard' || verdict === 'late') ? ++place : null };
+  });
+  const board = { instance_id: 'rb-shot', title: arrival ? 'Stadium walkthrough' : 'Morning Roll Call', coach_name: 'Coach Brooks',
+    mode: O.mode, starts_at: arrival ? T(15, 0) : T(6, 0), respond_by_at: arrival ? null : T(6, 5),
+    closes_at: arrival ? null : T(6, 30), arrive_by_at: O.mode === 'wake' ? null : byT,
+    asks_arrival: O.mode !== 'wake', location_name: O.mode === 'wake' ? null : (arrival ? 'Bright House Stadium' : 'Lincoln Weight Room'),
+    rows };
+  cd.seedTeamBoardForHarness('rb-shot', board);
+  const me = rows.find((r) => r.athlete_id === 'seed-athlete');
+  cd.seedMineForHarness([{ instance_id: 'rb-shot', type: arrival ? 'practice' : 'morning_roll_call', title: board.title,
+    message: 'Up and at it. Lift at 7, be early. Protein at breakfast.', action_label: 'I’m Up', coach_name: 'Coach Brooks',
+    occurs_on: '2026-07-23', starts_at: board.starts_at, respond_by_at: board.respond_by_at, closes_at: board.closes_at,
+    opens_at: arrival ? null : T(5, 50), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    status: me.acknowledged_at ? 'acknowledged' : 'pending', acknowledged_at: me.acknowledged_at, verdict: me.verdict,
+    // The board's own asks_arrival/location fields, mirrored onto the athlete's cached row: the
+    // router's redirect() bails out of the OLD roll-call/<id> screen only when ONE of these three
+    // is set (js/screens/rollcall-board.js redirect()). Missing them here sent ONLY the arrival
+    // shot to the retired screen instead of the rebuilt team board (redirect()'s first line
+    // exempts type: 'morning_roll_call' unconditionally, which is what 'both' seeds, so 'both'
+    // was never affected) — a harness gap, not a product one: the server's real my_commitments
+    // row carries these fields for any commitment with a place (js/commitments.js).
+    location_id: O.mode === 'wake' ? null : 'loc-rb-shot', asks_arrival: board.asks_arrival, location_name: board.location_name,
+    instance_status: 'scheduled' }], '2026-07-23');`;
+/** A NEW build (final fix round, items 2 and 3): the native capability line says location, walk-in
+ *  and the map are compiled in, and the location bridge answers with `state` ('undetermined' |
+ *  'when_in_use' | 'always' | 'denied'). Without this a harness shot is an OLD binary, which is
+ *  what the old-build shots rely on. */
+const newBuild = (state = 'when_in_use') => `const cdN = await import('./js/commitment-data.js');
+  cdN.setNativeCapsForHarness({ location: true, walkIn: true, maps: true });
+  window.OnStandardNative = Object.assign(window.OnStandardNative || {}, {
+    location: { available: async () => ({ available: true, state: '${state}', presence: true, walkIn: true }),
+      request: async () => '${state}', arm: async () => ({ armed: 1, capped: 0, state: '${state}', walkIn: 'on' }),
+      disarm: async () => true, check: async () => ({ within: true, reason: null, distance_m: 40 }), settings() {} },
+    maps: { pick: async () => null } });
+  const LN = await import('./js/location.js'); LN.setLocationStateForHarness('${state}'); LN.setConsentCachedForHarness(true);
+`;
+/** The coach's roll call (Task 10): one standing wake-up ('rc-rule', Mon to Fri 6:00 AM), its
+ *  saved places, the week ahead on the frozen clock (Thu 23 Jul: Fri moved to 5:30, Tue cancelled,
+ *  the weekend not scheduled) and 30 days of history with both kinds of athlete. `o.draft` starts
+ *  the setup screen from a draft (a picked place, arrival only). All through the harness seams. */
+const rsSeed = (o = {}) => `const cd = await import('./js/commitment-data.js');
+  const O = ${JSON.stringify(o)};
+  const T = (d, h, m) => new Date(2026, 6, d, h, m, 0).toISOString();
+  const rule = { id: 'rc-rule', type: 'morning_roll_call', title: 'Morning Roll Call', message: 'Up and at it. Lift at 7.',
+    audience_kind: 'team', audience_value: null, repeat_days: [1, 2, 3, 4, 5], starts_min: 360, respond_by_min: 365,
+    ends_min: 390, opens_min: 360, location_id: null, arrive_by_min: null, arrival_grace_min: 10,
+    escalation: { alarm: true, breakthrough: true, notify_coach_on_miss: true }, active: true, timezone: 'America/New_York' };
+  const places = [
+    { id: 'loc-1', name: 'Lincoln Weight Room', address: '1200 Stadium Dr', lat: 28.6, lng: -81.2, radius_m: 150 },
+    { id: 'loc-2', name: 'Bright House Stadium', address: null, lat: 28.61, lng: -81.19, radius_m: 300 },
+  ];
+  cd.seedCommitmentsForHarness([rule], places);
+  const day = (d, h, m, x) => Object.assign({ instance_id: 'i-' + d, commitment_id: 'rc-rule', occurs_on: '2026-07-' + d,
+    instance_status: 'scheduled', skipped: false, starts_at: T(d, h, m), starts_min: h * 60 + m, rule_starts_min: 360,
+    starts_override_min: null }, x || {});
+  cd.seedUpcomingForHarness('rc-rule', [
+    day(23, 6, 0), day(24, 5, 30, { starts_override_min: 330 }), day(27, 6, 0),
+    day(28, 6, 0, { skipped: true, instance_status: 'cancelled' }), day(29, 6, 0),
+  ]);
+  const A = (id, name, on, late, missed, trend, streak, first) => ({ athlete_id: id, name, avatar_path: null,
+    mornings: on + late + missed, on_time: on, late, missed, on_time_pct: Math.round(100 * on / (on + late + missed)),
+    trend, streak, first_up: first });
+  cd.seedHistoryForHarness('rc-rule', { team_on_time_pct: 84, team_trend: -3, athletes: [
+    A('r10', 'Tommy Vargas', 13, 4, 5, -18, 0, 0), A('r9', 'Tyrek Malone', 16, 6, 0, -6, 1, 0),
+    A('r11', 'Ray Gomez', 17, 3, 2, 4, 3, 1), A('r3', 'Jaylen Brooks', 20, 2, 0, 0, 9, 2),
+    A('r2', 'Andre Wells', 21, 1, 0, 3, 14, 3), A('r1', 'DeShawn Cole', 22, 0, 0, 0, 22, 16),
+  ] });
+  if (O.draft) { const rs = await import('./js/screens/rollcall-setup.js'); rs.seedSetupForHarness(O.draft); }`;
 const ROOT = process.cwd();
 
 /* ---------------- args ---------------- */
@@ -50,6 +175,9 @@ const flag = (name, def) => {
   return i === -1 ? def : argv[i + 1];
 };
 const has = (name) => argv.includes('--' + name);
+// --serve N: the port the proto server listens on (default 8799). A worktree runs its own server
+// on another port, so a capture renders THAT tree's proto rather than whichever checkout owns 8799.
+const BASE = `http://localhost:${Number(flag('serve', 8799)) || 8799}/index.html`;
 const THEMES = String(flag('themes', 'dark')).split(',').map((s) => s.trim()).filter(Boolean);
 const WIDTHS = String(flag('widths', '390')).split(',').map((s) => Number(s.trim())).filter(Boolean);
 const OUT_DIR = join(ROOT, 'qc', flag('out', 'transformation'));
@@ -94,6 +222,51 @@ const SHOTS = [
     const later = document.querySelector('[data-wf-later]'); if (later) later.click();`, actMs: 1200 },
   { g: 'athlete', name: 'wake-face', seed: 'dayMorning', route: 'home', at: [6, 2],
     act: rcSeed(-2) + ` const wf = await import('./js/wake-face.js'); wf.showWakeFace(row);`, actMs: 900 },
+  // The team board and Your day (roll call rebuilt, Task 9): the athlete 4th with the window still
+  // open, the athlete before answering (I'm Up is the one primary), their day, the coach's live
+  // board and a face's sheet, the closed board with its misses, the both-parts board with the
+  // place per face, and an arrival-only board (I'm here is the action).
+  { g: 'rollcall', name: 'rollcall-board-athlete', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [6, 12], pre: rbSeed({ now: [6, 12], mode: 'wake' }) },
+  { g: 'rollcall', name: 'rollcall-board-athlete-open', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [6, 3], pre: rbSeed({ now: [6, 3], mode: 'wake', me: 'open' }) },
+  { g: 'rollcall', name: 'rollcall-board-day', seed: 'dayOpen', route: 'rollcall-board/rb-shot/day', at: [6, 12], pre: rbSeed({ now: [6, 12], mode: 'wake' }) },
+  { g: 'rollcall', name: 'rollcall-board-coach', seed: 'coachIdentity', route: 'rollcall-board/rb-shot', at: [6, 12], book: 'team', pre: rbSeed({ now: [6, 12], mode: 'wake' }) },
+  { g: 'rollcall', name: 'rollcall-board-coach-sheet', seed: 'coachIdentity', route: 'rollcall-board/rb-shot', at: [6, 12], book: 'team', pre: rbSeed({ now: [6, 12], mode: 'wake' }),
+    act: `const f = document.querySelector('[data-rb-athlete="r10"]'); if (f) f.click();`, actMs: 700 },
+  { g: 'rollcall', name: 'rollcall-board-closed', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [6, 45], pre: rbSeed({ now: [6, 45], mode: 'wake' }) },
+  { g: 'rollcall', name: 'rollcall-board-both', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [6, 42], pre: newBuild('always') + rbSeed({ now: [6, 42], mode: 'both' }) },
+  { g: 'rollcall', name: 'rollcall-board-both-closed', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [7, 0], pre: newBuild('always') + rbSeed({ now: [7, 0], mode: 'both' }) },
+  { g: 'rollcall', name: 'rollcall-board-arrival', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [15, 26], pre: newBuild('always') + rbSeed({ now: [15, 26], mode: 'arrival', me: 'open' }) },
+  // Location, asked in context (final fix round, item 2): a phone never asked (While Using,
+  // explained first), While Using granted (Always offered, "Not now" beside it), a No (Settings),
+  // and the location check-in screen itself, never asked and with Always on. Then an OLD binary
+  // (items 3/I-2): no I'm here button, one "Update OnStandard" line.
+  { g: 'rollcall', name: 'rollcall-loc-ask', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [15, 26], pre: newBuild('undetermined') + rbSeed({ now: [15, 26], mode: 'arrival', me: 'open' }) },
+  { g: 'rollcall', name: 'rollcall-loc-always', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [15, 26], pre: newBuild('when_in_use') + rbSeed({ now: [15, 26], mode: 'arrival', me: 'open' }) },
+  { g: 'rollcall', name: 'rollcall-loc-denied', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [15, 26], pre: newBuild('denied') + rbSeed({ now: [15, 26], mode: 'arrival', me: 'open' }) },
+  { g: 'rollcall', name: 'location-consent', seed: 'dayMorning', route: 'location-consent', at: [15, 26],
+    pre: newBuild('undetermined') + `const lc = await import('./js/screens/location-consent.js'); lc.setConsentForHarness(true);` },
+  { g: 'rollcall', name: 'location-consent-on', seed: 'dayMorning', route: 'location-consent', at: [15, 26],
+    pre: newBuild('always') + `const lc = await import('./js/screens/location-consent.js'); lc.setConsentForHarness(true);` },
+  { g: 'rollcall', name: 'rollcall-board-oldbuild', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [15, 26], pre: rbSeed({ now: [15, 26], mode: 'arrival', me: 'open' }) },
+  // The coach's roll call (Task 10): setup blank, with a picked place, the Where step with saved
+  // places (no map on this "binary"), arrival only, the week strip and a morning's sheet, history.
+  // rollcall-new is a NEW build (the Also check door); rollcall-new-oldbuild is an OLD binary with
+  // no saved place (final review I-1: one "Update OnStandard to add a place" line, no door).
+  { g: 'rollcall', name: 'rollcall-new', seed: 'coachIdentity', route: 'rollcall-new', at: [20, 10], book: 'team', pre: newBuild('when_in_use') + rsSeed() },
+  { g: 'rollcall', name: 'rollcall-new-oldbuild', seed: 'coachIdentity', route: 'rollcall-new', at: [20, 10], book: 'team',
+    pre: rsSeed() + ` cd.seedCommitmentsForHarness([rule], []);` },
+  { g: 'rollcall', name: 'rollcall-new-map', seed: 'coachIdentity', route: 'rollcall-new', at: [20, 10], book: 'team',
+    pre: newBuild('when_in_use') + rsSeed({ draft: { mode: 'both', arrive_by_min: 405 } }) },
+  { g: 'rollcall', name: 'rollcall-new-place', seed: 'coachIdentity', route: 'rollcall-new', at: [20, 10], book: 'team',
+    pre: rsSeed({ draft: { mode: 'both', location_id: 'loc-1', place: { id: 'loc-1', name: 'Lincoln Weight Room', radius_m: 150, address: '1200 Stadium Dr' }, arrive_by_min: 405 } }) },
+  { g: 'rollcall', name: 'rollcall-new-where', seed: 'coachIdentity', route: 'rollcall-new', at: [20, 10], book: 'team',
+    pre: rsSeed({ draft: { mode: 'both', arrive_by_min: 405, change: true } }) },
+  { g: 'rollcall', name: 'rollcall-new-arrival', seed: 'coachIdentity', route: 'rollcall-new', at: [20, 10], book: 'team',
+    pre: rsSeed({ draft: { mode: 'arrival', location_id: 'loc-2', place: { id: 'loc-2', name: 'Bright House Stadium', radius_m: 300 }, arrive_by_min: 930, repeat_days: [1, 3, 5] } }) },
+  { g: 'rollcall', name: 'rollcall-week', seed: 'coachIdentity', route: 'rollcall-week/rc-rule', at: [20, 10], book: 'team', pre: rsSeed() },
+  { g: 'rollcall', name: 'rollcall-week-sheet', seed: 'coachIdentity', route: 'rollcall-week/rc-rule', at: [20, 10], book: 'team', pre: rsSeed(),
+    act: `const d = document.querySelector('[data-rw-day="i-24"]'); if (d) d.click();`, actMs: 700 },
+  { g: 'rollcall', name: 'rollcall-history', seed: 'coachIdentity', route: 'rollcall-history/rc-rule', at: [20, 10], book: 'team', pre: rsSeed() },
   // The "Day N locked." stamp: a body-level overlay, so it is captured by rendering Home with the
   // lock unacknowledged. Every other athlete seed marks it seen, or it would appear over whichever
   // screen rendered first and make the contact sheet nondeterministic.
@@ -160,6 +333,20 @@ const SHOTS = [
   // The PAST-meal conversation — where a follow-up notification lands. Never captured before,
   // so it was the one thread surface still rendering 'Coach' with a hardcoded letter for a face.
   { g: 'meal', name: 'meal-view', seed: 'dayMidday', route: 'meal-view/meal-seed-lunch', at: [21, 5] },
+
+  // The bottom bar of all four threads (composer upgrade, 2026-09-23): one flush bar, the mic in
+  // send's slot, send once there is text, and the listening state. Run: `node scripts/qc-capture.mjs
+  // composer --themes dark,light`.
+  { g: 'composer', name: 'composer-meal', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9], act: `${dictOn} ${toEnd}` },
+  { g: 'composer', name: 'composer-meal-listening', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9], act: `${dictOn} ${toEnd} ${listen}` },
+  { g: 'composer', name: 'composer-meal-typed', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9], act: `${dictOn} ${toEnd} ${typed}` },
+  { g: 'composer', name: 'composer-meal-nomic', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9], act: toEnd },
+  { g: 'composer', name: 'composer-past', seed: 'dayMidday', route: 'meal-view/meal-seed-lunch', at: [21, 5], act: `${dictOn} ${toEnd}` },
+  { g: 'composer', name: 'composer-past-listening', seed: 'dayMidday', route: 'meal-view/meal-seed-lunch', at: [21, 5], act: `${dictOn} ${toEnd} ${listen}` },
+  { g: 'composer', name: 'composer-chat', seed: 'dayMidday', route: 'nutrition-chat', at: [13, 30], act: `${dictOn} ${toEnd}` },
+  { g: 'composer', name: 'composer-chat-listening', seed: 'dayMidday', route: 'nutrition-chat', at: [13, 30], act: `${dictOn} ${toEnd} ${listen}` },
+  { g: 'composer', name: 'composer-coach', seed: 'coachIdentity', route: 'coach-meal/meal-seed-lunch', at: [20, 10], book: 'team', act: `${dictOn} ${toEnd}` },
+  { g: 'composer', name: 'composer-coach-listening', seed: 'coachIdentity', route: 'coach-meal/meal-seed-lunch', at: [20, 10], book: 'team', act: `${dictOn} ${toEnd} ${listen}` },
 
   // athlete — the rest of the day
   { g: 'athlete2', name: 'weight', seed: 'dayMorning', route: 'weight', at: [7, 10] },
@@ -249,6 +436,21 @@ const SHOTS = [
   { g: 'coach', name: 'coach-wakeup-more', seed: 'coachIdentity', route: 'coach-wakeup-edit', at: [20, 10], book: 'team',
     act: `const m = document.querySelector('#wk-more'); if (m) m.click(); await new Promise((r) => setTimeout(r, 300));` },
   { g: 'coach', name: 'wakeup-morning', seed: 'coachIdentity', route: 'wakeup-morning', at: [7, 10], book: 'team' },
+  // ONE WAY IN (roll call rebuilt, Task 11). The three shots above are retired routes now: each
+  // must land on the rebuilt screen (coach-wakeup-edit -> the setup, wakeup-morning -> the board on
+  // the misses). These prove the doors and the cold deep links: a tap on the coach Home card and
+  // the create menu's Roll call, an old roll-call/<id> push before the row is cached (the board's
+  // skeleton, never the old detail), the same link once the row resolves, and an old coach link.
+  { g: 'rollcall', name: 'rc-door-coach-home', seed: 'coachIdentity', route: 'coach-home', at: [6, 12], book: 'team',
+    pre: rbSeed({ now: [6, 12], mode: 'wake' }),
+    act: `const c = document.querySelector('.wk-homecard[data-go]'); if (c) c.click(); await new Promise((r) => setTimeout(r, 900)); `, actMs: 900 },
+  { g: 'rollcall', name: 'rc-door-create', seed: 'coachIdentity', route: 'coach-create', at: [20, 10], book: 'team',
+    act: `const rows = [...document.querySelectorAll('[data-go]')]; const r = rows.find((x) => /Roll call/.test(x.textContent)); if (r) r.click(); await new Promise((r) => setTimeout(r, 900));`, actMs: 900 },
+  { g: 'rollcall', name: 'rc-old-link-cold', seed: 'dayMorning', route: 'roll-call/rc-not-cached', at: [6, 12] },
+  { g: 'rollcall', name: 'rc-old-link-resolves', seed: 'dayMorning', route: 'roll-call/rb-cold', at: [6, 12],
+    act: rbSeed({ now: [6, 12], mode: 'wake' }).split("'rb-shot'").join("'rb-cold'") + ` window.__render(); await new Promise((r) => setTimeout(r, 900));`, actMs: 900 },
+  { g: 'rollcall', name: 'rc-old-link-coach', seed: 'coachIdentity', route: 'coach-commitments/rb-shot', at: [6, 12], book: 'team',
+    pre: rbSeed({ now: [6, 12], mode: 'wake' }) },
   { g: 'coach', name: 'coach-plan', seed: 'coachIdentity', route: 'coach-plan', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'coach-profile', seed: 'coachIdentity', route: 'coach-profile', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'copilot', seed: 'coachIdentity', route: 'copilot', at: [20, 10], book: 'team' },
@@ -436,6 +638,7 @@ const AUDIT_JS = `(() => {
   }
 
   out.textLen = (document.body.innerText || '').replace(/\\s+/g, ' ').trim().length;
+  out.landed = String(location.hash || '');
   out.head = (document.body.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 110);
   // de-dupe + cap so one repeated component doesn't drown the report
   const uniq = (arr, k) => { const s = new Set(); return arr.filter((x) => { const v = k(x); if (s.has(v)) return false; s.add(v); return true; }); };
@@ -465,7 +668,7 @@ if (ALL) {
 // Positional args are name filters. Skip anything that is a flag or a flag's value, then split
 // on commas so `qc-capture.mjs home,meal` matches both rather than looking for one literal
 // "home,meal" screen.
-const flagValues = new Set(['themes', 'widths', 'out', 'scroll-to', 'port', 'shard', 'scroll-by'].map((f) => flag(f, null)).filter(Boolean));
+const flagValues = new Set(['themes', 'widths', 'out', 'scroll-to', 'port', 'shard', 'scroll-by', 'serve'].map((f) => flag(f, null)).filter(Boolean));
 const nameFilter = argv
   .filter((a) => !a.startsWith('--') && !flagValues.has(a))
   .flatMap((a) => a.split(',').map((s) => s.trim()).filter(Boolean));

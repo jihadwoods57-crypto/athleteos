@@ -467,6 +467,75 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
         can_push: true,
       })),
     }],
+
+    // ---- the roll call rebuilt (migration 0242). Shapes copied from the SQL, never invented.
+    // NO BACKTICKS anywhere in this block: this whole file section is one template literal.
+    // The team board: a 6:00 wake-up (10:00Z, EDT) with the weight room as its place. Six
+    // athletes, every state the board draws: first up, on time, late, not up yet, excused, and
+    // the place check as here / here late / not here yet / unverified.
+    rollcall_team_board: (p) => {
+      const T = (hm) => TODAY + 'T' + hm + ':00Z';
+      const byId = {};
+      for (const a of ATHLETES) byId[a.id] = a;
+      const pick = [
+        { i: 1, ack: T('09:52'), verdict: 'on_standard', arr: T('10:38'), av: 'on_standard' },
+        { i: 0, ack: T('09:58'), verdict: 'on_standard', arr: T('10:41'), av: 'on_standard' },
+        { i: 2, ack: T('10:01'), verdict: 'on_standard', arr: null, av: 'pending' },
+        { i: 4, ack: T('10:08'), verdict: 'late', arr: null, av: 'unverified' },
+        { i: 3, ack: null, verdict: 'pending', arr: null, av: 'pending' },
+        { i: 5, ack: null, verdict: 'excused', arr: null, av: 'excused' },
+      ].filter((x) => ATHLETES[x.i]);
+      let place = 0;
+      const rows = pick.map((x) => {
+        const a = ATHLETES[x.i];
+        const up = x.verdict === 'on_standard' || x.verdict === 'late';
+        return {
+          athlete_id: a.id, name: a.name, avatar_path: null,
+          acknowledged_at: x.ack, arrived_at: x.arr,
+          verdict: x.verdict, arrival_verdict: x.av, place: up ? ++place : null,
+        };
+      });
+      return {
+        instance_id: (p && p.p_instance) || 'b-0', title: '5 AM Club', coach_name: 'Coach Brooks', mode: 'both',
+        starts_at: T('10:00'), respond_by_at: T('10:05'), closes_at: T('10:30'),
+        arrive_by_at: T('10:45'), asks_arrival: true, location_name: 'Lincoln Weight Room',
+        total: rows.filter((r) => r.verdict !== 'excused').length,
+        up: rows.filter((r) => r.place != null).length,
+        arrived: rows.filter((r) => r.arrived_at && r.verdict !== 'excused').length,
+        rows,
+      };
+    },
+    // The coach's 30 mornings, lowest on-time rate first (as the SQL orders them).
+    rollcall_history: () => {
+      const spec = [
+        { i: 5, on: 14, late: 4, missed: 6, trend: -18, streak: 0, first: 0 },
+        { i: 4, on: 17, late: 5, missed: 2, trend: -6, streak: 1, first: 0 },
+        { i: 3, on: 20, late: 3, missed: 1, trend: 4, streak: 3, first: 1 },
+        { i: 2, on: 22, late: 2, missed: 0, trend: 0, streak: 9, first: 2 },
+        { i: 0, on: 23, late: 1, missed: 0, trend: 3, streak: 14, first: 5 },
+        { i: 1, on: 24, late: 0, missed: 0, trend: 0, streak: 24, first: 16 },
+      ].filter((x) => ATHLETES[x.i]);
+      const athletes = spec.map((x) => {
+        const a = ATHLETES[x.i];
+        const mornings = x.on + x.late + x.missed;
+        return {
+          athlete_id: a.id, name: a.name, avatar_path: null, mornings,
+          on_time: x.on, late: x.late, missed: x.missed,
+          on_time_pct: Math.round(100 * x.on / mornings), trend: x.trend,
+          streak: x.streak, first_up: x.first,
+        };
+      });
+      const on = athletes.reduce((s, a) => s + a.on_time, 0);
+      const all = athletes.reduce((s, a) => s + a.mornings, 0);
+      return { team_on_time_pct: all ? Math.round(100 * on / all) : null, team_trend: -3, athletes };
+    },
+    // One reading judged on the server: inside the bubble. Never echoes a coordinate.
+    verify_arrival_at: (p) => ({
+      instance_id: (p && p.p_instance) || null, status: 'arrived', arrival_source: (p && p.p_source) || 'manual',
+      arrived_at: new Date().toISOString(), within: true, distance_m: 42,
+    }),
+    // The coach's saved place: the new (or edited) row id.
+    save_commitment_place: (p) => (p && p.p && p.p.id) || 'loc-1',
   };
 
   // ---- chainable PostgREST-ish query builder ----

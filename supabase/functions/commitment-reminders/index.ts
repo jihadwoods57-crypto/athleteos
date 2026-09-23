@@ -10,18 +10,19 @@
 // due and marks it in the same statement, so two overlapping cron ticks cannot double-send, and
 // only PENDING responses are ever selected — an athlete who already answered is never pinged.
 //
-// INVOCATION: scheduled every 5 minutes. Protected by a shared key so only the scheduler can fire
-// it (deploy with --no-verify-jwt; an anon caller without the key gets 401):
+// INVOCATION: scheduled every minute (schedule_commitment_reminders, 0211: '* * * * *').
+// Protected by a shared key so only the scheduler can fire it (deploy with --no-verify-jwt; an
+// anon caller without the key gets 401):
 //   supabase secrets set COMMITMENT_CRON_KEY=<long random string>
 //   supabase functions deploy commitment-reminders --use-api --no-verify-jwt
 // Then: select schedule_commitment_reminders('<fn url>', '<the same key>');
-import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { signRollCallCode } from '../_shared/rollcall-code.ts';
 import { rollCallCategoryId, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL } from '../_shared/rollcall-category.ts';
-import { composeReminderPush, codeDeadlineMs, platformCopy, isInitialPush, type ReminderRow } from './logic.ts';
+import { composeReminderPush, codeDeadlineMs, platformCopy, isInitialPush, cardPlanAtRung, splitStartGroups, clockIn, reminderRoute, type ReminderRow } from './logic.ts';
 import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
-import { pushLiveActivity, loadLiveCard } from '../_shared/rollcall-live-send.ts';
-import { rollCallPushData } from '../_shared/rollcall-live.ts';
+import { pushLiveActivity, loadLiveCard, loadTeamBoard, windowCodesFor, ackUrlFor } from '../_shared/rollcall-live-send.ts';
+import { rollCallPushData, teamFields } from '../_shared/rollcall-live.ts';
 // Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
 // refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
 import { sendExpoPush } from '../_shared/expo-push.mjs';
@@ -47,6 +48,18 @@ function safeEqual(a: string, b: string): boolean {
 
 type Due = ReminderRow;
 
+/** Undo a start claim (commitment_responses.card_started_at) for athletes a push did not
+ *  genuinely reach, or after anything downstream of the claim threw — so the next minute's tick
+ *  claims and retries them instead of leaving them silently claimed forever (fix round 1, review
+ *  round 1, Important #1). Best effort and never throws: a release that itself fails just means
+ *  the retry happens a tick later than it could have. */
+async function releaseCardStarts(svc: SupabaseClient, instanceId: string, athleteIds: string[]): Promise<void> {
+  if (!athleteIds.length) return;
+  try {
+    await svc.rpc('release_rollcall_card_start', { p_instance: instanceId, p_athletes: athleteIds });
+  } catch { /* best effort */ }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return json({ error: 'method not allowed' }, 405);
   if (!CRON_KEY || !safeEqual(req.headers.get('x-commitment-key') ?? '', CRON_KEY)) {
@@ -66,12 +79,69 @@ Deno.serve(async (req: Request) => {
     materialized = Number(data) || 0;
   } catch { /* best-effort */ }
 
+  // ---------------------------------------------------------------- the card opens at the OPEN
+  // 2026-09-23 (spec correction 7): a wake-up opens 10 minutes before its start (0242
+  // rollcall_opens_at), and its Live Activity goes up then, by itself, on every pending athlete's
+  // iPhone. It carries each athlete's WINDOW code and the ack URL in its attributes, so the card's
+  // I'm Up posts the check-in with the app closed. The alert is SILENT: the card lights the screen,
+  // but the loud moment stays the start (the alarm, or the start-time rung below, which then
+  // UPDATES this card with the coach's words and the sound instead of starting a second one).
+  // Claimed once per ATHLETE (commitment_responses.card_started_at), before the early return: a
+  // tick with no reminder rungs due still has cards to open, and this same call runs every tick.
+  // Fix round 1 (review round 1, Important #1): claim_rollcall_card_opens now only claims an
+  // athlete who is START-ELIGIBLE right now (an unrevoked push-to-start token, no card yet), so an
+  // athlete with no token at all is simply left unclaimed rather than claimed-and-wasted — the
+  // very next tick, once their phone registers one, claims them. And any athlete claimed here
+  // whose push does NOT land in pushLiveActivity's `live` set (APNs refused it, the token was
+  // gone) or whose push throws is released (release_rollcall_card_start) below, so the next
+  // tick's claim picks them straight back up instead of leaving them silently claimed forever.
+  // No notification here: an athlete whose card did not start still gets the start-time
+  // notification, exactly as before.
+  const opened = { instances: 0, started: 0, skipped: 0, revoked: 0 };
+  const apnsForOpen = apnsFromEnv((k) => Deno.env.get(k));
+  if (apnsForOpen) {
+    try {
+      const { data: opens } = await svc.rpc('claim_rollcall_card_opens', { p_limit: 200 });
+      const list = (Array.isArray(opens) ? opens : []) as Array<{ instance_id: string; athlete_ids: string[] | null }>;
+      if (list.length) {
+        const apns = new ApnsClient(apnsForOpen);
+        for (const o of list) {
+          opened.instances++;
+          const ids = Array.isArray(o.athlete_ids) ? o.athlete_ids : [];
+          if (!ids.length) continue;
+          try {
+            const card = await loadLiveCard(svc, o.instance_id);
+            if (!card) { await releaseCardStarts(svc, o.instance_id, ids); continue; }
+            const board = await loadTeamBoard(svc, o.instance_id);
+            const dl = clockIn(card.respond_by_at, card.timezone);
+            const title = card.title || 'Wake-Up Roll Call';
+            const r = await pushLiveActivity({
+              svc, apns, card, phase: 'initial', athleteIds: ids, allowStart: true,
+              alert: { title: card.coach_name || title, body: dl ? `${title} · up by ${dl}` : title, sound: '' },
+              team: (id) => teamFields(board, id),
+              ackCodes: await windowCodesFor(ACK_SECRET, card, ids),
+              ackUrl: ackUrlFor(SUPABASE_URL),
+              nowMs: Date.now(),
+            });
+            opened.started += r.started + r.updated; opened.skipped += r.skipped; opened.revoked += r.revoked;
+            const missed = ids.filter((id) => !r.live.has(id));
+            if (missed.length) await releaseCardStarts(svc, o.instance_id, missed);
+          } catch {
+            // Anything that threw after the claim (a bad card read, a push that blew up) leaves
+            // these athletes claimed with no attempt made — release so the next tick retries them.
+            await releaseCardStarts(svc, o.instance_id, ids);
+          }
+        }
+      }
+    } catch { /* the RPC may not exist on an un-migrated stack; the rungs below are unaffected */ }
+  }
+
   // Claim + mark in one call. Anything returned here is ours to deliver and will not be
   // returned to a concurrent run. `p_limit` (migration 0148, capacity audit F8) bounds each
   // call, so a burst that crosses more due reminders than one page could ever hold no longer
   // marks rows delivered that this invocation never actually saw — page until a call returns
   // fewer than p_limit rows (fully drained). PAGE_CAP is a hard backstop against a runaway loop
-  // outrunning the function's own wall clock; hitting it just means the next 5-minute tick picks
+  // outrunning the function's own wall clock; hitting it just means the next minute's tick picks
   // up where this one left off (claim_due_commitment_reminders is safe to call again — anything
   // still due and not yet reminded stays eligible).
   const CLAIM_LIMIT = 500;
@@ -86,7 +156,7 @@ Deno.serve(async (req: Request) => {
     due.push(...rows);
     if (rows.length < CLAIM_LIMIT) break;
   }
-  if (!due.length) return json({ sent: 0, pushed: 0, materialized });
+  if (!due.length) return json({ sent: 0, pushed: 0, materialized, opened });
 
   // Who is speaking (0211): the coach on the first push of a roll call, OnStandard after that.
   // Composed once per claimed row so the durable bell row and the push say the same thing.
@@ -148,29 +218,83 @@ Deno.serve(async (req: Request) => {
       list.push(d);
       byInstance.set(d.instance_id, list);
     }
+    // Which (instance, athlete) pairs already have a start claimed (card_started_at). Per
+    // athlete, not per instance: an athlete the open pass never reached (no start token yet at
+    // the open, a roll call made after its own open already passed) still gets a start attempt
+    // from THIS rung, below, once claim_rollcall_card_starts finds them start-eligible. Unknown (a
+    // read failure, an un-migrated stack) reads as NOT started, the pre-0242 behaviour: everyone
+    // is a start candidate below (claim_rollcall_card_starts still gates on eligibility either way).
+    const started = new Set<string>(); // `${instanceId}:${athleteId}`
+    if (byInstance.size) {
+      try {
+        const { data: resp } = await svc
+          .from('commitment_responses').select('instance_id,athlete_id')
+          .in('instance_id', [...byInstance.keys()]).not('card_started_at', 'is', null);
+        for (const r of (resp ?? []) as Array<{ instance_id: string; athlete_id: string }>) {
+          started.add(`${r.instance_id}:${r.athlete_id}`);
+        }
+      } catch { /* best effort */ }
+    }
+    const ackUrl = ackUrlFor(SUPABASE_URL);
     for (const [instanceId, rows] of byInstance) {
       const card = await loadLiveCard(svc, instanceId);
       if (!card) continue;
-      // The rung that fires AT the start time opens the activity; any later rung updates it.
-      const phase = isInitialPush(rows[0]) ? 'initial' : 'reminder';
+      // Only the phase matters here; allowStart is decided per athlete just below, so the second
+      // argument (which only affects allowStart) is irrelevant.
+      const phase = cardPlanAtRung(rows[0], true).phase;
+      const board = await loadTeamBoard(svc, instanceId);
       const c = copy.get(rows[0])!;
-      // Two sends when some of this instance's athletes have a real alarm armed: the same card,
-      // the same words, one with the sound and one without.
-      const loud = [...new Set(rows.filter((x) => !isArmed(x)).map((x) => x.athlete_id))];
-      const quiet = [...new Set(rows.filter((x) => isArmed(x)).map((x) => x.athlete_id))].filter((id) => !loud.includes(id));
-      for (const [ids, sound] of [[loud, 'default'], [quiet, '']] as Array<[string[], string]>) {
-        if (!ids.length) continue;
-        const r = await pushLiveActivity({
-          svc, apns, card, phase,
-          athleteIds: ids,
-          // The card IS the notification now, so its alert is what lights the phone up and plays
-          // the sound. Same words the suppressed notification would have carried.
-          alert: { title: c.title, body: c.subtitle ?? c.body, sound },
-          nowMs: now,
-        });
-        live.started += r.started; live.updated += r.updated; live.ended += r.ended;
-        live.revoked += r.revoked; live.skipped += r.skipped;
-        for (const id of r.live) hasCard.add(id);
+      // Claim a fresh start for whichever of this rung's athletes have never been claimed AND are
+      // start-eligible right now (claim_rollcall_card_starts checks the push-to-start token) — the
+      // open pass may have missed them entirely, or they had no token until just now. Atomic, so a
+      // concurrent open-pass tick cannot also attempt the same athlete: only the ids it returns may
+      // start; anyone else in `rows` already has a claim (accepted, or awaiting release) or still
+      // has no start token, and gets update-only.
+      let justClaimed = new Set<string>();
+      if (phase === 'initial') {
+        const candidates = [...new Set(rows.map((r) => r.athlete_id))]
+          .filter((id) => !started.has(`${instanceId}:${id}`));
+        if (candidates.length) {
+          try {
+            const { data: won } = await svc.rpc('claim_rollcall_card_starts', {
+              p_instance: instanceId, p_athletes: candidates,
+            });
+            justClaimed = new Set((Array.isArray(won) ? won : []).map((x: unknown) =>
+              typeof x === 'string' ? x : String(Object.values((x ?? {}) as Record<string, unknown>)[0] ?? '')));
+          } catch { /* best effort: nobody newly claimed here; the open pass may still catch them */ }
+        }
+      }
+      // Two axes: alarm-armed (sound on/off) and start-eligible (start vs update-only) — pure,
+      // tested in logic.ts (splitStartGroups, review round 1, Minor #2). The card IS the
+      // notification now, so its alert is what lights the phone up and plays the sound. Same words
+      // the suppressed notification would have carried.
+      const armedIds = new Set(rows.filter((x) => isArmed(x)).map((x) => x.athlete_id));
+      const groups = splitStartGroups(rows.map((r) => r.athlete_id), (id) => armedIds.has(id), justClaimed);
+      for (const g of groups) {
+        try {
+          const r = await pushLiveActivity({
+            svc, apns, card, phase,
+            athleteIds: g.ids,
+            allowStart: phase === 'initial' && g.allowStart,
+            team: (id) => teamFields(board, id),
+            ackCodes: (phase === 'initial' && g.allowStart) ? await windowCodesFor(ACK_SECRET, card, g.ids) : undefined,
+            ackUrl,
+            alert: { title: c.title, body: c.subtitle ?? c.body, sound: g.sound },
+            nowMs: now,
+          });
+          live.started += r.started; live.updated += r.updated; live.ended += r.ended;
+          live.revoked += r.revoked; live.skipped += r.skipped;
+          for (const id of r.live) hasCard.add(id);
+          // Fix round 1 (review round 1, Important #1): a start we just claimed but that did not
+          // genuinely reach a device is released, so the next tick's claim retries it instead of
+          // leaving that athlete silently claimed for the rest of the morning.
+          if (g.allowStart) {
+            const missed = g.ids.filter((id) => !r.live.has(id));
+            if (missed.length) await releaseCardStarts(svc, instanceId, missed);
+          }
+        } catch {
+          if (g.allowStart) await releaseCardStarts(svc, instanceId, g.ids);
+        }
       }
     }
   }
@@ -227,7 +351,8 @@ Deno.serve(async (req: Request) => {
       // The tap lands on the commitment itself, not Home — the last inch of the loop. `code` lets
       // a lock-screen action button ack without opening the app; empty when the secret isn't set.
       data: {
-        route: `roll-call/${d.instance_id}`, code, action_label: d.action_label, from_coach: c.fromCoach,
+        route: reminderRoute(d.type, d.instance_id),
+        code, action_label: d.action_label, from_coach: c.fromCoach,
         // Read on Android by RollCallPresentationDelegate (modules/rollcall-live) to turn this into
         // an alarm-grade notification: a countdown the OS ticks to `rc_deadline`, the alarm
         // category, the state colour, and an Android 16 Live Update promotion until `rc_closes`.
@@ -261,5 +386,5 @@ Deno.serve(async (req: Request) => {
   const pushed = pushOut.sent;
   if (pushOut.failed) console.error('commitment-reminders: push refused', pushOut.failed, pushOut.errors.join('; '));
 
-  return json({ sent: recorded, pushed, claimed: due.length, materialized, live, suppressed });
+  return json({ sent: recorded, pushed, claimed: due.length, materialized, live, suppressed, opened });
 });

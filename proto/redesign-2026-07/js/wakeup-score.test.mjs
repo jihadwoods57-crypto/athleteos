@@ -191,3 +191,28 @@ test('the shift can only be paid for out of the check-in, never out of food', ()
   assert.ok(Math.abs((w.recovery + w.checkin + w.wakeup) - (base.recovery + base.checkin)) < 1e-9,
     'the morning plus the nightly check-in must still add up to the same 18');
 });
+
+/* ---- Task 1 (2026-09-23): arrival joins the morning/night budget as wake-up's twin ---- */
+
+test('arrival joins the morning budget: wake-up + arrival split 8 into 4 and 4', async () => {
+  const { weightsForAssigned, NIGHT_SHIFT } = await import('./plan-style.js');
+  const w = weightsForAssigned('athlete', { wakeup: true, arrival: true });
+  assert.equal(Math.round(w.wakeup * 100), 4);
+  assert.equal(Math.round(w.arrival * 100), 4);
+  assert.equal(Math.round(w.nutrition * 100), 82);
+  assert.equal(Math.round((w.recovery + w.checkin) * 100), Math.round((0.18 - NIGHT_SHIFT) * 100));
+});
+test('arrival alone takes the whole 8', async () => {
+  const { weightsForAssigned } = await import('./plan-style.js');
+  const w = weightsForAssigned('athlete', { arrival: true });
+  assert.equal(Math.round(w.arrival * 100), 8);
+  assert.equal(w.wakeup, 0);
+});
+test('arrivalParts scores like the wake-up: on time 100, late 50, missed 0, anything else leaves', async () => {
+  const { arrivalParts } = await import('./day.js');
+  assert.deepEqual(arrivalParts({ arrival: { assigned: true, verdict: 'on_standard' } }), { score: 100, assigned: true });
+  assert.deepEqual(arrivalParts({ arrival: { assigned: true, verdict: 'late' } }), { score: 50, assigned: true });
+  assert.deepEqual(arrivalParts({ arrival: { assigned: true, verdict: 'missed' } }), { score: 0, assigned: true });
+  assert.deepEqual(arrivalParts({ arrival: { assigned: true, verdict: 'pending' } }), { score: 0, assigned: false });
+  assert.deepEqual(arrivalParts({}), { score: 0, assigned: false });
+});

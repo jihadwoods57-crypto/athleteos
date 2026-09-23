@@ -428,6 +428,22 @@ export function wakeupParts(day) {
   }
 }
 
+/* ---- the coach-assigned arrival (optional location check) -----------------------------------
+   Its own slot, its own `assigned` flag, and the SAME rule wakeupParts follows — arrival is the
+   morning roll call's twin, not a second formula (2026-09-23). See wakeupParts above for why an
+   excused/pending/under-review verdict leaves the denominator rather than scoring zero. */
+/** @returns {{score:number, assigned:boolean}} score is 0-100; 0 when nothing was assigned. */
+export function arrivalParts(day) {
+  const a = day && day.arrival;
+  if (!a || !a.assigned) return { score: 0, assigned: false };
+  switch (String(a.verdict || '')) {
+    case 'on_standard': return { score: 100, assigned: true };
+    case 'late': return { score: 50, assigned: true };
+    case 'missed': return { score: 0, assigned: true };
+    default: return { score: 0, assigned: false };
+  }
+}
+
 /* ---- the coach-assigned Recovery Standard (measured sleep against a target) -----------------
    SLEEP IS EVIDENCE UNTIL A COACH MAKES IT A STANDARD, and even then it is scored the way the
    morning is: its own slot, its own `assigned` flag, and never inside recoveryParts. recoveryParts
@@ -498,6 +514,7 @@ export function computeComponents(day, std = STD) {
   const rec = recoveryParts(v.day);
   const wake = wakeupParts(v.day);
   const sleep = recoveryStandardParts(v.day);
+  const arrival = arrivalParts(v.day);
   return {
     nutrition: nutritionScore(v.day, v.std),
     recovery: rec.score,
@@ -508,6 +525,8 @@ export function computeComponents(day, std = STD) {
     wakeupAssigned: wake.assigned,
     sleep: sleep.score,
     sleepAssigned: sleep.assigned,
+    arrival: arrival.score,
+    arrivalAssigned: arrival.assigned,
   };
 }
 
@@ -521,14 +540,15 @@ export function weightsForDay(day) {
   // carrying both gives up the sum of the two shifts and nutrition's 82 still never moves.
   const wakeup = wakeupParts(day).assigned;
   const sleep = recoveryStandardParts(day).assigned;
-  if (!wakeup && !sleep) return weightsFor(styleOf(day), day.scoringProfile);
-  return weightsForAssigned(day.scoringProfile, { wakeup, sleep });
+  const arrival = arrivalParts(day).assigned;
+  if (!wakeup && !sleep && !arrival) return weightsFor(styleOf(day), day.scoringProfile);
+  return weightsForAssigned(day.scoringProfile, { wakeup, sleep, arrival });
 }
 
 export function scoreFor(day, std = STD) {
   const w = weightsForDay(day);
   const c = computeComponents(day, std);
-  return clamp(Math.round(w.nutrition * c.nutrition + w.recovery * c.recoveryContribution + w.commitment * c.commitment + w.checkin * c.checkin + (w.wakeup || 0) * c.wakeup + (w.sleep || 0) * c.sleep), 0, 100);
+  return clamp(Math.round(w.nutrition * c.nutrition + w.recovery * c.recoveryContribution + w.commitment * c.commitment + w.checkin * c.checkin + (w.wakeup || 0) * c.wakeup + (w.sleep || 0) * c.sleep + (w.arrival || 0) * c.arrival), 0, 100);
 }
 
 // gradeFor moved to score-band.js (the letter ladder shares the tier floors plus its own 70 step);
@@ -556,12 +576,15 @@ export function evidenceCeiling(day, std = STD) {
   // morning takes a share of the check-in's 18. Reading the mix cannot drift from it.
   const w = weightsForDay(day);
   const wake = wakeupParts(v.day);
+  const arrival = arrivalParts(v.day);
   return Math.round(
     (hasNutritionEvidence(v.day, v.std) ? w.nutrition * 100 : 0)
     + (checkinReal(v.day) ? (w.recovery + w.checkin) * 100 : 0)
-    // An assigned morning justifies its share only once it was actually ANSWERED. A missed one
-    // scores 0 anyway, so this never binds; it exists so the ceiling stays honest evidence.
-    + (wake.assigned && wake.score > 0 ? (w.wakeup || 0) * 100 : 0),
+    // An assigned morning (or arrival) justifies its share only once it was actually ANSWERED. A
+    // missed one scores 0 anyway, so this never binds; it exists so the ceiling stays honest
+    // evidence.
+    + (wake.assigned && wake.score > 0 ? (w.wakeup || 0) * 100 : 0)
+    + (arrival.assigned && arrival.score > 0 ? (w.arrival || 0) * 100 : 0),
   );
 }
 export function clampedScore(day) { return Math.min(scoreFor(day), evidenceCeiling(day)); }
@@ -597,6 +620,9 @@ export const DAY = {
      checkin jsonb so the SERVER's evidence ceiling can see the morning too - without it a day
      that earned food 82 plus a morning 8 would compute 90 and be clamped straight back to 82. */
   wakeup: null,
+  /* The coach-assigned arrival (optional location check) for TODAY, same shape and same reason
+     as `wakeup` above: it rides the checkin jsonb so the SERVER's evidence ceiling can see it. */
+  arrival: null,
   proteinTarget: 180,
   calTarget: 3200,
   scoringProfile: 'athlete',
@@ -650,6 +676,7 @@ export function dayFromHistoryRow(r, cfg) {
     ciLast: ck.ciLast && ck.ciLast.date ? ck.ciLast : null,
     // A past day is scored on the morning IT carried, never today's. Same rule plan_style follows.
     wakeup: ck.wakeup && ck.wakeup.assigned ? ck.wakeup : null,
+    arrival: ck.arrival && ck.arrival.assigned ? ck.arrival : null,
     proteinTarget: c.proteinTarget != null ? c.proteinTarget : DAY.proteinTarget,
     calTarget: c.calTarget != null ? c.calTarget : DAY.calTarget,
     scoringProfile: c.scoringProfile != null ? c.scoringProfile : DAY.scoringProfile,
@@ -854,6 +881,8 @@ function projectRowToDay(row) {
   // (daySetWakeup); the stored copy is what keeps a score honest between a cold boot and that
   // fetch, and what the server's own ceiling reads.
   if (!DAY.wakeup && ck.wakeup && ck.wakeup.assigned) DAY.wakeup = ck.wakeup;
+  // The arrival (location check). Same authority rule as the morning above.
+  if (!DAY.arrival && ck.arrival && ck.arrival.assigned) DAY.arrival = ck.arrival;
   // Logged-at times ride the same jsonb (they power on-time history + category trends).
   DAY.mealLoggedAt = { ...(ck.mealLoggedAt || {}), ...DAY.mealLoggedAt };
   // Plate meta merges per-slot: local slots win (they carry the freshest AI meta), server
@@ -1109,6 +1138,27 @@ export function daySetWakeup(w, userId) {
   return true;
 }
 
+/**
+ * Record the server's verdict for today's coach-assigned arrival (location check). The morning's
+ * twin — same shape, same authority rule (2026-09-23): this NEVER re-derives a verdict this
+ * client computed itself.
+ *
+ * @param {{assigned:boolean, verdict:string|null, lateMin:number}|null} a
+ * @param {string|null} userId the signed-in athlete, for the push
+ */
+export function daySetArrival(a, userId) {
+  const next = a && a.assigned
+    ? { assigned: true, verdict: a.verdict == null ? null : String(a.verdict), lateMin: Number(a.lateMin) || 0 }
+    : null;
+  const before = DAY.arrival;
+  const same = (!before && !next)
+    || (before && next && before.verdict === next.verdict && before.lateMin === next.lateMin);
+  if (same) return false;
+  DAY.arrival = next;
+  if (userId) pushDay(userId);
+  return true;
+}
+
 export function pushDay(userId, immediate) {
   saveCache(userId);
   if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
@@ -1129,7 +1179,7 @@ export function pushDay(userId, immediate) {
       // `excluded.` — with it in the row, the ENTIRE upsert 42501s and nothing ever syncs
       // (the 2026-08-05 "Waiting to sync" bug). Weight goes through the log_my_weight door
       // (dayLogWeight below), the write mirror of the weight_series read door.
-      checkin: { ...DAY.ci, submitted: DAY.ciSubmitted, ciLast: DAY.ciLast, commitment: DAY.dailyCommitment, focus: DAY.commitmentFocus, mealLoggedAt: DAY.mealLoggedAt, slotMacros: DAY.slotMacros, wakeup: DAY.wakeup || null },
+      checkin: { ...DAY.ci, submitted: DAY.ciSubmitted, ciLast: DAY.ciLast, commitment: DAY.dailyCommitment, focus: DAY.commitmentFocus, mealLoggedAt: DAY.mealLoggedAt, slotMacros: DAY.slotMacros, wakeup: DAY.wakeup || null, arrival: DAY.arrival || null },
       score: s, grade: gradeFor(s),
       // The per-day STAMP: which style graded this day. Written every push so a style change
       // takes effect going forward and never rewrites a settled day. Null until a style resolves
@@ -1160,6 +1210,7 @@ export function dayResetLocal() {
   DAY.hydrationL = 0; DAY.dailyCommitment = null; DAY.commitmentFocus = null; DAY.ci = { ...DEFAULT_CI }; DAY.ciConfig = { ...DEFAULT_CICFG };
   DAY.ciSubmitted = false; DAY.ciLast = null; DAY.currentWeight = null; DAY.scoreHistory = []; DAY.passes = []; DAY.passSpends = [];
   DAY.wakeup = null;
+  DAY.arrival = null;
   // The resolved style/knobs SURVIVE a local reset (they describe the athlete, not the day) —
   // state.js re-applies them on hydrate anyway. Today's captured signals do not.
   DAY.signals = {}; DAY.signalWeekRate = null;

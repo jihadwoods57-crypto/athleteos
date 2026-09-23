@@ -99,3 +99,68 @@ test('a roll call with no coach-set label still explains itself', () => {
   assert.match(html, /How roll call works/);
   assert.doesNotMatch(html, /undefined/, 'no undefined leaked into athlete-facing copy');
 });
+
+/* ONE WAY IN (roll call rebuilt, 2026-09-23). Today's wake-up (or an earlier one) is the team
+   board now. The detail screen stays for tomorrow's preview (it explains this phone's alarm for
+   that morning) and for every other commitment type. The router asks `redirect` BEFORE it paints,
+   so an old push to roll-call/<id> never shows a frame of this screen for a wake-up. The render
+   tests above still render the full detail on purpose: it is what the preview shows. */
+const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+const { athleteRollcallRoute, isRollcall, ROLLCALL_ARRIVAL_TYPES } = await import('./commitments.js');
+
+test('an old roll-call/<id> link to today’s wake-up hands over to the board before painting', () => {
+  seedMineForHarness([wake()], today);
+  assert.equal(screen.redirect({ sub: 'rc-1' }), 'rollcall-board/rc-1');
+});
+
+test('tomorrow’s preview and other commitments keep the detail screen', () => {
+  seedMineForHarness([wake({ occurs_on: tomorrow })], today);
+  assert.equal(screen.redirect({ sub: 'rc-1' }), null, 'the preview explains this phone’s alarm');
+  seedMineForHarness([wake({ type: 'practice' })], today);
+  assert.equal(screen.redirect({ sub: 'rc-1' }), null, 'a practice keeps its detail');
+});
+
+test('an id that is not cached yet shows the board’s skeleton, never the old detail or a blank', () => {
+  seedMineForHarness([], today);
+  const html = screen.render({ sub: 'cold-id' });
+  assert.match(html, /Roll call/);
+  assert.match(html, /sk-card|aria-busy/, 'the shared skeleton primitive, the same one the board loads with');
+  assert.equal(screen.redirect({ sub: 'cold-id' }), null, 'nothing to hand over until the row resolves');
+});
+
+test('the preview is never a dead end once its window opens: it links to the board', () => {
+  const html = render(wake({ occurs_on: tomorrow }));
+  assert.match(html, /data-go="rollcall-board\/rc-1"/);
+  const before = render(wake({ occurs_on: tomorrow, starts_at: iso(30 * MIN), respond_by_at: iso(35 * MIN), closes_at: iso(60 * MIN) }));
+  assert.doesNotMatch(before, /data-go="rollcall-board\//, 'before it opens there is no board to show');
+});
+
+test('every athlete door asks one rule: board for today and earlier, detail otherwise', () => {
+  const r = (over) => athleteRollcallRoute({ instance_id: 'i', type: 'morning_roll_call', occurs_on: today, ...over }, today);
+  assert.equal(r({}), 'rollcall-board/i');
+  assert.equal(r({ occurs_on: '2020-01-01' }), 'rollcall-board/i');
+  assert.equal(r({ occurs_on: tomorrow }), 'roll-call/i');
+  assert.equal(r({ type: 'study_hall' }), 'roll-call/i');
+  assert.equal(athleteRollcallRoute({}, today), null);
+});
+
+test('isRollcall lives in the pure module and matches the setup screen’s arrival kinds', async () => {
+  const { ARRIVAL_KINDS } = await import('./screens/rollcall-setup.js');
+  assert.deepEqual(ARRIVAL_KINDS.map((k) => k.type), ROLLCALL_ARRIVAL_TYPES);
+  assert.equal(isRollcall({ type: 'morning_roll_call' }), true);
+  assert.equal(isRollcall({ type: 'practice', location_id: 'l', escalation: { rollcall: true } }), true);
+  assert.equal(isRollcall({ type: 'practice', location_id: 'l', escalation: {} }), false, 'a composer practice is not claimed');
+});
+
+test('a local wake-up reminder opens the board; any other commitment its detail', async () => {
+  const { planNotifications } = await import('./notify-plan.js');
+  const { commitmentReminders } = await import('./commitments.js');
+  const rows = [
+    { instance_id: 'w1', type: 'morning_roll_call', occurs_on: today, status: 'pending', starts_min: 600, respond_by_min: 605, reminder_offsets_min: [5] },
+    { instance_id: 'p1', type: 'practice', occurs_on: today, status: 'pending', starts_min: 900, reminder_offsets_min: [15] },
+  ];
+  const plan = planNotifications({ nowMin: 60, dateISO: today, commitments: commitmentReminders(rows, today) });
+  const route = (id) => (plan.find((n) => String(n.id).startsWith(`vc:${id}:`)) || {}).route;
+  assert.equal(route('w1'), 'rollcall-board/w1');
+  assert.equal(route('p1'), 'roll-call/p1');
+});

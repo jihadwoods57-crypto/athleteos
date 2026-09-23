@@ -4,6 +4,8 @@ import {
   coachActionFor, enqueueCoachAction, dropCoachAction,
   CHECK_IN_LABEL, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL, ackOutcome,
   routeNotificationResponse, ACTION_OPTIONS, buttonTitleFor, ROLLCALL_BG_TASK,
+  boardRouteFor, BOARD_TAP_MAX_AGE_MS, shouldEndCardLocally, refreshOutcomeOf,
+  recheckDelayFor, REFRESH_RECHECK_MS,
 } from './rollcall';
 import {
   rollCallCategoryId as serverCategoryId,
@@ -166,5 +168,97 @@ describe('registration contract (0212)', () => {
   });
   it('the background task has a stable name', () => {
     expect(ROLLCALL_BG_TASK).toBe('onstandard-rollcall-action');
+  });
+});
+
+describe('boardRouteFor: the alarm button opens the team board', () => {
+  const NOW = Date.parse('2026-09-25T10:03:00Z');
+  const ago = (min: number) => NOW - min * 60_000;
+  it('routes to the board for a tap the opening button made', () => {
+    expect(boardRouteFor([{ instanceId: 'a1b2c3d4-0000-4000-8000-000000000001', at: ago(1), board: true }], NOW))
+      .toBe('rollcall-board/a1b2c3d4-0000-4000-8000-000000000001');
+  });
+  it('stays put for a tap made by Stop or by the lock-screen card', () => {
+    expect(boardRouteFor([{ instanceId: 'i1', at: ago(1) }], NOW)).toBeNull();
+    expect(boardRouteFor([{ instanceId: 'i1', at: ago(1), board: false }], NOW)).toBeNull();
+    expect(boardRouteFor([], NOW)).toBeNull();
+    expect(boardRouteFor(null as never, NOW)).toBeNull();
+  });
+  it('the newest opening tap wins when several are waiting', () => {
+    expect(boardRouteFor([
+      { instanceId: 'old', at: ago(9), board: true },
+      { instanceId: 'stop', at: ago(1) },
+      { instanceId: 'new', at: ago(5), board: true },
+    ], NOW)).toBe('rollcall-board/new');
+  });
+  it('a stale tap never hijacks a normal open: 2 hours old routes nowhere', () => {
+    expect(BOARD_TAP_MAX_AGE_MS).toBe(15 * 60_000);
+    expect(boardRouteFor([{ instanceId: 'i1', at: ago(120), board: true }], NOW)).toBeNull();
+    expect(boardRouteFor([{ instanceId: 'i1', at: ago(16), board: true }], NOW)).toBeNull();
+    expect(boardRouteFor([{ instanceId: 'i1', at: ago(14), board: true }], NOW)).toBe('rollcall-board/i1');
+    expect(boardRouteFor([{ instanceId: 'i1', at: Number.NaN, board: true }], NOW)).toBeNull();
+    // A fresh tap still wins over a stale one waiting beside it.
+    expect(boardRouteFor([
+      { instanceId: 'stale', at: ago(120), board: true },
+      { instanceId: 'fresh', at: ago(2), board: true },
+    ], NOW)).toBe('rollcall-board/fresh');
+  });
+  it('defaults to the real clock', () => {
+    expect(boardRouteFor([{ instanceId: 'i1', at: Date.now() - 1000, board: true }])).toBe('rollcall-board/i1');
+    expect(boardRouteFor([{ instanceId: 'i1', at: 1, board: true }])).toBeNull();
+  });
+  it('never builds a route out of an id that could escape the hash', () => {
+    expect(boardRouteFor([{ instanceId: "x'; alert(1); '", at: ago(1), board: true }], NOW)).toBeNull();
+    expect(boardRouteFor([{ instanceId: '../home', at: ago(1), board: true }], NOW)).toBeNull();
+    expect(boardRouteFor([{ instanceId: 'x'.repeat(65), at: ago(1), board: true }], NOW)).toBeNull();
+  });
+});
+
+describe('refreshOutcomeOf: what the refresh route said, as the phone reads it', () => {
+  it('maps every reason the server gives', () => {
+    for (const r of ['sent', 'already_answered', 'no_token', 'no_card', 'unavailable'] as const) {
+      expect(refreshOutcomeOf({ ok: true, result: r }, null)).toBe(r);
+    }
+  });
+  it('an error, a refusal or an unreadable answer is a failure', () => {
+    expect(refreshOutcomeOf(null, { message: 'offline' })).toBe('failed');
+    expect(refreshOutcomeOf({ ok: false, error: 'not_acked' }, null)).toBe('failed');
+    expect(refreshOutcomeOf({ ok: true, result: 'weird' }, null)).toBe('failed');
+    expect(refreshOutcomeOf({ ok: true }, null)).toBe('failed');
+    expect(refreshOutcomeOf(null, null)).toBe('failed');
+  });
+});
+
+describe('shouldEndCardLocally: an answer the server could not turn into an answered card', () => {
+  it('a binary that can post taps itself keeps its card when the server turned it (or already had)', () => {
+    expect(shouldEndCardLocally(true, 'sent')).toBe(false);
+    expect(shouldEndCardLocally(true, 'already_answered')).toBe(false);
+  });
+  it('a card the server cannot reach is ended here: no token uploaded, no card, APNs down', () => {
+    expect(shouldEndCardLocally(true, 'no_token')).toBe(true);
+    expect(shouldEndCardLocally(true, 'no_card')).toBe(true);
+    expect(shouldEndCardLocally(true, 'unavailable')).toBe(true);
+  });
+  it('an older binary (build 43 and before) ends it, as it always did', () => {
+    expect(shouldEndCardLocally(false, 'sent')).toBe(true);
+    expect(shouldEndCardLocally(false, 'already_answered')).toBe(true);
+  });
+  it('a refresh that failed (offline, queued answer, old server) ends it rather than leave it counting', () => {
+    expect(shouldEndCardLocally(true, 'failed')).toBe(true);
+  });
+});
+
+describe('recheckDelayFor: one second look after "already answered" (a code-ack push still in flight)', () => {
+  it('schedules exactly one re-refresh, about 20 s later, after the first already_answered', () => {
+    expect(REFRESH_RECHECK_MS).toBe(20_000);
+    expect(recheckDelayFor('already_answered', 0)).toBe(20_000);
+  });
+  it('never a second time: already_answered on the re-check means the push landed, so stop', () => {
+    expect(recheckDelayFor('already_answered', 1)).toBeNull();
+  });
+  it('nothing to re-check for any other answer (sent, or one the phone acts on at once)', () => {
+    for (const o of ['sent', 'no_token', 'no_card', 'unavailable', 'failed'] as const) {
+      expect(recheckDelayFor(o, 0)).toBeNull();
+    }
   });
 });

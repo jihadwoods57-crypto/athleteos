@@ -1,4 +1,4 @@
-jest.mock('react-native', () => ({ Share: { share: jest.fn() }, Platform: { OS: 'ios' } }));
+jest.mock('react-native', () => ({ Share: { share: jest.fn() }, Platform: { OS: 'ios' }, Linking: { openSettings: jest.fn(async () => undefined), openURL: jest.fn(async () => undefined) } }));
 jest.mock('../lib/notify', () => ({ getPushToken: jest.fn(async () => 'ExponentPushToken[abc]') }));
 jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(), notificationAsync: jest.fn(),
@@ -7,6 +7,7 @@ jest.mock('expo-haptics', () => ({
 }));
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn(), deleteItemAsync: jest.fn(),
+  AFTER_FIRST_UNLOCK: 0,
 }));
 jest.mock('../lib/notify/execSync', () => ({ syncExecNotifications: jest.fn(async () => undefined) }));
 jest.mock('../../modules/rollcall-live', () => ({ endLiveActivity: jest.fn(async () => undefined) }));
@@ -28,7 +29,35 @@ jest.mock('../lib/auth/biometrics', () => ({
   authenticateBiometric: jest.fn(async () => true),
 }));
 
+// The location seam is mocked so the bridge is tested for ROUTING only; the seam's own decisions
+// (one reading, verify_arrival_at, never a bare yes) are tested in src/lib/location.
+jest.mock('../lib/location', () => ({
+  isLocationAvailable: jest.fn(() => true),
+  getPermissionState: jest.fn(async () => 'always'),
+  requestPermission: jest.fn(async (bg: boolean) => (bg ? 'always' : 'when_in_use')),
+  refreshGeofences: jest.fn(async () => ({ armed: 2, capped: 0, state: 'always' })),
+  disarmAll: jest.fn(async () => undefined),
+  checkArrival: jest.fn(async () => ({ within: true, reason: null, distance_m: 40 })),
+  REPORTS_PRESENCE: true,
+  walkInAllowed: jest.fn(() => true),
+}));
+
+// The dictation seam is mocked for ROUTING only; its own decisions are tested in
+// src/lib/voice/nativeSpeech.test.ts. The fake start() plays one word and an end through the
+// emitter the bridge hands it, which is how the page receives them.
+jest.mock('../lib/voice/nativeSpeech', () => ({
+  dictationStatus: jest.fn(async () => ({ available: true, onDevice: true, permission: 'undetermined' })),
+  startDictation: jest.fn(async (emit: (e: unknown) => void, opts: { sid?: string }) => {
+    emit({ sid: opts.sid, type: 'text', text: 'two eggs', final: false });
+    emit({ sid: opts.sid, type: 'end' });
+    return { ok: true, onDevice: true };
+  }),
+  stopDictation: jest.fn(),
+  abortDictation: jest.fn(),
+}));
+
 import { handleBridgeMessage, BRIDGE_SHIM } from './bridge';
+import { stopDictation, abortDictation, startDictation } from '../lib/voice/nativeSpeech';
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { endLiveActivity } from '../../modules/rollcall-live';
 
@@ -143,3 +172,159 @@ test('the proto can reach it: the shim exposes rollcall.acked as a one-way post'
   expect(BRIDGE_SHIM).toContain("type: 'ROLLCALL_ACKED'");
 });
 
+
+/* Location is back (founder 2026-09-23), verified by distance on the server. Five messages; the
+   coach's "use where I'm standing" (LOCATION_PLACE) is NOT restored: coaches pick places on a map. */
+describe('location bridge', () => {
+  const loc = () => jest.requireMock('../lib/location') as Record<string, jest.Mock>;
+
+  test('LOCATION_AVAILABLE reports availability, permission state and presence support', async () => {
+    const { injected, ref } = fakeRef();
+    expect(await handleBridgeMessage(ref, { type: 'LOCATION_AVAILABLE', id: 20 } as never)).toBe(true);
+    expect(injected[0]).toContain('__onNativeResult(20, {"available":true,"state":"always","presence":true,"walkIn":true}');
+  });
+
+  test('LOCATION_AVAILABLE says when walk-in is switched off on this platform (the WALK_IN fallback)', async () => {
+    loc().walkInAllowed.mockReturnValueOnce(false);
+    const { injected, ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'LOCATION_AVAILABLE', id: 26 } as never);
+    expect(injected[0]).toContain('"walkIn":false');
+  });
+
+  test('LOCATION_SETTINGS opens the app’s own Settings page (the only way back after a No)', async () => {
+    const RN = jest.requireMock('react-native') as { Linking: { openSettings: jest.Mock } };
+    const { ref } = fakeRef();
+    expect(await handleBridgeMessage(ref, { type: 'LOCATION_SETTINGS' } as never)).toBe(true);
+    expect(RN.Linking.openSettings).toHaveBeenCalled();
+    expect(BRIDGE_SHIM).toContain("type: 'LOCATION_SETTINGS'");
+  });
+
+  test('LOCATION_PERMISSION asks for background only when the proto says so', async () => {
+    const { injected, ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'LOCATION_PERMISSION', id: 21, background: true } as never);
+    expect(loc().requestPermission).toHaveBeenLastCalledWith(true);
+    expect(injected[0]).toContain('__onNativeResult(21, "always"');
+    await handleBridgeMessage(ref, { type: 'LOCATION_PERMISSION', id: 22 } as never);
+    expect(loc().requestPermission).toHaveBeenLastCalledWith(false);
+  });
+
+  test('LOCATION_ARM and LOCATION_DISARM reach the seam', async () => {
+    const { injected, ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'LOCATION_ARM', id: 23 } as never);
+    expect(injected[0]).toContain('"armed":2');
+    await handleBridgeMessage(ref, { type: 'LOCATION_DISARM', id: 24 } as never);
+    expect(loc().disarmAll).toHaveBeenCalled();
+    expect(injected[1]).toContain('__onNativeResult(24, true');
+  });
+
+  test('LOCATION_CHECK is the I-am-here tap: checkArrival for that instance, verdict back, no coordinate', async () => {
+    const { injected, ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'LOCATION_CHECK', id: 25, instanceId: 'inst-7' } as never);
+    expect(loc().checkArrival).toHaveBeenCalledWith('inst-7');
+    expect(injected[0]).toContain('"within":true');
+    expect(injected[0]).not.toMatch(/lat|lng|latitude|longitude/);
+  });
+
+  test('the shim exposes location.{available,request,arm,disarm,check} and no place capture', () => {
+    for (const t of ['LOCATION_AVAILABLE', 'LOCATION_PERMISSION', 'LOCATION_ARM', 'LOCATION_DISARM', 'LOCATION_CHECK']) {
+      expect(BRIDGE_SHIM).toContain(t);
+    }
+    expect(BRIDGE_SHIM).toContain('location:');
+    expect(BRIDGE_SHIM).not.toContain('LOCATION_PLACE');
+  });
+});
+
+/* The PROTO writes the Supabase session through SECURE_SET. A region wake with the phone LOCKED
+   has to read it, so every write uses AFTER_FIRST_UNLOCK rather than the iOS default. */
+describe('SECURE_SET keychain class', () => {
+  const SS = () => jest.requireMock('expo-secure-store') as { setItemAsync: jest.Mock; AFTER_FIRST_UNLOCK: number };
+
+  test.each(['sb-abcdefghij-auth-token', 'sb-abcdefghij-auth-token.0', 'onstd-biolock'])(
+    'SECURE_SET %s passes keychainAccessible AFTER_FIRST_UNLOCK', async (key) => {
+      SS().setItemAsync.mockClear();
+      const { injected, ref } = fakeRef();
+      await handleBridgeMessage(ref, { type: 'SECURE_SET', id: 30, key, value: 'v' } as never);
+      expect(SS().setItemAsync).toHaveBeenCalledWith(key, 'v', { keychainAccessible: SS().AFTER_FIRST_UNLOCK });
+      expect(injected[0]).toContain('__onNativeResult(30, true');
+    });
+
+  test('a key outside the allow-list is still refused before any write', async () => {
+    SS().setItemAsync.mockClear();
+    const { ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'SECURE_SET', id: 31, key: 'other', value: 'v' } as never);
+    expect(SS().setItemAsync).not.toHaveBeenCalled();
+  });
+});
+
+describe('MAP_PICK: the coach draws the check-in bubble', () => {
+  // The coordinator is real (pure); only the presenter ProtoApp would register is faked.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { setMapPresenter } = require('../lib/maps/pickRequest') as typeof import('../lib/maps/pickRequest');
+  afterEach(() => setMapPresenter(null));
+
+  test('Save replies { place } with the name, address, point and radius', async () => {
+    const seen: unknown[] = [];
+    setMapPresenter(async (initial) => {
+      seen.push(initial);
+      return { name: 'Weight room', address: '4000 Central Florida Blvd', lat: 28.6, lng: -81.2, radius_m: 150 };
+    });
+    const { injected, ref } = fakeRef();
+    const handled = await handleBridgeMessage(ref, { type: 'MAP_PICK', id: 41, initial: { lat: 28.5, lng: -81.1, radius_m: 300, name: 'Old' } } as never);
+    expect(handled).toBe(true);
+    expect(seen[0]).toEqual({ lat: 28.5, lng: -81.1, radius_m: 300, name: 'Old' });
+    expect(injected[0]).toContain('__onNativeResult(41, {"place":{"name":"Weight room","address":"4000 Central Florida Blvd","lat":28.6,"lng":-81.2,"radius_m":150}}, null)');
+  });
+
+  test('Cancel replies { place: null } and is not an error', async () => {
+    setMapPresenter(async () => null);
+    const { injected, ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'MAP_PICK', id: 42 } as never);
+    expect(injected[0]).toContain('__onNativeResult(42, {"place":null}, null)');
+  });
+
+  test('no picker mounted: { place: null } with an error, never a hang', async () => {
+    const { injected, ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'MAP_PICK', id: 43 } as never);
+    expect(injected[0]).toContain('__onNativeResult(43, {"place":null}, "map-unavailable")');
+  });
+
+  test('the shim exposes maps.pick, which resolves the place itself (or null)', () => {
+    expect(BRIDGE_SHIM).toContain("call('MAP_PICK'");
+    expect(BRIDGE_SHIM).toMatch(/maps:\s*\{\s*pick: function\(initial\)/);
+    expect(BRIDGE_SHIM).toContain('r && r.place ? r.place : null');
+  });
+});
+
+describe('DICTATION_* (composer upgrade, 2026-09-23)', () => {
+  test('AVAILABLE resolves the seam status and never prompts', async () => {
+    const { injected, ref } = fakeRef();
+    expect(await handleBridgeMessage(ref, { type: 'DICTATION_AVAILABLE', id: 51 } as never)).toBe(true);
+    expect(injected[0]).toContain('__onNativeResult(51, {"available":true,"onDevice":true,"permission":"undetermined"}, null)');
+  });
+
+  test('START streams the words into the page through window.__onDictation, then resolves', async () => {
+    const { injected, ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'DICTATION_START', id: 52, lang: 'es-US', sid: 'd7' } as never);
+    expect(startDictation).toHaveBeenCalledWith(expect.any(Function), { lang: 'es-US', sid: 'd7' });
+    expect(injected[0]).toBe('window.__onDictation && window.__onDictation({"sid":"d7","type":"text","text":"two eggs","final":false}); true;');
+    expect(injected[1]).toContain('__onDictation({"sid":"d7","type":"end"})');
+    expect(injected[2]).toContain('__onNativeResult(52, {"ok":true,"onDevice":true}, null)');
+  });
+
+  test('STOP and ABORT route to the seam, fire-and-forget', async () => {
+    const { injected, ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'DICTATION_STOP', sid: 'd7' } as never);
+    await handleBridgeMessage(ref, { type: 'DICTATION_ABORT', sid: 'd8' } as never);
+    expect(stopDictation).toHaveBeenCalledWith('d7');
+    expect(abortDictation).toHaveBeenCalledWith('d8');
+    expect(injected).toEqual([]);
+  });
+
+  test('the shim exposes dictation.available/start/stop/abort', () => {
+    expect(BRIDGE_SHIM).toMatch(/dictation:\s*\{\s*available: function\(\)\{ return call\('DICTATION_AVAILABLE'/);
+    expect(BRIDGE_SHIM).toContain("call('DICTATION_START'");
+    expect(BRIDGE_SHIM).toContain("post({ type: 'DICTATION_STOP', sid: String(sid || '') })");
+    expect(BRIDGE_SHIM).toContain("post({ type: 'DICTATION_ABORT', sid: String(sid || '') })");
+    expect(BRIDGE_SHIM).toContain("call('DICTATION_START', { lang: String(lang || ''), sid: String(sid || '') })");
+  });
+});

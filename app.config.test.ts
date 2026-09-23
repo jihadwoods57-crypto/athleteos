@@ -41,6 +41,85 @@ describe('app.json — iOS App Store compliance', () => {
     }
   });
 
+  // Location is back (founder 2026-09-23): the walk-in check-in and "I'm here". The purpose
+  // strings are what the athlete reads in the iOS prompt and what App Review reads first, so they
+  // must say plainly what the app does with location, and the plugin must not be left to fill in
+  // Expo's placeholder ("Allow $(PRODUCT_NAME) to access your location").
+  it('location purpose strings are present and plain', () => {
+    expect(ios.infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription).toMatch(/check you in when you arrive|checks you in when you walk into/i);
+    // When-in-use serves two roles (2026-09-23): the athlete's check-in AND centring the coach's
+    // place picker on "Near me". The one string both roles see has to say both, truthfully.
+    expect(ios.infoPlist.NSLocationWhenInUseUsageDescription).toMatch(/check you in when you arrive/i);
+    expect(ios.infoPlist.NSLocationWhenInUseUsageDescription).toMatch(/center the map when a coach sets that place/i);
+    // NO background-location mode. App Review 2.5.4 (2026-09-18) was exactly
+    // UIBackgroundModes "location" with no feature that needed persistent location, and region
+    // monitoring does not need it: the OS watches the region and wakes the app. "Always" is still
+    // requested (region monitoring needs it); the mode must never creep back.
+    expect(ios.infoPlist.UIBackgroundModes ?? []).not.toContain('location');
+    for (const key of ['NSLocationWhenInUseUsageDescription', 'NSLocationAlwaysAndWhenInUseUsageDescription', 'NSLocationAlwaysUsageDescription']) {
+      const v = ios.infoPlist[key];
+      expect(typeof v).toBe('string');
+      expect(v).not.toMatch(/PRODUCT_NAME|—/);
+      // Final fix round, item 7 (2026-09-23): "never shared" was false while a coach saw "N m from
+      // <place>". Coaches now see Arrived / Not arrived only, and the string says exactly that.
+      expect(v).toMatch(/Your coach sees only whether you arrived, never where you are\./);
+      expect(v).not.toMatch(/never shared|never shares|only watches that place/i);
+    }
+    const plugin = (appJson.expo.plugins as unknown[]).find(
+      (p) => Array.isArray(p) && p[0] === 'expo-location',
+    ) as [string, Record<string, unknown>] | undefined;
+    expect(plugin).toBeDefined();
+    const opts = plugin![1];
+    expect(opts.locationWhenInUsePermission).toBe(ios.infoPlist.NSLocationWhenInUseUsageDescription);
+    expect(opts.locationAlwaysAndWhenInUsePermission).toBe(ios.infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription);
+    expect(opts.locationAlwaysPermission).toBe(ios.infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription);
+    expect(opts.isIosBackgroundLocationEnabled).not.toBe(true);
+    // The plugin writes a placeholder motion string unless told not to; the app reads no motion.
+    expect(opts.motionUsagePermission).toBe(false);
+  });
+
+  // Dictation in the chat composer (2026-09-23). App Review rejected a boilerplate microphone
+  // string before, and three plugins (expo-speech-recognition, expo-camera, expo-image-picker) each
+  // write NSMicrophoneUsageDescription, falling back to Expo's placeholder when the key is empty or
+  // deleting it outright on microphonePermission:false. Exactly one real string, kept here, and no
+  // plugin allowed to replace or delete it.
+  it('dictation: one plain microphone string and one speech string, no plugin overriding them', () => {
+    for (const key of ['NSMicrophoneUsageDescription', 'NSSpeechRecognitionUsageDescription']) {
+      const v = ios.infoPlist[key];
+      expect(typeof v).toBe('string');
+      expect(v).not.toMatch(/PRODUCT_NAME|—/);
+      expect(v).toMatch(/tap the mic in a chat/i);
+    }
+    const plugins = appJson.expo.plugins as unknown[];
+    const opts = (name: string) => {
+      const p = plugins.find((x) => Array.isArray(x) && x[0] === name) as [string, Record<string, unknown>] | undefined;
+      return p ? p[1] : undefined;
+    };
+    expect(opts('expo-speech-recognition')).toBeDefined();
+    for (const name of ['expo-speech-recognition', 'expo-camera', 'expo-image-picker']) {
+      // Absent means "keep ios.infoPlist's string"; false would delete it (and, on the picker,
+      // block RECORD_AUDIO); any other string would be a second, competing one.
+      expect(opts(name)?.microphonePermission).toBeUndefined();
+    }
+    expect(opts('expo-speech-recognition')?.speechRecognitionPermission).toBeUndefined();
+  });
+
+  it('declares precise location as collected, linked, untracked, for app functionality', () => {
+    // One reading is sent to our server on arrival, compared to the coach's place and discarded.
+    // It leaves the device inside the athlete's signed-in request and the verdict it produces is
+    // stored on their row, so it is declared, and declared LINKED: "not linked" would claim the
+    // identifiers were stripped before it left the phone, which they are not.
+    const loc = ios.privacyManifests.NSPrivacyCollectedDataTypes.find(
+      (t: any) => t.NSPrivacyCollectedDataType === 'NSPrivacyCollectedDataTypePreciseLocation',
+    );
+    expect(loc).toEqual({
+      NSPrivacyCollectedDataType: 'NSPrivacyCollectedDataTypePreciseLocation',
+      NSPrivacyCollectedDataTypeLinked: true,
+      NSPrivacyCollectedDataTypeTracking: false,
+      NSPrivacyCollectedDataTypePurposes: ['NSPrivacyCollectedDataTypePurposeAppFunctionality'],
+    });
+  });
+
   it('ships a privacy manifest declaring no tracking and the required-reason APIs', () => {
     const pm = ios.privacyManifests;
     expect(pm.NSPrivacyTracking).toBe(false);

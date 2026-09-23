@@ -9,8 +9,8 @@
  * wake-up the coach deleted is cancelled rather than left ringing on a phone with nothing in the
  * app to turn it off.
  *
- * Dependency-free apart from the wake-up type, so the selection rules are unit tested rather than
- * inferred from a screen.
+ * Dependency-free apart from the wake-up type (the Supabase client is passed in), so the selection
+ * rules and the code merge are unit tested rather than inferred from a screen.
  */
 import { WAKEUP_TYPE } from './wakeup-morning.js';
 
@@ -108,6 +108,112 @@ export function alarmTitle(row) {
   return (t || 'Wake up').slice(0, 80);
 }
 
+/* ---------------------------------------------------------------- the window codes
+ * The alarm is armed days ahead and rings with OnStandard closed, so the code that lets its Stop
+ * button check in by itself has to be on the phone BEFORE the morning. roll-call-ack's mint
+ * ({ action: 'codes' }, the athlete's own session) returns one WINDOW code per wake-up over the
+ * next 7 days; each is valid only from 15 minutes before that morning opens to 10 minutes after it
+ * closes, for this athlete and that instance alone.
+ *
+ * A missing code costs nothing but the shortcut: the alarm still arms, and its button records the
+ * tap for the app to drain on the next open, which is what it always did. */
+
+/** How long one mint is reused. Codes last days; this only stops a mint on every foreground beat. */
+export const ACK_CODES_TTL_MS = 30 * 60 * 1000;
+/** A mint slower than this is abandoned for this sync: arming must never wait on it. */
+const ACK_CODES_TIMEOUT_MS = 6000;
+
+/* { at, data, asked }: the last mint's answer (null when it failed) and every instance id that was
+   about to be armed when it was asked. A FAILED mint and an id the mint had no code for are cached
+   too, for the same TTL: a signed-out athlete, a mint route not deployed yet, or a morning the
+   server will not code must not cost an edge-function call on every foreground beat. */
+let ackCache = null;
+
+/** Test seam. */
+export function _resetAckCodes() { ackCache = null; }
+
+/* A session change clears the cache: a sign-in right after a failed (401) mint gets codes at once
+   instead of 30 minutes later, and a sign-out never leaves one athlete's codes for the next.
+   Registered once per client. */
+const watched = new WeakSet();
+function watchSession(client) {
+  try {
+    if (!client || typeof client !== 'object' || watched.has(client)) return;
+    watched.add(client);
+    if (client.auth && typeof client.auth.onAuthStateChange === 'function') {
+      client.auth.onAuthStateChange((event) => {
+        // SIGNED_IN only clears a FAILED mint: supabase-js re-emits it when the app returns to the
+        // foreground, and clearing good codes there would mint on every beat. A different athlete
+        // signing in comes after a SIGNED_OUT, which always clears.
+        if (event === 'SIGNED_OUT') ackCache = null;
+        else if (event === 'SIGNED_IN' && ackCache && !ackCache.data) ackCache = null;
+      });
+    }
+  } catch { /* the cache simply expires on its TTL */ }
+}
+
+/**
+ * The mint's answer, cached. Asks again when the cache is stale or when an instance about to be
+ * armed was never part of an ask (a wake-up the coach just added).
+ * @param {object|null} client the Supabase client (window.sb)
+ * @param {number} nowMs
+ * @param {string[]} [needIds] instance ids about to be armed
+ * @returns {Promise<{ok:boolean, ack_url:string, codes:Array}|null>} null when there is nothing usable
+ */
+export async function fetchAckCodes(client, nowMs = Date.now(), needIds = []) {
+  const need = Array.isArray(needIds) ? needIds.map(String) : [];
+  watchSession(client);
+  if (ackCache && nowMs - ackCache.at >= 0 && nowMs - ackCache.at < ACK_CODES_TTL_MS) {
+    if (need.every((id) => ackCache.asked.has(id))) return ackCache.data;
+  }
+  if (!client || !client.functions || typeof client.functions.invoke !== 'function') return null;
+  const asked = new Set(need);
+  const remember = (data) => {
+    if (data) for (const c of data.codes) if (c && c.instance_id) asked.add(String(c.instance_id));
+    ackCache = { at: nowMs, data, asked };
+    return data;
+  };
+  let timer = null;
+  try {
+    const call = client.functions.invoke('roll-call-ack', { body: { action: 'codes' } });
+    const late = new Promise((resolve) => { timer = setTimeout(() => resolve({ data: null, error: 'timeout' }), ACK_CODES_TIMEOUT_MS); });
+    const { data, error } = await Promise.race([call, late]);
+    if (error || !data || data.ok !== true || !Array.isArray(data.codes)) return remember(null);
+    return remember(data);
+  } catch {
+    return remember(null);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/**
+ * Attach each alarm's window code and the URL to post it to. Pure. Anything odd about the mint
+ * (failed, not https, no code for this morning) leaves that alarm exactly as it was.
+ */
+export function withAckCodes(alarms, mint) {
+  const list = Array.isArray(alarms) ? alarms : [];
+  const url = mint && typeof mint.ack_url === 'string' ? mint.ack_url : '';
+  if (!mint || mint.ok !== true || !Array.isArray(mint.codes) || !/^https:\/\//i.test(url)) return list;
+  const byId = new Map();
+  for (const c of mint.codes) {
+    if (c && typeof c.instance_id === 'string' && typeof c.code === 'string' && c.code) byId.set(c.instance_id, c);
+  }
+  // A code is bound to the window it was minted for (final review M1). The mint is cached for
+  // 30 minutes, so after a coach MOVES a morning in the week strip a re-arm could hand the alarm a
+  // code for the old window: Stop would post it, get 410, and the tap would wait for the app.
+  // Such an alarm arms WITHOUT a code (the app drains the tap), exactly like one never minted.
+  const fits = (c, at) => {
+    const o = Date.parse(c.opens_at || ''); const cl = Date.parse(c.closes_at || '');
+    if (!Number.isFinite(o) || !Number.isFinite(cl) || !Number.isFinite(at)) return true;   // an older mint: as before
+    return at >= o && at <= cl;
+  };
+  return list.map((a) => {
+    const c = byId.get(a.instanceId);
+    return c && fits(c, Number(a.at)) ? { ...a, ackCode: c.code, ackUrl: url } : a;
+  });
+}
+
 /**
  * Arm them. Safe to call on every foreground beat: the native side reconciles, and outside the
  * app shell there is no bridge and this does nothing at all.
@@ -117,7 +223,9 @@ export async function syncWakeAlarms(rows, nowMs = Date.now()) {
   try {
     const n = window.OnStandardNative;
     if (!n || !n.wakeAlarms) return 0;
-    return Number(await n.wakeAlarms.sync(alarmsFor(rows, nowMs))) || 0;
+    const alarms = alarmsFor(rows, nowMs);
+    const mint = alarms.length ? await fetchAckCodes(window.sb, nowMs, alarms.map((a) => a.instanceId)) : null;
+    return Number(await n.wakeAlarms.sync(withAckCodes(alarms, mint))) || 0;
   } catch {
     return 0; // no bridge, or the shell is older than this feature
   }

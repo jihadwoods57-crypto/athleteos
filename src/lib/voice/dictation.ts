@@ -4,10 +4,9 @@
 // typing a paragraph, and the more they say, the better the macro estimate. This is a thin,
 // dependency-free seam:
 //   * Web (the Expo web build): the browser's built-in Web Speech API. No install, works today.
-//   * Native (iOS/Android): reports UNAVAILABLE until `expo-speech-recognition` is added and wired
-//     in the marked seam below. We deliberately do NOT statically reference that module here, so an
-//     uninstalled dependency can never break the Metro bundle. The mic button simply hides when
-//     dictation is unavailable — the text field always works.
+//   * Native (iOS/Android): reports UNAVAILABLE. This file belongs to the legacy React Native
+//     screens, which nothing imports. The SHIPPED dictation (the chat composer's mic, 2026-09-23)
+//     is src/lib/voice/nativeSpeech.ts, reached from the proto through the bridge (DICTATION_*).
 import { Platform } from 'react-native';
 
 export interface DictationHandle {

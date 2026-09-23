@@ -53,7 +53,7 @@ import { entriesFor, getScope, CD } from './coach-data.js';
 import { splitServerRows } from './notif-feed.js';
 import { jobKey, putJob, readQueue, removeJob, updateJob, due as dueJobs, backoffMs } from './meal-outbox.js';
 import * as SQ from './sync-queue.js';
-import { setVcUidProvider } from './commitment-data.js';
+import { setVcUidProvider, noteLocationArm } from './commitment-data.js';
 import { CS as CS_DATA, loadMine as loadCsMine } from './connected-standard-data.js';
 import { factsFromCorrection, candidateFactsFromFoodChange, sameFact } from './memory.js';
 import { TOUR_IDS } from './tour-plan.js';
@@ -242,7 +242,8 @@ export function computeScore(c) {
     w.recovery  * c.recovery +
     w.commitment* c.commitment +
     w.checkin   * c.checkin +
-    (w.wakeup || 0) * (c.wakeup || 0)
+    (w.wakeup || 0) * (c.wakeup || 0) +
+    (w.arrival || 0) * (c.arrival || 0)
   );
 }
 
@@ -967,6 +968,26 @@ export function pushTokenState() {
 /* Server-notification fetch throttle (in-memory: refetch at most every 15s, resets on
    reload) so the bell's mount → fetch → repaint cycle can never loop. */
 let NOTIF_FETCH_AT = 0;
+
+/* Walk-in check-in's lifecycle (roll call rebuilt, 2026-09-23). The phone arms the OS geofences for
+   whatever roll call is inside its window, but only when ASKED (LOCATION_ARM); it keeps regions
+   across a sign-out unless told otherwise (LOCATION_DISARM). So the proto asks: arm on sign-in, on a
+   restored session at launch and on every return to the foreground; disarm on every way out of an
+   account. Each arm is one server read on the native side (my_armable_geofences), so the
+   foreground beat is throttled; sign-in forces. Talks to the bridge directly rather than through
+   js/location.js so that module stays out of the boot graph. A missing bridge (web, the harness,
+   an older binary) is a silent no-op, and the arm result is not read here: a `kept: true` answer
+   (a network blip that left the armed regions in place) is a success, and so is anything else the
+   phone decides; location.js armLocation() normalises it for a screen that wants to show it. */
+let LOC_ARM_AT = 0;
+const LOC_ARM_EVERY_MS = 60_000;
+export const LOC_DISARM_WAIT_MS = 2_000;   // sign-out never waits longer on the phone
+function nativeLocation() {
+  try {
+    const N = typeof window !== 'undefined' ? window.OnStandardNative : null;
+    return N && N.location && typeof N.location === 'object' ? N.location : null;
+  } catch { return null; }
+}
 /* Live binding read by screens/notifications.js: true while the last server-notification fetch
    FAILED (network, not empty). Never persisted — it resets to false on the next good fetch. */
 export let notifsFetchFailed = false;
@@ -3080,6 +3101,7 @@ export const act = {
     } catch { /* fall back to athlete */ }
     RT.authRole = role;
     save();
+    this._armLocation({ force: true });
     const hadServerProfile = await this._loadProfileIntoRt(RT.userId);
     // Back-fill: if onboarding was captured locally but never fully reached the server (a signup
     // that had no session at the time, or a partial persistOnboarding failure — e.g. a
@@ -3667,16 +3689,57 @@ export const act = {
     // Tear down any armed geofences: the OS keeps regions across sign-out, and the background
     // task would keep firing arrivals against a session that no longer exists (or, worse,
     // attribute crossings under whoever signs in next on this phone).
-    try {
-      const N = window.OnStandardNative;
-      if (N && N.location) await N.location.disarm();
-    } catch { /* best-effort */ }
+    await this._disarmLocation();
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
     this._wipeUserScopedState({ keepPendingOb: true });
   },
 
-  /* Arrival check-in opt-out (0139 hardening 2026-08-19). Arrival was removed from the
-     product 2026-09-09; the setter stays because old snapshots may still carry the flag. */
+  /* Walk-in check-in: see LOC_ARM_AT. `force` arms now whatever the throttle says (sign-in, a
+     restored session); `reset` forgets the throttle without arming (sign-out). Never awaited by
+     its callers and never throws: a phone that cannot arm checks the athlete in by tap. */
+  _armLocation(opts) {
+    if (opts && opts.reset) { LOC_ARM_AT = 0; return; }
+    if (!RT.userId) return;
+    if (!(opts && opts.force) && Date.now() - LOC_ARM_AT < LOC_ARM_EVERY_MS) return;
+    const L = nativeLocation();
+    if (!L || typeof L.arm !== 'function') return;
+    LOC_ARM_AT = Date.now();
+    try {
+      // The athlete switched walk-in check-in off (screens/location-consent.js): the OS may still
+      // say Always, and arming anyway would break that promise on the next foreground.
+      if (RT.locationOptOut) {
+        if (typeof L.disarm === 'function') {
+          const d = L.disarm();
+          if (d && typeof d.catch === 'function') d.catch(() => { /* best-effort */ });
+        }
+        return;
+      }
+      const p = L.arm();
+      // The answer is kept (never swallowed): a phone whose OS refused to arm says so on the
+      // board and the location screen instead of implying walk-in is on (final review C1).
+      if (p && typeof p.then === 'function') p.then((r) => noteLocationArm(r), () => { /* the next beat retries */ });
+    } catch { /* the next beat retries */ }
+  },
+  /* Every way out of an account disarms: sign-out, account deletion, a launch with no session. */
+  /* RACED against a short timer (fix round 1): the bridge call has no timeout of its own, and a
+     native call that never answers must not hold sign-out or account deletion hostage (App Review
+     5.1.1(v): deletion has to complete). The disarm keeps running on the phone either way. */
+  async _disarmLocation() {
+    LOC_ARM_AT = 0;
+    const L = nativeLocation();
+    if (!L || typeof L.disarm !== 'function') return;
+    let timer = null;
+    try {
+      await Promise.race([
+        Promise.resolve().then(() => L.disarm()).catch(() => { /* best-effort */ }),
+        new Promise((res) => { timer = setTimeout(res, LOC_DISARM_WAIT_MS); }),
+      ]);
+    } catch { /* best-effort */ } finally { if (timer) clearTimeout(timer); }
+  },
+
+  /* Walk-in check-in opt-out (0139 hardening 2026-08-19; live again with the roll call rebuilt,
+     2026-09-23). Honoured by _armLocation above: opted out, the phone disarms instead of arming,
+     and "I'm here" keeps working. */
   setLocationOptOut(on) { RT.locationOptOut = !!on; save(); },
 
   /* Which confirmed-presence receipts have already been shown on Home (0208).
@@ -3783,6 +3846,7 @@ export const act = {
     const sb = window.sb;
     let serverOk = false;
     try { if (sb && RT.userId) { const { error } = await sb.rpc('delete_account', {}); serverOk = !error; } } catch { /* fall through to local wipe */ }
+    await this._disarmLocation();   // the account is gone; its geofences must not outlive it
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
     this._wipeUserScopedState(); // no keepPendingOb: the account is gone, the scratch dies too
     return serverOk;
@@ -4176,6 +4240,8 @@ export const act = {
     if (!user) return;
     if (RT.userId && RT.userId !== user.id) this._wipeUserScopedState({ keepPendingOb: true });
     RT.userId = user.id; RT.email = user.email || RT.email; save();
+    // A restored session is a sign-in as far as the phone's geofences are concerned.
+    this._armLocation({ force: true });
     // The queue is durable, so a launch can inherit work: a read killed mid-flight, a meal logged
     // last night in a dead zone. It used to wait for the athlete to background and foreground the
     // app before anything touched it. The moment there is a user to run it for, run it.
@@ -4290,6 +4356,8 @@ if (typeof document !== 'undefined' && document.addEventListener) {
       void act.drainSyncQueue();
       act.healDaySync();
       void act.catchUpAiAdditions();
+      // Re-arm walk-in check-in for whatever roll call is in its window now (throttled).
+      act._armLocation();
     }
     // Re-stamp the daypart on resume. A phone put down at 4pm and picked up at 9pm would otherwise
     // greet you with "Good evening" over an afternoon canvas, which is exactly the disagreement
