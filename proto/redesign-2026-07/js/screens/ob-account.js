@@ -3,7 +3,7 @@
    persisted; the email is captured to RT.ob so a Terms detour doesn't lose it. */
 import { RT, act, routeForRole } from '../state.js';
 import { passwordStrength, weakPasswordReason } from '../ob-helpers.js';
-import { socialAvailability, socialButtonHtml, socialSignIn } from '../social-auth.js';
+import { socialAvailability, socialButtonHtml, socialSignIn, readIdentity, accountStepDecision } from '../social-auth.js';
 
 export function accountBody(opts = {}) {
   const terms = opts.terms || 'ob';
@@ -85,11 +85,15 @@ export function wireAccount(root, { role, onSession }) {
         const r = await socialSignIn(provider);
         if (r.cancelled) { b.disabled = false; return; }
         if (!r.user) { err.textContent = label + ' sign-in failed. Use email instead.'; b.disabled = false; return; }
-        act._syncSession(r.user);
-        const { data: prof } = await window.sb.from('profiles').select('primary_role').eq('id', r.user.id).maybeSingle();
-        if (prof && prof.primary_role) {
-          act.setAuthRole(prof.primary_role);
-          window.__go(routeForRole(prof.primary_role));
+        await act._syncSession(r.user);
+        // I2: primary_role is never null, so "is this account new" is social-auth's decision
+        // (terms never accepted, and created just now or already of this flow's role).
+        const id = await readIdentity(r.user.id);
+        if (!id.known) { err.textContent = label + ' sign-in failed. Use email instead.'; b.disabled = false; return; }
+        if (accountStepDecision({ user: r.user, prof: id.prof, role }) === 'route') {
+          const own = (id.prof && id.prof.primary_role) || role;
+          act.setAuthRole(own);
+          window.__go(routeForRole(own));
           return;
         }
         act.setAuthRole(role);

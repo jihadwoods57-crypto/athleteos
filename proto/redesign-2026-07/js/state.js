@@ -3401,20 +3401,9 @@ export const act = {
   },
   /* The age guard's fact (G-R5): does the server hold a birth date or age for this athlete? A
      confirmed NO sends the router to #age-check; a failed read decides nothing. */
-  async checkAgeKnown() {
-    const sb = window.sb;
-    const uid = RT.userId;
-    if (!sb || !uid) return;
-    if (RT.authRole && RT.authRole !== 'athlete') { if (RT.ageKnown !== null) { RT.ageKnown = null; save(); } return; }
-    try {
-      const { data, error } = await sb.from('athlete_profiles').select('dob,base_age').eq('athlete_id', uid).maybeSingle();
-      if (error || RT.userId !== uid) return;
-      const known = !!(data && (data.dob || data.base_age != null));
-      if (RT.ageKnown === known) return;
-      RT.ageKnown = known; save();
-      if (!known && window.__render) window.__render();
-    } catch { /* unknown: the guard stays quiet */ }
-  },
+  // The body lives in screens/age-check.js (lazy, off the boot graph; lint:boot).
+  checkAgeKnown() { return import('./screens/age-check.js').then((m) => m.checkAgeKnown(), () => {}); },
+  setAgeKnown(v, role) { if (role) RT.authRole = role; RT.ageKnown = v; save(); },
   /** The age check just saved a birth date. */
   noteAgeKnown(dob) {
     RT.ageKnown = true;

@@ -35,7 +35,7 @@ const JS = dirname(fileURLToPath(import.meta.url));
 const src = (p) => readFileSync(join(JS, p), 'utf8');
 const { ageBand, AGE_FLOOR, ADULT_AGE } = await import('./ob-helpers.js');
 const { ageGuardRoute } = await import('./router.js');
-const { socialButtons } = await import('./social-auth.js');
+const { socialButtons, isNewIdentity, isFreshUser, accountStepDecision } = await import('./social-auth.js');
 
 test('ageBand: the one rule, the server’s numbers', () => {
   assert.equal(AGE_FLOOR, 13);
@@ -73,14 +73,48 @@ test('the age guard routes only a CONFIRMED missing age, only for athletes', () 
   assert.match(src('screens/index.js'), /'age-check': lazy\(\(\) => import\('\.\/age-check\.js'\)\)/);
 });
 
-test('a new social identity from Sign-in is signed out and sent to pick a role, never Home', () => {
+/* I2: primary_role is NOT NULL DEFAULT 'athlete', so it can never mark a new account. The real
+   signal is "never onboarded (no terms accepted) and created just now". */
+test('isNewIdentity: the real signal, not primary_role', () => {
+  const now = Date.parse('2026-09-23T12:00:00Z');
+  const fresh = { created_at: '2026-09-23T11:59:50Z' };
+  const old = { created_at: '2026-01-02T10:00:00Z' };
+  // A brand-new Apple account reads back primary_role 'athlete' from handle_new_user: still new.
+  assert.equal(isNewIdentity(fresh, { primary_role: 'athlete', tos_accepted_at: null }, now), true);
+  assert.equal(isNewIdentity(fresh, { primary_role: 'athlete', tos_accepted_at: '2026-09-23T11:59:55Z' }, now), false);
+  assert.equal(isNewIdentity(old, { primary_role: 'athlete', tos_accepted_at: null }, now), false);
+  assert.equal(isNewIdentity({}, null, now), false);
+  assert.equal(isFreshUser(fresh, now), true);
+});
+
+test('account step: a new identity keeps the chosen role and saves; nobody is ever re-roled', () => {
+  const now = Date.parse('2026-09-23T12:00:00Z');
+  const fresh = { created_at: '2026-09-23T11:59:50Z' };
+  const old = { created_at: '2026-01-02T10:00:00Z' };
+  // Path 1: brand new, coach flow. handle_new_user said 'athlete'; the flow's role wins.
+  assert.equal(accountStepDecision({ user: fresh, prof: { primary_role: 'athlete', tos_accepted_at: null }, role: 'coach', nowMs: now }), 'adopt');
+  // Path 2: an existing, onboarded coach tapping Apple in the ATHLETE flow goes home as a coach.
+  assert.equal(accountStepDecision({ user: old, prof: { primary_role: 'coach', tos_accepted_at: 'x' }, role: 'athlete', nowMs: now }), 'route');
+  // A never-onboarded old coach account is not converted to an athlete either.
+  assert.equal(accountStepDecision({ user: old, prof: { primary_role: 'coach', tos_accepted_at: null }, role: 'athlete', nowMs: now }), 'route');
+  // A never-onboarded old account of this flow's role finishes onboarding.
+  assert.equal(accountStepDecision({ user: old, prof: { primary_role: 'athlete', tos_accepted_at: null }, role: 'athlete', nowMs: now }), 'adopt');
+  const oa = src('screens/ob-account.js');
+  assert.match(oa, /accountStepDecision\(\{ user: r\.user, prof: id\.prof, role \}\) === 'route'/);
+  assert.match(oa, /primary_role: role/);
+  assert.match(oa, /if \(proceed\) await onSession\(true\)/, 'the onboarding answers are saved');
+});
+
+test('Sign-in: a new social identity is signed out and sent to pick a role, never Home', () => {
   const s = src('screens/signin.js');
-  const i = s.indexOf('if (known && !role)');
+  const i = s.indexOf('if (isNew)');
   assert.ok(i > 0, 'the new-identity branch exists');
   const branch = s.slice(i, s.indexOf('}', s.indexOf("go('role')", i)) + 1);
   assert.match(branch, /auth\.signOut\(\)/);
   assert.match(branch, /go\('role'\)/);
-  assert.doesNotMatch(s, /let role = 'athlete';/, 'no silent default to athlete');
+  assert.match(s, /isNewIdentity\(r\.user, id\.prof\)/);
+  assert.doesNotMatch(s, /if \(known && !role\)/, 'the null-role test is gone: primary_role is never null');
+  assert.match(s, /await act\.checkAgeKnown\(\)/, 'the age guard decides before Home paints');
   assert.match(src('screens/ob2-role.js'), /You’re new to OnStandard\./);
 });
 

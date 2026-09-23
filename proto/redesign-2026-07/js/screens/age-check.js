@@ -21,6 +21,29 @@ import { RT, act, routeForRole } from '../state.js';
 import { esc } from '../components.js';
 import { dobFromParts, ageBand } from '../ob-helpers.js';
 
+/* The age guard's fact (G-R5): does the server hold a birth date or age for this athlete? A
+   confirmed NO sends the router here; a failed read decides nothing. M7: the role is confirmed on
+   the server first, so a coach whose password sign-in fell back to 'athlete' is never asked. */
+export async function checkAgeKnown() {
+  const sb = window.sb;
+  const uid = RT.userId;
+  if (!sb || !uid) return;
+  if (RT.authRole && RT.authRole !== 'athlete') { if (RT.ageKnown !== null) act.setAgeKnown(null); return; }
+  try {
+    const { data: pr, error: pe } = await sb.from('profiles').select('primary_role').eq('id', uid).maybeSingle();
+    if (pe || RT.userId !== uid) return;
+    if (pr && pr.primary_role && pr.primary_role !== 'athlete') {
+      act.setAgeKnown(null, pr.primary_role); if (window.__render) window.__render(); return;
+    }
+    const { data, error } = await sb.from('athlete_profiles').select('dob,base_age').eq('athlete_id', uid).maybeSingle();
+    if (error || RT.userId !== uid) return;
+    const known = !!(data && (data.dob || data.base_age != null));
+    if (RT.ageKnown === known) return;
+    act.setAgeKnown(known);
+    if (!known && window.__render) window.__render();
+  } catch { /* unknown: the guard stays quiet */ }
+}
+
 let BUSY = false;
 let ERR = '';
 

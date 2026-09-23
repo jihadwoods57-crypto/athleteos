@@ -1,7 +1,7 @@
 import { logoMark } from '../components.js';
 import { icon } from '../icons.js';
 import { RT, act, routeForRole } from '../state.js';
-import { socialAvailability, socialButtonHtml, socialSignIn } from '../social-auth.js';
+import { socialAvailability, socialButtonHtml, socialSignIn, readIdentity, isNewIdentity, isFreshUser } from '../social-auth.js';
 
 /* Real email/password sign-in (returning users). Premium reshape scoped under `.si`
    (see flows.css "Sign-in (v2)") so the shared .welcome / .ob-* rules that reset.js
@@ -127,15 +127,15 @@ export default {
     emailEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) submit(); });
     passEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) submit(); });
 
-    /* Social sign-in (review pass 2026-09-23: G-R5, A-B5, G-P4). The block shows only when Sign in
-       with Apple is available, and Google only beside it (Guideline 4.8).
-       A NEW identity (no primary_role) must not land on Home: Supabase creates the user on the
-       first signInWithIdToken, and the old code defaulted it to 'athlete' and went Home, so a
-       12-year-old could get in with "Continue with Apple" and never be asked their age. Now a new
-       identity is signed straight back out and sent to pick a role, which walks them through the
-       date-of-birth step; the same Apple or Google account then finishes sign-up on that flow's
-       account step, which adopts the role. An EXISTING athlete with no age on record is caught
-       by the router's age guard instead (#age-check). */
+    /* Social sign-in (review pass 2026-09-23: G-R5, A-B5, G-P4; I2). The block shows only when
+       Sign in with Apple is available, and Google only beside it (Guideline 4.8).
+       A NEW identity must not land on Home: Supabase creates the user on the first
+       signInWithIdToken, and a 12-year-old (or a coach) tapping "Continue with Apple" here used to
+       become an athlete account with no age. primary_role cannot tell (it defaults to 'athlete'),
+       so the signal is social-auth.isNewIdentity: never onboarded (no terms accepted) and created
+       just now. A new identity is signed straight back out and sent to pick a role, DOB first; the
+       same Apple or Google account finishes on that flow's account step. If the profile cannot be
+       read, a fresh account is treated as new and an old one is not let in on a guess. */
     const wireSocial = async () => {
       const avail = await socialAvailability();
       const wrap = root.querySelector('#si-sso');
@@ -152,23 +152,26 @@ export default {
         const r = await socialSignIn(provider);
         if (r.cancelled) { sbtn.disabled = false; return; }
         if (!r.user) { err.textContent = label + " sign-in didn't complete. Try email instead."; sbtn.disabled = false; return; }
-        let role = null;
-        let known = true;
-        try {
-          const { data: prof, error: pe } = await window.sb.from('profiles').select('primary_role').eq('id', r.user.id).maybeSingle();
-          if (pe) known = false;
-          else role = (prof && prof.primary_role) || null;
-        } catch { known = false; }
-        if (known && !role) {
+        const id = await readIdentity(r.user.id);
+        const isNew = id.known ? isNewIdentity(r.user, id.prof) : isFreshUser(r.user);
+        if (isNew) {
           // New to OnStandard: sign-up comes first, and it starts with who they are and their age.
           try { await window.sb.auth.signOut(); } catch { /* the role screen works either way */ }
           try { sessionStorage.setItem('os.sso.new', provider); } catch { /* the note is a nicety */ }
           go('role');
           return;
         }
+        if (!id.known) {
+          try { await window.sb.auth.signOut(); } catch { /* retry signs in again */ }
+          err.textContent = "Couldn't load your account just now. Try again in a moment.";
+          sbtn.disabled = false;
+          return;
+        }
         await act._syncSession(r.user);
-        const final = role || 'athlete';
+        const final = (id.prof && id.prof.primary_role) || 'athlete';
         act.setAuthRole(final);
+        // The age guard decides before Home paints, not after (review I2).
+        if (final === 'athlete') { try { await act.checkAgeKnown(); } catch { /* the router guard still runs */ } }
         go(routeForRole(final));
       }));
     };

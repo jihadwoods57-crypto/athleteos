@@ -21,6 +21,48 @@ export function socialButtons({ apple = false, google = false } = {}) {
   return { apple: !!apple, google: !!apple && !!google };
 }
 
+/* A NEW identity (review I2). profiles.primary_role is NOT NULL DEFAULT 'athlete' and
+   handle_new_user fills it, so it can never tell a brand-new Apple/Google account from a real
+   athlete. What does: onboarding is the only thing that stamps profiles.tos_accepted_at
+   (state.js _stampConsent, every role's flow), and Supabase creates the auth user inside the very
+   signInWithIdToken call, so its created_at is seconds old. Both together = never onboarded. */
+export const NEW_IDENTITY_MS = 10 * 60 * 1000;
+
+/** Created within the last few minutes. Pure. */
+export function isFreshUser(user, nowMs = Date.now()) {
+  const t = Date.parse((user && user.created_at) || '');
+  return Number.isFinite(t) && nowMs - t >= -60000 && nowMs - t < NEW_IDENTITY_MS;
+}
+
+/** Never onboarded: no terms accepted AND the account was made just now. Pure. */
+export function isNewIdentity(user, prof, nowMs = Date.now()) {
+  if (prof && prof.tos_accepted_at) return false;
+  return isFreshUser(user, nowMs);
+}
+
+/** The profile facts both screens decide from. { known:false } when the read failed. */
+export async function readIdentity(userId) {
+  try {
+    const { data, error } = await window.sb.from('profiles').select('primary_role,tos_accepted_at').eq('id', userId).maybeSingle();
+    if (error) return { known: false, prof: null };
+    return { known: true, prof: data || null };
+  } catch { return { known: false, prof: null }; }
+}
+
+/**
+ * The onboarding account step's decision for a social identity (pure, tested).
+ *   'adopt'  a new or never-onboarded account of THIS flow's role: take the chosen role and save
+ *            the onboarding (onSession).
+ *   'route'  an account that is already someone: go to its own home, never re-roled.
+ * A never-onboarded OLD account whose role differs from this flow is routed, not converted, so a
+ * coach can never be turned into an athlete (or the reverse) by tapping Apple on the wrong flow.
+ */
+export function accountStepDecision({ user, prof, role, nowMs = Date.now() }) {
+  if (prof && prof.tos_accepted_at) return 'route';
+  if (isFreshUser(user, nowMs)) return 'adopt';
+  return prof && prof.primary_role && prof.primary_role !== role ? 'route' : 'adopt';
+}
+
 /** Ask the native shell what it offers, then apply the rule. Never throws. */
 export async function socialAvailability() {
   const N = typeof window !== 'undefined' ? window.OnStandardNative : null;
