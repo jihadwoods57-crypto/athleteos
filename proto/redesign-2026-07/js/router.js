@@ -12,6 +12,7 @@ import { initKeyboard } from './keyboard.js';
 import { withTransition, canTransition, transitioning, afterTransition } from './view-transition.js';
 import { hydrateAvatars } from './avatar.js';
 import { initGestures, gestureActive, afterGesture } from './gestures.js';
+import { overlayOpen } from './overlay-guard.js';
 
 // Shell-level and route-independent: the keyboard has to behave the same on the composer, the food
 // search box and a profile field, and #device outlives every render() so this is wired once here
@@ -1103,12 +1104,22 @@ window.__render = function () {
    swallowed if the user is already typing, leaving picker options or a name one tap late — the
    screen's next interaction repaints from the now-warm cache. What the guard can NOT mask is the
    hang class this listener exists for: a screen stuck on a skeleton or a bookless state has no
-   focusable field, so its arrival always paints. */
+   focusable field, so its arrival always paints.
+   Second guard, same reasoning (2026-09-23): no repaint while an overlay is open. The roll call
+   board's Nudge/Override sheet is appended outside the normal render tree and warms the book on
+   first open (`responseIdFor`) when the coach lands straight on the board (a closing-summary
+   push, a lock-screen tap) with no roster load yet in flight — the sheet's own fetch is exactly
+   what fires this event. Without the guard, `window.__render()` tears down and rebuilds the
+   whole screen via `__screenCleanup`, which unconditionally closes any open sheet, so the coach
+   saw Nudge/Override for one frame and then nothing, on precisely the athletes it exists for
+   (not-yet-up, missed). `overlayOpen()` with no exception covers every overlay's own marker,
+   including the sheet's `.sheet-scrim`. */
 window.addEventListener('onstd:book-arrival', () => {
   const mod = modOf(parse().route);
   if (!mod || (mod.nav !== 'coach' && mod.nav !== 'trainer' && mod.nav !== 'operator')) return;
   const el = document.activeElement;
   if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && el.closest && el.closest('#device')) return;
+  if (overlayOpen()) return;
   window.__render();
 });
 
