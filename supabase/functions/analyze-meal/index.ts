@@ -1648,8 +1648,11 @@ ${memBlock}`;
               if (per && Number(per.protein) >= 0 && Number(per.kcal) > 0) {
                 d.protein = Math.round(Number(per.protein) || 0);
                 d.kcal = Math.round(Number(per.kcal) || 0);
-                d.carbs = Math.round(Number(per.carbs) || 0);
-                d.fat = Math.round(Number(per.fat) || 0);
+                // A product row may not carry carbs or fat. Unknown is not zero (Number(null) is 0):
+                // keep the estimate for a missing figure rather than overwrite it with a false 0.
+                const known = (v: unknown) => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
+                if (known(per.carbs)) d.carbs = Math.round(Number(per.carbs));
+                if (known(per.fat)) d.fat = Math.round(Number(per.fat));
                 d.basis = 'database';
                 d.confidence = 'high';
                 cacheHit = true;
