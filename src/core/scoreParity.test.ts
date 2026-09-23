@@ -11,8 +11,8 @@ import type { AppState } from './types';
 import { computeComponents, scoreFor } from '../../proto/redesign-2026-07/js/day.js';
 // @ts-ignore — the proto's own knobsFor, so a stamped test day carries the SAME knobs the live
 // app would resolve for that style, never a hand-rolled substitute (allowJs).
-import { knobsFor, WAKEUP_SHIFT as PROTO_WAKEUP_SHIFT, weightsForWakeupDay as protoWakeupMix } from '../../proto/redesign-2026-07/js/plan-style.js';
-import { WAKEUP_SHIFT as ENGINE_WAKEUP_SHIFT, weightsForWakeupDay as engineWakeupMix } from './scoringProfiles';
+import { knobsFor, WAKEUP_SHIFT as PROTO_WAKEUP_SHIFT, weightsForWakeupDay as protoWakeupMix, weightsForAssigned as protoWeightsForAssigned } from '../../proto/redesign-2026-07/js/plan-style.js';
+import { WAKEUP_SHIFT as ENGINE_WAKEUP_SHIFT, weightsForWakeupDay as engineWakeupMix, weightsForAssigned } from './scoringProfiles';
 
 const MEAL_KEYS = ['breakfast', 'lunch', 'snack', 'dinner'] as const;
 
@@ -226,4 +226,14 @@ describe('the coach-assigned morning is the same weight in both engines', () => 
       expect(protoWakeupMix(p)).toEqual(engineWakeupMix(p));
     }
   });
+});
+
+// Task 1 (2026-09-23): arrival joins the SAME night budget as wake-up/sleep. Proves the two
+// engines split it identically for every profile and every combination the coach can assign.
+test('arrival weights match between proto and engine for every profile', () => {
+  for (const p of ['athlete', 'general', 'gain']) {
+    for (const a of [{ arrival: true }, { wakeup: true, arrival: true }, { wakeup: true, sleep: true, arrival: true }]) {
+      expect(weightsForAssigned(p as never, a)).toEqual(protoWeightsForAssigned(p, a));
+    }
+  }
 });

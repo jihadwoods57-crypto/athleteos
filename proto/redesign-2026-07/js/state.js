@@ -242,7 +242,8 @@ export function computeScore(c) {
     w.recovery  * c.recovery +
     w.commitment* c.commitment +
     w.checkin   * c.checkin +
-    (w.wakeup || 0) * (c.wakeup || 0)
+    (w.wakeup || 0) * (c.wakeup || 0) +
+    (w.arrival || 0) * (c.arrival || 0)
   );
 }
 

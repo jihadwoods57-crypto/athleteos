@@ -15,7 +15,7 @@
 // (a tampered client bypasses everything in this file); this TS copy is the tested spec that
 // mirror and the honest client self-limit both share.
 import type { Derived } from './types';
-import { PROFILE_WEIGHTS, WAKEUP_SHIFT, SLEEP_SHIFT } from './scoringProfiles';
+import { PROFILE_WEIGHTS, WAKEUP_SHIFT, SLEEP_SHIFT, NIGHT_SHIFT } from './scoringProfiles';
 import { withinTrailingWeek } from './clock';
 
 /**
@@ -42,7 +42,7 @@ const V1_CEILING = { nutrition: 55, checkinAndRecovery: 35, commitment: 15 } as 
  * athlete is on, so neither the trigger nor the row has to know the profile. Derived from
  * PROFILE_WEIGHTS so it can never silently drift from the engine.
  */
-export const MAX_SUBSCORE_WEIGHT = ((): { nutrition: number; recovery: number; commitment: number; checkin: number; wakeup: number; sleep: number } => {
+export const MAX_SUBSCORE_WEIGHT = ((): { nutrition: number; recovery: number; commitment: number; checkin: number; wakeup: number; sleep: number; arrival: number } => {
   const ws = Object.values(PROFILE_WEIGHTS);
   const maxOf = (k: 'nutrition' | 'recovery' | 'commitment' | 'checkin') => Math.max(...ws.map((w) => w[k]));
   // The morning's max is WAKEUP_SHIFT, not a PROFILE_WEIGHTS column: it is a per-DAY weight, so
@@ -57,7 +57,10 @@ export const MAX_SUBSCORE_WEIGHT = ((): { nutrition: number; recovery: number; c
   // ⚠ WHEN SLEEP_SHIFT GOES NON-ZERO this needs a V3_SLEEP_CEILING beside V3_WAKEUP_CEILING, a
   // migration mirroring it into the 0041 trigger, and a cutover date, so days already earned stay
   // judged under the formula that earned them. Do not raise the shift without all three.
-  return { nutrition: maxOf('nutrition'), recovery: maxOf('recovery'), commitment: maxOf('commitment'), checkin: maxOf('checkin'), wakeup: WAKEUP_SHIFT, sleep: SLEEP_SHIFT };
+  //
+  // `arrival` is the coach-assigned arrival (optional location check, 2026-09-23) and shares the
+  // SAME night budget as wakeup/sleep — its max is NIGHT_SHIFT itself, never a slot of its own.
+  return { nutrition: maxOf('nutrition'), recovery: maxOf('recovery'), commitment: maxOf('commitment'), checkin: maxOf('checkin'), wakeup: WAKEUP_SHIFT, sleep: SLEEP_SHIFT, arrival: NIGHT_SHIFT };
 })();
 
 /** v2 ceiling slots, frozen (78 / 24 / 0). Literal for the same reason V1 is: they describe a
@@ -150,6 +153,13 @@ export interface ScoreEvidence {
   /** The standard was actually met to some degree, so the night's slot is justified. A standard
    *  scored at its floor still earned part of it, which is why this is the same gate. */
   sleepEarned?: boolean;
+  /** The coach assigned an arrival (location check) for this day AND it has been decided. Shares
+   *  the night's budget with the morning and sleep, so it shrinks the check-in slot by the same
+   *  amount and never by more. Same rule wakeupAssigned follows (2026-09-23). */
+  arrivalAssigned?: boolean;
+  /** The arrival was actually answered (on time or late), so its slot is justified. A missed
+   *  arrival is `arrivalAssigned` without this: the slot exists and earns nothing. */
+  arrivalEarned?: boolean;
 }
 
 /**
@@ -164,11 +174,12 @@ export function evidenceScoreCeiling(ev: ScoreEvidence, rowDate: string): number
   // that scores it writes `checkin.wakeup` at all, so every row ever written before this shipped
   // has no gate set and lands on exactly the ceiling it has always had. The eras above stay
   // untouched; a row can only enter the wake-up shape by carrying the evidence for it.
-  // EITHER half of the night shrinks the check-in slot, and by the same amount, because the two
-  // share one budget. EITHER half earned grants it back. A day carrying both is bounded exactly as
-  // a day carrying one, which is also what the engine computes for it.
-  const nightAssigned = !!ev.wakeupAssigned || !!ev.sleepAssigned;
-  const nightEarned = !!ev.wakeupEarned || !!ev.sleepEarned;
+  // EITHER share of the night shrinks the check-in slot, and by the same amount, because all three
+  // (wake-up, sleep, arrival) share one budget. EITHER share earned grants it back. A day carrying
+  // more than one is bounded exactly as a day carrying one, which is also what the engine computes
+  // for it.
+  const nightAssigned = !!ev.wakeupAssigned || !!ev.sleepAssigned || !!ev.arrivalAssigned;
+  const nightEarned = !!ev.wakeupEarned || !!ev.sleepEarned || !!ev.arrivalEarned;
   const checkinSlot = nightAssigned ? Math.min(c.checkinAndRecovery, V3_NIGHT_CEILING.checkinAndRecovery) : c.checkinAndRecovery;
   return Math.min(100,
     (ev.nutritionPossible ? c.nutrition : 0) +
@@ -249,11 +260,18 @@ export function evidenceFromDayRow(
   const wake = ci.wakeup as { assigned?: unknown; verdict?: unknown } | null | undefined;
   const verdict = wake && wake.assigned === true ? String(wake.verdict ?? '') : '';
   const wakeupEarned = verdict === 'on_standard' || verdict === 'late';
+  // The arrival rides the same jsonb, same shape, same rule — mirrors day.js arrivalParts exactly
+  // (2026-09-23).
+  const arr = ci.arrival as { assigned?: unknown; verdict?: unknown } | null | undefined;
+  const arrivalVerdict = arr && arr.assigned === true ? String(arr.verdict ?? '') : '';
+  const arrivalEarned = arrivalVerdict === 'on_standard' || arrivalVerdict === 'late';
   return {
     nutritionPossible: anyMealLogged || hasSlotMacros || anyQuickAdd || !!ctx.activeTrustPass,
     checkinPossible: submitted || (carryCounts && (carryInWindow || !!ctx.priorSubmittedInWeek)),
     commitmentPresent: commitment === 'yes' || commitment === 'partial' || commitment === 'no',
     wakeupAssigned: wakeupEarned || verdict === 'missed',
     wakeupEarned,
+    arrivalAssigned: arrivalEarned || arrivalVerdict === 'missed',
+    arrivalEarned,
   };
 }
