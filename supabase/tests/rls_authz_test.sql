@@ -4564,6 +4564,40 @@ select _ok(_try($f$ select save_commitment_place(jsonb_build_object('id', (selec
     'team_id','77777777-1111-0000-0000-000000000001','name','Hijacked','lat',28.6,'lng',-81.2,'radius_m',200)) $f$) like '%not_authorized%',
   '0242: a stranger coach cannot update another team''s place');
 
+-- ---- fix round 1, item 3: blank/missing names raise name_required, never a raw constraint error ----
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($f$ select save_commitment_place('{"team_id":"77777777-1111-0000-0000-000000000001","name":"   ","lat":28.6,"lng":-81.2,"radius_m":150}'::jsonb) $f$) like '%name_required%',
+  '0242: a blank (whitespace-only) name raises name_required, not a raw constraint error');
+select _ok(_try($f$ select save_commitment_place('{"team_id":"77777777-1111-0000-0000-000000000001","lat":28.6,"lng":-81.2,"radius_m":150}'::jsonb) $f$) like '%name_required%',
+  '0242: a missing name raises name_required');
+
+-- ---- fix round 1, item 1: exactly one owner, exact-matched — never an OR across both ----
+-- commitment_owner_is_staff(v_team, v_practice) passes if the caller is staff of EITHER owner. The
+-- old guard only checked "not (both null)", so a coach of T1 who ALSO named a practice_id they do
+-- not own could pass the staff check on their own team_id and, with the update's old
+-- `team_id = v_team or practice_id = v_practice` OR-match, rewrite a place that belongs to that
+-- practice alone. Both the guard (num_nonnulls = 1) and the update's match (is not distinct from,
+-- both columns) are fixed below.
+select _superuser();
+insert into commitment_locations (id, team_id, name, lat, lng, radius_m, created_by)
+  values ('cccc0242-0000-0000-0000-0000000000b2', '77777777-2222-0000-0000-000000000002', 'T2 victim place', 28.7, -81.3, 200,
+          '22222222-0000-0000-0000-000000000002');
+select _as('11111111-0000-0000-0000-000000000001');   -- coach_1, staff of T1 ONLY (not of T2, not of any practice)
+select _ok(_try($f$ select save_commitment_place(jsonb_build_object(
+    'id','cccc0242-0000-0000-0000-0000000000b2','team_id','77777777-1111-0000-0000-000000000001',
+    'practice_id','88888888-0000-0000-0000-000000000001','name','Rewritten','lat',28.6,'lng',-81.2,'radius_m',150)) $f$)
+  like '%team_or_practice_required%',
+  '0242: sending BOTH a team_id and a practice_id is refused before the staff check, not OR-matched through it');
+select _ok(_try($f$ select save_commitment_place(jsonb_build_object(
+    'id','cccc0242-0000-0000-0000-0000000000b2','team_id','77777777-1111-0000-0000-000000000001',
+    'name','Rewritten','lat',28.6,'lng',-81.2,'radius_m',150)) $f$) like '%not_authorized%',
+  '0242: a coach of T1 cannot rewrite T2''s place by naming only their own team_id (exact-match miss, not an OR-match hit)');
+select _superuser();
+select _ok((select name = 'T2 victim place' and team_id = '77777777-2222-0000-0000-000000000002' and radius_m = 200
+              from commitment_locations where id = 'cccc0242-0000-0000-0000-0000000000b2'),
+  '0242: the victim place is untouched by either attempt');
+delete from commitment_locations where id = 'cccc0242-0000-0000-0000-0000000000b2';
+
 -- ---- fixture: a future roll call whose commitment now points at that place (0215 pattern) ----
 select _superuser();
 create temp table _rc_place_next as
@@ -4598,6 +4632,20 @@ select _ok((select not (j ?| array['lat','lng','latitude','longitude']) from _rc
   '0242: verify_arrival_at never echoes the position back');
 select _ok((select j ? 'distance_m' and j ? 'within' from _rc_vaj), '0242: the caller gets ok/within/distance_m');
 drop table _rc_vaj;
+
+-- fix round 1, item 3: a non-finite accuracy (NaN — however the client managed to send it) is
+-- treated as 0 m of pad, never the full 75 m. The place is now 200 m (updated above); ~230 m away
+-- is outside a 200 m+0 pad but would have been INSIDE a 200 m+75 buggy pad.
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok((verify_arrival_at((select id from _rc_place_next), 'manual', 28.60207, -81.2, 'NaN'::float8)->>'within')::boolean = false,
+  '0242: a non-finite accuracy (NaN) pads by 0 m, never the full 75 m');
+
+-- fix round 1, item 2: a caller with NO response row on the instance is refused before we so much
+-- as reveal whether the instance has a place — never no_place, always not_authorized.
+select _as('bbbbbbbb-0000-0000-0000-000000000002');   -- athlete B, on T2, holds no response on this T1 instance
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'manual', 28.6005, -81.2, 10) $f$) like '%not_authorized%',
+  '0242: a caller with no response on the instance is refused not_authorized, never no_place');
+
 select _as('eeee0000-0000-0000-0000-0000000000e1');   -- superuser bypasses grants; check as an ordinary user
 select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'manual', 999, -81.2, 10) $f$) like '%bad_position%',
   '0242: an impossible latitude is refused before any distance math');

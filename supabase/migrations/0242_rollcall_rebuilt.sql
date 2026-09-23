@@ -425,22 +425,34 @@ $$;
 create or replace function verify_arrival_at(p_instance uuid, p_source text, p_lat double precision,
   p_lng double precision, p_accuracy_m double precision) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare loc commitment_locations; v_dist double precision; v_within boolean; v_res jsonb;
+declare loc commitment_locations; v_dist double precision; v_within boolean; v_res jsonb; v_acc double precision;
 begin
   if p_lat is null or p_lng is null or p_lat not between -90 and 90 or p_lng not between -180 and 180 then
     raise exception 'bad_position';
+  end if;
+  -- AUTH FIRST. A caller with no response row on this instance gets refused before we so much as
+  -- reveal whether the instance has a place configured (fix round 1, item 2).
+  if not exists (select 1 from commitment_responses where instance_id = p_instance and athlete_id = auth.uid()) then
+    raise exception 'not_authorized';
   end if;
   select l.* into loc from commitment_instances i join commitments c on c.id = i.commitment_id
     join commitment_locations l on l.id = c.location_id where i.id = p_instance;
   if not found then raise exception 'no_place'; end if;
   v_dist := _haversine_m(p_lat, p_lng, loc.lat, loc.lng);
-  v_within := v_dist <= loc.radius_m + least(greatest(coalesce(p_accuracy_m, 0), 0), 75);
+  -- A non-finite accuracy (NaN/Infinity, however it got here) is not evidence of a tight fix: it
+  -- is treated as 0, never as the full 75 m pad (fix round 1, item 3). Postgres defines NaN as
+  -- equal to itself, so `v_acc = 'NaN'::float8` reliably catches it.
+  v_acc := p_accuracy_m;
+  if v_acc is null or v_acc = 'NaN'::float8 or v_acc = 'Infinity'::float8 or v_acc = '-Infinity'::float8 then
+    v_acc := 0;
+  end if;
+  v_within := v_dist <= loc.radius_m + least(greatest(v_acc, 0), 75);
   v_res := verify_arrival(p_instance, p_source, v_within,
     case when v_within then null else format('%s m from %s', round(v_dist), loc.name) end);
   return coalesce(v_res, '{}'::jsonb) || jsonb_build_object('within', v_within, 'distance_m', round(v_dist));
 end $$;
 comment on function verify_arrival_at(uuid, text, double precision, double precision, double precision) is
-  'Arrival verified by distance to the instance''s saved place. Calls verify_arrival() for the one write path; never stores or echoes a coordinate. 0242.';
+  'Arrival verified by distance to the instance''s saved place. Calls verify_arrival() for the one write path; never stores or echoes a coordinate. Refuses a caller with no response row on the instance before revealing whether it has a place. 0242.';
 
 -- save_commitment_place: insert/update a commitment_locations row for the CALLER's own team or
 -- practice. A new place cannot be smaller than 100 m (tighter than the table''s 50 m floor, which
@@ -450,31 +462,40 @@ comment on function verify_arrival_at(uuid, text, double precision, double preci
 -- team_members (0001) carries no role column — only athlete_id + status; staff live in team_staff
 -- (role staff_role). There is therefore no "the caller's own team" to infer from team_members, and
 -- commitment_owner_is_staff already requires an explicit team_id/practice_id. This function REQUIRES
--- the caller to name one; it does not guess.
+-- the caller to name EXACTLY ONE (fix round 1, item 1: commitment_owner_is_staff(v_team, v_practice)
+-- passes if the caller is staff of EITHER owner, so a caller who is staff of their own team but sends
+-- a stranger's practice_id alongside it could otherwise pass the staff check and, with the update's
+-- old `team_id = v_team or practice_id = v_practice` OR-match, rewrite the stranger's place. Both the
+-- guard and the update's match are now single-owner-exact.)
 create or replace function save_commitment_place(p jsonb) returns uuid
 language plpgsql security definer set search_path = public as $$
 declare v_id uuid; v_team uuid := nullif(p->>'team_id','')::uuid; v_practice uuid := nullif(p->>'practice_id','')::uuid;
-  v_r int := (p->>'radius_m')::int;
+  v_r int := (p->>'radius_m')::int; v_name text := nullif(trim(p->>'name'), ''); v_addr text := nullif(trim(p->>'address'), '');
 begin
   if v_r is null or v_r < 100 then raise exception 'radius_min'; end if;
   if v_r > 1000 then raise exception 'radius_max'; end if;
-  if v_team is null and v_practice is null then raise exception 'team_or_practice_required'; end if;
+  if v_name is null then raise exception 'name_required'; end if;
+  if num_nonnulls(v_team, v_practice) <> 1 then raise exception 'team_or_practice_required'; end if;
   if not commitment_owner_is_staff(v_team, v_practice) then raise exception 'not_authorized'; end if;
   if (p->>'id') is not null then
-    update commitment_locations set name = left(p->>'name', 60), address = left(p->>'address', 200),
+    -- exact single-owner match: a row's OTHER owner column must also match (it is null, since
+    -- commitment_locations enforces num_nonnulls(team_id, practice_id) = 1), never an OR across
+    -- both, or a caller who is staff of one owner and merely NAMES a second, unowned one could
+    -- reach a row that belongs to that second owner alone.
+    update commitment_locations set name = left(v_name, 60), address = left(v_addr, 200),
       lat = (p->>'lat')::float8, lng = (p->>'lng')::float8, radius_m = v_r
-      where id = (p->>'id')::uuid and (team_id = v_team or practice_id = v_practice)
+      where id = (p->>'id')::uuid and team_id is not distinct from v_team and practice_id is not distinct from v_practice
       returning id into v_id;
     if not found then raise exception 'not_authorized'; end if;
   else
     insert into commitment_locations (team_id, practice_id, name, address, lat, lng, radius_m, created_by)
-    values (v_team, v_practice, left(p->>'name', 60), left(p->>'address', 200), (p->>'lat')::float8, (p->>'lng')::float8, v_r, auth.uid())
+    values (v_team, v_practice, left(v_name, 60), left(v_addr, 200), (p->>'lat')::float8, (p->>'lng')::float8, v_r, auth.uid())
     returning id into v_id;
   end if;
   return v_id;
 end $$;
 comment on function save_commitment_place(jsonb) is
-  'Insert/update a commitment_locations row for the caller''s named team or practice. New places floor at 100 m (radius_min), cap at 1000 m (radius_max). 0242.';
+  'Insert/update a commitment_locations row for the caller''s named team or practice (exactly one, exact-matched on update). New places floor at 100 m (radius_min), cap at 1000 m (radius_max); blank name is name_required. 0242.';
 
 -- ================================================================ grants
 do $$ declare f text; begin
