@@ -111,7 +111,7 @@ Legend: [ ] open · [x] done · [~] deliberately not done (reason)
 - [x] Self-review of the diff + two independent code reviews (coach side, athlete side): no
       high-confidence bugs. Hardened one pre-existing unescaped coach title (requirement.js).
 - [x] Zip rebuilt (version c77e10110cef65fc) and content-verified.
-- [~] OTA publish: NOT done. Founder call (App Review is mid-resubmission).
+- [x] OTA published (founder request): update group 2e66c9a0; iOS + Android live manifests carry zip md5 db6d11c3.
 
 ## Also changed on the way
 
