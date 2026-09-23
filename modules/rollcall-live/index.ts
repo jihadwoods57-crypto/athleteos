@@ -9,7 +9,8 @@ import { Platform } from 'react-native';
 
 export type PushToStartTokenEvent = { token: string };
 export type ActivityTokenEvent = { token: string; instanceId: string };
-export type PendingTap = { instanceId: string; at: number };
+/** `board` is set when the tap came from the alarm's own opening button (open on the team board). */
+export type PendingTap = { instanceId: string; at: number; board?: boolean };
 
 export type AlarmAuthorization = 'authorized' | 'denied' | 'notDetermined' | 'unsupported';
 /** A wake-up to arm. `weekdays` is 1 = Sunday .. 7 = Saturday; EMPTY means fire once. */
@@ -22,8 +23,11 @@ export type WakeAlarm = {
   buttonLabel?: string;
 };
 
-/** A dated one-off: the exact instant in epoch ms. */
-export type WakeAlarmAt = { instanceId: string; at: number; title?: string; buttonLabel?: string };
+/** A dated one-off: the exact instant in epoch ms. `ackCode`/`ackUrl` are the morning's window
+ *  code and where to post it, so the alarm's buttons check in with the app closed. */
+export type WakeAlarmAt = {
+  instanceId: string; at: number; title?: string; buttonLabel?: string; ackCode?: string; ackUrl?: string;
+};
 
 type NativeModule = {
   isLiveActivitySupported: () => boolean;
@@ -32,6 +36,10 @@ type NativeModule = {
   requestAlarmAuthorization?: () => Promise<AlarmAuthorization>;
   scheduleWakeAlarm?: (instanceId: string, hour: number, minute: number, weekdays: number[], title: string, buttonLabel: string) => Promise<string>;
   scheduleWakeAlarmAt?: (instanceId: string, atMs: number, title: string, buttonLabel: string) => Promise<string>;
+  /** Newer than scheduleWakeAlarmAt. A separate name rather than two more arguments on the old
+   *  one: Expo rejects a call with more arguments than the native function declares, so new JS
+   *  arriving over the air on an older binary would have armed NOTHING. */
+  scheduleWakeAlarmAtWithAck?: (instanceId: string, atMs: number, title: string, buttonLabel: string, ackCode: string, ackUrl: string) => Promise<string>;
   cancelWakeAlarm?: (instanceId: string) => void;
   scheduledWakeAlarms?: () => Array<Record<string, unknown>>;
   startPushToStartObserver: () => void;
@@ -152,7 +160,12 @@ export async function scheduleWakeAlarmAt(a: WakeAlarmAt): Promise<string> {
   try {
     const n = native();
     if (!n?.scheduleWakeAlarmAt) return '';
-    return (await n.scheduleWakeAlarmAt(a.instanceId, Math.round(a.at), a.title || 'Wake up', a.buttonLabel || 'I’m Up')) ?? '';
+    const title = a.title || 'Wake up';
+    const label = a.buttonLabel || 'I’m Up';
+    if (a.ackCode && a.ackUrl && typeof n.scheduleWakeAlarmAtWithAck === 'function') {
+      return (await n.scheduleWakeAlarmAtWithAck(a.instanceId, Math.round(a.at), title, label, a.ackCode, a.ackUrl)) ?? '';
+    }
+    return (await n.scheduleWakeAlarmAt(a.instanceId, Math.round(a.at), title, label)) ?? '';
   } catch { return ''; }
 }
 

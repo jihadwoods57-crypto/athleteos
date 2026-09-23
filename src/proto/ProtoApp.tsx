@@ -11,7 +11,7 @@ import { PROTO_VERSION } from './protoVersion';
 import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
 import { authenticateBiometric } from '../lib/auth/biometrics';
 import { parseInviteCode } from '../lib/inviteLink';
-import { runRollCallAck, drainAckQueue, ensureRollCallCategories, rememberRollCallLabel, registerCoachDigestCategory, runCoachAction, drainCoachQueue, registerRollCallBackgroundTask, ensureLiveActivityTokens, drainLiveActivityTaps } from '../lib/notify/rollcall';
+import { runRollCallAck, drainAckQueue, ensureRollCallCategories, rememberRollCallLabel, registerCoachDigestCategory, runCoachAction, drainCoachQueue, registerRollCallBackgroundTask, ensureLiveActivityTokens, drainLiveActivityTaps, takeBoardRoute } from '../lib/notify/rollcall';
 import { routeNotificationResponse } from '../core/rollcall';
 import { installForegroundNotificationHandler } from '../lib/notify/foreground';
 
@@ -192,6 +192,18 @@ export function ProtoApp() {
     return () => sub.remove();
   }, [deliverRoute]);
 
+  // Drain the taps the lock screen and the alarm recorded, then follow the one that asked to open
+  // the app: the alarm's own button (the coach's words) checks in AND lands on the team board for
+  // that morning. Stop and the lock-screen card check in without opening anything, so their taps
+  // route nowhere. The board screen is the proto's (#rollcall-board/<instanceId>); deliverRoute
+  // holds the route until the WebView has loaded, so a cold start from the alarm still lands.
+  const drainTaps = React.useCallback(() => {
+    void drainLiveActivityTaps().then(() => {
+      const route = takeBoardRoute();
+      if (route) deliverRoute(route);
+    }, () => undefined);
+  }, [deliverRoute]);
+
   // Drain any offline "I'm Up" acks that were queued while the phone was offline — a lock-screen
   // tap in a dead zone still lands the moment the athlete opens the app on connectivity. Native only.
   // Also (re-)register the roll-call notification categories at startup so a pushed roll call shows
@@ -211,9 +223,9 @@ export function ProtoApp() {
       // on this phone's lock screen, and collect any tap made on that card while the app was not
       // running. Both no-op on Android and in binaries built before the native module existed.
       ensureLiveActivityTokens();
-      void drainLiveActivityTaps();
+      drainTaps();
     }
-  }, []);
+  }, [drainTaps]);
 
   // The alarm's own button records into the native pending store, and until now that store was
   // read ONCE, at launch. An athlete who answered on the alarm banner while OnStandard was already
@@ -225,17 +237,17 @@ export function ProtoApp() {
     if (Platform.OS === 'web') return;
     const onState = (st: string) => {
       if (st !== 'active') return;
-      void drainLiveActivityTaps();
+      drainTaps();
       void drainAckQueue();
     };
     const sub = AppState.addEventListener('change', onState);
     let off: () => void = () => {};
     try {
       const live = require('../../modules/rollcall-live') as typeof import('../../modules/rollcall-live');
-      off = live.onPendingTap(() => { void drainLiveActivityTaps(); });
+      off = live.onPendingTap(() => { drainTaps(); });
     } catch { /* older binary: the foreground beat covers it */ }
     return () => { sub.remove(); off(); };
-  }, []);
+  }, [drainTaps]);
 
   const onWebLoadEnd = React.useCallback(() => {
     webLoaded.current = true;

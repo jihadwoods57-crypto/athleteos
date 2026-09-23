@@ -5,7 +5,7 @@
 // failure this feature has.
 import { syncWakeAlarms, wakeAlarmState, isUsable, cleanWeekdays, fixedAt, cancelWakeAlarmFor, _resetWakeAlarms } from './wakeAlarms';
 
-type Scheduled = { instanceId: string; hour?: number; minute?: number; weekdays?: number[]; title: string; at?: number };
+type Scheduled = { instanceId: string; hour?: number; minute?: number; weekdays?: number[]; title: string; at?: number; ackCode?: string; ackUrl?: string };
 
 const mockState = {
   supported: true,
@@ -236,5 +236,34 @@ describe('input cleaning', () => {
     expect(cleanWeekdays([0, 8, -3, 'x', null, 3])).toEqual([3]);
     expect(cleanWeekdays('nonsense')).toEqual([]);
     expect(cleanWeekdays(undefined)).toEqual([]);
+  });
+});
+
+describe('the window code rides with the alarm (Stop checks in with the app closed)', () => {
+  const at = Date.now() + 18 * 3600000;
+  const url = 'https://x.supabase.co/functions/v1/roll-call-ack';
+
+  test('scheduling a dated alarm passes the window code so Stop can check in with the app closed', async () => {
+    await syncWakeAlarms([{ instanceId: 'i1', hour: 6, minute: 0, at, title: 'Roll call', buttonLabel: "I'm Up", ackCode: 'c0de', ackUrl: url }]);
+    expect(JSON.stringify(mockState.scheduled)).toContain('c0de');
+    expect(mockState.scheduled[0]).toMatchObject({ ackCode: 'c0de', ackUrl: url });
+  });
+
+  test('a morning with no code still arms (the app drains the tap instead)', async () => {
+    await syncWakeAlarms([{ ...morning('a'), at }]);
+    expect(mockState.scheduled[0].ackCode).toBeUndefined();
+    expect(mockState.scheduled[0].ackUrl).toBeUndefined();
+  });
+
+  test('never hands native a URL that is not https, or a code without a URL', async () => {
+    await syncWakeAlarms([
+      { ...morning('a'), at, ackCode: 'c0de', ackUrl: 'http://evil.example/ack' },
+      { ...morning('b'), at, ackCode: 'c0de' },
+      { ...morning('c'), at, ackUrl: url },
+    ]);
+    for (const s of mockState.scheduled) {
+      expect(s.ackCode).toBeUndefined();
+      expect(s.ackUrl).toBeUndefined();
+    }
   });
 });

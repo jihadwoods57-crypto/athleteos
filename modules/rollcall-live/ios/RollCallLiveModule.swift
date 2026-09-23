@@ -138,6 +138,23 @@ public class RollCallLiveModule: Module {
       return ""
     }
 
+    /// The dated wake-up WITH the morning's window code, so Stop and the alarm's own button check
+    /// in by themselves with the app closed. A separate name rather than two more arguments on
+    /// `scheduleWakeAlarmAt`: Expo rejects a call carrying more arguments than the native function
+    /// declares, so new JS arriving over the air on an older binary would have armed nothing. JS
+    /// feature-detects this name and falls back to the four-argument call.
+    AsyncFunction("scheduleWakeAlarmAtWithAck") { (instanceId: String, atMs: Double, title: String, buttonLabel: String, ackCode: String, ackUrl: String) -> String in
+      #if canImport(AlarmKit)
+      if #available(iOS 26.1, *) {
+        return (try? await RollCallAlarmScheduler.scheduleAt(
+          instanceId: instanceId, atMs: atMs, title: title, buttonLabel: buttonLabel,
+          ackCode: ackCode.isEmpty ? nil : ackCode, ackUrl: ackUrl.isEmpty ? nil : ackUrl
+        )) ?? ""
+      }
+      #endif
+      return ""
+    }
+
     /// Cancel the wake-up for one instance. Safe for an instance that never had one.
     Function("cancelWakeAlarm") { (instanceId: String) -> Void in
       #if canImport(AlarmKit)

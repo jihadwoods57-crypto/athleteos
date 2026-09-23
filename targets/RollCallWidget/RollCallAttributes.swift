@@ -42,13 +42,51 @@ public struct RollCallAttributes: ActivityAttributes {
     /// The coach's message, already trimmed by the server to one lock-screen line.
     public var line: String
 
+    /// How many of the team are up, and how many were asked. 0 of 0 hides the row: a card pushed
+    /// by a server that predates the team count must draw exactly what it drew before.
+    public var teamUp: Int = 0
+    public var teamTotal: Int = 0
+
+    /// This athlete's place in line once their answer counts (1 = first up), or nil.
+    public var place: Int? = nil
+
+    /// What the answer banked toward today's score, or nil until it counts.
+    public var points: Int? = nil
+
     public init(phase: String, deadlineEpoch: Double, closesEpoch: Double,
-                checkedInEpoch: Double? = nil, line: String = "") {
+                checkedInEpoch: Double? = nil, line: String = "",
+                teamUp: Int = 0, teamTotal: Int = 0, place: Int? = nil, points: Int? = nil) {
       self.phase = phase
       self.deadlineEpoch = deadlineEpoch
       self.closesEpoch = closesEpoch
       self.checkedInEpoch = checkedInEpoch
       self.line = line
+      self.teamUp = teamUp
+      self.teamTotal = teamTotal
+      self.place = place
+      self.points = points
+    }
+
+    // WHY A HAND-WRITTEN DECODER. Swift's synthesized Decodable IGNORES a property's default value:
+    // `var teamUp: Int = 0` is still decoded with `decode`, so a push without the key throws
+    // keyNotFound and iOS drops the whole update. Every field added after the first build is read
+    // with `decodeIfPresent` (and `try?`, so a wrong type costs that field, not the card). The
+    // original five decode exactly as the synthesized decoder did. Encoding stays synthesized.
+    enum CodingKeys: String, CodingKey {
+      case phase, deadlineEpoch, closesEpoch, checkedInEpoch, line, teamUp, teamTotal, place, points
+    }
+
+    public init(from decoder: Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      self.phase = try c.decode(String.self, forKey: .phase)
+      self.deadlineEpoch = try c.decode(Double.self, forKey: .deadlineEpoch)
+      self.closesEpoch = try c.decode(Double.self, forKey: .closesEpoch)
+      self.checkedInEpoch = try c.decodeIfPresent(Double.self, forKey: .checkedInEpoch)
+      self.line = try c.decode(String.self, forKey: .line)
+      self.teamUp = (try? c.decodeIfPresent(Int.self, forKey: .teamUp)) ?? 0
+      self.teamTotal = (try? c.decodeIfPresent(Int.self, forKey: .teamTotal)) ?? 0
+      self.place = try? c.decodeIfPresent(Int.self, forKey: .place)
+      self.points = try? c.decodeIfPresent(Int.self, forKey: .points)
     }
 
     public var deadline: Date { Date(timeIntervalSince1970: deadlineEpoch) }
@@ -77,12 +115,22 @@ public struct RollCallAttributes: ActivityAttributes {
   /// server that predates the field must still decode, and the view falls back to the default.
   public var actionLabel: String?
 
-  public init(instanceId: String, title: String, coachName: String, coachInitials: String, actionLabel: String? = nil) {
+  /// The WINDOW code for this roll call (valid from 15 minutes before it opens to 10 minutes after
+  /// it closes, for this athlete alone) and the URL to post it to. With both, the card's button
+  /// checks in by itself, with OnStandard closed. OPTIONAL for the same reason as `actionLabel`:
+  /// a start from an older server has neither, and the button then records the tap for the app.
+  public var ackCode: String?
+  public var ackUrl: String?
+
+  public init(instanceId: String, title: String, coachName: String, coachInitials: String, actionLabel: String? = nil,
+              ackCode: String? = nil, ackUrl: String? = nil) {
     self.instanceId = instanceId
     self.title = title
     self.coachName = coachName
     self.coachInitials = coachInitials
     self.actionLabel = actionLabel
+    self.ackCode = ackCode
+    self.ackUrl = ackUrl
   }
 }
 

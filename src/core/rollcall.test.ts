@@ -4,6 +4,7 @@ import {
   coachActionFor, enqueueCoachAction, dropCoachAction,
   CHECK_IN_LABEL, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL, ackOutcome,
   routeNotificationResponse, ACTION_OPTIONS, buttonTitleFor, ROLLCALL_BG_TASK,
+  boardRouteFor,
 } from './rollcall';
 import {
   rollCallCategoryId as serverCategoryId,
@@ -166,5 +167,30 @@ describe('registration contract (0212)', () => {
   });
   it('the background task has a stable name', () => {
     expect(ROLLCALL_BG_TASK).toBe('onstandard-rollcall-action');
+  });
+});
+
+describe('boardRouteFor: the alarm button opens the team board', () => {
+  it('routes to the board for a tap the opening button made', () => {
+    expect(boardRouteFor([{ instanceId: 'a1b2c3d4-0000-4000-8000-000000000001', at: 1, board: true }]))
+      .toBe('rollcall-board/a1b2c3d4-0000-4000-8000-000000000001');
+  });
+  it('stays put for a tap made by Stop or by the lock-screen card', () => {
+    expect(boardRouteFor([{ instanceId: 'i1', at: 1 }])).toBeNull();
+    expect(boardRouteFor([{ instanceId: 'i1', at: 1, board: false }])).toBeNull();
+    expect(boardRouteFor([])).toBeNull();
+    expect(boardRouteFor(null as never)).toBeNull();
+  });
+  it('the newest opening tap wins when several are waiting', () => {
+    expect(boardRouteFor([
+      { instanceId: 'old', at: 1, board: true },
+      { instanceId: 'stop', at: 9 },
+      { instanceId: 'new', at: 5, board: true },
+    ])).toBe('rollcall-board/new');
+  });
+  it('never builds a route out of an id that could escape the hash', () => {
+    expect(boardRouteFor([{ instanceId: "x'; alert(1); '", at: 1, board: true }])).toBeNull();
+    expect(boardRouteFor([{ instanceId: '../home', at: 1, board: true }])).toBeNull();
+    expect(boardRouteFor([{ instanceId: 'x'.repeat(65), at: 1, board: true }])).toBeNull();
   });
 });

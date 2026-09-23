@@ -67,9 +67,10 @@ public enum RollCallAlarm {
 
 #if canImport(AlarmKit)
 
-/// The payload AlarmKit hands back to the widget extension with the alarm. Kept to the two strings
-/// a lock-screen or StandBy presentation would want; nothing here is a secret, because the same
-/// value is readable by the extension process.
+/// The payload AlarmKit hands back to the widget extension with the alarm. The strings a
+/// lock-screen or StandBy presentation would want, plus the morning's window code. The code is
+/// readable by the extension process, which is acceptable because it is already on this phone in
+/// the intents below and only ever checks in THIS athlete for THIS morning's window.
 @available(iOS 26.1, *)
 public struct WakeUpMetadata: AlarmMetadata {
   /// The commitment instance this wake-up answers. The ONE id that ties the alarm, the intent, the
@@ -77,10 +78,16 @@ public struct WakeUpMetadata: AlarmMetadata {
   public let instanceId: String
   /// The coach's own words for the morning, e.g. "Varsity lift".
   public let label: String
+  /// The window code and where to post it (roll-call-ack's mint). Nil when the app armed the alarm
+  /// without one (older JS, or the mint failed); the buttons then record for the app to drain.
+  public let ackCode: String?
+  public let ackUrl: String?
 
-  public init(instanceId: String, label: String) {
+  public init(instanceId: String, label: String, ackCode: String? = nil, ackUrl: String? = nil) {
     self.instanceId = instanceId
     self.label = label
+    self.ackCode = ackCode
+    self.ackUrl = ackUrl
   }
 }
 
@@ -165,14 +172,21 @@ public enum RollCallAlarmScheduler {
   /// (AlarmKit, iOS 26.0) is the one-shot at an absolute instant that a dated roll call actually is.
   ///
   /// - Parameter atMs: epoch milliseconds, the same number the proto sorts alarms by.
+  /// - Parameters ackCode/ackUrl: the morning's window code and where to post it. With both, Stop
+  ///   and the alarm's own button check in by themselves, with OnStandard closed.
   public static func scheduleAt(
     instanceId: String,
     atMs: Double,
     title: String,
-    buttonLabel: String
+    buttonLabel: String,
+    ackCode: String? = nil,
+    ackUrl: String? = nil
   ) async throws -> String {
     let when = Date(timeIntervalSince1970: atMs / 1000)
-    return try await arm(instanceId: instanceId, schedule: .fixed(when), title: title, buttonLabel: buttonLabel)
+    return try await arm(
+      instanceId: instanceId, schedule: .fixed(when), title: title, buttonLabel: buttonLabel,
+      ackCode: ackCode, ackUrl: ackUrl
+    )
   }
 
   /// The shared body: cancel the previous alarm for this instance, build the alert, arm it.
@@ -180,7 +194,9 @@ public enum RollCallAlarmScheduler {
     instanceId: String,
     schedule: Alarm.Schedule,
     title: String,
-    buttonLabel: String
+    buttonLabel: String,
+    ackCode: String? = nil,
+    ackUrl: String? = nil
   ) async throws -> String {
     let id = alarmID(for: instanceId)
 
@@ -217,7 +233,7 @@ public enum RollCallAlarmScheduler {
 
     let attributes = AlarmAttributes(
       presentation: AlarmPresentation(alert: alert),
-      metadata: WakeUpMetadata(instanceId: instanceId, label: title),
+      metadata: WakeUpMetadata(instanceId: instanceId, label: title, ackCode: ackCode, ackUrl: ackUrl),
       tintColor: tint
     )
 
@@ -225,9 +241,11 @@ public enum RollCallAlarmScheduler {
       schedule: schedule,
       attributes: attributes,
       // Apple's own primary button, carrying our intent. This is what stops the most obvious
-      // button on the screen from dismissing the alarm and recording nothing.
-      stopIntent: RollCallCheckInIntent(instanceId: instanceId),
-      secondaryIntent: RollCallAttackDayIntent(instanceId: instanceId),
+      // button on the screen from dismissing the alarm and recording nothing. With the window
+      // code it also POSTS the check-in, so Stop alone answers the roll call with the app closed.
+      stopIntent: RollCallCheckInIntent(instanceId: instanceId, ackCode: ackCode, ackUrl: ackUrl),
+      // The coach's words: checks in the same way AND opens the app on the team board.
+      secondaryIntent: RollCallAttackDayIntent(instanceId: instanceId, ackCode: ackCode, ackUrl: ackUrl),
       // The system alarm tone. The founder was explicit that this is a normal alarm and not a
       // voice, so nothing custom is named here.
       sound: .default
@@ -290,11 +308,13 @@ public enum RollCallAlarmScheduler {
 #endif
 
 #if canImport(AppIntents)
-/// The "Attack the day" button.
+/// The alarm's own button (the coach's words, "I'm Up" by default).
 ///
 /// It does exactly what the Live Activity's check-in button does - writes the tap into the App
-/// Group for the JS queue to drain - and then opens the app, because the athlete just told it they
-/// are getting up and the next thing they owe is breakfast.
+/// Group for the JS queue to drain, and posts it with the window code when the alarm carries one -
+/// and then opens the app. The tap is marked `board`, so after draining it the app lands on that
+/// morning's team board (#rollcall-board/<instanceId>): the athlete just got up, and the first
+/// thing worth seeing is who else did.
 ///
 /// TARGET MEMBERSHIP: the app target, same as RollCallCheckInIntent. Apple runs a
 /// `LiveActivityIntent` in the app's process.
@@ -310,12 +330,31 @@ public struct RollCallAttackDayIntent: LiveActivityIntent {
   @Parameter(title: "Instance")
   public var instanceId: String
 
-  public init() { self.instanceId = "" }
+  /// The window code, or nil when the alarm was armed without one.
+  @Parameter(title: "Code")
+  public var ackCode: String?
 
-  public init(instanceId: String) { self.instanceId = instanceId }
+  /// Where to post it. Nil alongside `ackCode`.
+  @Parameter(title: "Endpoint")
+  public var ackUrl: String?
+
+  public init() {
+    self.instanceId = ""
+    self.ackCode = nil
+    self.ackUrl = nil
+  }
+
+  public init(instanceId: String, ackCode: String? = nil, ackUrl: String? = nil) {
+    self.instanceId = instanceId
+    self.ackCode = ackCode
+    self.ackUrl = ackUrl
+  }
 
   public func perform() async throws -> some IntentResult {
-    RollCallPendingStore.record(instanceId: instanceId, at: Date())
+    let at = Date()
+    // Fallback first (and the board marker the app routes on), then the post itself.
+    RollCallPendingStore.record(instanceId: instanceId, at: at, board: true)
+    await RollCallAckPoster.post(code: ackCode, url: ackUrl, at: at)
     return .result()
   }
 }

@@ -29,6 +29,11 @@ export type WakeAlarmRequest = {
    *  default. The proto supplies it; this layer only bounds it. */
   buttonLabel?: string;
   at?: number;
+  /** The WINDOW code for this morning (roll-call-ack's mint), and the URL to post it to. With
+   *  them the alarm's Stop checks in by itself, with OnStandard closed; without them it records
+   *  the tap for the app to drain, which is what it always did. */
+  ackCode?: string;
+  ackUrl?: string;
 };
 
 export type WakeAlarmState = {
@@ -77,6 +82,17 @@ export function cleanWeekdays(days: unknown): number[] {
 export function fixedAt(a: WakeAlarmRequest, nowMs: number = Date.now()): number {
   const t = Number(a.at);
   return Number.isFinite(t) && t > nowMs ? Math.round(t) : 0;
+}
+
+/** The code + URL pair native may hold, or nothing. A code without a URL cannot be posted, a URL
+ *  without a code proves nothing, and only https ever leaves the phone: the code is a credential
+ *  for one athlete's morning. Bounded so a runaway string never reaches the alarm's metadata. */
+export function ackFor(a: WakeAlarmRequest): { ackCode: string; ackUrl: string } | null {
+  const code = typeof a.ackCode === 'string' ? a.ackCode.trim() : '';
+  const url = typeof a.ackUrl === 'string' ? a.ackUrl.trim() : '';
+  if (!code || code.length > 2048 || !url || url.length > 512) return null;
+  if (!/^https:\/\/[^\s]+$/i.test(url)) return null;
+  return { ackCode: code, ackUrl: url };
 }
 
 /**
@@ -141,7 +157,7 @@ export async function syncWakeAlarms(alarms: WakeAlarmRequest[]): Promise<number
       // module's first build, so its absence (an older binary receiving this JS over the air)
       // falls back to hour:minute, which is what that binary always did.
       const id = at && typeof mod.hasDatedAlarms === 'function' && mod.hasDatedAlarms()
-        ? await mod.scheduleWakeAlarmAt({ instanceId: a.instanceId, at, title, buttonLabel })
+        ? await mod.scheduleWakeAlarmAt({ instanceId: a.instanceId, at, title, buttonLabel, ...(ackFor(a) ?? {}) })
         : await mod.scheduleWakeAlarm({
             instanceId: a.instanceId,
             hour: a.hour,

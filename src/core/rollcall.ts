@@ -143,3 +143,28 @@ export function dropCoachAction(
 ): QueuedCoachAction[] {
   return q.filter((x) => !(x.code === code && x.action === action));
 }
+
+/** A tap waiting in the native pending store. `board` is set by the alarm's own button (the
+ *  coach's words, RollCallAttackDayIntent), which opens OnStandard; Stop and the lock-screen card
+ *  check in without opening anything and leave it unset. */
+export type PendingBoardTap = { instanceId: string; at: number; board?: boolean };
+
+/** The id shape a route may carry. A commitment instance id is a UUID; anything else that could
+ *  close the injected string or climb out of the hash is refused rather than escaped. 48 keeps the
+ *  whole route inside ProtoApp's deliverRoute bound (64), which drops anything longer silently. */
+const BOARD_ID = /^[A-Za-z0-9_-]{1,48}$/;
+
+/**
+ * Where the app should land after draining taps: the team board for the newest tap the alarm's
+ * opening button made, or null to stay where it is. The route string is fixed here and the board
+ * screen itself arrives in the proto (Task 9).
+ */
+export function boardRouteFor(taps: PendingBoardTap[] | null | undefined): string | null {
+  if (!Array.isArray(taps)) return null;
+  let best: PendingBoardTap | null = null;
+  for (const t of taps) {
+    if (!t || t.board !== true || typeof t.instanceId !== 'string' || !BOARD_ID.test(t.instanceId)) continue;
+    if (!best || (Number(t.at) || 0) >= (Number(best.at) || 0)) best = t;
+  }
+  return best ? `rollcall-board/${best.instanceId}` : null;
+}

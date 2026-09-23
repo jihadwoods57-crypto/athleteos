@@ -7,7 +7,7 @@ import {
   COACH_DIGEST_CATEGORY, COACH_ACTION_SEEN, COACH_ACTION_NUDGE,
   enqueueCoachAction, dropCoachAction, type CoachAction, type QueuedCoachAction,
   CHECK_IN_LABEL, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL, ackOutcome, type AckOutcome,
-  ROLLCALL_BG_TASK, ACTION_OPTIONS, buttonTitleFor, routeNotificationResponse,
+  ROLLCALL_BG_TASK, ACTION_OPTIONS, buttonTitleFor, routeNotificationResponse, boardRouteFor,
 } from '@/core/rollcall';
 
 const supaUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
@@ -293,9 +293,11 @@ export function ensureLiveActivityTokens(): void {
 /**
  * Feed taps made on the Live Activity's button into the SAME ack path a notification tap uses.
  *
- * The button's intent cannot ack by itself: the signed code that authorises an ack is minted per
- * push and held by the queue below, and that queue already owns the retry, offline and
- * dead-code policy. So the intent records the instance and the moment, and this drains it.
+ * Since 2026-09-23 the intent ALSO posts the tap itself, with the window code the card and the
+ * alarm carry (roll-call-ack's mint), so a check-in lands with the app closed. It still records the
+ * instance and the moment first, and this drains it: the fallback for a post that failed (no
+ * network at 6:01, a card started by an older server with no code). The server's first tap stands,
+ * so a tap posted by the intent and then drained here is one answer, not two.
  *
  * A tap with no code to spend cannot be posted, so it is queued as a plain in-app ack instead: the
  * proto's own `ack_commitment` path runs on the next load with the athlete's session. That is the
@@ -332,6 +334,18 @@ export function tapRetryable(message: string | null | undefined): boolean {
 
 let draining: Promise<number> | null = null;
 
+/** Where the last drain asked the app to land: the team board, when the tap came from the alarm's
+ *  opening button. Held here rather than returned, because concurrent drain calls share ONE run and
+ *  only one of them would have seen a return value. Read once with `takeBoardRoute`. */
+let boardRoute: string | null = null;
+
+/** The team-board route the last drained taps asked for, or null. Clears on read. */
+export function takeBoardRoute(): string | null {
+  const r = boardRoute;
+  boardRoute = null;
+  return r;
+}
+
 export async function drainLiveActivityTaps(): Promise<number> {
   // Android too, since the alarm screen records taps the same way (RollCallPendingTaps). It used
   // to be iOS-only because the Live Activity button was the only thing that could record one.
@@ -344,7 +358,10 @@ export async function drainLiveActivityTaps(): Promise<number> {
       let taps: QueuedTap[] = [];
       try {
         const live = require('../../../modules/rollcall-live') as typeof import('../../../modules/rollcall-live');
-        taps = live.drainPendingTaps();
+        const raw = live.drainPendingTaps();
+        const route = boardRouteFor(raw);
+        if (route) boardRoute = route;
+        taps = raw;
       } catch { taps = []; }
       // DURABLE FIRST. The native store is cleared by the read above, so a tap that fails to post
       // here (no network at 6:01, no session yet on a cold start) used to be gone for good and the
@@ -368,14 +385,16 @@ export async function drainLiveActivityTaps(): Promise<number> {
           if (!error) {
             landed++;
             q = q.filter((x) => x.instanceId !== tap.instanceId);
-            // Answered: the alarm for it must not ring and the lock-screen card must stop.
+            // Answered: the alarm for it must not ring.
+            //
+            // The lock-screen card is NOT ended here any more (2026-09-23). The server owns it
+            // now: a check-in updates it to "You're up · 4th" with the team count, and the close
+            // sweep ends it. The tap drained here has usually ALREADY been posted by the intent
+            // itself, so ending the card at this point would wipe the answered state the athlete
+            // is about to look at when the alarm's button opens the app.
             try {
               const { cancelWakeAlarmFor } = require('./wakeAlarms') as typeof import('./wakeAlarms');
               cancelWakeAlarmFor(tap.instanceId);
-            } catch { /* best effort */ }
-            try {
-              const live = require('../../../modules/rollcall-live') as typeof import('../../../modules/rollcall-live');
-              await live.endLiveActivity(tap.instanceId);
             } catch { /* best effort */ }
           } else if (!tapRetryable(error.message)) {
             q = q.filter((x) => x.instanceId !== tap.instanceId);
