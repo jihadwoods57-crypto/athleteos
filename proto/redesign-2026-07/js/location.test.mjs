@@ -261,3 +261,23 @@ test('the client keeps no copy of the age rule: consent is the server RPC', () =
   assert.match(src, /loadVerificationConsent/);
   assert.doesNotMatch(src, /athlete_profiles|is_provable_minor/, 'no client query for age');
 });
+
+test('the consent answer is keyed by the signed-in athlete, never carried to the next (R2-2)', async () => {
+  let uid = 'adult-1';
+  CD.setVcUidProvider(() => uid);
+  try {
+    L.setConsentCachedForHarness(true);
+    assert.equal(L.consentCached(), true);
+    uid = 'minor-2';   // sign-out, then a different athlete signs in on the same phone
+    assert.equal(L.consentCached(), null, 'the adult’s yes is gone');
+    assert.equal(L.consentSettled(), false);
+    shim({ location: { available: () => Promise.resolve({ available: true, state: 'undetermined' }) } });
+    L.setConsentCachedForHarness(false);
+    assert.deepEqual(await L.checkInHere('i1'), { error: 'consent' });
+    uid = 'adult-1';
+    assert.equal(L.consentCached(), null, 'and the minor’s no is not the adult’s either');
+  } finally {
+    CD.setVcUidProvider(null);
+    L.setConsentCachedForHarness(null);
+  }
+});

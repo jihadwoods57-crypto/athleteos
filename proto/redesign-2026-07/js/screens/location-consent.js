@@ -25,22 +25,20 @@
 import { icon } from '../icons.js';
 import { RT, act } from '../state.js';
 import { backHead, esc } from '../components.js';
-import { loadVerificationConsent, lastLocationArm } from '../commitment-data.js';
+import { lastLocationArm } from '../commitment-data.js';
 import {
   locationCapable, walkInCapable, probeLocation, locationStateCached, allowLocation,
   disarmLocation, openLocationSettings, alwaysRefused,
+  probeConsent, consentCached, consentSettled, setConsentCachedForHarness,
 } from '../location.js';
 
-/* The SERVER's answer to "may this athlete be verified at all" (has_verification_consent, 0139).
-   null = not asked yet, and renders as "checking", never as permission. */
-let CONSENT = null;
-/* Whether a consent probe has SETTLED at least once. null + settled = the server couldn't be
-   asked: an honest "we couldn't confirm" with a retry. */
-let CONSENT_ASKED = false;
+/* The SERVER's answer to "may this athlete be verified at all" (has_verification_consent, 0139)
+   is location.js's one cache, keyed by the signed-in user (fix round 3, R2-2): this screen and the
+   board card read the same answer, and a sign-out never carries it to the next account. */
 let BUSY = false;
 
 /** Harness + test seam: stand in for the server's consent answer. */
-export function setConsentForHarness(v) { CONSENT = v; CONSENT_ASKED = true; }
+export function setConsentForHarness(v) { setConsentCachedForHarness(v); }
 
 const bullet = (ic, title, body) => `
   <div class="lrow lc-row" role="listitem">
@@ -128,7 +126,7 @@ export default {
     </section>
 
     <div class="lc-act">${consentActionHtml({
-      capable, state: locationStateCached(), walkIn: walkInCapable(), consent: CONSENT, consentAsked: CONSENT_ASKED,
+      capable, state: locationStateCached(), walkIn: walkInCapable(), consent: consentCached(), consentAsked: consentSettled(),
       optedOut: !!RT.locationOptOut, walkInStatus: arm && arm.walkIn ? String(arm.walkIn) : null, busy: BUSY,
       refused: alwaysRefused(),
     })}</div>`;
@@ -139,14 +137,10 @@ export default {
 
     // Consent is re-asked while anything but a confirmed yes (a guardian may have said yes since).
     // Re-render only on the first settle or a changed answer, so a repeated null can't loop.
-    if (CONSENT !== true) {
-      loadVerificationConsent().then((ok) => {
-        const first = !CONSENT_ASKED;
-        CONSENT_ASKED = true;
-        const prev = CONSENT;
-        if (ok !== null) CONSENT = ok;
-        if (first || CONSENT !== prev) rerender();
-      });
+    if (consentCached() !== true) {
+      const first = !consentSettled();
+      const prev = consentCached();
+      probeConsent(true).then((now) => { if (first || now !== prev) rerender(); }, () => {});
     }
     // Permission is re-probed on EVERY mount: the athlete may have just changed it in Settings.
     if (locationCapable()) {
@@ -182,8 +176,7 @@ export default {
     const retry = root.querySelector('#lc-consent-retry');
     if (retry) retry.addEventListener('click', async () => {
       retry.disabled = true; retry.textContent = 'Checking…';
-      const ok = await loadVerificationConsent();
-      if (ok !== null) CONSENT = ok;
+      await probeConsent(true);
       rerender();
     });
     // The real path for a minor: link a parent (invite code), who then approves from their hub.

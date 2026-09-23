@@ -868,3 +868,34 @@ test('an arrival-only commitment still settles on its arrival (unchanged)', () =
     arrived_at: '2026-07-22T08:50:00Z', status: 'arrived' };
   assert.equal(deriveCommitment(row, '2026-07-22T08:55:00Z').stage, 'arrived');
 });
+
+/* Fix round 3 (R2-1): one client mirror of rollcall_arrival_status. A morning's "place not
+   confirmed" lives in unverified_reason with no arrived_at (its status is the wake-up's), and it
+   must stay a gap in evidence, never a missed arrival that drops the record or breaks the streak. */
+test('arrivalStatus mirrors the server: morning and arrival-only, confirmed and not', async () => {
+  const { arrivalStatus, accountability, morningReadiness, commitmentStreak } = await import('./commitments.js');
+  const day = '2026-07-22';
+  const morning = { ...rollCall, asks_arrival: true, occurs_on: day, status: 'acknowledged',
+    acknowledged_at: '2026-07-22T08:50:00Z' };
+  const mUnverified = { ...morning, unverified_reason: 'Not at Weight room', arrived_at: null };
+  const mArrived = { ...morning, arrived_at: '2026-07-22T09:00:00Z', unverified_reason: null, arrival_verdict: 'on_standard' };
+  const arrival = { ...rollCall, type: 'practice', asks_arrival: true, occurs_on: day, respond_by_min: null };
+  const aUnverified = { ...arrival, status: 'unverified', unverified_reason: 'Not at Stadium', arrived_at: null };
+  const aArrived = { ...arrival, status: 'arrived', arrived_at: '2026-07-22T09:00:00Z', arrival_verdict: 'on_standard' };
+
+  assert.equal(arrivalStatus(mUnverified), 'unverified', 'morning, place not confirmed');
+  assert.equal(arrivalStatus(mArrived), 'acknowledged', 'morning, arrived: the wake-up status, arrival in arrived_at');
+  assert.equal(arrivalStatus(aUnverified), 'unverified', 'arrival-only, not confirmed');
+  assert.equal(arrivalStatus(aArrived), 'arrived', 'arrival-only, arrived');
+  assert.equal(arrivalStatus({ ...mUnverified, status: 'excused' }), 'excused', 'excused wins');
+
+  // The morning with an unconfirmed place: the arrival is out of the denominator, not a miss.
+  assert.equal(morningReadiness([mUnverified]).arrival.total, 0);
+  assert.equal(accountability([mUnverified]).pct, 100, 'the answered wake-up alone, all earned');
+  assert.equal(commitmentStreak([mUnverified], day), 1, 'the streak survives a gap in evidence');
+  // The arrival-only unconfirmed row: the same rule, as before.
+  assert.equal(morningReadiness([aUnverified]).arrival.total, 0);
+  // Arrived rows count their arrival.
+  assert.equal(morningReadiness([mArrived]).arrival.total, 1);
+  assert.equal(morningReadiness([aArrived]).arrival.total, 1);
+});

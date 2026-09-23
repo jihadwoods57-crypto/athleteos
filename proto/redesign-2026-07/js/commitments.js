@@ -766,6 +766,21 @@ export function summarizeOccurrences(occ) {
 
 export const WEIGHTS = { ack: 10, arrival: 30, completion: 60 };
 
+/** The status an ARRIVAL is judged from: the client mirror of the server's
+ *  rollcall_arrival_status (0242 section 2b). On a morning roll call `status` belongs to the
+ *  wake-up and an arrival never moves it (fix round 2, N1), so a place the phone could not confirm
+ *  lives in unverified_reason with no arrived_at. Excused wins; otherwise the status unchanged
+ *  (arrival-only types still carry 'unverified' in status). The ONE client copy: every client-side
+ *  arrival judgement goes through it (fix round 3, R2-1). */
+export function arrivalStatus(r) {
+  if (!r) return null;
+  if (r.status === 'excused') return 'excused';
+  if (!r.arrived_at && r.unverified_reason) return 'unverified';
+  return r.status || null;
+}
+/** A gap in evidence for the place check: never a miss, so it leaves the denominator. */
+export const arrivalUnverified = (r) => arrivalStatus(r) === 'unverified';
+
 export function accountability(rows) {
   let earned = 0, possible = 0;
   for (const r of (Array.isArray(rows) ? rows : [])) {
@@ -774,7 +789,7 @@ export function accountability(rows) {
     const asks = signalsAsked(r);
     // 'unverified' removes only the signals it could not verify. A missed WAKE-UP never
     // cascades into arrival or completion: each signal is weighed on its own.
-    const verified = r.status !== 'unverified';
+    const verified = !arrivalUnverified(r);
     // A delayed-sync review (0212) is suspended: it leaves both earned and possible until resolved.
     if (asks.ack && !isUnderReview(r)) {
       possible += WEIGHTS.ack;
@@ -801,7 +816,7 @@ export function morningReadiness(rows) {
   for (const r of list) {
     if (r.status === 'excused') continue;
     const asks = signalsAsked(r);
-    const verified = r.status !== 'unverified';
+    const verified = !arrivalUnverified(r);
     if (asks.ack && !isUnderReview(r)) { wake.total++; if (r.acknowledged_at && r.review_resolution !== 'missed') wake.done++; }
     if (asks.arrival && verified) { arrival.total++; if (arrivalCounts(r)) arrival.done++; }
     if (asks.completion && verified) { completion.total++; if (r.completed_at) completion.done++; }
@@ -814,7 +829,7 @@ function dayIsClean(dayRows) {
   for (const r of dayRows) {
     if (r.status === 'excused') continue;
     const asks = signalsAsked(r);
-    const verified = r.status !== 'unverified';
+    const verified = !arrivalUnverified(r);
     if (asks.ack && !isUnderReview(r) && (!r.acknowledged_at || r.review_resolution === 'missed')) return false;
     if (asks.arrival && verified && !arrivalCounts(r)) return false;
     if (asks.completion && verified && !r.completed_at) return false;

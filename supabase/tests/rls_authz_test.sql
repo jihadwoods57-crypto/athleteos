@@ -5122,6 +5122,32 @@ select _ok((select r->>'arrival_verdict' = 'unverified'
   '0242 N1: and the arrival still reads unverified (rollcall_arrival_status)');
 delete from rollcall_live_tokens where token = 'tok-e1-n1-start';
 
+-- R2-3 (fix round 3): a NON-morning place commitment keeps 0208's transition through the
+-- redefined verify_arrival: pending -> arrived (only a morning's status is left alone).
+select _superuser();
+create temp table _r23 as select id from commitment_instances
+  where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c2' order by occurs_on desc limit 1;
+grant select on _r23 to authenticated, anon;
+insert into commitment_responses (instance_id, athlete_id, status)
+  values ((select id from _r23), 'eeee0000-0000-0000-0000-0000000000e1', 'pending')
+  on conflict (instance_id, athlete_id) do nothing;
+update commitment_instances set starts_at = now() - interval '10 minutes', arrive_by_at = now() + interval '5 minutes',
+       ends_at = now() + interval '110 minutes', status = 'scheduled'
+ where id = (select id from _r23);
+update commitment_responses set status = 'pending', acknowledged_at = null, arrived_at = null,
+       arrival_source = null, unverified_reason = null, departed_at = null, completed_at = null
+ where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
+   and instance_id = (select id from _r23);
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select verify_arrival_at((select id from _r23), 'geofence', null, null, null) $f$) = 'ok',
+  '0242 R2-3: an arrival on an arrival-only (non-morning) place commitment is accepted');
+select _superuser();
+select _ok((select status = 'arrived' and arrived_at is not null from commitment_responses
+             where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'
+               and instance_id = (select id from _r23)),
+  '0242 R2-3: a non-morning commitment still moves pending -> arrived');
+drop table _r23;
+
 -- M2: a commitment may only point at its own owner's place.
 insert into commitment_locations (id, team_id, name, lat, lng, radius_m, created_by)
   values ('cccc0242-0000-0000-0000-0000000000b3', '77777777-2222-0000-0000-000000000002', 'T2 place', 28.7, -81.3, 200,

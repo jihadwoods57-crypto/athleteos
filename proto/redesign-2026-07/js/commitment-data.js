@@ -18,6 +18,8 @@ import { dateKey } from './fmt-date.js';
    module must not import state.js, see header). Unregistered → no queueing, behavior as before. */
 let uidProvider = null;
 export function setVcUidProvider(fn) { uidProvider = typeof fn === 'function' ? fn : null; }
+/** The signed-in user's id, as state.js reports it (null when signed out). */
+export function vcUid() { try { return uidProvider ? (uidProvider() || null) : null; } catch { return null; } }
 
 /* A write that could not reach the server becomes a durable queue entry instead of vanishing.
    Only for RPCs that are safe to replay: ack (server keeps the FIRST response), complete and

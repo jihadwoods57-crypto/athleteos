@@ -19,7 +19,7 @@
    sign-in / sign-out / foreground lifecycle lives in state.js and talks to the bridge directly,
    so the boot never needs this file. */
 
-import { invalidateTeamBoard, nativeCaps, noteLocationArm, lastLocationArm, loadVerificationConsent } from './commitment-data.js';
+import { invalidateTeamBoard, nativeCaps, noteLocationArm, lastLocationArm, loadVerificationConsent, vcUid } from './commitment-data.js';
 import { esc } from './components.js';
 import { icon } from './icons.js';
 
@@ -182,19 +182,46 @@ export function setLocationStateForHarness(s) { STATE = s || null; }
    base_age alone, treated unknown age as a minor and walled off adults). loadVerificationConsent
    asks the RPC; screens/location-consent.js asks the same one. true / false / null (couldn't ask).
    A minor without consent is never shown the OS prompt: the server would refuse the check anyway. */
-let CONSENT = null;
+/* KEYED BY THE SIGNED-IN USER (fix round 3, R2-2): a cached yes must never outlive the account it
+   was asked for. An adult signing out and a minor signing in on the same phone, in one session,
+   would otherwise get the card and the OS prompt on the adult's answer. */
+let CONSENT = null;        // true | false | null, for CONSENT_FOR only
+let CONSENT_FOR = undefined;
+let CONSENT_SETTLED = false;
 let CONSENT_PROBING = null;
-export function consentCached() { return CONSENT; }
-export function setConsentCachedForHarness(v) { CONSENT = v === true || v === false ? v : null; }
-export function probeConsent() {
-  if (CONSENT === true) return Promise.resolve(true);
+const who = () => { try { return vcUid() || null; } catch { return null; } };
+function forCurrentUser() {
+  const u = who();
+  if (CONSENT_FOR !== u) { CONSENT_FOR = u; CONSENT = null; CONSENT_SETTLED = false; CONSENT_PROBING = null; }
+}
+/** The server's consent answer for the signed-in athlete: true | false | null (not known yet). */
+export function consentCached() { forCurrentUser(); return CONSENT; }
+/** Whether a probe has settled for this athlete (null + settled = the server couldn't be asked). */
+export function consentSettled() { forCurrentUser(); return CONSENT_SETTLED; }
+export function setConsentCachedForHarness(v) {
+  forCurrentUser();
+  CONSENT = v === true || v === false ? v : null;
+  CONSENT_SETTLED = v === true || v === false;
+}
+/** Ask the server (has_verification_consent). A cached yes is kept unless `force`; anything else is
+ *  re-asked (a guardian may have approved since). Coalesced per user. */
+export function probeConsent(force = false) {
+  forCurrentUser();
+  if (CONSENT === true && !force) return Promise.resolve(true);
   if (CONSENT_PROBING) return CONSENT_PROBING;
-  CONSENT_PROBING = Promise.resolve().then(() => loadVerificationConsent()).then((ok) => {
+  const asked = CONSENT_FOR;
+  const p = Promise.resolve().then(() => loadVerificationConsent()).then((ok) => {
+    if (CONSENT_FOR !== asked) return consentCached();   // the account changed mid-flight
     CONSENT_PROBING = null;
+    CONSENT_SETTLED = true;
     if (ok === true || ok === false) CONSENT = ok;
     return CONSENT;
-  }, () => { CONSENT_PROBING = null; return CONSENT; });
-  return CONSENT_PROBING;
+  }, () => {
+    if (CONSENT_FOR === asked) { CONSENT_PROBING = null; CONSENT_SETTLED = true; }
+    return consentCached();
+  });
+  CONSENT_PROBING = p;
+  return p;
 }
 
 /** Ask the phone for its permission state (never prompts). Resolves the state, or null when there
@@ -255,7 +282,7 @@ export async function allowLocation(always) {
 export async function checkInHere(instanceId, { prompt = true } = {}) {
   if (!locationCapable()) return { error: 'unavailable' };
   // A minor without consent: no OS prompt, no reading (m2). The server rule, asked once.
-  if ((CONSENT === null ? await probeConsent() : CONSENT) === false) return { error: 'consent' };
+  if ((consentCached() === null ? await probeConsent() : consentCached()) === false) return { error: 'consent' };
   let st = STATE || await probeLocation();
   if (st === 'unavailable' || st == null) return { error: 'unavailable' };
   if (st === 'undetermined' && !prompt) return { error: 'ask-first' };
@@ -350,6 +377,6 @@ export function locationAskFor(place, optedOut = false) {
   const arm = lastLocationArm();
   return locationAskHtml({
     place, state: STATE, walkIn: walkInCapable(), walkInStatus: arm && arm.walkIn ? String(arm.walkIn) : null,
-    optedOut: !!optedOut, declined: alwaysDeclined(), consent: CONSENT,
+    optedOut: !!optedOut, declined: alwaysDeclined(), consent: consentCached(),
   });
 }
