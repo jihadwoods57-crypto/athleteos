@@ -183,7 +183,7 @@ test('the setup screen: one primary at the bottom, a three-way mode segment, the
   const arr = mod.rollcallNew.render({ sub: '' });
   assert.doesNotMatch(arr, /Ring as an alarm/);
   assert.match(arr, /Team meeting/);
-  assert.match(arr, /Update OnStandard to draw the place on a map\./);
+  assert.match(arr, /Update OnStandard to add a place\./);
   assert.doesNotMatch(arr, /data-rs-map/, 'no broken map control on an older binary');
   // A picked place shows its name, its size and the arrive-by time.
   mod.seedSetupForHarness({ mode: 'both', location_id: 'l1', place: { id: 'l1', name: 'Weight room', radius_m: 150 }, arrive_by_min: 405 });
@@ -191,6 +191,40 @@ test('the setup screen: one primary at the bottom, a three-way mode segment, the
   assert.match(both, /Weight room/);
   assert.match(both, /150 m/);
   assert.match(both, /value="06:45"/);
+});
+
+/* Final review I-1: an OTA puts maps.pick in the shim of EVERY binary, so the place step asks the
+   native capability line, never the shim. Old build: no "Also check they're at" door, one line. */
+test('an old binary: no door to a map that cannot open, one "Update OnStandard" line', async () => {
+  const st = await import('./state.js'); st.RT.authRole = 'coach';
+  const cd = await import('./commitment-data.js');
+  const mod = await import('./screens/rollcall-setup.js');
+  window.OnStandardNative = { maps: { pick: async () => null }, location: {} };   // the shim, after the OTA
+  cd.setNativeCapsForHarness({ location: false, walkIn: false, maps: false, mapReason: 'update' });
+  try {
+    cd.seedCommitmentsForHarness([], []);
+    mod.seedSetupForHarness({});
+    const wake = mod.rollcallNew.render({ sub: '' });
+    assert.doesNotMatch(wake, /data-rs-addplace/, 'the Also check door is gone');
+    assert.match(wake, /Update OnStandard to add a place\./);
+    mod.seedSetupForHarness({ mode: 'both' });
+    const both = mod.rollcallNew.render({ sub: '' });
+    assert.doesNotMatch(both, /data-rs-map/);
+    assert.match(both, /Update OnStandard to add a place\./);
+    // The same binary with the native map: the door and the map control are back.
+    cd.setNativeCapsForHarness({ location: true, walkIn: true, maps: true });
+    mod.seedSetupForHarness({});
+    assert.match(mod.rollcallNew.render({ sub: '' }), /data-rs-addplace/);
+    mod.seedSetupForHarness({ mode: 'both' });
+    assert.match(mod.rollcallNew.render({ sub: '' }), /data-rs-map/);
+    // A binary with the modules on an OS that cannot draw the map says so, not "update".
+    cd.setNativeCapsForHarness({ location: true, walkIn: true, maps: false, mapReason: 'os' });
+    mod.seedSetupForHarness({ mode: 'both' });
+    assert.match(mod.rollcallNew.render({ sub: '' }), /This phone can’t show the map/);
+  } finally {
+    cd.setNativeCapsForHarness(null);
+    delete window.OnStandardNative;
+  }
 });
 
 test('routes: rollcall-new, rollcall-week and rollcall-history are lazy, from one module', () => {

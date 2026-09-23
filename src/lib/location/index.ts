@@ -362,6 +362,9 @@ export function registerGeofenceTask(): void {
     if (TaskManager.isTaskDefined(GEOFENCE_TASK)) return;
     TaskManager.defineTask(GEOFENCE_TASK, async ({ data, error }: any) => {
       if (error || !data || !supabase) return;
+      // Walk-in switched off by OTA (WALK_IN, the device-test fallback) while a region was still
+      // armed: stop watching, send nothing.
+      if (!walkInAllowed()) { await disarmAll(); return; }
       // BOTH edges are reported. An Enter sends ONE reading to verify_arrival_at (0242) and the
       // server measures it, or the bare region match when no reading can be had; an Exit goes to
       // record_departure (0208). An arrival is never

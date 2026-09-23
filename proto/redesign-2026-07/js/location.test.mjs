@@ -20,8 +20,9 @@ const L = await import('./location.js');
 const CD = await import('./commitment-data.js');
 
 const calls = [];
-function shim(over = {}) {
+function shim(over = {}, caps = { location: true, walkIn: true, maps: true }) {
   calls.length = 0;
+  CD.setNativeCapsForHarness(caps);
   const rec = (name, v) => (...args) => { calls.push([name, ...args]); return typeof v === 'function' ? v(...args) : Promise.resolve(v); };
   window.OnStandardNative = {
     location: {
@@ -35,7 +36,7 @@ function shim(over = {}) {
     maps: { pick: rec('pick', { name: 'Weight room', address: '1 Main St', lat: 1, lng: 2, radius_m: 150 }), ...(over.maps || {}) },
   };
 }
-beforeEach(() => { delete window.OnStandardNative; });
+beforeEach(() => { delete window.OnStandardNative; CD.setNativeCapsForHarness(null); L.setLocationStateForHarness(null); });
 
 test('no bridge: every wrapper answers, none throws', async () => {
   assert.equal(await L.locationAvailable(), null);
@@ -114,4 +115,105 @@ test('a successful I am here check clears the cached team board so the tile upda
   await CD.loadTeamBoard('i5');
   assert.equal(reads, 2, 'stale after the check-in');
   delete window.sb;
+});
+
+/* ---- final fix round: the native capability line (I-1, I-2) and the in-context ask (item 2) ---- */
+
+test('an OLD binary: the shim exists but the native line says no. Nothing is asked of it', async () => {
+  shim({}, { location: false, walkIn: false, maps: false, mapReason: 'update' });
+  assert.equal(L.locationCapable(), false);
+  assert.equal(L.mapAvailable(), false, 'the shim has maps.pick, and still no map opens');
+  assert.equal(L.mapMissingLine(), 'Update OnStandard to add a place.');
+  assert.deepEqual(await L.imHere('i1'), { error: 'unavailable' });
+  assert.deepEqual(await L.checkInHere('i1'), { error: 'unavailable' });
+  assert.equal(calls.length, 0, 'no bridge call is made on an old binary');
+});
+
+test('no capability line at all (a browser, the harness) reads as an old binary', () => {
+  shim({}, null);
+  assert.equal(L.locationCapable(), false);
+  assert.equal(L.mapAvailable(), false);
+});
+
+test('a binary with the map but an OS that cannot draw it says so, not "update"', () => {
+  shim({}, { location: true, walkIn: true, maps: false, mapReason: 'os' });
+  assert.match(L.mapMissingLine(), /This phone can’t show the map/);
+});
+
+test('the native "no module" reply is the app version, never a location verdict', async () => {
+  shim({ location: { check: () => Promise.resolve({ within: false, reason: 'Location is unavailable on this device', distance_m: null }) } });
+  assert.deepEqual(await L.imHere('i1'), { error: 'unavailable' });
+});
+
+test('I am here on a phone never asked: the While Using prompt first, then the reading', async () => {
+  shim({ location: {
+    available: () => Promise.resolve({ available: true, state: 'undetermined' }),
+    request: (bg) => { calls.push(['request', bg]); return Promise.resolve('when_in_use'); },
+  } });
+  const r = await L.checkInHere('inst-1');
+  assert.deepEqual(calls.find((c) => c[0] === 'request'), ['request', false], 'While Using, never Always, on a tap');
+  assert.ok(calls.some((c) => c[0] === 'check'), 'then the reading');
+  assert.equal(r.within, false);
+});
+
+test('I am here after a No: no prompt, no reading, the Settings sentence', async () => {
+  shim({ location: { available: () => Promise.resolve({ available: true, state: 'denied' }) } });
+  const r = await L.checkInHere('inst-1');
+  assert.deepEqual(r, { error: 'denied' });
+  assert.ok(!calls.some((c) => c[0] === 'check' || c[0] === 'request'));
+  assert.match(L.hereErrorLine(r), /Turn it on in Settings/);
+});
+
+test('a dismissed prompt is not a check-in', async () => {
+  shim({ location: {
+    available: () => Promise.resolve({ available: true, state: 'undetermined' }),
+    request: () => Promise.resolve('undetermined'),
+  } });
+  assert.deepEqual(await L.checkInHere('inst-1'), { error: 'not-allowed' });
+  assert.ok(!calls.some((c) => c[0] === 'check'));
+});
+
+test('Allow Always asks for background and arms walk-in at once', async () => {
+  shim();
+  assert.equal(await L.allowLocation(true), 'always');
+  assert.deepEqual(calls[0], ['request', true]);
+  assert.ok(calls.some((c) => c[0] === 'arm'));
+});
+
+test('with walk-in switched off (WALK_IN), Allow Always only ever asks While Using', async () => {
+  shim({ location: { request: (bg) => { calls.push(['request', bg]); return Promise.resolve('when_in_use'); } } },
+    { location: true, walkIn: false, maps: true });
+  await L.allowLocation(true);
+  assert.deepEqual(calls.find((c) => c[0] === 'request'), ['request', false]);
+});
+
+test('an arm the OS refused is never ok, and the screens can read that it was refused', async () => {
+  shim({ location: { arm: () => Promise.resolve({ armed: 0, capped: 0, state: 'always', walkIn: 'unavailable', error: 'x' }) } });
+  const r = await L.armLocation();
+  assert.equal(r.ok, false);
+  assert.equal(r.walkIn, 'unavailable');
+  assert.equal(CD.lastLocationArm().walkIn, 'unavailable');
+});
+
+test('the ask card: While Using explained first, Always only after, Settings after a No', () => {
+  const place = 'Lincoln Weight Room';
+  const first = L.locationAskHtml({ place, state: 'undetermined', walkIn: true });
+  assert.match(first, /one reading/);
+  assert.match(first, /Arrived or Not arrived, never where you are/);
+  assert.match(first, /data-loc-allow/);
+  assert.doesNotMatch(first, /Always/, 'step one never mentions Always');
+  const second = L.locationAskHtml({ place, state: 'when_in_use', walkIn: true });
+  assert.match(second, /data-loc-always/);
+  assert.match(second, /I’m here works the same/, 'declining still leaves I’m here');
+  assert.match(second, /data-loc-notnow/);
+  assert.equal(L.locationAskHtml({ place, state: 'when_in_use', walkIn: false }), '', 'no Always offer when walk-in is off');
+  assert.equal(L.locationAskHtml({ place, state: 'when_in_use', walkIn: true, declined: true }), '', 'Not now is remembered');
+  assert.equal(L.locationAskHtml({ place, state: 'when_in_use', walkIn: true, optedOut: true }), '');
+  const denied = L.locationAskHtml({ place, state: 'denied' });
+  assert.match(denied, /data-loc-settings/);
+  assert.match(denied, /While Using the App/);
+  assert.match(L.locationAskHtml({ place, state: 'always', walkIn: true }), /Walk-in check-in is on/);
+  assert.match(L.locationAskHtml({ place, state: 'always', walkIn: true, walkInStatus: 'unavailable' }), /isn’t working on this phone/);
+  assert.equal(L.locationAskHtml({ place, state: null }), '', 'nothing before the phone has answered');
+  assert.doesNotMatch(L.locationAskHtml({ place: '<b>x</b>', state: 'undetermined' }), /<b>x/, 'the place name is escaped');
 });

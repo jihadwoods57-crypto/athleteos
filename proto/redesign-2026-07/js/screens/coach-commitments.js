@@ -632,7 +632,9 @@ function athleteRow(r) {
   const when = r.completed_at ? `Completed ${hhmm(r.completed_at)}`
     : r.acknowledged_at ? `Responded ${hhmm(r.acknowledged_at)}`
     : r.status === 'excused' ? (r.excused_reason || 'Excused')
-    : r.status === 'unverified' ? (r.unverified_reason || 'Couldn’t verify')
+    // Coaches see Arrived / Not arrived only (spec; final fix round, item 7). The athlete's own
+    // reason (and how far away they were) is theirs: it is never shown on a staff surface.
+    : r.status === 'unverified' ? 'Not arrived · place not confirmed'
     : 'No response yet';
   // (The arrival pill and its source line left with location check-ins on 2026-09-09. The button
   //  below used to read `asksArrival`, a name that left with them and was never declared here:

@@ -31,7 +31,7 @@ import {
   VC, loadTeamBoard, subscribeTeamBoard, invalidateTeamBoard, ackCommitment, ackRefusal,
   remindMissing, pingAthlete, setResponse, loadMine, loadBoardFor, todayISO,
 } from '../commitment-data.js';
-import { ROLLCALL_OPEN_BEFORE_MIN, opensAtOf } from '../commitments.js';
+import { ROLLCALL_OPEN_BEFORE_MIN, ROLLCALL_OFF, opensAtOf } from '../commitments.js';
 import { RT, S, act, liveWeights } from '../state.js';
 import { DAY, daySetWakeup, daySetArrival } from '../day.js';
 import { myWakeupForDay, myArrivalForDay } from '../wakeup-morning.js';
@@ -42,6 +42,9 @@ import { overlayOpen } from '../overlay-guard.js';
 import { afterGesture } from '../gestures.js';
 import { buzz } from '../motion.js';
 import { CD, bookId, loadBook, bookKindFor } from '../coach-data.js';
+import {
+  locationCapable, locationAskFor, locationAskClick, probeLocation, locationStateCached, checkInHere, hereErrorLine,
+} from '../location.js';
 
 /* ---------------------------------------------------------------- routes */
 
@@ -232,11 +235,18 @@ function athleteActionHtml(board, id, a, mine) {
   } else if (a.pendingSync) {
     out += '<p class="rb-line">Answered on this phone. It sends when you reconnect.</p>';
   }
-  if (a.canHere) {
+  if (a.canHere && !locationCapable()) {
+    // An app build from before location came back (final review I-2): no button that cannot work,
+    // and never a "verdict" made up from a phone that took no reading. One line, the real cause.
+    out += '<p class="rb-line" id="rb-here-say" role="status">Update OnStandard to check in by location.</p>';
+  } else if (a.canHere) {
     const primary = !a.canAck;
     out += `<button type="button" class="btn ${primary ? 'primary' : 'ghost'} rb-herebtn" data-rb-here="${esc(id)}">${icon('pin', 18)} I’m here</button>`
       + `<p class="rb-line${here && here.error ? ' warn' : ''}" id="rb-here-say" role="status" aria-live="polite">${esc(here ? here.text
-        : primary ? `Takes one location reading now and checks it against ${place}.` : `At ${place}${board.arrive_by_at ? ` by ${clock(board.arrive_by_at)}` : ''}`)}</p>`;
+        : primary ? `Takes one location reading now and checks it against ${place}.` : `At ${place}${board.arrive_by_at ? ` by ${clock(board.arrive_by_at)}` : ''}`)}</p>`
+      // The permission ask, in context (final fix round, item 2): While Using explained before the
+      // phone's prompt, Always offered only after, Settings after a No. '' when nothing to ask.
+      + locationAskFor(place, !!RT.locationOptOut);
   }
   return out ? `<div class="rb-act">${out}</div>` : '';
 }
@@ -441,6 +451,9 @@ export default {
      own screen before painting (router.js redirect). An uncached id stays: the board is right for
      every roll call, and a plain commitment's bell row is opened from an app that has its board. */
   redirect({ sub }) {
+    // The client kill switch (final review M-6): with roll call off, a cached link or an old push
+    // lands on Home, never on a board the rest of the app no longer offers.
+    if (ROLLCALL_OFF) return isOperator() ? (RT.authRole === 'trainer' ? 'trainer' : 'coach-home') : 'home';
     const { id } = parseSub(sub);
     const row = id ? VC.instance(id) : null;
     if (!row || !row.type || row.type === 'morning_roll_call') return null;
@@ -543,7 +556,19 @@ export default {
       if (bid) loadBoardFor(bid, CD.kind, day).catch(() => {});
     }
 
-    const onFg = () => { if (root.isConnected) loadTeamBoard(id, true).then(() => paint()); };
+    // What the phone says about location, for the ask card: asked once the board shows an arrival
+    // this athlete can still make, and again on every return (they may have just been in Settings).
+    const wantsLoc = () => {
+      const b = VC.teamBoard(id);
+      return !coach && !!b && locationCapable() && athleteActions(b, RT.userId, new Date().toISOString(), VC.instance(id)).canHere;
+    };
+    const askLoc = () => {
+      if (!wantsLoc()) return;
+      const before = locationStateCached();
+      probeLocation().then((st) => { if (st !== before) paint(); }, () => {});
+    };
+    askLoc();
+    const onFg = () => { if (root.isConnected) { askLoc(); loadTeamBoard(id, true).then(() => paint()); } };
     window.addEventListener('onstd:foreground', onFg);
     const prev = window.__screenCleanup;
     window.__screenCleanup = () => {
@@ -610,6 +635,8 @@ export default {
         return;
       }
 
+      if (locationAskClick(t, paint)) return;
+
       const here = t.closest('[data-rb-here]');
       if (here && !here.disabled) {
         const board = VC.teamBoard(id) || {};
@@ -617,9 +644,9 @@ export default {
         here.disabled = true;
         sayStatus(live.querySelector('#rb-here-say'), 'Checking your location…');
         let r = null;
-        try { const L = await import('../location.js'); r = await L.imHere(id); } catch { r = { error: 'unavailable' }; }
-        if (r && r.error === 'unavailable') HERE_NOTE.set(id, { text: 'Update OnStandard to check in with location.', error: true });
-        else if (!r || r.error) HERE_NOTE.set(id, { text: 'Couldn’t get your location. Try again.', error: true });
+        // checkInHere asks for While Using first when the phone was never asked (item 2).
+        try { r = await checkInHere(id); } catch { r = { error: 'failed' }; }
+        if (!r || r.error) { HERE_NOTE.set(id, { text: hereErrorLine(r || { error: 'failed' }), error: true }); paint(); }
         else if (r.within) { HERE_NOTE.set(id, { text: `You’re here. Checked in at ${place}.`, error: false }); track(EVENTS.VC_ARRIVED, { source: 'manual' }); buzz('success'); }
         else {
           HERE_NOTE.set(id, { text: typeof r.distance_m === 'number' ? `You’re ${Math.round(r.distance_m)} m from ${place}.` : (r.reason || 'Couldn’t confirm you’re there.'), error: true });

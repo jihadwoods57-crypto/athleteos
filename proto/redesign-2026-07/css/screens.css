@@ -4167,6 +4167,7 @@ button.rb-tile:active { background: var(--surface-2); }
 .rs-saved { margin-bottom: var(--s3); }
 .rs-map { width: 100%; }
 .rs-nomap { margin: 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.45; }
+.rs-noplace { margin: var(--s3) var(--s1) 0; }
 .rs-say { margin: 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-3); }
 .rs-say:empty { display: none; }
 .rs-say:not(:empty) { padding-top: var(--s2); }
@@ -4240,6 +4241,37 @@ button.rw-cell:active { transform: scale(var(--press-btn)); }
 .rh-av { width: 40px; height: 40px; border-radius: var(--r-pill); background: var(--surface-3); color: var(--text-2); display: grid; place-items: center; font-size: var(--t-xs); font-weight: 800; flex: none; overflow: hidden; }
 .rh-bar { display: block; margin-top: var(--s1h); }
 .rh-row .rh-rate { flex: none; min-width: 48px; text-align: right; font-size: var(--t-md); }
+
+/* ================================================================ location: the ask card (lk-)
+   and the location check-in screen (lc-). Final fix round, item 2 (2026-09-23): While Using is
+   explained before the phone's prompt, Always is offered only after, Settings after a No. The
+   card sits in the board's action column (.rb-act) and on the check-in detail; neutral surface,
+   blue only for the one primary action (selection blue, never a warning colour). */
+.lk-ask { display: flex; flex-direction: column; gap: var(--s2); margin-top: var(--s2); text-align: left; }
+.lk-t { display: flex; align-items: center; gap: var(--s2); margin: 0; font-size: var(--t-base); font-weight: 800; color: var(--text); }
+.lk-t svg { color: var(--blue-bright); flex: none; }
+.lk-s { margin: 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.45; text-wrap: pretty; }
+.lk-acts { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.lk-acts .btn { flex: 1 1 auto; min-height: 44px; width: auto; }
+.lk-go { background: var(--blue-surface); color: var(--blue-bright); }
+.lk-foot { margin: 0; font-size: var(--t-xs); font-weight: 600; color: var(--text-3); line-height: 1.45; }
+.lk-line { margin: var(--s1) 0 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-2); text-align: center; }
+.lk-line.warn { color: var(--amber-bright); }
+.vc-loc-ask:empty { display: none; }
+.vc-here { width: 100%; margin-top: var(--s3); }
+.vc-noloc { margin-top: var(--s3); }
+
+.lc-lead .tt { font-size: var(--t-md); font-weight: 800; color: var(--text); }
+.lc-lead .ts { padding-top: var(--s1h); font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.45; }
+.lc-list { padding: var(--s1) var(--s4); }
+.lc-row { align-items: flex-start; cursor: default; }
+.lc-ic { background: var(--blue-surface); color: var(--blue-bright); }
+.lc-act { display: flex; flex-direction: column; gap: var(--s2h); margin: var(--s3h) 0 var(--s5); }
+.lc-btn { width: 100%; }
+.lc-foot { margin: 0; text-align: center; }
+.lc-note { margin: 0; }
+.lc-state { display: flex; align-items: center; justify-content: center; gap: var(--s2); margin: 0; font-size: var(--t-sm); font-weight: 700; color: var(--text-2); }
+.lc-state svg { color: var(--green-bright); flex: none; }
 
 /* ===== Sleep (#sleep) — evidence, never a score =====
    Purple is recovery and a short night is a recovery signal, so `under` carries it. Amber is

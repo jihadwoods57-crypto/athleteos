@@ -90,9 +90,13 @@ const rbSeed = (o) => `const cd = await import('./js/commitment-data.js');
     let arr = ah == null ? null : (arrival ? T(ah + 9, am - 30 < 0 ? am + 30 : am - 30) : T(ah, am));
     if (arr && Date.parse(arr) > Date.parse(now)) arr = null;
     if (id === 'seed-athlete' && meOpen) arr = null;
+    // The server's arrival rule (rollcall_arrival_verdict): missed only once BOTH the roll call's
+    // close and the be-there time + 10 grace have passed (final review M-4: this seed used to keep
+    // everyone "Not here yet" forever).
+    const arrClosed = Date.parse(now) > Math.max(arrival ? 0 : Date.parse(T(6, 30)), Date.parse(byT) + 600000);
     const av = O.mode === 'wake' ? null
       : arr ? (Date.parse(arr) > Date.parse(byT) + 600000 ? 'late' : 'on_standard')
-      : id === 'r6' ? 'unverified' : 'pending';
+      : id === 'r6' ? 'unverified' : arrClosed ? 'missed' : 'pending';
     return { athlete_id: id, name, avatar_path: null, acknowledged_at: ack, arrived_at: arr,
       verdict, arrival_verdict: av, place: (verdict === 'on_standard' || verdict === 'late') ? ++place : null };
   });
@@ -117,6 +121,19 @@ const rbSeed = (o) => `const cd = await import('./js/commitment-data.js');
     // row carries these fields for any commitment with a place (js/commitments.js).
     location_id: O.mode === 'wake' ? null : 'loc-rb-shot', asks_arrival: board.asks_arrival, location_name: board.location_name,
     instance_status: 'scheduled' }], '2026-07-23');`;
+/** A NEW build (final fix round, items 2 and 3): the native capability line says location, walk-in
+ *  and the map are compiled in, and the location bridge answers with `state` ('undetermined' |
+ *  'when_in_use' | 'always' | 'denied'). Without this a harness shot is an OLD binary, which is
+ *  what the old-build shots rely on. */
+const newBuild = (state = 'when_in_use') => `const cdN = await import('./js/commitment-data.js');
+  cdN.setNativeCapsForHarness({ location: true, walkIn: true, maps: true });
+  window.OnStandardNative = Object.assign(window.OnStandardNative || {}, {
+    location: { available: async () => ({ available: true, state: '${state}', presence: true, walkIn: true }),
+      request: async () => '${state}', arm: async () => ({ armed: 1, capped: 0, state: '${state}', walkIn: 'on' }),
+      disarm: async () => true, check: async () => ({ within: true, reason: null, distance_m: 40 }), settings() {} },
+    maps: { pick: async () => null } });
+  const LN = await import('./js/location.js'); LN.setLocationStateForHarness('${state}');
+`;
 /** The coach's roll call (Task 10): one standing wake-up ('rc-rule', Mon to Fri 6:00 AM), its
  *  saved places, the week ahead on the frozen clock (Thu 23 Jul: Fri moved to 5:30, Tue cancelled,
  *  the weekend not scheduled) and 30 days of history with both kinds of athlete. `o.draft` starts
@@ -216,11 +233,30 @@ const SHOTS = [
   { g: 'rollcall', name: 'rollcall-board-coach-sheet', seed: 'coachIdentity', route: 'rollcall-board/rb-shot', at: [6, 12], book: 'team', pre: rbSeed({ now: [6, 12], mode: 'wake' }),
     act: `const f = document.querySelector('[data-rb-athlete="r10"]'); if (f) f.click();`, actMs: 700 },
   { g: 'rollcall', name: 'rollcall-board-closed', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [6, 45], pre: rbSeed({ now: [6, 45], mode: 'wake' }) },
-  { g: 'rollcall', name: 'rollcall-board-both', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [6, 42], pre: rbSeed({ now: [6, 42], mode: 'both' }) },
-  { g: 'rollcall', name: 'rollcall-board-arrival', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [15, 26], pre: rbSeed({ now: [15, 26], mode: 'arrival', me: 'open' }) },
+  { g: 'rollcall', name: 'rollcall-board-both', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [6, 42], pre: newBuild('always') + rbSeed({ now: [6, 42], mode: 'both' }) },
+  { g: 'rollcall', name: 'rollcall-board-both-closed', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [7, 0], pre: newBuild('always') + rbSeed({ now: [7, 0], mode: 'both' }) },
+  { g: 'rollcall', name: 'rollcall-board-arrival', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [15, 26], pre: newBuild('always') + rbSeed({ now: [15, 26], mode: 'arrival', me: 'open' }) },
+  // Location, asked in context (final fix round, item 2): a phone never asked (While Using,
+  // explained first), While Using granted (Always offered, "Not now" beside it), a No (Settings),
+  // and the location check-in screen itself, never asked and with Always on. Then an OLD binary
+  // (items 3/I-2): no I'm here button, one "Update OnStandard" line.
+  { g: 'rollcall', name: 'rollcall-loc-ask', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [15, 26], pre: newBuild('undetermined') + rbSeed({ now: [15, 26], mode: 'arrival', me: 'open' }) },
+  { g: 'rollcall', name: 'rollcall-loc-always', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [15, 26], pre: newBuild('when_in_use') + rbSeed({ now: [15, 26], mode: 'arrival', me: 'open' }) },
+  { g: 'rollcall', name: 'rollcall-loc-denied', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [15, 26], pre: newBuild('denied') + rbSeed({ now: [15, 26], mode: 'arrival', me: 'open' }) },
+  { g: 'rollcall', name: 'location-consent', seed: 'dayMorning', route: 'location-consent', at: [15, 26],
+    pre: newBuild('undetermined') + `const lc = await import('./js/screens/location-consent.js'); lc.setConsentForHarness(true);` },
+  { g: 'rollcall', name: 'location-consent-on', seed: 'dayMorning', route: 'location-consent', at: [15, 26],
+    pre: newBuild('always') + `const lc = await import('./js/screens/location-consent.js'); lc.setConsentForHarness(true);` },
+  { g: 'rollcall', name: 'rollcall-board-oldbuild', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [15, 26], pre: rbSeed({ now: [15, 26], mode: 'arrival', me: 'open' }) },
   // The coach's roll call (Task 10): setup blank, with a picked place, the Where step with saved
   // places (no map on this "binary"), arrival only, the week strip and a morning's sheet, history.
-  { g: 'rollcall', name: 'rollcall-new', seed: 'coachIdentity', route: 'rollcall-new', at: [20, 10], book: 'team', pre: rsSeed() },
+  // rollcall-new is a NEW build (the Also check door); rollcall-new-oldbuild is an OLD binary with
+  // no saved place (final review I-1: one "Update OnStandard to add a place" line, no door).
+  { g: 'rollcall', name: 'rollcall-new', seed: 'coachIdentity', route: 'rollcall-new', at: [20, 10], book: 'team', pre: newBuild('when_in_use') + rsSeed() },
+  { g: 'rollcall', name: 'rollcall-new-oldbuild', seed: 'coachIdentity', route: 'rollcall-new', at: [20, 10], book: 'team',
+    pre: rsSeed() + ` cd.seedCommitmentsForHarness([rule], []);` },
+  { g: 'rollcall', name: 'rollcall-new-map', seed: 'coachIdentity', route: 'rollcall-new', at: [20, 10], book: 'team',
+    pre: newBuild('when_in_use') + rsSeed({ draft: { mode: 'both', arrive_by_min: 405 } }) },
   { g: 'rollcall', name: 'rollcall-new-place', seed: 'coachIdentity', route: 'rollcall-new', at: [20, 10], book: 'team',
     pre: rsSeed({ draft: { mode: 'both', location_id: 'loc-1', place: { id: 'loc-1', name: 'Lincoln Weight Room', radius_m: 150, address: '1200 Stadium Dr' }, arrive_by_min: 405 } }) },
   { g: 'rollcall', name: 'rollcall-new-where', seed: 'coachIdentity', route: 'rollcall-new', at: [20, 10], book: 'team',

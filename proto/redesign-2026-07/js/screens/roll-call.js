@@ -15,7 +15,7 @@ import { track, EVENTS } from '../analytics.js';
 import { backHead, esc, skeletonRows } from '../components.js';
 import { fmtMin } from '../requirements.js';
 import { deriveCommitment, TYPE_LABEL, fmtAt, offsetFor, VERDICT, wakeupPhase, deadlineOf, closesAtOf, opensAtOf, graceMinOf, sourceOf, SOURCE, athleteRollcallRoute, boardRoute } from '../commitments.js';
-import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal, subscribeMine, todayISO } from '../commitment-data.js';
+import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal, subscribeMine, todayISO, nativeCaps } from '../commitment-data.js';
 import { pushTokenState, RT, S, act } from '../state.js';
 import { wakeAlarmState } from '../wake-alarms.js';
 
@@ -200,8 +200,11 @@ export function commitmentCard(d) {
   }
 
   // Live: the coach's words own this card.
+  // An app build from before location came back cannot take a reading (final review I-2): no
+  // I'm here button, and one line with the real cause instead (below).
+  const noLocation = !d.canAck && d.canArrive && !nativeCaps().location;
   const action = d.canAck ? `data-vc-ack="${id}"`
-    : d.canArrive ? `data-vc-arrive="${id}"`
+    : d.canArrive && !noLocation ? `data-vc-arrive="${id}"`
     : d.canComplete ? `data-vc-complete="${id}"` : '';
   const actionText = d.canAck ? d.actionLabel
     : d.canArrive ? (d.actionLabel && d.stage !== 'open' ? 'I’m here' : d.actionLabel)
@@ -258,6 +261,7 @@ export function commitmentCard(d) {
     ${d.confirmLine && (d.stage === 'awaiting_arrival' || d.stage === 'arrived') ? `<div class="vc-ctx">${icon(d.presence === 'provisional' ? 'clock' : 'check', 13)} ${esc(d.confirmLine)}</div>` : ''}
     ${stageStrip(d)}
     ${action ? `<button class="xcta" ${action}>${icon('check', 18)} ${esc(actionText)}</button>` : ''}
+    ${noLocation ? `<div class="vc-ctx">${icon('pin', 13)} Update OnStandard to check in by location.</div>` : ''}
     ${action && SAVE_FAILED.get(d.instance_id) ? `<div class="vc-ctx" style="color:var(--amber-bright)">${icon('bolt', 13)} ${esc(SAVE_FAILED.get(d.instance_id))}</div>` : ''}
   </section>`;
 }
@@ -355,16 +359,20 @@ export function mountCommitmentCard(root, rerender) {
   go('data-vc-complete', (id) => completeCommitment(id, 'manual').then(Boolean));
   // "I'm here", restored 2026-09-23 (the roll call rebuilt; signalsAsked reads asks_arrival again,
   // so the card offers this button). One reading, taken natively and judged by DISTANCE on the
-  // server (verify_arrival_at); a miss is recorded as unverified with "N m from <place>", never
-  // as missed, and the card then shows that reason with its dispute door. location.js is loaded on
+  // server (verify_arrival_at); a miss is recorded as unverified with "Not at <place>", never
+  // as missed, and the card then shows how far away they were (from the reply, never stored). The
+  // phone is asked for While Using first when it never was (checkInHere). location.js is loaded on
   // the tap because this file is in the boot graph and that one must not be.
   go('data-vc-arrive', async (id) => {
     const place = (VC.instance(id) || {}).location_name || 'the check-in spot';
-    const { imHere } = await import('../location.js');
-    const r = await imHere(id);
-    // No location module on this phone (an app build from before the place check came back).
-    if (r && r.error === 'unavailable') return { note: 'Update OnStandard to check in with location.' };
-    if (!r || r.error) return false;
+    const { checkInHere, hereErrorLine } = await import('../location.js');
+    // Home has no room for the explanation: a phone never asked goes to the detail screen, where
+    // the ask card explains While Using before the phone's own prompt (item 2).
+    const onDetail = !!root.querySelector('#vc-loc-ask');
+    const r = await checkInHere(id, { prompt: onDetail });
+    if (r && r.error === 'ask-first') { location.hash = `#roll-call/${id}`; return { note: hereErrorLine(r) }; }
+    // No location on this build, a No in Settings, a dismissed prompt: said plainly, nothing saved.
+    if (!r || r.error) return { note: hereErrorLine(r || { error: 'failed' }) };
     await loadMine(true);
     if (r.within) { VERIFY_REASON.delete(id); track(EVENTS.VC_ARRIVED, { source: 'manual' }); return true; }
     // Too far: say how far, from the server's own measurement.
@@ -662,6 +670,10 @@ export default {
 
     ${d.canAck ? `<div style="height:12px"></div>
       <button class="btn green" data-vc-ack="${esc(row.instance_id)}" style="width:100%">${icon('check', 19)} ${esc(d.actionLabel)}</button>` : ''}
+    ${d.canArrive && !d.canAck ? (nativeCaps().location
+      ? `<button class="btn green vc-here" data-vc-arrive="${esc(row.instance_id)}">${icon('pin', 19)} I’m here</button>
+      <div id="vc-loc-ask" class="vc-loc-ask"></div>`
+      : `<div class="vc-ctx vc-noloc">${icon('pin', 13)} Update OnStandard to check in by location.</div>`) : ''}
     ${d.canComplete ? `<div style="height:12px"></div>
       <button class="btn green" data-vc-complete="${esc(row.instance_id)}" style="width:100%">${icon('check', 19)} Mark complete</button>` : ''}
     ${/* The card's failure note, on the detail screen too: a deep-linked athlete whose write
@@ -694,6 +706,21 @@ export default {
       loadMine(true).then(settle, settle);
     }
     mountCommitmentCard(root, () => window.__render && window.__render());
+    // The location ask for this check-in (item 2), painted once the phone has answered. location.js
+    // is loaded here, on the detail screen, because this file is in the boot graph.
+    const askSlot = root.querySelector('#vc-loc-ask');
+    if (askSlot) {
+      const row = VC.instance(sub) || {};
+      import('../location.js').then((L) => {
+        const fill = () => {
+          if (!askSlot.isConnected) return;
+          askSlot.innerHTML = L.locationAskFor(row.location_name || 'the check-in spot', !!RT.locationOptOut);
+        };
+        L.mountLocationAsk(askSlot, () => L.probeLocation().then(fill, fill));
+        fill();
+        L.probeLocation().then(fill, fill);
+      }, () => { /* no card; the I'm here tap still asks */ });
+    }
     void paintAlarmLine(root, VC.instance(sub));
 
     // The push-readiness card (0211) can only be drawn once the native shell has answered; when

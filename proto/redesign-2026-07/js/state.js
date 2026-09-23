@@ -53,7 +53,7 @@ import { entriesFor, getScope, CD } from './coach-data.js';
 import { splitServerRows } from './notif-feed.js';
 import { jobKey, putJob, readQueue, removeJob, updateJob, due as dueJobs, backoffMs } from './meal-outbox.js';
 import * as SQ from './sync-queue.js';
-import { setVcUidProvider } from './commitment-data.js';
+import { setVcUidProvider, noteLocationArm } from './commitment-data.js';
 import { CS as CS_DATA, loadMine as loadCsMine } from './connected-standard-data.js';
 import { factsFromCorrection, candidateFactsFromFoodChange, sameFact } from './memory.js';
 import { TOUR_IDS } from './tour-plan.js';
@@ -3705,8 +3705,19 @@ export const act = {
     if (!L || typeof L.arm !== 'function') return;
     LOC_ARM_AT = Date.now();
     try {
+      // The athlete switched walk-in check-in off (screens/location-consent.js): the OS may still
+      // say Always, and arming anyway would break that promise on the next foreground.
+      if (RT.locationOptOut) {
+        if (typeof L.disarm === 'function') {
+          const d = L.disarm();
+          if (d && typeof d.catch === 'function') d.catch(() => { /* best-effort */ });
+        }
+        return;
+      }
       const p = L.arm();
-      if (p && typeof p.catch === 'function') p.catch(() => { /* the next beat retries */ });
+      // The answer is kept (never swallowed): a phone whose OS refused to arm says so on the
+      // board and the location screen instead of implying walk-in is on (final review C1).
+      if (p && typeof p.then === 'function') p.then((r) => noteLocationArm(r), () => { /* the next beat retries */ });
     } catch { /* the next beat retries */ }
   },
   /* Every way out of an account disarms: sign-out, account deletion, a launch with no session. */
@@ -3726,8 +3737,9 @@ export const act = {
     } catch { /* best-effort */ } finally { if (timer) clearTimeout(timer); }
   },
 
-  /* Arrival check-in opt-out (0139 hardening 2026-08-19). Arrival was removed from the
-     product 2026-09-09; the setter stays because old snapshots may still carry the flag. */
+  /* Walk-in check-in opt-out (0139 hardening 2026-08-19; live again with the roll call rebuilt,
+     2026-09-23). Honoured by _armLocation above: opted out, the phone disarms instead of arming,
+     and "I'm here" keeps working. */
   setLocationOptOut(on) { RT.locationOptOut = !!on; save(); },
 
   /* Which confirmed-presence receipts have already been shown on Home (0208).

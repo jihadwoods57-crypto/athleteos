@@ -38,6 +38,35 @@ const vcRetryable = (errMsg, threw) =>
 
 const iso = dateKey;
 export function todayISO() { return iso(new Date()); }
+
+/* ---------------------------------------------------------------- what THIS binary can do
+   (final review I-1, I-2). An OTA lands the same bridge shim on every build, so a method existing
+   on window.OnStandardNative says nothing about the binary under it. The native side answers once,
+   at document start: window.__OS_NATIVE_CAPS (src/proto/nativeCaps.ts). Absent (a browser preview,
+   the QC harness, node) reads as all false. Lives here, not in location.js, because Home's
+   commitment card (boot graph) needs it too and location.js must stay out of the boot graph. */
+let CAPS_OVERRIDE = null;
+/** { location, walkIn, maps, mapReason }. mapReason is 'update' | 'os' | null. */
+export function nativeCaps() {
+  const c = CAPS_OVERRIDE || (typeof window !== 'undefined' ? window.__OS_NATIVE_CAPS : null) || null;
+  const maps = !!(c && c.maps);
+  return {
+    location: !!(c && c.location),
+    walkIn: !!(c && c.location && c.walkIn),
+    maps,
+    mapReason: maps ? null : (c && c.mapReason === 'os' ? 'os' : 'update'),
+  };
+}
+/** Harness + test seam: stand in for the native capability line (null restores the real one). */
+export function setNativeCapsForHarness(caps) { CAPS_OVERRIDE = caps && typeof caps === 'object' ? caps : null; }
+
+/* The last walk-in arm the phone answered ({ walkIn: 'on'|'idle'|'off'|'unavailable', ... }), so a
+   screen can say "walk-in isn't working on this phone" instead of implying it is armed (final
+   review C1: an arm the OS refused used to be swallowed). Written by state.js's lifecycle arm and
+   by location.js armLocation(). Null until the phone has answered once this session. */
+let LAST_ARM = null;
+export function noteLocationArm(r) { if (r && typeof r === 'object') LAST_ARM = { ...r, at: Date.now() }; }
+export function lastLocationArm() { return LAST_ARM; }
 export function shiftISO(dateISO, days) {
   const d = new Date(String(dateISO) + 'T12:00:00');
   d.setDate(d.getDate() + days);

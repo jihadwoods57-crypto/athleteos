@@ -60,7 +60,10 @@ describe('app.json — iOS App Store compliance', () => {
       const v = ios.infoPlist[key];
       expect(typeof v).toBe('string');
       expect(v).not.toMatch(/PRODUCT_NAME|—/);
-      expect(v).toMatch(/never shared|never shares/i);
+      // Final fix round, item 7 (2026-09-23): "never shared" was false while a coach saw "N m from
+      // <place>". Coaches now see Arrived / Not arrived only, and the string says exactly that.
+      expect(v).toMatch(/Your coach sees only whether you arrived, never where you are\./);
+      expect(v).not.toMatch(/never shared|never shares|only watches that place/i);
     }
     const plugin = (appJson.expo.plugins as unknown[]).find(
       (p) => Array.isArray(p) && p[0] === 'expo-location',

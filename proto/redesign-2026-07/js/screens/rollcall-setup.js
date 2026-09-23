@@ -39,7 +39,7 @@ import { fmtMin } from '../requirements.js';
 import { tierFor } from '../score-band.js';
 import { initialsOf } from '../initials.js';
 import { overlayOpen } from '../overlay-guard.js';
-import { mapAvailable } from '../location.js';
+import { mapAvailable, mapMissingLine } from '../location.js';
 import {
   VC, loadCommitments, loadLocations, saveCommitment, savePlace, loadUpcoming, setInstanceSchedule,
   notifyScheduleChange, loadRollcallHistory, todayISO, shiftISO,
@@ -336,7 +336,7 @@ function whereBlock(d, canMap) {
       ${canMap
         ? `<button type="button" class="btn ghost rs-map" data-rs-map>${icon('pin', 18)} ${saved.length ? 'Draw a new place' : 'Draw the place on a map'}</button>
            <div class="ts wk-hint">Search or drop a pin, then drag the edge. 100 m to 1000 m across a building or a field.</div>`
-        : '<p class="rs-nomap">Update OnStandard to draw the place on a map.</p>'}`;
+        : `<p class="rs-nomap">${esc(mapMissingLine())}</p>`}`;
   }
   const byField = field('Be there by', timeInput('rs-by', by, 'Be there by'),
     d.location_id ? `On time until ${fmtMin(Math.min(1439, by + agraceOf(d)))}. They check in by walking in, or with I’m here.` : '');
@@ -386,7 +386,12 @@ function setupHtml(d, back) {
     ${field('Who', whoChips(d), CD.kind === 'practice' ? '' : 'Anyone who joins later is on the next one.', 'rs-who-l')}
     ${wake ? alarmRow(d) : ''}
   </section>`;
-  const addPlace = d.mode === 'wake'
+  // No map on this binary and no saved place to pick (final review I-1): one line, never a door
+  // to a map that cannot open.
+  const canPlace = canMap || (VC.locations || []).some((l) => l && l.id && l.name);
+  const addPlace = d.mode === 'wake' && !canPlace
+    ? `<p class="rs-nomap rs-noplace">${esc(mapMissingLine())}</p>`
+    : d.mode === 'wake'
     ? `<div class="card rs-addcard"><button type="button" class="lrow rs-add" data-rs-addplace>
         <span class="lic" aria-hidden="true">${icon('pin', 18)}</span>
         <span class="lm"><span class="lt">Also check they’re at a place</span><span class="ls">Up on time, then walk in by a set time</span></span>
@@ -518,7 +523,7 @@ export const rollcallNew = {
       try { const L = await import('../location.js'); r = await L.pickPlace(d.place && isMin(d.place.radius_m) ? d.place : undefined); } catch { r = { error: 'map-unavailable' }; }
       if (btn) btn.disabled = false;
       if (!r) return;   // the coach closed the map
-      if (r.error === 'map-unavailable') { say('Update OnStandard to draw the place on a map.', true); return; }
+      if (r.error === 'map-unavailable') { say(mapMissingLine(), true); return; }
       if (r.error === 'map-busy') { say('The map is already open.', true); return; }
       const own = bookId();
       if (!own) { say(PLACE_ERR.team_or_practice_required, true); return; }

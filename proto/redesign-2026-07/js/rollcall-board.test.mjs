@@ -132,11 +132,35 @@ test('a place asked and not arrived offers I’m here; arrival mode counts who i
     title: 'Stadium', location_name: 'Bright House Stadium', arrive_by_at: iso(10), closes_at: null, rows });
   const st = await import('./state.js'); st.RT.userId = 'm'; st.RT.authRole = 'athlete';
   const screen = (await import('./screens/rollcall-board.js')).default;
-  const html = screen.render({ sub: 'i3' });
-  assert.match(html, /data-rb-here/);
-  assert.doesNotMatch(html, /data-rb-ack/, 'an arrival-only roll call has no I’m Up');
-  assert.match(html, /rb-n">1<\/span> of 2 here/);
-  assert.match(html, /First here: DeShawn/);
+  const L = await import('./location.js');
+  window.OnStandardNative = { location: { check: async () => ({ within: true }) } };
+  cd.setNativeCapsForHarness({ location: true, walkIn: true, maps: true });
+  try {
+    const html = screen.render({ sub: 'i3' });
+    assert.match(html, /data-rb-here/);
+    assert.doesNotMatch(html, /data-rb-ack/, 'an arrival-only roll call has no I’m Up');
+    assert.match(html, /rb-n">1<\/span> of 2 here/);
+    assert.match(html, /First here: DeShawn/);
+    // Item 2: a phone never asked gets the While Using explanation right under I'm here.
+    L.setLocationStateForHarness('undetermined');
+    const ask = screen.render({ sub: 'i3' });
+    assert.match(ask, /data-loc-allow/);
+    assert.match(ask, /never where you are/);
+    L.setLocationStateForHarness('denied');
+    assert.match(screen.render({ sub: 'i3' }), /data-loc-settings/);
+    // Final review I-2: an OLD binary (the shim exists, the native module does not) has no
+    // I'm here button and one line with the real cause.
+    L.setLocationStateForHarness(null);
+    cd.setNativeCapsForHarness({ location: false, walkIn: false, maps: false, mapReason: 'update' });
+    const old = screen.render({ sub: 'i3' });
+    assert.doesNotMatch(old, /data-rb-here/);
+    assert.match(old, /Update OnStandard to check in by location\./);
+    assert.doesNotMatch(old, /data-loc-/);
+  } finally {
+    cd.setNativeCapsForHarness(null);
+    L.setLocationStateForHarness(null);
+    delete window.OnStandardNative;
+  }
 });
 
 test('loading and unknown boards use the shared state primitives', async () => {
