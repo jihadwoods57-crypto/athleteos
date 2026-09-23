@@ -85,6 +85,9 @@ import { itemFromMeal, memoryContextForAnalysis, mealSignature } from './food-me
 import { foodMemory, warmFoodMemory, invalidateFoodMemory } from './food-memory-data.js';
 import { track, EVENTS } from './analytics.js';
 
+/** A stored figure as a number, or null when it was never read (null and 0 are different facts). */
+const nullNum = (v) => (v == null || v === '' || !isFinite(Number(v)) ? null : Number(v));
+
 /* minutes-from-midnight → "8:14 AM" (real logged times, never a canned '8:14 AM') */
 export function fmtClock(min) {
   if (min == null) return '';
@@ -645,6 +648,8 @@ export function mealDetail(slot) {
     score: meta.quality != null ? meta.quality : null,
     foods,
     macros: { protein: meta.protein || 0, carbs: meta.carbs || 0, fat: meta.fat || 0, cals: meta.kcal || 0 },
+    // null kept: what the scoring helpers and the tiles read (A-B4). `macros` stays coerced for sums.
+    macrosRaw: { protein: nullNum(meta.protein), carbs: nullNum(meta.carbs), fat: nullNum(meta.fat), cals: nullNum(meta.kcal) },
     img: slotImage(k),
     note: meta.note || '',
     userNote: meta.userNote || '', // the athlete's own review-step details (§5.5)

@@ -9,6 +9,7 @@ import { avatarHead, esc, sparkline, errorState, skeletonRows } from '../compone
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, entriesFor, bookId } from '../coach-data.js';
 import { statusColor, statusLabel } from '../status.js';
+import { teamCounts } from '../team-count.js';
 import { styleLabel } from '../plan-style.js';
 import { initialsOf } from '../initials.js';
 import { hydrateAvatars } from '../avatar.js';
@@ -339,16 +340,25 @@ function updateBulkCounts(root) {
 /* Arriving from the Create menu with a job to do (review pass C-B9). "Adjust a schedule" and
    "Message an athlete" both used to land on the plain roster with no next step, and excusing lives
    behind Select, then Excuse. #coach-roster/excuse opens straight into Select with a line saying
-   what to do; #coach-roster/message says to tap someone. Primed once per arrival, so tapping Done
-   does not snap back into Select on the next repaint. */
-let PRIMED = null;
+   what to do; #coach-roster/message says to tap someone.
+   The intent is ARMED by the Create row's tap (armRosterTask) and CONSUMED by the next render, so
+   every choice of "Adjust a schedule" opens Select, a repaint after Done does not snap back into
+   it, and a plain return to the Roster tab clears a Select mode the intent opened. */
+let ARMED = null;          // the Create menu's intent, waiting for the roster's next render
+let INTENT_SELECT = false; // Select mode was opened by that intent, not by the coach
+export function armRosterTask(mode) { ARMED = mode === 'excuse' || mode === 'message' ? mode : null; }
 function taskFromSub(sub) {
   const mode = sub === 'excuse' || sub === 'message' ? sub : null;
-  if (mode !== PRIMED) {
-    PRIMED = mode;
-    if (mode === 'excuse' && CD.caps.exceptions) { SELECTING = true; SEL.clear(); FILTER = { kind: 'all', value: null }; Q = ''; }
+  if (ARMED) {
+    const armed = ARMED; ARMED = null;
+    if (armed === 'excuse' && CD.caps.exceptions) { SELECTING = true; INTENT_SELECT = true; SEL.clear(); FILTER = { kind: 'all', value: null }; Q = ''; }
+  } else if (!mode && INTENT_SELECT) {
+    INTENT_SELECT = false; SELECTING = false; SEL.clear();
   }
-  if (mode === 'excuse' && CD.caps.exceptions) return SEL.size
+  if (!SELECTING) INTENT_SELECT = false;
+  if (mode === 'excuse' && CD.caps.exceptions) return !SELECTING
+    ? `<div class="nx-note ro-task">Tap Select, then the ${CD.nouns} you want to excuse, then Excuse.</div>`
+    : SEL.size
     ? `<div class="nx-note ro-task">Tap Excuse below to excuse ${SEL.size === 1 ? 'them' : `these ${SEL.size}`} for today or the week.</div>`
     : `<div class="nx-note ro-task">Tap the ${CD.nouns} you want to excuse, then tap Excuse.</div>`;
   if (mode === 'message' && !SELECTING) return `<div class="nx-note ro-task">Tap someone to open their page, then Nudge sends them a message.</div>`;
@@ -396,7 +406,8 @@ export const coachRoster = {
     // on the chip so the row doubles as the roster's shape at a glance. A full squad still gets
     // every chip it earns; the currently-selected one is kept even if a search empties it, so the
     // control you just used can't vanish under you.
-    const statusCount = entries.reduce((m, e) => (m[e.status.key] = (m[e.status.key] || 0) + 1, m), {});
+    // THE team count (team-count.js), the same function Home, the Inbox and Insights read.
+    const statusCount = teamCounts(entries).byStatus;
     const liveStatuses = STATUS_ORDER
       .map((k) => [k, statusCount[k] || 0])
       .filter(([k, n]) => n > 0 || (FILTER.kind === 'status' && FILTER.value === k));

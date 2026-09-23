@@ -622,9 +622,9 @@ export function pastMealDetail(m) {
     slot: m.type || 'meal', name: cap(m.type), dish: m.name || '', logged: true, mealId: m.id,
     loggedAt: fmtLoggedAt(m.logged_at) || null, minutesLate: late, late: late > 0,
     score: m.quality != null ? m.quality : null,
-    // Two views of the same four numbers. `macros` is coerced for the scoring helpers (reasons,
-    // rubric), which do arithmetic; `macrosRaw` keeps null so the tiles can print a dash for a
-    // figure this row never had. null and 0 are different facts.
+    // Two views of the same four numbers. `macros` is coerced for callers that SUM; `macrosRaw`
+    // keeps null, and it is what the tiles AND the scoring helpers read (A-B4): a figure this row
+    // never had is not a measured zero. null and 0 are different facts.
     macros: { protein: m.protein || 0, carbs: m.carbs || 0, fat: m.fat || 0, cals: m.kcal || 0 },
     macrosRaw: { protein: nz(m.protein), carbs: nz(m.carbs), fat: nz(m.fat), cals: nz(m.kcal) },
     fiber: m.fiber || 0, detectedRich: rich, foods: rich.map((d) => d.name),

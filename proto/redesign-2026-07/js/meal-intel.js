@@ -899,7 +899,8 @@ function componentStates({ minutesLate, macros, fiber, detected } = {}) {
   // Shares need all three macros, or an independent kcal larger than the known macros' energy
   // (a kcal derived with the missing ones as zero would hand protein a 100% share back).
   const knownEnergy = (p || 0) * 4 + (c || 0) * 4 + (f || 0) * 9;
-  const kcalRaw = m.kcal != null ? m.kcal : m.calories;
+  // The meal model names it `cals`; stored rows and the AI payload say `kcal` / `calories`.
+  const kcalRaw = m.kcal != null ? m.kcal : m.cals != null ? m.cals : m.calories;
   const kcal = knownNum(kcalRaw) ? Number(kcalRaw) : 0;
   const total = (pK && cK && fK) ? knownEnergy : (kcal > knownEnergy + 1 ? kcal : 0);
   const late = typeof minutesLate === 'number' && minutesLate > 0;

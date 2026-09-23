@@ -1863,11 +1863,11 @@ export const coachInbox = {
       ? 'No clients yet. Share your client code from your Practice HQ and this becomes your morning read.'
       : 'No athletes yet. Share your team code and this becomes your morning read.';
     else {
-      // THE team count (status.js teamCounts), the same function and the same words Home,
+      // THE team count (team-count.js teamCounts), the same function and the same words Home,
       // Insights and the Roster use. This briefing used to count for itself ("2 below the bar
       // today (under 80)") beside Home's "1 need attention · 2 overdue" (review pass C-M3).
       const entries = entriesFor({ kind: 'team', value: null });
-      if (!entries) briefing = 'Reading your roster…';
+      if (!entries) briefing = '<div class="l"><span>Reading your roster…</span></div>';
       else {
         const c = teamCounts(entries);
         const names = (key) => {
@@ -2383,8 +2383,8 @@ function overviewSection(P, athleteId) {
   // was the one thing this page dropped — while printing the same number three times (stat
   // tile, "Finished day", trend endpoint). Now the ring carries it, once.
   const score = P.day && P.day.score != null ? P.day.score : null;
-  // Dot and words from the one status vocabulary (statusColor / statusLabel): a below-standard 71
-  // reads "Building" in its tier's amber, the same name the roster band and their own badge use.
+  // Dot and words from the one status vocabulary (statusColor / statusLabel): one word per state;
+  // the score keeps its tier colour on the number (DESIGN.md 2026-09-23).
   const stLabel = st ? statusLabel(st, score) : '';
   const lastLine = last && subtitle !== last ? last : '';
   return `

@@ -145,7 +145,7 @@ function styleBandRow() {
 /* The empty trends line, from the real number of scored days (A-M8). */
 function trendsEmptyLine() {
   const scored = (DAY.scoreHistory || []).filter((r) => r && r.score != null).length;
-  if (scored >= 3) return 'Your daily scores are in, but the Nutrition and Recovery detail behind them has not synced to this phone, so the trend by category is not shown.';
+  if (scored >= 3) return 'Your daily scores are in, but the Nutrition and Recovery split is not available for those days, so the trend by category is not shown.';
   const left = 3 - scored;
   return `Category trends appear after your fourth scored day. ${left === 1 ? 'One more day to go.' : `${left} more days to go.`}`;
 }

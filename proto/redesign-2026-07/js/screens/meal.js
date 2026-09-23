@@ -524,7 +524,7 @@ function openingInputs(M) {
     mealProteinBar: dayP.proteinTarget > 0 ? Math.round(dayP.proteinTarget / 4) : 0,
   });
   const sum = openingSummary({
-    quality: M.score, macros: M.macros, fiber: M.fiber, highlights: M.highlights, late: M.late, goal,
+    quality: M.score, macros: M.macrosRaw || M.macros, fiber: M.fiber, highlights: M.highlights, late: M.late, goal,
     detected: M.detectedRich, source: M.source, deadlineClock: M.deadlineLabel,
     day: dayP,
   // Plan style (0142): an Intuitive read never quotes a macro figure and never grades the
@@ -973,12 +973,15 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
     const band = qualityBand(M.score);
     // The top 2-3 reasons the score is what it is (founder 2026-08-04: the score must be
     // immediately explainable) — same componentStates arithmetic as the number itself.
-    const reasons = scoreReasons({ macros: M.macros, fiber: M.fiber, detected: M.detectedRich, minutesLate: M.minutesLate });
+    // The RAW figures (null kept): `macros` coerces a missing one to 0, which the scoring helpers
+    // would judge as a measured zero ("Fat in range" under a dash; A-B4).
+    const judged = M.macrosRaw || M.macros;
+    const reasons = scoreReasons({ macros: judged, fiber: M.fiber, detected: M.detectedRich, minutesLate: M.minutesLate });
     // Coach's Focus (founder 2026-08-05): the one line to remember, from the same judgments.
     const dayProgCF = S.mealDayProgress || {};
     const nextMealCF = exec && exec.now && exec.now.proof === 'photo' ? exec.now.title : null;
     const focus = coachFocus({
-      macros: M.macros, fiber: M.fiber, detected: M.detectedRich, minutesLate: M.minutesLate,
+      macros: judged, fiber: M.fiber, detected: M.detectedRich, minutesLate: M.minutesLate,
       nextMealName: nextMealCF,
       dayGap: (Number(dayProgCF.proteinTarget) || 0) - (Number(dayProgCF.proteinSoFar) || 0),
       mealsRemaining: Number(dayProgCF.mealsRemaining) || 0,
@@ -987,7 +990,7 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
     // Expandable score rubric (upgrade 2026-07-16): the observable components behind the
     // number, each marked exact or estimated — same math as the feedback, so they agree.
     const rub = scoreRubric({
-      quality: M.score, minutesLate: M.minutesLate, macros: M.macros, fiber: M.fiber,
+      quality: M.score, minutesLate: M.minutesLate, macros: judged, fiber: M.fiber,
       detected: M.detectedRich, source: M.source, userNote: M.userNote, photoQ: M.photoQ,
     });
     const RUB_DOT = { met: 'g', partial: 'a', miss: 'r' };

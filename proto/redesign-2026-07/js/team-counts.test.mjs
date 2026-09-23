@@ -7,6 +7,7 @@
    total comes from the standard, not from whichever day rows exist. */
 import assert from 'node:assert';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 
 /* ---- a frozen clock: Tuesday 2026-09-22, 3:00 PM local. Breakfast (9:30 AM) and lunch (2:00 PM)
    are past due, dinner and recovery are not, and the Mon/Wed/Fri weigh-in is off today. ---- */
@@ -166,6 +167,26 @@ test('the same athlete wears the same word on Home and on the Roster', () => {
   const tyrek = rosterHtml.indexOf('Tyrek Two');
   const nextBand = rosterHtml.indexOf('<header class="ro-band"', overdueBand + 1);
   assert.ok(overdueBand > 0 && tyrek > overdueBand && (nextBand === -1 || tyrek < nextBand), 'Tyrek is in the Overdue band');
+});
+
+test('C-B9: "Adjust a schedule" opens Select every time it is chosen, never on a plain return', async () => {
+  const { armRosterTask } = await import('./screens/coach-roster.js');
+  const roster = (sub) => screens['coach-roster'].render({ sub, S });
+  const selecting = (html) => html.includes('class="aud-box"');
+  armRosterTask('excuse');
+  assert.ok(selecting(roster('excuse')), 'first choice opens Select');
+  assert.ok(selecting(roster('excuse')), 'a repaint keeps it');
+  assert.ok(!selecting(roster(null)), 'a plain return to the Roster tab clears the Select the intent opened');
+  assert.ok(!selecting(roster('excuse')), 'the old hash alone does not re-open it');
+  assert.match(roster('excuse'), /Tap Select, then the/, 'and says how, instead of pointing at checkboxes that are not there');
+  armRosterTask('excuse');
+  assert.ok(selecting(roster('excuse')), 'choosing it again opens Select again');
+  roster(null);
+});
+
+test('C-M3: the Roster chips read teamCounts()', () => {
+  const src = readFileSync(new URL('./screens/coach-roster.js', import.meta.url), 'utf8');
+  assert.match(src, /const statusCount = teamCounts\(entries\)\.byStatus;/);
 });
 
 test.after(() => { globalThis.Date = RealDate; });

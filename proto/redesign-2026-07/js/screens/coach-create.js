@@ -1,6 +1,7 @@
 import { backHead, esc } from '../components.js';
 import { icon } from '../icons.js';
 import { CD, loadBook, bookKindFor } from '../coach-data.js';
+import { armRosterTask } from './coach-roster.js';
 import { RT } from '../state.js';
 import { allowedCreateKeys, isReadonly } from '../staff-access.js';
 import { ROLLCALL_OFF } from '../commitments.js';
@@ -113,7 +114,11 @@ export const coachCreate = {
       <div class="ts">Broadcast announcements and staff roles are team tools. A practice is 1:1, so everything on this menu works on your book right now.</div></div>
     </div>` : ''}`;
   },
-  mount() {
+  mount(root) {
+    // Arm the roster's task on the tap itself (C-B9): consumed once by the roster's next render.
+    if (root) root.querySelectorAll('[data-go$="/excuse"], [data-go$="/message"]').forEach((el) => {
+      el.addEventListener('click', () => armRosterTask(String(el.getAttribute('data-go')).split('/').pop()));
+    });
     // Book load also fills CD.extras (incl. myRole) and repaints this route when it lands.
     // The signed-in role's book, not CD.kind: cold, CD.kind is 'team' and a trainer loaded a coach
     // book that does not exist. The router repaints this operator screen when the book arrives.
