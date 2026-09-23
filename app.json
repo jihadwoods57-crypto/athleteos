@@ -29,7 +29,7 @@
         "NSPhotoLibraryUsageDescription": "OnStandard needs photo library access so you can pick an existing meal photo to log and analyze.",
         "NSPhotoLibraryAddUsageDescription": "OnStandard can save a meal photo back to your library after you log it.",
         "ITSAppUsesNonExemptEncryption": false,
-        "NSLocationWhenInUseUsageDescription": "OnStandard checks you in when you arrive where your coach asked you to be. Your location is only checked against that place and is never shared.",
+        "NSLocationWhenInUseUsageDescription": "OnStandard uses your location to check you in when you arrive where your coach asked you to be, and to center the map when a coach sets that place. Your location is only checked against that place and is never shared.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "So your arrival counts even when the app is closed, OnStandard checks you in when you walk into the place your coach set. It only watches that place during the check-in window, and never shares where you are.",
         "NSLocationAlwaysUsageDescription": "So your arrival counts even when the app is closed, OnStandard checks you in when you walk into the place your coach set. It only watches that place during the check-in window, and never shares where you are."
       },
@@ -223,7 +223,7 @@
         "expo-location",
         {
           "_comment": "Arrival check-in, restored 2026-09-23. isIosBackgroundLocationEnabled is FALSE on purpose: it would add UIBackgroundModes location, which is exactly what App Review rejected under 2.5.4 on 2026-09-18 ('unable to locate any features that require persistent location'). Region monitoring does not need it: the OS watches the coach's place and wakes the app. 'Always' is still requested because region monitoring needs it. If iOS refuses a reading in that wake, the app reports the region match without one (0242 section 5b). app.config.test.ts fails if the mode comes back. Every purpose string is set here on purpose: the plugin writes Expo's placeholder 'Allow $(PRODUCT_NAME) to access your location' into any key left empty, including the legacy NSLocationAlwaysUsageDescription, and a placeholder motion string unless motionUsagePermission is false. The app reads no motion data.",
-          "locationWhenInUsePermission": "OnStandard checks you in when you arrive where your coach asked you to be. Your location is only checked against that place and is never shared.",
+          "locationWhenInUsePermission": "OnStandard uses your location to check you in when you arrive where your coach asked you to be, and to center the map when a coach sets that place. Your location is only checked against that place and is never shared.",
           "locationAlwaysAndWhenInUsePermission": "So your arrival counts even when the app is closed, OnStandard checks you in when you walk into the place your coach set. It only watches that place during the check-in window, and never shares where you are.",
           "locationAlwaysPermission": "So your arrival counts even when the app is closed, OnStandard checks you in when you walk into the place your coach set. It only watches that place during the check-in window, and never shares where you are.",
           "motionUsagePermission": false,

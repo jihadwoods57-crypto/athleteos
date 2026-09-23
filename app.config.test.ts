@@ -47,7 +47,10 @@ describe('app.json — iOS App Store compliance', () => {
   // Expo's placeholder ("Allow $(PRODUCT_NAME) to access your location").
   it('location purpose strings are present and plain', () => {
     expect(ios.infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription).toMatch(/check you in when you arrive|checks you in when you walk into/i);
-    expect(ios.infoPlist.NSLocationWhenInUseUsageDescription).toMatch(/checks you in when you arrive/i);
+    // When-in-use serves two roles (2026-09-23): the athlete's check-in AND centring the coach's
+    // place picker on "Near me". The one string both roles see has to say both, truthfully.
+    expect(ios.infoPlist.NSLocationWhenInUseUsageDescription).toMatch(/check you in when you arrive/i);
+    expect(ios.infoPlist.NSLocationWhenInUseUsageDescription).toMatch(/center the map when a coach sets that place/i);
     // NO background-location mode. App Review 2.5.4 (2026-09-18) was exactly
     // UIBackgroundModes "location" with no feature that needed persistent location, and region
     // monitoring does not need it: the OS watches the region and wakes the app. "Always" is still

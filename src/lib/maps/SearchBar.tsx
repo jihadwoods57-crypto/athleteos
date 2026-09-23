@@ -9,10 +9,13 @@ import { locationModule } from './mapsNative';
 import { font, type PickerTheme } from './theme';
 import type { LatLng } from './geometry';
 
+/** `label` is '' when the address is not known (lookup skipped or failed). */
 export type SearchHit = LatLng & { label: string; query: string };
 type Status = 'idle' | 'searching' | 'results' | 'nomatch' | 'error';
 
 const MAX_HITS = 5;
+/** More forward hits than this and none are reverse-looked-up. */
+const REVERSE_MAX = 3;
 
 export function SearchBar({ theme: t, onPick }: { theme: PickerTheme; onPick: (hit: SearchHit) => void }) {
   const Location = locationModule();
@@ -36,11 +39,16 @@ export function SearchBar({ theme: t, onPick }: { theme: PickerTheme; onPick: (h
     try {
       const found = (await Location.geocodeAsync(q)).slice(0, MAX_HITS);
       const labelled: SearchHit[] = [];
-      // One at a time: the iOS geocoder refuses overlapping requests.
+      // One at a time: the iOS geocoder refuses overlapping requests (and rate-limits a burst), so
+      // a long list is not looked up at all; those rows read "Result N" and are looked up once
+      // picked. A blank label always means "not known", never the query repeated back.
+      const lookUp = found.length <= REVERSE_MAX;
       for (const f of found) {
         let label = '';
-        try { label = formatAddress((await Location.reverseGeocodeAsync(f))[0]); } catch { /* keep blank */ }
-        labelled.push({ lat: f.latitude, lng: f.longitude, label: label || q, query: q });
+        if (lookUp) {
+          try { label = formatAddress((await Location.reverseGeocodeAsync(f))[0]); } catch { /* not known */ }
+        }
+        labelled.push({ lat: f.latitude, lng: f.longitude, label, query: q });
       }
       if (mine !== seq.current) return;
       if (labelled.length === 1) pick(labelled[0]);
@@ -87,12 +95,12 @@ export function SearchBar({ theme: t, onPick }: { theme: PickerTheme; onPick: (h
       ) : null}
       {status === 'results' ? hits.map((h, i) => (
         <Pressable
-          key={`${i}:${h.label}`}
+          key={`${i}:${h.lat},${h.lng}`}
           onPress={() => pick(h)}
           accessibilityRole="button"
           style={({ pressed }) => [styles.hit, { borderTopColor: t.line, backgroundColor: pressed ? t.well : 'transparent' }]}
         >
-          <Text style={[styles.hitText, { color: t.text, fontFamily: font.semibold }]} numberOfLines={2} maxFontSizeMultiplier={1.8}>{h.label}</Text>
+          <Text style={[styles.hitText, { color: t.text, fontFamily: font.semibold }]} numberOfLines={2} maxFontSizeMultiplier={1.8}>{h.label || `Result ${i + 1}`}</Text>
         </Pressable>
       )) : null}
     </View>

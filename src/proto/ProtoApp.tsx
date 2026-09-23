@@ -113,6 +113,9 @@ export function ProtoApp() {
     setMapPick(null);
     res?.(place);
   }, []);
+  // The WebView died (load error, render process gone): nobody is left to receive a place, and the
+  // picker is not rendered on the error screen, so settle the page's promise as a Cancel.
+  React.useEffect(() => { if (err) finishMapPick(null); }, [err, finishMapPick]);
 
   const tryUnlock = React.useCallback(async () => {
     try {

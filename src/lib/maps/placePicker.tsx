@@ -19,6 +19,8 @@ import {
 } from './geometry';
 import { PinIcon, ResizeIcon } from './icons';
 import { locationModule, mapSupport } from './mapsNative';
+import { permissionGranted } from './nearMe';
+import { NearMeControl } from './NearMeControl';
 import { NativeMap, type Camera } from './NativeMap';
 import { PlaceSheet } from './PlaceSheet';
 import type { PickInitial, Place } from './pickRequest';
@@ -27,14 +29,13 @@ import { SearchBar, type SearchHit } from './SearchBar';
 import { font, usePickerTheme, type PickerTheme } from './theme';
 
 /** `granted`: location permission is on, so the map may draw the coach's own blue dot. */
-type Start = { camera: Camera; denied: boolean; granted: boolean };
+type Start = { camera: Camera; granted: boolean };
 
 /** Nowhere in particular: the continental US, wide enough that search is the obvious next step. */
 const FALLBACK: Camera = { lat: 39.5, lng: -98.35, zoom: 3.2 };
-/** A few blocks across: enough to recognise where you are and tap the right building. */
+/** Near me: a few blocks across, enough to recognise where you are and tap the right building. */
 const NEAR_ME_ZOOM = zoomToFit(400, 0);
 const ORIENTATIONS = ['portrait', 'portrait-upside-down', 'landscape', 'landscape-left', 'landscape-right'] as const;
-const FIX_TIMEOUT_MS = 4000;
 
 export function PlacePicker({ initial, onDone }: { initial: PickInitial | null; onDone: (p: Place | null) => void }) {
   return (
@@ -53,32 +54,14 @@ export function PlacePicker({ initial, onDone }: { initial: PickInitial | null; 
   );
 }
 
-/** Where the camera opens: the place being edited, else the phone's position, else FALLBACK. */
+/** Where the camera opens: the place being edited, else a neutral view. It never prompts for
+ *  location (that is the Near me button's job); it only reads whether the blue dot may show. */
 async function findStart(initial: PickInitial | null): Promise<Start> {
-  const L = locationModule();
-  if (initial) {
-    // Editing: open on the place, and never prompt; only show the blue dot if already allowed.
-    let granted = false;
-    try { granted = !!L && (await L.getForegroundPermissionsAsync()).granted; } catch { /* no dot */ }
-    return { camera: { lat: initial.lat, lng: initial.lng, zoom: zoomToFit(initial.radius_m, initial.lat) }, denied: false, granted };
-  }
-  if (!L) return { camera: FALLBACK, denied: false, granted: false };
-  try {
-    let perm = await L.getForegroundPermissionsAsync();
-    if (!perm.granted && perm.canAskAgain) perm = await L.requestForegroundPermissionsAsync();
-    if (!perm.granted) return { camera: FALLBACK, denied: true, granted: false };
-    const fix = (await L.getLastKnownPositionAsync({ maxAge: 5 * 60_000, requiredAccuracy: 1000 }))
-      ?? (await Promise.race([
-        L.getCurrentPositionAsync({ accuracy: L.Accuracy.Balanced }),
-        new Promise<null>((r) => setTimeout(() => r(null), FIX_TIMEOUT_MS)),
-      ]));
-    if (!fix) return { camera: FALLBACK, denied: false, granted: true };
-    // The camera starts where the coach is, but the bubble does NOT: a coach setting up tomorrow's
-    // 6 AM lift from the couch must not be one tap from saving his living room.
-    return { camera: { lat: fix.coords.latitude, lng: fix.coords.longitude, zoom: NEAR_ME_ZOOM }, denied: false, granted: true };
-  } catch {
-    return { camera: FALLBACK, denied: false, granted: false };
-  }
+  const granted = await permissionGranted(locationModule());
+  const camera = initial
+    ? { lat: initial.lat, lng: initial.lng, zoom: zoomToFit(initial.radius_m, initial.lat) }
+    : FALLBACK;
+  return { camera, granted };
 }
 
 function PickerBody({ initial, onDone }: { initial: PickInitial | null; onDone: (p: Place | null) => void }) {
@@ -105,7 +88,10 @@ function PickerBody({ initial, onDone }: { initial: PickInitial | null; onDone: 
   React.useEffect(() => {
     let alive = true;
     void findStart(initial).then((s) => { if (alive) setStart(s); });
-    return () => { alive = false; if (settleTimer.current) clearTimeout(settleTimer.current); };
+    return () => {
+      alive = false;
+      if (settleTimer.current) clearTimeout(settleTimer.current);
+    };
     // The start is decided once, when the picker opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -130,9 +116,11 @@ function PickerBody({ initial, onDone }: { initial: PickInitial | null; onDone: 
   const flyTo = (p: LatLng, r: number) =>
     mapRef.current?.setCameraPosition({ coordinates: { latitude: p.lat, longitude: p.lng }, zoom: zoomToFit(r, p.lat) });
 
+
   const onSearchPick = (hit: SearchHit) => {
     tap();
-    place({ lat: hit.lat, lng: hit.lng }, hit.label);
+    // A result whose reverse lookup was skipped or failed has no label; look it up now.
+    place({ lat: hit.lat, lng: hit.lng }, hit.label || undefined);
     if (!name.trim()) setName(suggestName(hit.label));
     flyTo(hit, radius);
   };
@@ -164,6 +152,7 @@ function PickerBody({ initial, onDone }: { initial: PickInitial | null; onDone: 
   // The edge handle. The pan responder is made once; it reads the live state through a ref.
   const live = React.useRef({ center, radius, region, size });
   live.current = { center, radius, region, size };
+  const releaseRef = React.useRef<(m: number) => void>(() => {});
   const drag = React.useRef<{ c: Point; h: Point; mpp: number } | null>(null);
   const handlePan = React.useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => true,
@@ -183,8 +172,9 @@ function PickerBody({ initial, onDone }: { initial: PickInitial | null; onDone: 
       const m = radiusFromDrag(d.c, { x: d.h.x + g.dx, y: d.h.y + g.dy }, d.mpp);
       if (m !== live.current.radius) { select(); setRadius(m); }
     },
-    onPanResponderRelease: () => { drag.current = null; setDragging(false); },
-    onPanResponderTerminate: () => { drag.current = null; setDragging(false); },
+    // Same as letting go of the slider: a bubble dragged past the screen edge pulls the camera out.
+    onPanResponderRelease: () => { drag.current = null; setDragging(false); releaseRef.current(live.current.radius); },
+    onPanResponderTerminate: () => { drag.current = null; setDragging(false); releaseRef.current(live.current.radius); },
   }), []);
 
   // While dragging, the handle is pinned inside the screen rather than removed, which would end
@@ -203,6 +193,7 @@ function PickerBody({ initial, onDone }: { initial: PickInitial | null; onDone: 
     // The slider made the bubble bigger than the screen: back the camera out so all of it shows.
     if (center && region && !handlePoint(center, m, region, size)) flyTo(center, m);
   };
+  releaseRef.current = onRadiusRelease;
 
   const finish = (p: Place | null) => {
     if (finished.current) return;
@@ -217,7 +208,6 @@ function PickerBody({ initial, onDone }: { initial: PickInitial | null; onDone: 
 
   const where = !center
     ? (!support.ok ? 'Search for the place to set the bubble.'
-      : start?.denied ? 'Location is off. Search or tap the map to place the bubble.'
       : 'Tap the map or search to place the bubble.')
     : addressBusy ? 'Finding the address…' : address || 'Pinned on the map';
 
@@ -226,13 +216,13 @@ function PickerBody({ initial, onDone }: { initial: PickInitial | null; onDone: 
       <StatusBar style={t.scheme === 'dark' ? 'light' : 'dark'} />
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View
-          style={styles.fill}
+          style={styles.mapArea}
           onLayout={(e: LayoutChangeEvent) => setSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })}
         >
           {!start ? (
             <Centered t={t}>
               <ActivityIndicator color={t.blue} />
-              <Text style={[styles.stateText, { color: t.text2, fontFamily: font.medium }]} maxFontSizeMultiplier={1.8}>Finding where you are…</Text>
+              <Text style={[styles.stateText, { color: t.text2, fontFamily: font.medium }]} maxFontSizeMultiplier={1.8}>Opening the map…</Text>
             </Centered>
           ) : support.ok ? (
             <View style={styles.fill} onTouchStart={mapTouchStart} onTouchEnd={mapTouchEnd} onTouchCancel={mapTouchEnd}>
@@ -272,6 +262,17 @@ function PickerBody({ initial, onDone }: { initial: PickInitial | null; onDone: 
             </View>
           ) : null}
 
+          {start && support.ok && locationModule() ? (
+            <NearMeControl
+              theme={t}
+              onFound={(pos) => {
+                // Near me only recentres the camera; the bubble stays wherever the coach put it.
+                setStart((st) => (st && !st.granted ? { ...st, granted: true } : st));
+                mapRef.current?.setCameraPosition({ coordinates: { latitude: pos.lat, longitude: pos.lng }, zoom: NEAR_ME_ZOOM });
+              }}
+            />
+          ) : null}
+
           <View style={[styles.searchWrap, { top: insets.top + 8, left: insets.left + 16, right: insets.right + 16 }]}>
             <View style={styles.searchInner}><SearchBar theme={t} onPick={onSearchPick} /></View>
           </View>
@@ -301,6 +302,9 @@ function Centered({ t, children }: { t: PickerTheme; children: React.ReactNode }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  // The map keeps at least this much height however tall the sheet gets (large text + keyboard);
+  // the sheet scrolls instead.
+  mapArea: { flex: 1, minHeight: 160 },
   centered: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 10 },
   stateTitle: { fontSize: 19, textAlign: 'center' },
   stateText: { fontSize: 15, textAlign: 'center', lineHeight: 21, maxWidth: 420 },

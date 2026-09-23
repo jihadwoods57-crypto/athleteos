@@ -1,4 +1,4 @@
-/* The picker's four glyphs, drawn rather than typed so they match on every font size. */
+/* The picker's glyphs, drawn rather than typed so they match on every font size. */
 import React from 'react';
 import Svg, { Circle, Path } from 'react-native-svg';
 
@@ -28,5 +28,12 @@ export const PinIcon = ({ color, size = 28 }: P) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12Z" stroke={color} strokeWidth={2} strokeLinejoin="round" />
     <Circle cx={12} cy={10} r={2.6} stroke={color} strokeWidth={2} />
+  </Svg>
+);
+
+/** The location arrow: Near me. */
+export const LocateIcon = ({ color, size = 20 }: P) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Path d="M21 3 3 10.5l7.5 3 3 7.5L21 3Z" stroke={color} strokeWidth={2.1} strokeLinejoin="round" />
   </Svg>
 );
