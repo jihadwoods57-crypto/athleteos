@@ -73,6 +73,14 @@ export async function imHere(instanceId) {
   } catch (e) { return { error: msgOf(e, 'unavailable') }; }
 }
 
+/** Whether this binary can open the coach's map at all (sync, for a render). False in a browser
+ *  preview, the harness, and on a build from before the map picker: the screen then says so in
+ *  plain words instead of offering a control that cannot work. */
+export function mapAvailable() {
+  const N = bridge();
+  return !!(N && N.maps && typeof N.maps.pick === 'function');
+}
+
 /** The coach's map. `initial` ({ lat, lng, radius_m, name }) re-opens a saved place for editing.
  *  Resolves the picked place { name, address, lat, lng, radius_m }, null when the coach cancels,
  *  or { error: 'map-unavailable' | 'map-busy' } when no map could open (an older app binary, or a

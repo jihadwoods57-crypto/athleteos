@@ -302,6 +302,7 @@ const WRITE_ROUTES = {
   'coach-plan-set': 'changing the standard', 'coach-standards-manage': 'setting an activity standard',
   'coach-commit-edit': 'scheduling a commitment', 'coach-commit-manage': 'scheduling a commitment',
   'coach-wakeup-new': 'a roll call', 'coach-wakeup-edit': 'a roll call',
+  'rollcall-new': 'a roll call',
   'pass-grant': 'granting a pass', 'team-diet': 'the team diet tools',
 };
 // Every role's tab-root routes → their tab id (role guards elsewhere keep roles apart).

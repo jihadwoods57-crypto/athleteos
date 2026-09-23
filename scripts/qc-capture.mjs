@@ -91,6 +91,38 @@ const rbSeed = (o) => `const cd = await import('./js/commitment-data.js');
     opens_at: arrival ? null : T(5, 50), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     status: me.acknowledged_at ? 'acknowledged' : 'pending', acknowledged_at: me.acknowledged_at, verdict: me.verdict,
     instance_status: 'scheduled' }], '2026-07-23');`;
+/** The coach's roll call (Task 10): one standing wake-up ('rc-rule', Mon to Fri 6:00 AM), its
+ *  saved places, the week ahead on the frozen clock (Thu 23 Jul: Fri moved to 5:30, Tue cancelled,
+ *  the weekend not scheduled) and 30 days of history with both kinds of athlete. `o.draft` starts
+ *  the setup screen from a draft (a picked place, arrival only). All through the harness seams. */
+const rsSeed = (o = {}) => `const cd = await import('./js/commitment-data.js');
+  const O = ${JSON.stringify(o)};
+  const T = (d, h, m) => new Date(2026, 6, d, h, m, 0).toISOString();
+  const rule = { id: 'rc-rule', type: 'morning_roll_call', title: 'Morning Roll Call', message: 'Up and at it. Lift at 7.',
+    audience_kind: 'team', audience_value: null, repeat_days: [1, 2, 3, 4, 5], starts_min: 360, respond_by_min: 365,
+    ends_min: 390, opens_min: 360, location_id: null, arrive_by_min: null, arrival_grace_min: 10,
+    escalation: { alarm: true, breakthrough: true, notify_coach_on_miss: true }, active: true, timezone: 'America/New_York' };
+  const places = [
+    { id: 'loc-1', name: 'Lincoln Weight Room', address: '1200 Stadium Dr', lat: 28.6, lng: -81.2, radius_m: 150 },
+    { id: 'loc-2', name: 'Bright House Stadium', address: null, lat: 28.61, lng: -81.19, radius_m: 300 },
+  ];
+  cd.seedCommitmentsForHarness([rule], places);
+  const day = (d, h, m, x) => Object.assign({ instance_id: 'i-' + d, commitment_id: 'rc-rule', occurs_on: '2026-07-' + d,
+    instance_status: 'scheduled', skipped: false, starts_at: T(d, h, m), starts_min: h * 60 + m, rule_starts_min: 360,
+    starts_override_min: null }, x || {});
+  cd.seedUpcomingForHarness('rc-rule', [
+    day(23, 6, 0), day(24, 5, 30, { starts_override_min: 330 }), day(27, 6, 0),
+    day(28, 6, 0, { skipped: true, instance_status: 'cancelled' }), day(29, 6, 0),
+  ]);
+  const A = (id, name, on, late, missed, trend, streak, first) => ({ athlete_id: id, name, avatar_path: null,
+    mornings: on + late + missed, on_time: on, late, missed, on_time_pct: Math.round(100 * on / (on + late + missed)),
+    trend, streak, first_up: first });
+  cd.seedHistoryForHarness('rc-rule', { team_on_time_pct: 84, team_trend: -3, athletes: [
+    A('r10', 'Tommy Vargas', 13, 4, 5, -18, 0, 0), A('r9', 'Tyrek Malone', 16, 6, 0, -6, 1, 0),
+    A('r11', 'Ray Gomez', 17, 3, 2, 4, 3, 1), A('r3', 'Jaylen Brooks', 20, 2, 0, 0, 9, 2),
+    A('r2', 'Andre Wells', 21, 1, 0, 3, 14, 3), A('r1', 'DeShawn Cole', 22, 0, 0, 0, 22, 16),
+  ] });
+  if (O.draft) { const rs = await import('./js/screens/rollcall-setup.js'); rs.seedSetupForHarness(O.draft); }`;
 const ROOT = process.cwd();
 
 /* ---------------- args ---------------- */
@@ -160,6 +192,19 @@ const SHOTS = [
   { g: 'rollcall', name: 'rollcall-board-closed', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [6, 45], pre: rbSeed({ now: [6, 45], mode: 'wake' }) },
   { g: 'rollcall', name: 'rollcall-board-both', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [6, 42], pre: rbSeed({ now: [6, 42], mode: 'both' }) },
   { g: 'rollcall', name: 'rollcall-board-arrival', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [15, 26], pre: rbSeed({ now: [15, 26], mode: 'arrival', me: 'open' }) },
+  // The coach's roll call (Task 10): setup blank, with a picked place, the Where step with saved
+  // places (no map on this "binary"), arrival only, the week strip and a morning's sheet, history.
+  { g: 'rollcall', name: 'rollcall-new', seed: 'coachIdentity', route: 'rollcall-new', at: [20, 10], book: 'team', pre: rsSeed() },
+  { g: 'rollcall', name: 'rollcall-new-place', seed: 'coachIdentity', route: 'rollcall-new', at: [20, 10], book: 'team',
+    pre: rsSeed({ draft: { mode: 'both', location_id: 'loc-1', place: { id: 'loc-1', name: 'Lincoln Weight Room', radius_m: 150, address: '1200 Stadium Dr' }, arrive_by_min: 405 } }) },
+  { g: 'rollcall', name: 'rollcall-new-where', seed: 'coachIdentity', route: 'rollcall-new', at: [20, 10], book: 'team',
+    pre: rsSeed({ draft: { mode: 'both', arrive_by_min: 405, change: true } }) },
+  { g: 'rollcall', name: 'rollcall-new-arrival', seed: 'coachIdentity', route: 'rollcall-new', at: [20, 10], book: 'team',
+    pre: rsSeed({ draft: { mode: 'arrival', location_id: 'loc-2', place: { id: 'loc-2', name: 'Bright House Stadium', radius_m: 300 }, arrive_by_min: 930, repeat_days: [1, 3, 5] } }) },
+  { g: 'rollcall', name: 'rollcall-week', seed: 'coachIdentity', route: 'rollcall-week/rc-rule', at: [20, 10], book: 'team', pre: rsSeed() },
+  { g: 'rollcall', name: 'rollcall-week-sheet', seed: 'coachIdentity', route: 'rollcall-week/rc-rule', at: [20, 10], book: 'team', pre: rsSeed(),
+    act: `const d = document.querySelector('[data-rw-day="i-24"]'); if (d) d.click();`, actMs: 700 },
+  { g: 'rollcall', name: 'rollcall-history', seed: 'coachIdentity', route: 'rollcall-history/rc-rule', at: [20, 10], book: 'team', pre: rsSeed() },
   // The "Day N locked." stamp: a body-level overlay, so it is captured by rendering Home with the
   // lock unacknowledged. Every other athlete seed marks it seen, or it would appear over whichever
   // screen rendered first and make the contact sheet nondeterministic.

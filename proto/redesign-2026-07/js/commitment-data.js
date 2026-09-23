@@ -51,7 +51,8 @@ const RTC = {
   mine: [], mineDay: null, mineAt: 0, mineError: false,
   board: [], boardDay: null, boardAt: 0, boardError: false,
   locations: [], locationsAt: 0,
-  commitments: [], commitmentsAt: 0, commitmentsError: false,
+  commitments: [], commitmentsAt: 0, commitmentsError: false, commitmentsSeeded: false,
+  locationsSeeded: false,
   // Per-day boards (0215): Home holds today AND the next roll call at once, and the board screen
   // can open any day of the week ahead without the two evicting each other.
   boards: new Map(),          // dayISO -> { rows, at, error }
@@ -69,6 +70,8 @@ export const VC = {
   get mineError() { return RTC.mineError; },
   get boardError() { return RTC.boardError; },
   get commitmentsError() { return RTC.commitmentsError; },
+  /** Every standing commitment in the loaded book (loadCommitments), paused ones included. */
+  get commitments() { return RTC.commitments; },
   /** Today's rows only — what Home renders. */
   today(dayISO) {
     const d = dayISO || todayISO();
@@ -121,6 +124,18 @@ export function seedBoardForHarness(rows, dayISO) {
 export function seedTeamBoardForHarness(instanceId, board) {
   if (!instanceId) return;
   RTC.team.set(instanceId, { board: board || null, at: Date.now(), error: false, seeded: true });
+}
+/** The book's standing commitments and saved places, for the coach's roll call screens (Task 10).
+ *  Sticky like the board seed: loadCommitments / loadLocations return them without a read. */
+export function seedCommitmentsForHarness(rows, locations = null) {
+  RTC.commitments = Array.isArray(rows) ? rows : []; RTC.commitmentsAt = Date.now();
+  RTC.commitmentsError = false; RTC.commitmentsSeeded = true;
+  if (Array.isArray(locations)) { RTC.locations = locations; RTC.locationsAt = Date.now(); RTC.locationsSeeded = true; }
+}
+/** The week ahead (0215 rollcall_upcoming shape) for one roll call. Sticky like the board seed. */
+export function seedUpcomingForHarness(commitmentId, rows) {
+  if (!commitmentId) return;
+  RTC.upcoming.set(commitmentId, { rows: Array.isArray(rows) ? rows : [], at: Date.now(), seeded: true });
 }
 /** A coach history (0242 rollcall_history shape) for one roll call. Sticky like the board seed. */
 export function seedHistoryForHarness(commitmentId, history, days = 30) {
@@ -362,8 +377,9 @@ export async function loadMyMornings(days = 30) {
 }
 
 export async function loadUpcoming(commitmentId, days = 7, force = false) {
-  const c = sb(); if (!c || !commitmentId) return null;
   const have = RTC.upcoming.get(commitmentId);
+  if (have && have.seeded) return have.rows;
+  const c = sb(); if (!c || !commitmentId) return null;
   if (!force && have && Date.now() - have.at < FRESH_MS) return have.rows;
   try {
     const { data, error } = await c.rpc('rollcall_upcoming', { p_commitment: commitmentId, p_days: days });
@@ -403,6 +419,7 @@ export async function loadCommitments(ownerId, kind, force = false) {
   // initial [], and without the flag the manage screen renders "Nothing scheduled yet"
   // over a book of standing 5 AM roll calls it simply could not read. The flag lets the
   // screen tell that outage from a truly empty book; success clears it.
+  if (RTC.commitmentsSeeded) return RTC.commitments;
   const c = sb();
   if (!c || !ownerId) { RTC.commitmentsError = !!ownerId; return RTC.commitments; }
   if (!force && RTC.commitments.length && Date.now() - RTC.commitmentsAt < FRESH_MS) return RTC.commitments;
@@ -421,6 +438,7 @@ export async function loadCommitments(ownerId, kind, force = false) {
 }
 
 export async function loadLocations(ownerId, kind, force = false) {
+  if (RTC.locationsSeeded) return RTC.locations;
   if (!force && RTC.locations.length && Date.now() - RTC.locationsAt < 300_000) return RTC.locations;
   const c = sb(); if (!c || !ownerId) return [];
   const col = kind === 'practice' ? 'practice_id' : 'team_id';

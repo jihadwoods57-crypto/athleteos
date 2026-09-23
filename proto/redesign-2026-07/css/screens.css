@@ -4088,6 +4088,97 @@ button.rb-tile:active { background: var(--surface-2); }
 .rb-bar-n { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 var(--s1h); margin-left: var(--s1); border-radius: var(--r-pill); background: rgba(var(--bg-rgb), 0.2); font-size: var(--t-xs); font-weight: 800; font-variant-numeric: tabular-nums; }
 .rb-sh-say.is-error { color: var(--red-bright); }
 
+/* ===== Roll call: the coach's setup, week and history (rs-, rw-, rh-; Task 10, 2026-09-23) =====
+   js/screens/rollcall-setup.js. Setup is four answers in one card, the mode as a three-way
+   segment, the window's defaults as one sentence with one "Change", and one primary at the
+   bottom in the sticky action bar. Selection is blue. The week is one line of seven mornings; a
+   moved morning wears the selection blue, a cancelled one a dashed edge. History's team rate is a
+   record number (.rfig, body face 800), and each athlete's rate wears its tier colour. */
+.rs-mode { margin: var(--s2) 0 var(--s2); }
+.rs-mode-s { margin: 0 0 var(--s4); font-size: var(--t-sm); font-weight: 600; color: var(--text-3); text-align: center; }
+.rs-form .wk-days .chip.on, .rs-more .wk-chips .chip.on { background: rgba(var(--blue-rgb), 0.12); border-color: var(--blue-bright); color: var(--blue-bright); }
+.rs-form .std-switch-row { border-top: 1px solid var(--hairline-soft); padding-bottom: 2px; }
+.rs-addcard { margin-top: var(--s3); padding: 0 var(--s4); }
+.rs-add { width: 100%; border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.rs-add .lm { display: flex; flex-direction: column; }
+.rs-add > svg:last-child { color: var(--text-3); flex: none; }
+.rs-add .lic, .rs-place .lic { color: var(--blue-bright); }
+.rs-where { margin-bottom: 0; }
+.rs-place { display: flex; align-items: center; gap: var(--s3); }
+.rs-place .lic { width: 38px; height: 38px; border-radius: var(--r-chip); background: rgba(var(--blue-rgb), 0.12); display: grid; place-items: center; flex: none; }
+.rs-place .lm { flex: 1; min-width: 0; }
+.rs-place .lt { font-size: var(--t-md); font-weight: 800; color: var(--text); overflow-wrap: anywhere; }
+.rs-place .ls { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.rs-place-x { align-self: center; }
+.rs-saved { margin-bottom: var(--s3); }
+.rs-map { width: 100%; }
+.rs-nomap { margin: 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.45; }
+.rs-say { margin: 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-3); }
+.rs-say:empty { display: none; }
+.rs-say:not(:empty) { padding-top: var(--s2); }
+.rs-say.is-error { color: var(--red-bright); }
+.rs-window { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); margin: var(--s3) var(--s1) 0; }
+.rs-window-t { margin: 0; text-wrap: pretty; font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.45; font-variant-numeric: tabular-nums; }
+.rs-change { flex: none; min-height: 44px; min-width: 44px; padding: 0 var(--s2); background: none; border: 0; color: var(--blue-bright); font-family: var(--font); font-size: var(--t-sm); font-weight: 800; cursor: pointer; }
+.rs-more { margin-top: var(--s2); }
+.rs-more[hidden] { display: none; }
+.rs-more .wk-win { margin-top: 0; }
+.rs-more .wk-presets .chip { max-width: 100%; height: auto; min-height: 44px; padding-top: var(--s2); padding-bottom: var(--s2); white-space: normal; text-align: left; }
+.rs-more .wk-msg { height: auto; min-height: 112px; }
+.rs-bar { display: flex; flex-direction: column; gap: var(--s2); }
+.rs-bar > .btn { width: 100%; margin: 0; }
+.rs-err { margin: 0; font-size: var(--t-sm); font-weight: 700; color: var(--text-2); text-align: center; }
+.rs-err:empty { display: none; }
+.rs-err.is-error { color: var(--red-bright); }
+
+/* The week: seven mornings on one line. */
+.rw-strip { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--s1h); }
+.rw-cell { width: 100%; min-height: 76px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: var(--s2) 0; border-radius: var(--r-card-sm); background: var(--surface-1); border: 1px solid var(--hairline); color: var(--text); font-family: var(--font); box-sizing: border-box; }
+button.rw-cell { cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform var(--dur-1) var(--ease-out); }
+button.rw-cell:active { transform: scale(var(--press-btn)); }
+.rw-d { font-size: var(--t-micro); font-weight: 800; color: var(--text-3); letter-spacing: 0.02em; }
+.rw-n { font-size: var(--t-md); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.rw-t { font-size: var(--t-xs); font-weight: 800; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.rw-day.today .rw-d { color: var(--blue-bright); }
+.rw-day.moved .rw-cell { background: rgba(var(--blue-rgb), 0.12); border-color: var(--blue-bright); }
+.rw-day.moved .rw-t { color: var(--blue-bright); }
+.rw-day.off .rw-cell { background: transparent; }
+.rw-day.off .rw-n, .rw-day.off .rw-t { color: var(--text-3); }
+.rw-day.skipped .rw-cell { border-style: dashed; border-color: var(--blue-border); }
+.rw-day.past .rw-cell { background: transparent; }
+.rw-note { margin: var(--s3) var(--s1) 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.45; }
+.rw-note.is-error { color: var(--amber-bright); }
+.rw-links { margin-top: var(--s5); }
+.rw-sheet .rw-move { display: flex; flex-direction: column; margin-top: var(--s2); }
+.rw-move-row { display: flex; gap: var(--s2); align-items: stretch; }
+.rw-move-row .wk-time { flex: 1; min-width: 0; }
+.rw-move-row .btn { flex: none; width: auto; padding: 0 var(--s5); height: auto; min-height: 52px; }
+.rw-sheet .sh-title { outline: none; }
+.rw-sheet .rw-cancel, .rw-sheet .rw-undo { width: 100%; margin-top: var(--s3); }
+.rw-say { margin: var(--s2) 0 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-3); text-align: center; }
+.rw-say:empty { display: none; }
+.rw-say.is-error { color: var(--red-bright); }
+.rw-foot { margin: var(--s3) 0 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-3); text-align: center; }
+.rw-sheet .cancel { display: block; width: 100%; margin-top: var(--s2); background: none; border: 0; font-family: var(--font); }
+.sheet-scrim.rw-scrim { z-index: 60; }
+.sheet.rw-sheet { z-index: 61; }
+@media (prefers-reduced-motion: reduce) { button.rw-cell { transition: none; } }
+
+/* History: the team's rate as a record number, then who needs attention, then who is reliable. */
+.rh-hero { margin: var(--s2) 0 0; }
+.rh-rate { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--text); }
+.rh-rate.g { color: var(--green-bright); }
+.rh-rate.b { color: var(--blue-bright); }
+.rh-rate.a { color: var(--amber-bright); }
+.rh-rate.r { color: var(--red-bright); }
+.rh-h { justify-content: flex-start; gap: var(--s2); margin-top: var(--s6); }
+.rh-h.a { color: var(--amber-bright); }
+.rh-hn { font-size: var(--t-xs); font-weight: 700; letter-spacing: 0; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.rh-row { cursor: default; gap: var(--s3); }
+.rh-av { width: 40px; height: 40px; border-radius: var(--r-pill); background: var(--surface-3); color: var(--text-2); display: grid; place-items: center; font-size: var(--t-xs); font-weight: 800; flex: none; overflow: hidden; }
+.rh-bar { display: block; margin-top: var(--s1h); }
+.rh-row .rh-rate { flex: none; min-width: 48px; text-align: right; font-size: var(--t-md); }
+
 /* ===== Sleep (#sleep) — evidence, never a score =====
    Purple is recovery and a short night is a recovery signal, so `under` carries it. Amber is
    warning ONLY and a night below your own average is a fact, not an alarm; red is missed and this

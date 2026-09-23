@@ -66,6 +66,10 @@ const PAGES = [
   { hash: '#rollcall-board/rb-ipad', seed: false, name: 'rollcall-board', athlete: true, board: true },
   { hash: '#rollcall-board/rb-ipad/day', seed: false, name: 'rollcall-day', athlete: true, board: true },
   { hash: '#rollcall-board/rb-ipad', seed: true, name: 'rollcall-board-coach', board: true },
+  // The coach's roll call (Task 10): setup, the week strip and history, seeded through the seams.
+  { hash: '#rollcall-new', seed: true, name: 'rollcall-new', rs: true },
+  { hash: '#rollcall-week/rc-ipad', seed: true, name: 'rollcall-week', rs: true },
+  { hash: '#rollcall-history/rc-ipad', seed: true, name: 'rollcall-history', rs: true },
 ];
 
 const SEED_COACH = `(async () => {
@@ -116,6 +120,23 @@ const SEED_BOARD = `(async () => {
     status: 'acknowledged', acknowledged_at: T(-11), verdict: 'on_standard', instance_status: 'scheduled' }]);
 })()`;
 
+// One standing wake-up, its week relative to today (tomorrow moved, the day after cancelled) and
+// 30 days of history: both kinds of athlete.
+const SEED_RS = `(async () => {
+  const cd = await import('./js/commitment-data.js');
+  cd.seedCommitmentsForHarness([{ id: 'rc-ipad', type: 'morning_roll_call', title: 'Morning Roll Call', audience_kind: 'team',
+    repeat_days: [0, 1, 2, 3, 4, 5, 6], starts_min: 360, respond_by_min: 365, ends_min: 390, escalation: { alarm: true }, active: true }],
+    [{ id: 'loc-1', name: 'Lincoln Weight Room', radius_m: 150 }]);
+  const iso = (n) => { const d = new Date(Date.now() + n * 864e5); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const at = (n, m) => { const d = new Date(Date.now() + n * 864e5); d.setHours(0, m, 0, 0); return d.toISOString(); };
+  cd.seedUpcomingForHarness('rc-ipad', [1, 2, 3, 4, 5, 6].map((n) => ({ instance_id: 'u' + n, occurs_on: iso(n), starts_at: at(n, n === 1 ? 330 : 360),
+    starts_min: n === 1 ? 330 : 360, rule_starts_min: 360, starts_override_min: n === 1 ? 330 : null, skipped: n === 2, instance_status: n === 2 ? 'cancelled' : 'scheduled' })));
+  const A = (id, name, on, late, missed, trend, streak, first) => ({ athlete_id: id, name, mornings: on + late + missed, on_time: on, late, missed,
+    on_time_pct: Math.round(100 * on / (on + late + missed)), trend, streak, first_up: first });
+  cd.seedHistoryForHarness('rc-ipad', { team_on_time_pct: 84, team_trend: -3, athletes: [A('a2', 'Devin Carter', 13, 4, 5, -18, 0, 0),
+    A('a3', 'Jalen Brooks', 16, 6, 0, -6, 1, 0), A('a1', 'Marcus Hill', 21, 1, 0, 3, 14, 3), A('a4', 'Tyrese Adams', 22, 0, 0, 0, 22, 16)] });
+})()`;
+
 await mkdir(OUT, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const rows = [];
@@ -136,6 +157,7 @@ for (const [width, height, label] of VIEWPORTS) {
       const want = pg.seed ? 'coach' : (pg.athlete ? 'athlete' : null);
       if (want && seeded !== want) { await page.evaluate(want === 'coach' ? SEED_COACH : SEED_ATHLETE); seeded = want; }
       if (pg.board) await page.evaluate(SEED_BOARD);
+      if (pg.rs) await page.evaluate(SEED_RS);
       await page.evaluate((h) => { location.hash = h; }, pg.hash);
       await page.waitForTimeout(900);
       try { await page.evaluate(() => document.fonts.ready); } catch { /* fine */ }

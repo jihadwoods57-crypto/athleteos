@@ -27,9 +27,10 @@ import { ROLLCALL_OFF } from '../commitments.js';
 
 const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const DOW_FULL = DAYS_LONG;
-const GRACES = [0, 2, 5, 10, 15];
-const CLOSE_CHOICES = [15, 30, 45, 60];
-const CLOSE_DEFAULT_MIN = 30;
+/* Exported for the rebuilt setup (rollcall-setup.js), which asks the same window questions. */
+export const GRACES = [0, 2, 5, 10, 15];
+export const CLOSE_CHOICES = [15, 30, 45, 60];
+export const CLOSE_DEFAULT_MIN = 30;
 
 /* Writing prompts, NOT defaults. See the header. */
 export const PRESETS = [
@@ -38,7 +39,7 @@ export const PRESETS = [
   'Roll call. Let’s attack the day.',
 ];
 
-const canSchedule = () => {
+export const canSchedule = () => {
   if (CD.kind === 'practice') return true;
   const role = CD.extras ? CD.extras.myRole : null;
   if (!CD.extras) return true;
@@ -87,10 +88,10 @@ export function editWakeup(row) {
 /** Start a fresh draft. */
 export function newWakeup() { DRAFT = null; }
 
-const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
-const minOf = (v) => { const m = /^(\d{1,2}):(\d{2})$/.exec(v || ''); return m ? Math.min(1439, +m[1] * 60 + +m[2]) : null; };
+export const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+export const minOf = (v) => { const m = /^(\d{1,2}):(\d{2})$/.exec(v || ''); return m ? Math.min(1439, +m[1] * 60 + +m[2]) : null; };
 
-const daysLabel = (days) => {
+export const daysLabel = (days) => {
   const d = (days || []).map(Number).sort();
   if (!d.length) return 'No days picked';
   if (d.length === 7) return 'Every day';
