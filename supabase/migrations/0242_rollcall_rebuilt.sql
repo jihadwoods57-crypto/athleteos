@@ -21,9 +21,13 @@
 --      - `up` and `place` count an ANSWER that counts (on_standard or late). An unresolved review
 --        counts as nothing until a coach resolves it (0212), so it has no place in line either.
 --      - `total` leaves excused athletes out, exactly as the score does; they still appear.
---      - arrival_verdict is null when the roll call asks for no place; excused when the athlete is
---        excused; else on_standard at or before arrive-by + grace, late after it, pending until
---        the close, missed after it.
+--      - arrival_verdict is null when the roll call asks for no place; otherwise it is ONE pure
+--        function, rollcall_arrival_verdict (below), so the board, the history, the Live Activity
+--        and the client read one definition: excused | on_standard | late | unverified | pending
+--        | missed. A phone that could not confirm the place is UNVERIFIED, never missed (the
+--        verify_arrival rule, 0139/0208: absence of evidence is not evidence of absence). And an
+--        arrival is never missed before its OWN deadline + grace, even when the wake-up closes
+--        first (wake 6:00 closes 6:30; arrive by 6:45 + 10 grace is still pending at 6:31).
 --      - avatar_path: profiles has no avatar column. Pictures live at the deterministic public
 --        object avatars/<uid>/avatar.jpg (0206, 0224). The board returns that object path when the
 --        object exists and null when it does not, so the client never paints a broken image.
@@ -56,12 +60,43 @@ create or replace function rollcall_opens_at(
   end;
 $$;
 
+-- ================================================================ 2a. the arrival verdict, pure
+-- p_arrive_by_at: the instance's arrive_by_at, else its starts_at (the caller resolves it).
+-- Resolution order:
+--   excused      the coach excused the athlete: never judged
+--   on_standard  arrived at or before arrive-by + grace
+--   late         arrived after it
+--   unverified   the phone could not confirm the place (verify_arrival, 0208): never missed
+--   missed       no arrival once BOTH the arrival deadline + grace AND the roll call's close
+--                have passed (an arrival can never be missed before its own deadline)
+--   pending      otherwise
+create or replace function rollcall_arrival_verdict(
+  p_status text, p_arrived_at timestamptz, p_arrive_by_at timestamptz, p_grace_min int,
+  p_closes_at timestamptz, p_now timestamptz default now()
+) returns text language sql immutable set search_path = public as $$
+  select case
+    when p_status = 'excused' then 'excused'
+    when p_arrived_at is not null then
+      case when p_arrive_by_at is null
+             or p_arrived_at <= p_arrive_by_at + make_interval(mins => coalesce(p_grace_min, 10))
+           then 'on_standard' else 'late' end
+    when p_status = 'unverified' then 'unverified'
+    when p_arrive_by_at is null then 'pending'
+    when p_now > greatest(coalesce(p_closes_at, p_arrive_by_at + make_interval(mins => coalesce(p_grace_min, 10))),
+                          p_arrive_by_at + make_interval(mins => coalesce(p_grace_min, 10)))
+      then 'missed'
+    else 'pending'
+  end;
+$$;
+comment on function rollcall_arrival_verdict(text, timestamptz, timestamptz, int, timestamptz, timestamptz) is
+  'Arrival verdict: excused | on_standard | late | unverified | pending | missed. Pure. Never missed before arrive-by + grace; a phone that could not confirm the place is unverified, never missed. 0242.';
+
 -- ================================================================ 2. the team board
 create or replace function rollcall_team_board(p_instance uuid) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare
   i commitment_instances; c commitments; v_now timestamptz := now();
-  v_close timestamptz; v_arrive_deadline timestamptz; v_arrive_close timestamptz; v_out jsonb;
+  v_close timestamptz; v_out jsonb;
 begin
   if not vc_enabled() then raise exception 'Verified Commitments is currently switched off'; end if;
   select * into i from commitment_instances where id = p_instance;
@@ -79,8 +114,6 @@ begin
   end if;
 
   v_close := rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at);
-  v_arrive_deadline := coalesce(i.arrive_by_at, i.starts_at) + make_interval(mins => coalesce(c.arrival_grace_min, 10)::int);
-  v_arrive_close := coalesce(v_close, v_arrive_deadline);
 
   with base as (
     select r.athlete_id, p.full_name as name, r.status, r.acknowledged_at, r.arrived_at,
@@ -91,10 +124,8 @@ begin
   ), rows as (
     select b.*,
       case when c.location_id is null then null
-           when b.status = 'excused' then 'excused'
-           when b.arrived_at is null then case when v_now > v_arrive_close then 'missed' else 'pending' end
-           when b.arrived_at <= v_arrive_deadline then 'on_standard'
-           else 'late' end as arrival_verdict,
+           else rollcall_arrival_verdict(b.status, b.arrived_at, coalesce(i.arrive_by_at, i.starts_at),
+                  c.arrival_grace_min::int, v_close, v_now) end as arrival_verdict,
       case when exists (select 1 from storage.objects o
                          where o.bucket_id = 'avatars' and o.name = b.athlete_id::text || '/avatar.jpg')
            then b.athlete_id::text || '/avatar.jpg' end as avatar_path,
@@ -366,7 +397,8 @@ $function$;
 
 -- ================================================================ grants
 do $$ declare f text; begin
-  foreach f in array array['rollcall_team_board(uuid)', 'rollcall_history(uuid,int)'] loop
+  foreach f in array array['rollcall_team_board(uuid)', 'rollcall_history(uuid,int)',
+                           'rollcall_arrival_verdict(text,timestamptz,timestamptz,int,timestamptz,timestamptz)'] loop
     execute format('revoke all on function %s from public, anon', f);
     execute format('grant execute on function %s to authenticated', f);
   end loop;

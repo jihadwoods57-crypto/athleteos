@@ -4383,6 +4383,41 @@ update commitment_instances set starts_at = now() - interval '40 minutes', respo
 select _ok((select r->>'arrival_verdict' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
              where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') = 'missed',
   '0242: not arrived after the close is missed');
+-- arrive-by LATER than the wake-up's close: wake-up started 31 min ago (closed 1 min ago),
+-- arrive by start + 45, grace 10. Still 24 minutes to get there: pending, never missed.
+update commitment_instances set starts_at = now() - interval '31 minutes', respond_by_at = now() - interval '26 minutes',
+       arrive_by_at = now() + interval '14 minutes' where id = (select id from _rc_b);
+select _ok((select r->>'arrival_verdict' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') = 'pending',
+  '0242: an arrival is never missed before its own deadline + grace, even after the wake-up closes');
+-- a phone that could not confirm the place is unverified, never missed, even after every deadline
+update commitment_instances set starts_at = now() - interval '2 hours', respond_by_at = now() - interval '115 minutes',
+       arrive_by_at = now() - interval '2 hours' where id = (select id from _rc_b);
+update commitment_responses set status = 'unverified', unverified_reason = 'Could not confirm the location'
+ where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+select _ok((select r->>'arrival_verdict' from jsonb_array_elements(rollcall_team_board((select id from _rc_b))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e2') = 'unverified',
+  '0242: a phone that could not confirm the place reads unverified on the board, never missed');
+update commitment_responses set status = 'pending', unverified_reason = null
+ where instance_id = (select id from _rc_b) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+-- the pure function, at its boundaries (arrive by 10:00, grace 10, wake-up closes 10:30)
+select _ok(rollcall_arrival_verdict('acknowledged', '2026-09-01T10:10:00Z', '2026-09-01T10:00:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T11:00:00Z') = 'on_standard'
+       and rollcall_arrival_verdict('acknowledged', '2026-09-01T10:10:01Z', '2026-09-01T10:00:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T11:00:00Z') = 'late'
+       and rollcall_arrival_verdict('pending', null, '2026-09-01T10:00:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T10:30:00Z') = 'pending'
+       and rollcall_arrival_verdict('pending', null, '2026-09-01T10:00:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T10:30:01Z') = 'missed'
+       and rollcall_arrival_verdict('pending', null, '2026-09-01T10:45:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T10:31:00Z') = 'pending'
+       and rollcall_arrival_verdict('pending', null, '2026-09-01T10:45:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T10:55:00Z') = 'pending'
+       and rollcall_arrival_verdict('pending', null, '2026-09-01T10:45:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T10:55:01Z') = 'missed',
+  '0242 arrival verdict: on time at grace, late one second after, missed only after BOTH the close and arrive-by + grace');
+select _ok(rollcall_arrival_verdict('unverified', null, '2026-09-01T10:00:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T12:00:00Z') = 'unverified'
+       and rollcall_arrival_verdict('excused', null, '2026-09-01T10:00:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T12:00:00Z') = 'excused'
+       and rollcall_arrival_verdict('excused', '2026-09-01T11:00:00Z', '2026-09-01T10:00:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T12:00:00Z') = 'excused'
+       and rollcall_arrival_verdict('arrived', '2026-09-01T10:05:00Z', '2026-09-01T10:00:00Z', 10, '2026-09-01T10:30:00Z', '2026-09-01T12:00:00Z') = 'on_standard',
+  '0242 arrival verdict: unverified is never missed, excused is never judged, a confirmed arrival wins');
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select rollcall_arrival_verdict('pending', null, now(), 10, now(), now()) $f$) = 'ok',
+  '0242 arrival verdict: callable by a signed-in user (the client shares the definition)');
+select _superuser();
 update commitments set location_id = null where id = 'ccccdddd-0000-0000-0000-0000000000c1';
 delete from commitment_locations where id = 'cccc0242-0000-0000-0000-0000000000a1';
 -- today's roll call is still OPEN for the history below (it must not count as a morning yet)
