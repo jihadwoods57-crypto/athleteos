@@ -234,6 +234,10 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
     // fallback stays suppressed, exactly as it does against a real database.
     meal_comments: MEAL_THREAD, interventions: [], requirement_sets: [], athlete_groups: [],
     coach_notes: [], training_logs: [], subscriptions: [], offers: [], sponsorships: [],
+    // The seeded athlete has a birth date on record, as every real athlete who finished sign-up
+    // does. Without it the router's age guard (review pass 2026-09-23, G-R5) sends every athlete
+    // shot to #age-check. An adult date: nothing about the seed is a minor.
+    athlete_profiles: [{ athlete_id: 'seed-athlete', dob: '2003-04-12' }, { athlete_id: 'seed-user', dob: '2003-04-12' }],
   };
 
   const ROSTER = ATHLETES.map(a => ({

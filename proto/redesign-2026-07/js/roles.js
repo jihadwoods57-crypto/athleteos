@@ -1020,7 +1020,7 @@ export async function draftMealReplies(mealId, context, athlete) {
     if (error || !data || data.error) {
       let parsed = data && data.error ? data : null;
       if (!parsed && error && error.context && typeof error.context.json === 'function') parsed = await error.context.json().catch(() => null);
-      return { ok: false, error: (parsed && parsed.error) || 'unavailable' };
+      return { ok: false, error: (parsed && parsed.error) || 'unavailable', who: (parsed && parsed.who) || null };
     }
     return { ok: true, drafts: Array.isArray(data.drafts) ? data.drafts : [] };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }

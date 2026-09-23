@@ -498,7 +498,7 @@ const steps = [
     sub: () => 'Your team, code, and roster live on it.',
     body: () => `
       <div style="height:8px"></div>
-      ${accountBody({ terms: 'cob' })}
+      ${accountBody({ terms: 'obk' })}
       <div class="ob-foot" style="margin-top:auto"><button id="su-go" class="btn primary" disabled>Create account &amp; Get my code</button></div>`,
     mount(root, ctx) {
       // Mirror the engine-captured sport into the legacy coach scratch so create_team

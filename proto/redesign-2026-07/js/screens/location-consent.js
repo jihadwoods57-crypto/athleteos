@@ -26,6 +26,7 @@ import { icon } from '../icons.js';
 import { RT, act } from '../state.js';
 import { backHead, esc } from '../components.js';
 import { lastLocationArm } from '../commitment-data.js';
+import { ARRIVAL_PRIVACY } from '../privacy-copy.js';
 import {
   locationCapable, walkInCapable, probeLocation, locationStateCached, allowLocation,
   disarmLocation, openLocationSettings, alwaysRefused,
@@ -93,11 +94,13 @@ export function consentActionHtml({ capable, state, walkIn, consent, consentAske
       ? `<button type="button" class="btn ghost lc-btn" id="lc-settings">Open Settings</button>
     <p class="ts lc-foot">For walk-in check-in, tap Location in Settings and choose Always. Rather not? I’m here works the same.</p>`
       : offerAlways ? `<button type="button" class="btn primary lc-btn" id="lc-always" ${busy ? 'disabled' : ''}>${icon('target', 18)} Also check me in when I walk in</button>
-    <p class="ts lc-foot">${on ? '' : 'Your phone asks next. Choose Change to Always Allow. '}Rather not? I’m here works the same, and nothing you earned changes.</p>` : ''}`;
+    <p class="ts lc-foot">${on ? '' : 'Your phone asks next. '}Rather not? I’m here works the same, and nothing you earned changes.</p>` : ''}`;
   }
   // Never asked (or the prompt was dismissed): step one, While Using.
-  return `<button type="button" class="btn primary lc-btn" id="lc-allow" ${busy ? 'disabled' : ''}>${icon('target', 18)} Allow location while using the app</button>
-    <p class="ts lc-foot">Your phone asks next. Choose Allow While Using App. That is all I’m here needs.</p>`;
+  // "Continue", never "Allow", and no line telling the athlete which answer to pick in the
+  // phone's question (App Review 5.1.1(iv), the rule build 33 was rejected under).
+  return `<button type="button" class="btn primary lc-btn" id="lc-allow" ${busy ? 'disabled' : ''}>${icon('target', 18)} Continue</button>
+    <p class="ts lc-foot">Your phone asks next. While using the app is all I’m here needs. Rather not? Your coach can still mark you in.</p>`;
 }
 
 export default {
@@ -118,9 +121,8 @@ export default {
       ${bullet('clock', 'Only for a roll call with a place',
         'Your location is checked only for a roll call your coach gave a place, and only during its check-in window. Outside that window nothing is checked at all.')}
       ${bullet('shield', 'One reading, then it’s gone',
-        'Your phone takes one reading when you tap I’m here, or when you walk in. OnStandard checks it against the place and keeps only Arrived or Not arrived. The reading itself is not kept.')}
-      ${bullet('eye', 'Who sees what',
-        'Your coach and your team see Arrived or Not arrived on the team board. Nobody sees where you are. Only you see how far away you were.')}
+        'Your phone takes one reading when you tap I’m here, or when you walk in. OnStandard checks it against the place, then throws the reading away.')}
+      ${bullet('eye', 'Who sees what', `${ARRIVAL_PRIVACY} Nobody sees where you are.`)}
       ${bullet('toggle', 'You decide',
         'Walk-in check-in is optional. Turn it off here or in your phone’s Settings. I’m here still works, and it counts exactly the same.')}
     </section>

@@ -12,6 +12,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 import { checkSpend, spendMessage, EST_USD } from '../_shared/spend-gate.ts';
 import { positionWords } from '../_shared/athlete-context.ts';
+import { missingConsent, consentSkipBody } from '../_shared/ai-consent.mjs';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 
@@ -300,6 +301,13 @@ Deno.serve(async (request) => {
   // applies to everyone.
   // Fails CLOSED: if the counter is unreachable the bill backstop must hold (audit 2026-07-12).
   const userId = await resolveUserId(request);
+  // AI CONSENT (0243): a draft sends the athlete's targets and position to the third-party AI.
+  // Only a signed-in caller who said yes; anyone else keeps the app's own local draft (the client
+  // falls back on any non-2xx, so this answers 403 rather than a body it cannot parse).
+  if (!userId || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY
+    || (await missingConsent(createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY), [userId])) !== null) {
+    return new Response(JSON.stringify(consentSkipBody('you')), { status: 403, headers: { ...cors, 'Content-Type': 'application/json' } });
+  }
   if (!userId && !(await withinKeyCap('global', GLOBAL_CAP, /* failOpen */ false))) {
     return new Response(JSON.stringify({ error: 'service at capacity, try again later' }), { status: 429, headers: { ...cors, 'Content-Type': 'application/json' } });
   }

@@ -141,6 +141,24 @@ describe('cancelWakeAlarmFor', () => {
   });
 });
 
+describe('arming waits for permission (G-P2)', () => {
+  it('arms nothing, and asks nothing, while the athlete has not been asked', async () => {
+    mockState.authorization = 'notDetermined';
+    const n = await syncWakeAlarms([morning('a')]);
+    expect(n).toBe(0);
+    expect(mockState.scheduled).toHaveLength(0);
+    expect(mockState.requested).toBe(0);
+  });
+
+  it('cancels what was armed once permission is gone', async () => {
+    await syncWakeAlarms([morning('a')]);
+    expect(mockState.scheduled).toHaveLength(1);
+    mockState.authorization = 'denied';
+    await syncWakeAlarms([morning('a')]);
+    expect(mockState.scheduled).toHaveLength(0);
+  });
+});
+
 describe('syncWakeAlarms', () => {
   it('arms the set it is given', async () => {
     const n = await syncWakeAlarms([morning('a'), morning('b')]);
@@ -198,11 +216,19 @@ describe('syncWakeAlarms', () => {
 });
 
 describe('wakeAlarmState', () => {
-  it('asks for permission once, when nobody has been asked', async () => {
+  it('asks for permission once, when nobody has been asked and the athlete tapped Continue', async () => {
     mockState.authorization = 'notDetermined';
-    const s = await wakeAlarmState();
+    const s = await wakeAlarmState({ ask: true });
     expect(mockState.requested).toBe(1);
     expect(s.authorization).toBe('authorized');
+  });
+
+  // G-P2: reading the state (Home, the roll call line) must never put up the system question.
+  it('never asks without an explicit ask', async () => {
+    mockState.authorization = 'notDetermined';
+    const s = await wakeAlarmState();
+    expect(mockState.requested).toBe(0);
+    expect(s.authorization).toBe('notDetermined');
   });
 
   it('does not re-ask somebody who said no', async () => {

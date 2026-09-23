@@ -711,6 +711,8 @@ function render(opts) {
     location.hash = '#' + routeForRole(RT.authRole);
     return;
   }
+  // THE AGE GUARD (G-R5 / A-B5): an athlete with no age on record answers the DOB question first.
+  if (ageGuardRoute(route)) { location.hash = '#age-check'; return; }
   /* A RETIRED ROUTE HANDS OVER BEFORE IT PAINTS (roll call rebuilt, 2026-09-23). A module may
      declare `redirect({ sub })`: the route it has been replaced by, or null to render itself.
      Asked here, before a byte of the old screen reaches #device, so an old deep link (a push from
@@ -1173,6 +1175,15 @@ window.__restate = function () {
   NAV_DIR = 'restate';
   render();
 };
+
+/** Where the age guard sends this route, or false. Exported for the router tests. */
+export function ageGuardRoute(route, rt = RT) {
+  if (!rt.userId || rt.ageKnown !== false) return false;
+  if (rt.authRole && rt.authRole !== 'athlete') return false;
+  if (AUTH_ROUTES.includes(route) || AGE_GUARD_OPEN.includes(route)) return false;
+  return 'age-check';
+}
+const AGE_GUARD_OPEN = ['age-check', 'guardian', 'delete-account', 'feedback'];
 
 // Boot gate: restore a Keychain session and gate app screens behind auth. Auth screens are
 // always reachable; fresh (signed-out) users land on Welcome. Runs once on load.

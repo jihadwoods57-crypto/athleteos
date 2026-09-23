@@ -60,6 +60,7 @@ import { memoryBlock, avoidFromFacts, type MemoryFact } from '../_shared/memory.
 import { checkSpend, spendMessage, EST_USD } from '../_shared/spend-gate.ts';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';
+import { missingConsent, consentSkipBody } from '../_shared/ai-consent.mjs';
 
 // Per-surface override first (see meal-chat): vision is the expensive surface and should be
 // tunable without moving every other AI call in the product.
@@ -283,6 +284,10 @@ interface AnalyzeReq {
   /** 'meal' estimates a plate; 'label' transcribes a panel; 'memory'/'order' reword prose;
    *  'opener' posts the GROUNDED read into the thread (no model call at all). */
   mode?: 'meal' | 'label' | 'memory' | 'order' | 'regen' | 'opener';
+  /** ANONYMOUS callers only (the onboarding demo, before an account exists): the person's
+   *  answer on the AI consent sheet, kept on the device until the account is created (0243).
+   *  A signed-in caller's answer is read from their profile; this field is ignored for them. */
+  aiConsent?: boolean;
   mealType: 'Breakfast' | 'Lunch' | 'Snack' | 'Dinner';
   goal: string | null;
   description?: string;
@@ -1150,6 +1155,15 @@ Deno.serve(async (request) => {
       clarifySpent,
     );
     return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+  }
+
+  // ── AI CONSENT (0243, Guideline 5.1.2(i)). Every mode below sends the caller's data (a photo,
+  // their numbers, their dossier) to Anthropic, so it runs only after the caller said yes. A
+  // signed-in caller's answer is read from their profile, fail-closed; an anonymous caller (the
+  // onboarding demo, no account yet) must carry the answer it gave on the device. No answer is a
+  // normal 200 the client reads as "AI reads are off", before any ceiling so it costs nothing.
+  if (userId ? (await missingConsent(svcClient(), [userId])) !== null : req.aiConsent !== true) {
+    return new Response(JSON.stringify(consentSkipBody('you')), { headers: { ...cors, 'Content-Type': 'application/json' } });
   }
   //
   // (1) GLOBAL bill backstop — ANONYMOUS callers ONLY. `phase` is client-controlled, so a caller

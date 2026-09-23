@@ -433,7 +433,7 @@ const steps = [
     title: () => 'Save your standard.',
     sub: () => 'Your score, meals, and trainer connection sync across devices.',
     body: () => `
-      ${accountBody({ terms: 'clob' })}
+      ${accountBody({ terms: 'obf' })}
       <div class="ob-foot" style="margin-top:auto">
         <button id="su-go" class="btn primary" disabled>Create account &amp; Start</button>
       </div>`,

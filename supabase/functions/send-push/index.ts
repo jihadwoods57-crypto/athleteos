@@ -11,6 +11,10 @@ import { sanitizeBulkPayload, aggregateBulkResults } from './logic.mjs';
 // used to read `r.ok` and report the whole chunk as delivered, which is how an unconfigured APNs
 // key stayed invisible for months. sendExpoPushAndPrune reads the tickets and retires dead ones.
 import { sendExpoPushAndPrune } from '../_shared/expo-push.mjs';
+import { blockersOf, withoutBlockers, deviceCounts, sumDevices, logBlocked } from '../_shared/blocks.mjs';
+/* R2-M1: per-isolate memory of nudges to a blocked athlete (no bell row is written for them), so
+   the 2-minute dedupe answers the same for them as for anyone. Best effort: a cold start forgets. */
+const NUDGE_ECHO = new Map<string, number>();
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -195,8 +199,15 @@ Deno.serve(async (req) => {
     const optedOut0 = new Set((prefs0 ?? [])
       .filter((p: { notifications_opt_out?: boolean }) => p.notifications_opt_out === true)
       .map((p: { id: string }) => p.id));
-    const targets0 = athleteIds.filter((id) => !optedOut0.has(id));
-    if (!targets0.length) return json({ ok: true, pushed: 0 }, 200, cors);
+    // Block (0244): an athlete who blocked the posting coach gets no push (post_announcement
+    // already skipped their feed row).
+    const blocked0 = await blockersOf(svc0, callerId, athleteIds);
+    const targets0 = withoutBlockers(athleteIds.filter((id) => !optedOut0.has(id)), blocked0);
+    if (!targets0.length) {
+      const b0 = athleteIds.filter((id) => blocked0.has(id));
+      logBlocked('send-push:announcement', b0.length);
+      return json({ ok: true, pushed: sumDevices(await deviceCounts(svc0, b0), b0) }, 200, cors);
+    }
 
     // NOTE: no `notifications` insert here — post_announcement already wrote every feed row.
     // This branch is push-only; writing here would double-deliver.
@@ -206,7 +217,11 @@ Deno.serve(async (req) => {
     const body0 = (ann.body ?? '').slice(0, 300);
     const out0 = await sendExpoPushAndPrune(
       tokens0.map((to) => ({ to, title: title0, body: body0, sound: 'default' })), svc0);
-    return json({ ok: true, pushed: out0.sent, failed: out0.failed, errors: out0.errors }, 200, cors);
+    // I1: a recipient who blocked the coach reads, to the coach, exactly like a delivery.
+    const blockedIds0 = athleteIds.filter((id) => blocked0.has(id) && !optedOut0.has(id));
+    logBlocked('send-push:announcement', blockedIds0.length);
+    const ghost0 = sumDevices(await deviceCounts(svc0, blockedIds0), blockedIds0);
+    return json({ ok: true, pushed: out0.sent + ghost0, failed: out0.failed, errors: out0.errors }, 200, cors);
   }
 
   // ---------- operator bulk nudge (athlete_ids mode) ----------
@@ -264,7 +279,9 @@ Deno.serve(async (req) => {
         .map((p: { id: string }) => p.id));
     } catch { /* fail-open */ }
 
-    const live3 = targets3.filter((id) => !dedupedSet3.has(id) && !optedOut3.has(id));
+    // Block (0244): an athlete who blocked this coach gets no bell row and no push.
+    const blocked3 = await blockersOf(svc3, callerId3, targets3);
+    const live3 = targets3.filter((id) => !dedupedSet3.has(id) && !optedOut3.has(id) && !blocked3.has(id));
 
     // Durable bell rows first — they land even for a zero-device athlete (in-app only).
     if (live3.length) {
@@ -310,9 +327,14 @@ Deno.serve(async (req) => {
       })));
     } catch { /* the nudge already landed; the queue-clear row stays best-effort, as it was client-side */ }
 
+    const blockedIds3 = targets3.filter((id) => blocked3.has(id) && !dedupedSet3.has(id) && !optedOut3.has(id));
+    logBlocked('send-push:bulk', blockedIds3.length);
+    const ghost3 = await deviceCounts(svc3, blockedIds3);
     for (const id of targets3) {
       if (dedupedSet3.has(id)) { results.push({ athlete_id: id, pushed: 0, devices: 0, deduped: true }); continue; }
-      if (optedOut3.has(id)) { results.push({ athlete_id: id, pushed: 0, devices: 0, suppressed: 'notifications_off' }); continue; }
+      if (optedOut3.has(id)) { results.push({ athlete_id: id, pushed: 0, devices: 0, suppressed: 'notifications_off' }); continue; }   // blocked or not: the same answer
+      // I1: indistinguishable from a delivery. The reason lives in the server log only.
+      if (blocked3.has(id)) { const d = ghost3.get(id) || 0; results.push({ athlete_id: id, pushed: d, devices: d }); continue; }
       const devices = (tokByUser.get(id) ?? []).length;
       results.push({ athlete_id: id, pushed: acceptedFor(id), devices });
     }
@@ -352,11 +374,15 @@ Deno.serve(async (req) => {
     const { data: owners } = practiceIds.length
       ? await svc2.from('practices').select('owner_id').in('id', practiceIds)
       : { data: [] as Array<{ owner_id: string }> };
-    const coachIds = [...new Set([
+    const coachIds0 = [...new Set([
       ...(staff ?? []).map((s: { staff_id: string }) => s.staff_id),
       ...(owners ?? []).map((o: { owner_id: string }) => o.owner_id),
     ])].filter((id) => !!id && id !== athleteId2).slice(0, 12);
-    if (!coachIds.length) return json({ ok: true, pushed: 0, coaches: 0 }, 200, cors);
+    // Block (0244): a coach who blocked this athlete hears nothing from them.
+    const blocked2 = await blockersOf(svc2, athleteId2, coachIds0);
+    const coachIds = withoutBlockers(coachIds0, blocked2);
+    logBlocked('send-push:to_coach', coachIds0.length - coachIds.length);
+    if (!coachIds.length) return json({ ok: true, pushed: 0, coaches: coachIds0.length }, 200, cors);
 
     // Durable in-app record for every coach (the unread item), regardless of push urgency.
     await svc2.from('notifications').insert(coachIds.map((id) => ({
@@ -403,7 +429,8 @@ Deno.serve(async (req) => {
         }
       }
     }
-    return json({ ok: true, pushed, coaches: coachIds.length, ...(pushErrors.length ? { errors: pushErrors } : {}) }, 200, cors);
+    // I1: the count is the whole staff list, blocked or not, so the athlete learns nothing.
+    return json({ ok: true, pushed, coaches: coachIds0.length, ...(pushErrors.length ? { errors: pushErrors } : {}) }, 200, cors);
   }
 
   const athleteId = payload.athlete_id;
@@ -429,6 +456,7 @@ Deno.serve(async (req) => {
 
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE);
 
+
   // 1b) Idempotency guard: a retried client call or a double-tap on the same nudge button
   // should not double-deliver. Skip if this athlete already got a 'nudge' in the last 2 minutes —
   // long enough to absorb a retry/double-submit, short enough that a coach nudging again
@@ -441,6 +469,27 @@ Deno.serve(async (req) => {
       .select('id').eq('user_id', athleteId).eq('kind', 'nudge')
       .gte('created_at', new Date(Date.now() - DEDUPE_WINDOW_MS).toISOString()).limit(1).maybeSingle();
     if (!dedupeErr && recentNudge) return json({ ok: true, pushed: 0, deduped: true }, 200, cors);
+    // R2-M1: a blocked athlete's first nudge is remembered in the log below, so a second one
+    // inside the window answers `deduped` exactly as it would for anyone else.
+    if (NUDGE_ECHO.has(`${athleteId}`) && Date.now() - (NUDGE_ECHO.get(`${athleteId}`) || 0) < DEDUPE_WINDOW_MS) {
+      return json({ ok: true, pushed: 0, deduped: true }, 200, cors);
+    }
+  }
+
+  // 1c) Block (0244): an athlete who blocked the caller gets no bell row and no push. The caller
+  // learns nothing: after the same dedupe and opt-out answers anyone gets, the reply is the one a
+  // delivery to their phones gives (I1, R2-M1). The reason stays in the server log.
+  {
+    const { data: meS } = await caller.auth.getUser();
+    const senderId = meS?.user?.id;
+    if (senderId && (await blockersOf(svc, senderId, [athleteId])).has(String(athleteId))) {
+      logBlocked('send-push:single', 1);
+      const { data: prefB } = await svc.from('profiles').select('notifications_opt_out').eq('id', athleteId).maybeSingle();
+      if (prefB?.notifications_opt_out === true) return json({ ok: true, pushed: 0, suppressed: 'notifications_off' }, 200, cors);
+      if (opKind === 'nudge') NUDGE_ECHO.set(`${athleteId}`, Date.now());
+      const d = (await deviceCounts(svc, [athleteId])).get(String(athleteId)) || 0;
+      return json({ ok: true, pushed: d, devices: d }, 200, cors);
+    }
   }
 
   // 2) Record the in-app notification (service role bypasses the self-only insert policy).

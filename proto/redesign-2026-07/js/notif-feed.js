@@ -128,6 +128,7 @@ export function feedRowFromServer(row, nowMs) {
   const meta = KIND_META[baseKind] || DEFAULT_META;
   return {
     id: row.id || null,
+    kind: baseKind,
     level: meta.level,
     tag: meta.tag || null,
     icon: meta.icon,

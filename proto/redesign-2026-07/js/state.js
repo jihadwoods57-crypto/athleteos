@@ -84,6 +84,10 @@ import { bustAvatar } from './avatar.js';
 import { itemFromMeal, memoryContextForAnalysis, mealSignature } from './food-memory.js';
 import { foodMemory, warmFoodMemory, invalidateFoodMemory } from './food-memory-data.js';
 import { track, EVENTS } from './analytics.js';
+// Loaded on first use, off the boot graph (lint:boot).
+const aiConsent = () => import('./ai-consent.js');
+const notifyPerm = () => import('./notify-permission.js');
+let NOTIFY_PERM = null;   // the phone's answer, read (never asked) alongside the push token
 
 /** A macro to persist: its number (0 if falsy), or null when it was never read. */
 const keepN = (v) => (v == null ? null : v || 0);
@@ -312,6 +316,7 @@ const DEFAULT_RT = {
   profile: null,         // athlete identity: {name, sport, position, school, level, avatar(dataURL)} — from onboarding / signed-in profile, never fabricated
   ob: null,              // onboarding scratch — the athlete's real selections, captured as they build their Standard
   mutedUsers: [],        // profile ids whose messages this reader hides (Guideline 1.2 block). Device-local, never sent.
+  ageKnown: null,        // athlete only: does the server hold a birth date or an age? null = not checked / unknown (never routes); false sends the router to #age-check (G-R5)
   allergies: [],         // FLAT summary list (guardian check + profile row). Derived from restrictions when structured.
   restrictions: null,    // structured (spec §18.1): {allergies:[{name,severity}], intolerances:[], preferences:[]}
   wearable: false,       // reserved; #apple-health gates on the live native health probe, not this flag
@@ -972,7 +977,11 @@ let PUSH_TOKEN_VALUE = null;
 export function pushTokenState() {
   if (typeof window === 'undefined' || !window.OnStandardNative || !window.OnStandardNative.push) return 'web';
   if (PUSH_TOKEN_VALUE) return 'ready';
-  return PUSH_TOKEN_TRIED ? 'denied' : 'unknown';
+  // G-R10: no token is a refusal only when the phone says so; never asked is 'unknown'.
+  const perm = NOTIFY_PERM;
+  if (perm === 'undetermined') return 'unknown';
+  if (perm === 'denied') return 'denied';
+  return PUSH_TOKEN_TRIED && perm !== null ? 'denied' : 'unknown';
 }
 
 /* Server-notification fetch throttle (in-memory: refetch at most every 15s, resets on
@@ -1021,6 +1030,10 @@ const ANALYSIS_TIMEOUT_MS = 45_000;
  *
  * Never throws. Returns the same `{ data, error }` shape invoke() does, so callers are unchanged.
  */
+/** What an athlete is told when a read was skipped because AI reads are off (0243). A notice, not
+ *  an error: the meal is logged either way. */
+export const AI_OFF_LINE = 'AI reads are off, so this meal has no numbers. It still counts as proof and for timing.';
+
 function invokeWithDeadline(name, body, ms = ANALYSIS_TIMEOUT_MS) {
   const sb = window.sb;
   if (!sb) return Promise.resolve({ data: null, error: { message: 'offline' } });
@@ -1446,6 +1459,15 @@ export const act = {
       if (done) { this._patchSlot(job.slot, { analysisFailed: reason }); window.__render && window.__render(); }
       track(EVENTS.MEAL_ANALYSIS_FAILED, { reason });
     };
+    /* AI CONSENT (0243, 5.1.2(i)): no yes, no photo sent. The meal stays logged; the thread says
+       AI reads are off, with Turn on. Terminal for the job; the server holds the same line. */
+    const aiOff = () => {
+      updateJob(job.k, { needAnalysis: false, pendingQuestions: null });
+      this._patchSlot(job.slot, { analysisFailed: 'ai_off' });
+      window.__render && window.__render();
+    };
+    const { aiConsentCached, refreshAiConsent, noteAiConsentRequired, isConsentSkip } = await aiConsent();
+    if (aiConsentCached(job.uid) !== true && (await refreshAiConsent(job.uid)) !== true) return aiOff();
     try {
       const phase = job.answers ? 'finalize' : 'analyze';
       const body = { ...this._jobAnalysisBody(job), phase };
@@ -1455,6 +1477,7 @@ export const act = {
         const msg = String((error && error.message) || '');
         return fail(/429|capacity|limit/i.test(msg) ? 'capacity' : 'error');
       }
+      if (isConsentSkip(data)) { noteAiConsentRequired(job.uid); return aiOff(); }
       if (data && data.kind === 'questions') {
         const qs = Array.isArray(data.questions) ? data.questions.filter((q) => typeof q === 'string' && q.trim()).slice(0, 3) : [];
         if (qs.length) {
@@ -2184,16 +2207,19 @@ export const act = {
     RT.voiceNudge = { sig, text: text || null };
     save();
   },
-  /* Register this device's push token (coach→athlete nudges) via the bridge, once per
-     session, after sign-in. Fire-and-forget; a denial or missing seam is a silent no-op. */
-  async registerPushToken() {
-    if (PUSH_TOKEN_TRIED || !RT.userId) return;
+  /* Register this device's push token via the bridge, after sign-in. Fire-and-forget.
+     NEVER ASKS ON ITS OWN (G-R10): Home calls this on every load; only the Continue primers
+     (notify-permission.js) pass `ask`. */
+  async registerPushToken({ ask = false } = {}) {
+    if (PUSH_TOKEN_VALUE || !RT.userId) return;
+    if (PUSH_TOKEN_TRIED && !ask) return;
     const N = window.OnStandardNative;
     const sb = window.sb;
     if (!N || !N.push || !sb) return;
     PUSH_TOKEN_TRIED = true;
     try {
-      const r = await N.push.token();
+      try { NOTIFY_PERM = await (await notifyPerm()).notifyPermission(false); } catch { /* unknown */ }
+      const r = await N.push.token({ ask });
       // Whatever came back, the roll-call card can now say whether a push will reach this phone.
       try { window.dispatchEvent(new CustomEvent('onstd:push-token', { detail: { ok: !!(r && r.token) } })); } catch { /* no-op */ }
       if (r && r.token) {
@@ -2356,9 +2382,13 @@ export const act = {
     const sb = window.sb;
     if (!sb || !MEAL.photoBase64) return { ok: false, error: 'No photo to analyze.' };
     MEAL.questions = null;
+    // AI consent (0243): no yes, no photo sent. A plain answer, not a failure.
+    const { aiConsentCached, refreshAiConsent, noteAiConsentRequired, isConsentSkip } = await aiConsent();
+    if (aiConsentCached(RT.userId) !== true && (await refreshAiConsent(RT.userId)) !== true) return { ok: false, aiOff: true, error: AI_OFF_LINE };
     try {
       const { data, error } = await invokeWithDeadline('analyze-meal', { ...this._analysisBody(), phase: 'analyze' });
       if (error) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'error' }); return { ok: false, error: 'Analysis failed. Check your connection and retake.' }; }
+      if (isConsentSkip(data)) { noteAiConsentRequired(RT.userId); return { ok: false, aiOff: true, error: AI_OFF_LINE }; }
       if (data && data.kind === 'questions') {
         const qs = Array.isArray(data.questions) ? data.questions.filter((q) => typeof q === 'string' && q.trim()).slice(0, 3) : [];
         if (qs.length) { MEAL.questions = qs; save(); saveMeal(); return { ok: true, kind: 'questions' }; }
@@ -2382,9 +2412,11 @@ export const act = {
     const sb = window.sb;
     if (!sb || !MEAL.photoBase64) return { ok: false, error: 'No photo to analyze.' };
     const clarifications = buildClarifications(MEAL.questions || [], answers || []);
+    const { noteAiConsentRequired, isConsentSkip } = await aiConsent();
     try {
       const { data, error } = await invokeWithDeadline('analyze-meal', { ...this._analysisBody(), phase: 'finalize', clarifications });
       if (error) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'error' }); return { ok: false, error: 'Analysis failed. Check your connection and retake.' }; }
+      if (isConsentSkip(data)) { noteAiConsentRequired(RT.userId); return { ok: false, aiOff: true, error: AI_OFF_LINE }; }
       if (data && data.kind === 'result') {
         const grounded = groundResult(data);
         if (!isCompleteMealResult(grounded)) { track(EVENTS.MEAL_ANALYSIS_FAILED, { reason: 'unreadable' }); return { ok: false, error: 'Could not read that meal. Try another angle.' }; }
@@ -3087,6 +3119,9 @@ export const act = {
       // round trip, so the banner can render on the very first screen after signup instead of
       // waiting for hydrateDay()'s query (which only runs from boot(), not from onSession(true)).
       RT.emailVerified = false;
+      // The AI answer given in the onboarding demo, before this account existed, lands on it now
+      // (0243). Best effort: the next read retries a write that did not land.
+      if (RT.userId) { const uid = RT.userId; void aiConsent().then((m) => m.refreshAiConsent(uid), () => {}); }
     } else {
       RT.userId = null;
       RT.authRole = null;
@@ -3114,6 +3149,8 @@ export const act = {
     RT.authRole = role;
     save();
     this._armLocation({ force: true });
+    { const uid = RT.userId; void aiConsent().then((m) => m.refreshAiConsent(uid), () => {}); }   // this device learns the account's AI answer (0243)
+    void this.checkAgeKnown();   // the router's age guard (G-R5)
     const hadServerProfile = await this._loadProfileIntoRt(RT.userId);
     // Back-fill: if onboarding was captured locally but never fully reached the server (a signup
     // that had no session at the time, or a partial persistOnboarding failure — e.g. a
@@ -3373,6 +3410,18 @@ export const act = {
         save();
       } catch { /* best-effort */ }
     }
+  },
+  /* The age guard's fact (G-R5): does the server hold a birth date or age for this athlete? A
+     confirmed NO sends the router to #age-check; a failed read decides nothing. */
+  // The body lives in screens/age-check.js (lazy, off the boot graph; lint:boot).
+  checkAgeKnown() { return import('./screens/age-check.js').then((m) => m.checkAgeKnown(), () => {}); },
+  setAgeKnown(v, role) { if (role) RT.authRole = role; RT.ageKnown = v; save(); },
+  /** The age check just saved a birth date. */
+  noteAgeKnown(dob) {
+    RT.ageKnown = true;
+    if (dob) RT.profile = { ...(RT.profile || {}), dob };
+    save();
+    this._armSyncGate();
   },
   /* Athlete guardian-consent state (the client half of 0050): hydrate the newest request's
      status, then arm/disarm the day-sync gate. A PROVABLE minor (dob says <18 — the same rule
@@ -3703,6 +3752,7 @@ export const act = {
     // attribute crossings under whoever signs in next on this phone).
     await this._disarmLocation();
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
+    try { localStorage.removeItem('os.sso.new'); } catch { /* R2-I1: the bounce note ends with the session */ }
     this._wipeUserScopedState({ keepPendingOb: true });
   },
 
@@ -3857,6 +3907,8 @@ export const act = {
   async deleteAccount() {
     const sb = window.sb;
     let serverOk = false;
+    // G-R4: revoke Sign in with Apple first; it never blocks the deletion.
+    try { if (sb && RT.userId) await Promise.race([sb.functions.invoke('delete-account', { body: {} }), new Promise((r) => setTimeout(r, 8000))]); } catch { /* go on */ }
     try { if (sb && RT.userId) { const { error } = await sb.rpc('delete_account', {}); serverOk = !error; } } catch { /* fall through to local wipe */ }
     await this._disarmLocation();   // the account is gone; its geofences must not outlive it
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
@@ -4051,6 +4103,14 @@ export const act = {
     // phase 3: consent + commitment stamps (profiles_self_write; 0048 columns, best-effort)
     if (!synced.stamps && sb && RT.userId) {
       synced.stamps = await this._stampConsent(RT.activationDate || ob.committedAt);
+    }
+    // phase 3b (A-B6): a 13-17 athlete's parent email becomes the approval request, once.
+    if (!synced.guardian) {
+      if (!ob.guardianEmail || !ob.dobMinor) synced.guardian = true;
+      else if (sb && RT.userId) {
+        try { const r = await this.requestGuardianConsent(ob.guardianEmail); synced.guardian = !!(r && r.ok !== false); }
+        catch { /* #guardian asks again */ }
+      }
     }
     // phase 4: redeem the validated join code (server re-validates; idempotent)
     if (!synced.join) {
@@ -4252,6 +4312,7 @@ export const act = {
     if (!user) return;
     if (RT.userId && RT.userId !== user.id) this._wipeUserScopedState({ keepPendingOb: true });
     RT.userId = user.id; RT.email = user.email || RT.email; save();
+    void aiConsent().then((m) => m.refreshAiConsent(user.id), () => {});   // the AI answer, and any onboarding answer still to write (0243)
     // A restored session is a sign-in as far as the phone's geofences are concerned.
     this._armLocation({ force: true });
     // The queue is durable, so a launch can inherit work: a read killed mid-flight, a meal logged
@@ -4265,6 +4326,7 @@ export const act = {
         if (prof && prof.primary_role) { RT.authRole = prof.primary_role; save(); }
       } catch { /* offline — routes as athlete until the next successful boot */ }
     }
+    void this.checkAgeKnown();   // the router's age guard (G-R5); never awaited, never blocks boot
     // Capture the device timezone once (0088) — powers coach-side, athlete-local overdue. Best-effort:
     // a not-yet-applied profiles.timezone column or offline just no-ops.
     try {

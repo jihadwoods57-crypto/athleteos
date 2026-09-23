@@ -3,7 +3,7 @@ import { FILTERED_NOTE } from '../content-filter.js';
 import { openMembersSheet } from '../members-sheet.js';
 import { icon } from '../icons.js';
 import { accentVar, scoreColor, ON_STANDARD, qualityAccent, tierFor } from '../score-band.js';
-import { backHead, titleHead, avatarHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner, copyText, scoreRing, sayStatus } from '../components.js';
+import { backHead, titleHead, avatarHead, esc, safeImg, composer, sparkline, emptyState, errorState, skeletonRows, emailVerifyBanner, wireEmailVerifyBanner, copyText, scoreRing, sayStatus, aiDisclaimer } from '../components.js';
 import { DAYS_SHORT, shortDate, weekdayLong, dateKey } from '../fmt-date.js';
 import { weekBars, calendarWeek, daysBetween } from '../week-bars.js';
 import {
@@ -51,6 +51,7 @@ import { initialsOf } from '../initials.js';
 import { SPORT_POSITIONS } from './profile.js';
 import { VC, loadBoard } from '../commitment-data.js';
 import { hydrateAvatars } from '../avatar.js';
+import { ensureAiConsent, isConsentSkip, noteAiConsentRequired, aiOffForCoach } from '../ai-consent.js';
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -2344,7 +2345,9 @@ function aiSummaryCard(P, athleteId) {
   if (ASUM.id !== athleteId || ASUM.loading) {
     body = `<div class="mr-skel asum-skel" aria-label="Loading the read"><div class="mr-skel-line"></div><div class="mr-skel-line"></div><div class="mr-skel-line"></div><div class="mr-skel-line"></div></div>`;
   } else if (!row || !row.generated_at) {
-    body = `<div class="asum-empty">${ASUM.error ? "Can't reach the AI Nutritionist right now." : `The AI Nutritionist has not written a read of ${esc(first)} yet.`}</div>`;
+    // 0243: an athlete who has not said yes to AI gets no read, and the coach is told why.
+    body = `<div class="asum-empty">${ASUM.error === 'ai_consent_required' ? `${esc(first)} has not turned on AI reads, so the AI Nutritionist does not write a read of them.`
+      : ASUM.error ? "Can't reach the AI Nutritionist right now." : `The AI Nutritionist has not written a read of ${esc(first)} yet.`}</div>`;
   } else {
     body = `
       ${row.headline ? `<div class="asum-headline">${esc(row.headline)}</div>` : ''}
@@ -3386,9 +3389,9 @@ export const coachMeal = {
         <div class="msg ai last">
           <div class="av">${icon('sparkle', 15)}</div>
           <div class="stack"><div class="who">AI Nutritionist · what the ${CD.noun} was told</div>
-          <div class="bubble">${esc(opening)}</div></div>
+          <div class="bubble">${esc(opening)}</div>${aiDisclaimer()}</div>
         </div>` : ''}
-        ${layoutThread(msgs, { muted: RT.mutedUsers, fmtTime: msgClock, fmtDay: msgDay, fmtDayLabel: dayLabelOf }).map((item) => {
+        ${layoutThread(msgs, { muted: RT.mutedUsers, fmtTime: msgClock, fmtDay: msgDay, fmtDayLabel: dayLabelOf }).map((item, _i, all) => {
           if (item.type === 'time') return timeSepHtml(item, esc);
           const c = item.comment;
           /* A filed correction receipt renders as the card, not as a bubble — the same record the
@@ -3422,6 +3425,9 @@ export const coachMeal = {
               ${/* The "Updated analysis" badge is gone (founder ruling: robotic; the athlete
                     thread already dropped it). The quote above still marks what changed. */''}
               <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc)}${bubbleRx.length ? `<span class="rxo">${bubbleRx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+              ${/* G-P8: the AI's first words on the coach's side carry the same "not medical advice"
+                    line the athlete sees on the meal read and in nutrition chat. Once per thread. */''}
+              ${c.role === 'ai' && !(opening && !msgs.some(isAnalysisOpener)) && all.find((it) => it.type !== 'time' && it.comment && it.comment.role === 'ai' && !isCorrectionReceipt(it.comment)) === item ? aiDisclaimer() : ''}
               ${deliveredHtml({ mine, isLast: c === lastMsg })}
             </div>
             ${msgTimeHtml(c, msgClock, esc)}
@@ -3473,7 +3479,7 @@ export const coachMeal = {
             : `<button class="qa" id="cm-draft">${icon('sparkle', 13)} Let AI draft a reply</button>`}
       </div>
       ${(DRAFTS.mealId === sub && DRAFTS.error && !drafts.length && !drafting)
-        ? `<div class="tm-note">Couldn't draft right now. Write your own or try again.</div>` : ''}
+        ? `<div class="tm-note">${DRAFTS.error === 'ai_consent_required' ? esc(aiOffForCoach(DRAFTS.who)).replace(' Your question was posted.', '') : 'Couldn’t draft right now. Write your own or try again.'}</div>` : ''}
       <div class="tm-row" style="align-items:center">
         <button class="btn ghost sm" id="cm-resolve">${RESOLVED_MEALS.has(mealId) ? `Resolved ${icon('check', 12)}` : 'Mark resolved'}</button>
         <span id="cm-resolve-note" class="tm-note"></span>
@@ -3766,6 +3772,11 @@ export const coachMeal = {
         clearComposer(box);
         noteSent(sub, text);
       }
+      // AI CONSENT (0243): the coach's question goes to Anthropic only after the coach said yes.
+      if (!(await ensureAiConsent(RT.userId, { role: RT.authRole || 'coach' }))) {
+        note('AI is off for you, so the AI Nutritionist stays quiet. Your question was posted. Turn AI on in Privacy on your Profile.');
+        return;
+      }
       aiBtn.disabled = true;
       const res = { photoPath };
       setAiWorking(sub, true, { label: res.photoPath ? 'Reading the photo' : workingLabel(threadMessages(MC && MC.comments)) });
@@ -3776,9 +3787,14 @@ export const coachMeal = {
           // server-side in the ATHLETE's own photo or words; askerNoun names the asker in the receipt.
           body: { mealId: sub, coachAsk: true, question: text, context: coachAskContext(meal0), ...athleteContextForMeal(meal0), ...(res.photoPath ? { photoPath: res.photoPath } : {}), canDirectAdd: true, askerNoun: RT.authRole === 'trainer' ? 'trainer' : 'coach' },
         });
+        if (isConsentSkip(data)) {
+          if (data.who === 'you') noteAiConsentRequired(RT.userId);
+          failMsg = aiOffForCoach(data.who);
+        } else {
         if (error || !data || !data.reply) throw new Error('no-reply');
         // The AI added something the athlete posted: put it in the numbers NOW (see below).
         if (data.addition && data.addition.id) await applyAdditionHere(data.addition);
+        }
       } catch {
         failMsg = "The AI couldn't answer right now. Your question was still posted to the thread.";
       }
@@ -4015,18 +4031,26 @@ export const coachMeal = {
     // messages, so drafts are grounded in what was actually said.
     const draftBtn = root.querySelector('#cm-draft');
     if (draftBtn) draftBtn.addEventListener('click', async () => {
+      // AI CONSENT (0243): the thread goes to Anthropic only after the coach said yes.
+      if (!(await ensureAiConsent(RT.userId, { role: RT.authRole || 'coach' }))) {
+        DRAFTS = { mealId: sub, items: [], loading: false, error: 'ai_consent_required', who: 'you' };
+        window.__render();
+        return;
+      }
       DRAFTS = { mealId: sub, items: [], loading: true, error: null };
       window.__render();
       const meal0 = mealById(sub);
       const context = {
         meal: meal0 ? { type: meal0.type, protein: meal0.protein, kcal: meal0.kcal, quality: meal0.quality } : {},
-        thread: threadMessages(MC && MC.comments).slice(-6).map((c) => ({ role: c.role, text: String(c.text).slice(0, 300) })),
+        thread: threadMessages(MC && MC.comments).slice(-6).map((c) => ({ role: c.role, senderId: c.author_id || null, text: String(c.text).slice(0, 300) })),
       };
       const r = await roles.draftMealReplies(sub, context, athleteContextForMeal(meal0).athlete);
       if (DRAFTS.mealId !== sub) return; // stale — coach navigated away/on before this resolved
       DRAFTS.loading = false;
       DRAFTS.items = r.ok ? r.drafts : [];
       DRAFTS.error = r.ok ? null : (r.error || 'unavailable');
+      DRAFTS.who = r.who || null;
+      if (r.error === 'ai_consent_required' && r.who === 'you') noteAiConsentRequired(RT.userId);
       window.__render();
     });
     // Chip tap: fills the REAL #cm-input element (never re-renders over it — that would rebuild

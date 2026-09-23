@@ -17,7 +17,7 @@ import { fmtMin } from '../requirements.js';
 import { deriveCommitment, TYPE_LABEL, fmtAt, offsetFor, VERDICT, wakeupPhase, deadlineOf, closesAtOf, opensAtOf, graceMinOf, sourceOf, SOURCE, athleteRollcallRoute, boardRoute } from '../commitments.js';
 import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal, subscribeMine, todayISO, nativeCaps } from '../commitment-data.js';
 import { pushTokenState, RT, S, act } from '../state.js';
-import { wakeAlarmState } from '../wake-alarms.js';
+import { wakeAlarmState, syncWakeAlarms } from '../wake-alarms.js';
 
 /* Per-instance notes, keyed by instance id. A single global here once meant commitment A's
    failure reason painted onto commitment B's card the moment two shared a morning.
@@ -404,6 +404,8 @@ export function mountCommitmentCard(root, rerender) {
 function pushWarning(phase) {
   if (phase === 'closed') return '';
   const s = pushTokenState();
+  // Never asked: mount() fills this with the Continue primer (G-R10).
+  if (s === 'unknown') return '<div id="np-slot"></div>';
   if (s !== 'denied') return '';
   return `
   <div class="sidebox wk-warn">
@@ -429,6 +431,19 @@ async function paintAlarmLine(root, row) {
   const at = fmtAt(row.starts_at, off);
   const denied = st.authorization === 'denied';
   const coachOff = row.alarm === false;
+  // Never asked (G-P2): ask only from this Continue.
+  if (!coachOff && st.authorization === 'notDetermined') {
+    slot.innerHTML = `<div class="vc-ctx wk-alarmline np-alarm">${icon('sun', 13)} <span>${esc(`Your coach set a wake-up for ${at}. Turn on alarms and your phone rings through Do Not Disturb and silent mode. Your phone asks next.`)}</span>
+      <button type="button" class="btn ghost sm" id="wk-alarm-go">Continue</button></div>`;
+    const go = slot.querySelector('#wk-alarm-go');
+    if (go) go.addEventListener('click', async () => {
+      go.disabled = true; go.textContent = 'Asking…';
+      await wakeAlarmState({ ask: true });
+      try { await syncWakeAlarms(VC.rows || [row]); } catch { /* the next Home load arms it */ }
+      void paintAlarmLine(root, row);
+    });
+    return;
+  }
   const text = coachOff
     ? `Your coach set this to arrive as a notification, not an alarm.`
     : denied
@@ -727,6 +742,24 @@ export default {
     // that answer lands after this screen painted, repaint once so the warning is not a refresh
     // away. `{ once }` keeps a long-lived screen from stacking listeners across re-mounts.
     window.addEventListener('onstd:push-token', () => { if (root.isConnected) window.__render && window.__render(); }, { once: true });
+    // The notification primer (G-R10): a read decides whether to draw it; only Continue asks.
+    const npSlot = root.querySelector('#np-slot');
+    if (npSlot) {
+      void import('../notify-permission.js').then(async (NP) => {
+        const perm = await NP.notifyPermission(false);
+        if (!npSlot.isConnected) return;
+        npSlot.innerHTML = NP.notifyPrimerHtml({ perm, context: 'rollcall' });
+        NP.wireNotifyPrimer(npSlot, {
+          withAlarms: true,
+          after: async () => {
+            await act.registerPushToken({ ask: true });   // already answered, so this only mints the token
+            RT._lastPlan = null; act.syncNotifications();
+            try { await syncWakeAlarms(VC.rows || []); } catch { /* Home arms it next */ }
+            if (root.isConnected) window.__render && window.__render();
+          },
+        });
+      }, () => { /* no primer; the Notifications screen still has one */ });
+    }
 
     // LIVE (0212): a lock-screen tap recorded while this screen is open paints its receipt here
     // without a tap. Realtime on the athlete's own rows, a poll as the floor, stopped when the

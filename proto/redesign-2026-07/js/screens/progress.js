@@ -116,7 +116,7 @@ function recordsSection() {
           and reappears with the feature. */''}
     ${ROLLCALL_OFF ? '' : row('accountability', 'sun', 'Roll call record', 'Roll calls and sessions')}
     ${S.coach.hasCoach && S.coach.kind === 'coach'
-      ? row('squad', 'users', 'Squad', 'Opt-in · your score number only') : ''}
+      ? row('squad', 'users', 'Squad', 'Score opt-in only. Your team sees roll call answers') : ''}
     ${/* `clock`, not `clipboard`: Score history and Monthly report both drew the clipboard, so
           the icon column said nothing on either row. */''}
     ${/* "Activity history": the title of the screen it opens (trust.js), the same name Profile's

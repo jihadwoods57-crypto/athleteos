@@ -51,6 +51,8 @@ import {
 // Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
 // refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
 import { sendExpoPush } from '../_shared/expo-push.mjs';
+import { missingConsent, consentSkipBody, loadConsentRows, consentedIds } from '../_shared/ai-consent.mjs';
+import { authorIds, scrubContext, scrubRows } from './consent-scrub.mjs';
 
 // Per-surface override first: one shared ANTHROPIC_MODEL meant chat could not move tiers
 // without dragging vision with it. Unset -> unchanged.
@@ -661,6 +663,32 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
     }
 
+    // AI CONSENT (0243, Guideline 5.1.2(i)). Everything below sends the thread to Anthropic: the
+    // meal owner's photos, numbers and dossier, and the caller's own words. It runs only when BOTH
+    // have said yes: the athlete first (their data is the subject), then the caller (a coach's
+    // question is the coach's data). Fail-closed. A 200 with a plain code, never an error: the
+    // client shows "AI replies are off" and the message the person wrote is already saved.
+    {
+      const missing = await missingConsent(service, [mealRow.athlete_id, callerId]);
+      if (missing !== null) {
+        return new Response(JSON.stringify(consentSkipBody(missing === mealRow.athlete_id && missing !== callerId ? 'athlete' : 'you')),
+          { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
+    }
+    // I3: only the words of people who said yes reach the model. Everyone else in the thread is a
+    // placeholder with a role word, no text and no name; anyone the meal owner blocked is dropped.
+    // The addressing gate below still reads the raw `context` (it never goes to the model).
+    const consentFor = async (ids: string[]) => new Set<string>(consentedIds(ids, await loadConsentRows(service, ids)));
+    let ownerBlocked = new Set<string>();
+    try {
+      const { data: ob } = await service.from('user_blocks').select('blocked_id').eq('blocker_id', mealRow.athlete_id);
+      ownerBlocked = new Set(((ob ?? []) as Array<{ blocked_id: string }>).map((b) => String(b.blocked_id)));
+    } catch { /* unread blocks: the placeholders still hold for non-consented authors */ }
+    const promptContext = scrubContext(context, {
+      consented: await consentFor([mealRow.athlete_id, callerId, ...authorIds(context, [])]),
+      ownerId: mealRow.athlete_id, blocked: ownerBlocked,
+    });
+
     // Plan style (0142) resolves for the MEAL OWNER, never the caller. In draft and coach-support
     // mode the caller is the COACH — but the person who reads the words is the athlete, so it is
     // their style that decides what may be said. Getting this backwards would let a coach
@@ -699,7 +727,7 @@ Deno.serve(async (req) => {
       dayType: body?.athlete?.dayType,
       positionWords,
     });
-    const ctxBlock = `Context (deterministic, computed by the app):\n${JSON.stringify(context)}${
+    const ctxBlock = `Context (deterministic, computed by the app):\n${JSON.stringify(promptContext)}${
       dossier ? `\n\n${dossier}` : whoLine ? `\n\nThe athlete this thread belongs to:${whoLine}` : ''}`;
     const styleSafe = (text: string): string => {
       // Shared tail of both call sites below: one corrected retry is handled inline by the
@@ -848,12 +876,16 @@ Deno.serve(async (req) => {
     // The rows come from the database, so the client can post a picture but never name one.
     const seesThread = !coachSupport && !correctionUpdate && !draftMode;
     let threadRows: Array<Record<string, unknown>> = [];
+    let threadConsented = new Set<string>([String(mealRow.athlete_id), String(callerId)]);
     if (seesThread) {
       try {
         const { data: tr } = await service.from('meal_comments')
           .select('id, role, author_id, text, kind, meta, created_at')
           .eq('meal_id', mealId).order('created_at', { ascending: false }).limit(40);
-        threadRows = (tr ?? []) as Array<Record<string, unknown>>;
+        const raw = (tr ?? []) as Array<Record<string, unknown>>;
+        // I3: non-consented authors become placeholders (no text, no photo), blocked ones vanish.
+        threadConsented = await consentFor([mealRow.athlete_id, callerId, ...authorIds(null, raw)]);
+        threadRows = scrubRows(raw, { consented: threadConsented, blocked: ownerBlocked }).rows;
       } catch { /* no thread: the turn still answers, it just sees only what it was sent */ }
     }
     const photoPicks = seesThread
@@ -883,8 +915,9 @@ Deno.serve(async (req) => {
     // thread; the model is told to use them and never to guess a pronoun.
     const byId: Record<string, string> = {};
     try {
+      // I3: names only for people who agreed; anyone else is their role word in the transcript.
       const ids = [...new Set([mealRow.athlete_id, callerId, ...threadRows.map((r) => r.author_id)]
-        .filter((v): v is string => typeof v === 'string' && !!v))].slice(0, 12);
+        .filter((v): v is string => typeof v === 'string' && !!v && threadConsented.has(v)))].slice(0, 12);
       const { data: ppl } = await service.from('profiles').select('id, full_name').in('id', ids);
       for (const p of (ppl ?? []) as Array<{ id: string; full_name: string | null }>) byId[p.id] = String(p.full_name ?? '');
     } catch { /* names are an enhancement: the prompt falls back to "the athlete" */ }
@@ -1270,9 +1303,12 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
         const { data: tm } = await service.from('team_members')
           .select('team_id').eq('athlete_id', mealRow.athlete_id).eq('status', 'active').limit(1).maybeSingle();
         if (tm?.team_id) {
-          const { data: staff } = await service.from('team_staff')
+          const { data: staff0 } = await service.from('team_staff')
             .select('staff_id').eq('team_id', tm.team_id).eq('status', 'active').limit(5);
-          for (const st of (staff ?? []) as Array<{ staff_id: string }>) {
+          // A SAFETY flag reaches the coach even if they blocked this athlete (review M4): a block
+          // silences chatter, never a question the AI declined for the athlete's safety.
+          const staff = (staff0 ?? []) as Array<{ staff_id: string }>;
+          for (const st of staff) {
             await service.from('notifications').insert({
               user_id: st.staff_id, kind: `meal_flag:${mealId}`,
               title: flagTitle,

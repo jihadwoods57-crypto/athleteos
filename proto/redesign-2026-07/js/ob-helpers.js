@@ -17,6 +17,24 @@ export function dobFromParts(mm, dd, yyyy) {
   return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 }
 
+/* THE AGE RULE, once on the client (review pass 2026-09-23; memory guardian-gate-unknown-age).
+   It mirrors the server, which owns it: set_my_dob (0210) refuses under 13, and
+   is_provable_minor (0050) says under 18 is a minor while UNKNOWN age is an adult. Every screen
+   that has to decide from a typed birth date (the athlete DOB step, the adult DOB steps, the
+   age check for a social sign-in) asks ageBand(); nothing else compares an age to 13 or 18. */
+export const AGE_FLOOR = 13;
+export const ADULT_AGE = 18;
+
+/** 'under13' | 'minor' (13-17) | 'adult' for a birth date, or null when it is unknown or not a
+ *  real past date. Unknown is never a minor (0050). */
+export function ageBand(dobISO, todayISO) {
+  const age = ageOn(dobISO, todayISO);
+  if (age == null || !Number.isFinite(age) || age < 0) return null;
+  if (age < AGE_FLOOR) return 'under13';
+  if (age < ADULT_AGE) return 'minor';
+  return 'adult';
+}
+
 /** Whole-year age on todayISO. Both args 'YYYY-MM-DD'. Null-safe. */
 export function ageOn(dobISO, todayISO) {
   if (!dobISO || !todayISO) return null;

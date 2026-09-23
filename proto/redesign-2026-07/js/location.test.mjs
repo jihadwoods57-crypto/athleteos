@@ -207,6 +207,17 @@ test('the ask card: While Using explained first, Always only after, Settings aft
   assert.match(second, /data-loc-always/);
   assert.match(second, /I’m here works the same/, 'declining still leaves I’m here');
   assert.match(second, /data-loc-notnow/);
+  // G-L6 / G-P5: Continue on both cards, Not now beside it before the phone asks, no coaching
+  // about which answer to pick.
+  for (const h of [first, second]) {
+    assert.doesNotMatch(h, /\bAllow\b|Choose /);
+    assert.match(h, />Continue<\/button>/);
+  }
+  assert.match(first, /data-loc-wiu-notnow/);
+  const later = L.locationAskHtml({ place, state: 'undetermined', walkIn: true, wiuDeclined: true });
+  assert.match(later, /Location check-in is off/);
+  assert.match(later, /data-loc-allow/, 'the way back in stays');
+  assert.doesNotMatch(later, /data-loc-wiu-notnow/);
   assert.equal(L.locationAskHtml({ place, state: 'when_in_use', walkIn: false }), '', 'no Always offer when walk-in is off');
   assert.equal(L.locationAskHtml({ place, state: 'when_in_use', walkIn: true, declined: true }), '', 'Not now is remembered');
   assert.equal(L.locationAskHtml({ place, state: 'when_in_use', walkIn: true, optedOut: true }), '');

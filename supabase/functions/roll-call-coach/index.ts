@@ -36,6 +36,7 @@ import { parseAction, parseAthlete, httpStatusForCoach, nudgeBody, scheduleNotic
 // Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
 // refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
 import { sendExpoPush } from '../_shared/expo-push.mjs';
+import { blockersOf, withoutBlockers, deviceCounts, sumDevices, logBlocked } from '../_shared/blocks.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -147,8 +148,15 @@ Deno.serve(async (req: Request) => {
       occurs_on?: string; today?: string; skipped?: boolean; starts_min?: number | null; athlete_ids?: string[];
     };
     if (!s.ok) return fail(s.reason ?? 'db_error');
-    const who = Array.isArray(s.athlete_ids) ? s.athlete_ids : [];
-    if (!who.length) return json({ ok: true, action: 'schedule', targeted: 0, pushed: 0 });
+    // Block (0244): an athlete who blocked this coach gets no notice from them. I1: the coach's
+    // counts include them, as if delivered.
+    const whoAll = Array.isArray(s.athlete_ids) ? s.athlete_ids : [];
+    const sBlocked = await blockersOf(svc, coachId, whoAll);
+    const who = withoutBlockers(whoAll, sBlocked);
+    const sGhostIds = whoAll.filter((id) => sBlocked.has(String(id)));
+    logBlocked('roll-call-coach:schedule', sGhostIds.length);
+    const sGhost = sumDevices(await deviceCounts(svc, sGhostIds), sGhostIds);
+    if (!who.length) return json({ ok: true, action: 'schedule', targeted: whoAll.length, pushed: sGhost });
     const { data: stoks } = await svc
       .from('device_tokens').select('token,user_id').in('user_id', who);
     const bodyText = scheduleNoticeBody({
@@ -171,7 +179,7 @@ Deno.serve(async (req: Request) => {
       });
     }
     const pushedNotices = await push(notices);
-    return json({ ok: true, action: 'schedule', targeted: who.length, pushed: pushedNotices });
+    return json({ ok: true, action: 'schedule', targeted: whoAll.length, pushed: pushedNotices + sGhost });
   }
 
   // ---------------------------------------------------------------- "Nudge them"
@@ -187,10 +195,17 @@ Deno.serve(async (req: Request) => {
   };
   if (!c.ok) return fail(c.reason ?? 'db_error');
 
-  const targets = Array.isArray(c.athlete_ids) ? c.athlete_ids : [];
+  // Block (0244): an athlete who blocked this coach is not nudged by them. I1: counted as if
+  // delivered, so the coach cannot tell.
+  const targetsAll = Array.isArray(c.athlete_ids) ? c.athlete_ids : [];
+  const nBlocked = await blockersOf(svc, coachId, targetsAll);
+  const targets = withoutBlockers(targetsAll, nBlocked);
+  const nGhostIds = targetsAll.filter((id) => nBlocked.has(String(id)));
+  logBlocked('roll-call-coach:nudge', nGhostIds.length);
+  const nGhost = sumDevices(await deviceCounts(svc, nGhostIds), nGhostIds);
   // Everyone answered between the digest and the tap. A real success with nothing to send — the
   // coach must not be told this failed, and the cooldown has legitimately been spent.
-  if (!targets.length) return json({ ok: true, action: 'nudge', targeted: 0, pushed: 0 });
+  if (!targets.length) return json({ ok: true, action: 'nudge', targeted: targetsAll.length, pushed: nGhost });
 
   const { data: toks } = await svc
     .from('device_tokens').select('token,user_id').in('user_id', targets);
@@ -241,5 +256,5 @@ Deno.serve(async (req: Request) => {
     await svc.rpc('coach_digest_seen', { p_instance: instanceId, p_coach: coachId });
   } catch { /* best effort */ }
 
-  return json({ ok: true, action: 'nudge', targeted: targets.length, pushed });
+  return json({ ok: true, action: 'nudge', targeted: targetsAll.length, pushed: pushed + nGhost });
 });

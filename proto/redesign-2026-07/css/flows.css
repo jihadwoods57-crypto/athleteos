@@ -689,8 +689,6 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 
 .si-or { display: flex; align-items: center; gap:var(--s3h); margin:var(--s4h) 2px; color: var(--text-3); font-size: var(--t-sm); font-weight: 700; }
 .si-or span { flex: 1; height: 1px; background: var(--hairline); }
-.si-apple { gap:var(--s2); }
-.si-apple-ic { display: flex; }
 .si-create { margin-top:30px; text-align: center; font-size: var(--t-base); font-weight: 600; color: var(--text-2); }
 .si-create .si-link { background: none; border: none; font-family: var(--font); font-size: var(--t-base); font-weight: 800; color: var(--blue-bright); cursor: pointer; padding:var(--s1); }
 
@@ -858,3 +856,14 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
 .tour-actions .tour-next { margin-left: auto; }
 /* The lock stamp's button is focused programmatically now (role=dialog); the ring must be real. */
 .ls-x:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
+
+/* ===== Sign in with Apple / Google (js/social-auth.js, G-P4) =====
+   Apple's own button style (HIG): the Apple glyph, white on black in the dark theme's opposite,
+   i.e. white button on dark, black button on light. Google keeps the neutral ghost button with its
+   own mark. One definition for the Sign-in screen and every onboarding account step. */
+.sso-wrap { display: flex; flex-direction: column; gap: var(--s2h); margin-bottom: var(--s2h); }
+.sso-apple, .sso-google { gap: var(--s2); }
+.sso-ic { display: flex; }
+.btn.sso-apple { background: #fff; color: #000; border: 1px solid #fff; }
+:root[data-theme="light"] .btn.sso-apple { background: #000; color: #fff; border-color: #000; }
+.btn.sso-apple:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 3px; }

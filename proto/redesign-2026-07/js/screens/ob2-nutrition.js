@@ -491,7 +491,7 @@ const steps = [
     title: () => 'Create your account.',
     sub: () => 'Your practice, client code, and review queue live on it, ready for its first client.',
     body: () => `
-      ${accountBody({ terms: 'tob' })}
+      ${accountBody({ terms: 'obn' })}
       <div class="ob-foot" style="margin-top:18px"><button id="su-go" class="btn primary" disabled>Create account &amp; Start reviewing</button></div>`,
     mount(root, ctx) {
       wireAccount(root, {

@@ -22,11 +22,33 @@ export type { ReminderNotifySpec };
 
 const ANDROID_CHANNEL = 'reminders';
 
+/** Where notification permission stands, without asking. 'undetermined' means the system
+ *  question has not been shown yet, so a primer may still ask it. */
+export type NotifyPermission = 'granted' | 'denied' | 'undetermined' | 'unsupported';
+
+export async function notifyPermissionState(): Promise<NotifyPermission> {
+  if (!isNotifyAvailable) return 'unsupported';
+  try {
+    const p = await Notifications.getPermissionsAsync() as { granted?: boolean; canAskAgain?: boolean; status?: string };
+    if (p.granted) return 'granted';
+    if (p.status === 'undetermined' || (p.status == null && p.canAskAgain !== false)) return 'undetermined';
+    return 'denied';
+  } catch {
+    return 'unsupported';
+  }
+}
+
 /**
- * Ask for notification permission (idempotent) and set the Android channel. Returns true if
- * we may post local notifications. Never throws — a denial or error just disables reminders.
+ * Notification permission, and the Android channel. Returns true if we may post notifications.
+ * Never throws — a denial or error just disables reminders.
+ *
+ * ASKS ONLY WHEN `ask` IS TRUE (App Review 5.1.1(iv), review pass 2026-09-23 G-R10). The system
+ * question used to appear the moment Home first loaded, with nothing on screen to explain it. It
+ * is now asked only from a moment that explains itself: the roll call's "Get it on your lock
+ * screen" primer, or the Notifications settings screen, each with a Continue button. Everything
+ * else (the reminder sync, the push token on launch) only reads what the person already chose.
  */
-export async function ensureNotifyPermission(): Promise<boolean> {
+export async function ensureNotifyPermission(ask = false): Promise<boolean> {
   if (!isNotifyAvailable) return false;
   try {
     if (Platform.OS === 'android') {
@@ -37,6 +59,7 @@ export async function ensureNotifyPermission(): Promise<boolean> {
     }
     const current = await Notifications.getPermissionsAsync();
     if (current.granted) return true;
+    if (!ask) return false;
     const req = await Notifications.requestPermissionsAsync();
     return !!req.granted;
   } catch {
@@ -92,10 +115,10 @@ export async function refreshReminderSchedule(
  * build). Returns null when unavailable — never throws. The store registers the returned
  * token server-side (registerDeviceToken); this seam only mints it.
  */
-export async function getPushToken(): Promise<string | null> {
+export async function getPushToken(ask = false): Promise<string | null> {
   if (!isNotifyAvailable) return null;
   try {
-    const granted = await ensureNotifyPermission();
+    const granted = await ensureNotifyPermission(ask);
     if (!granted) return null;
     // Lazy require so tests (which never call this) don't load expo-constants (ESM, native).
     const Constants = (require('expo-constants') as { default?: unknown }).default as

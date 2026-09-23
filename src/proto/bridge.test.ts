@@ -1,5 +1,9 @@
 jest.mock('react-native', () => ({ Share: { share: jest.fn() }, Platform: { OS: 'ios' }, Linking: { openSettings: jest.fn(async () => undefined), openURL: jest.fn(async () => undefined) } }));
-jest.mock('../lib/notify', () => ({ getPushToken: jest.fn(async () => 'ExponentPushToken[abc]') }));
+jest.mock('../lib/notify', () => ({
+  getPushToken: jest.fn(async () => 'ExponentPushToken[abc]'),
+  ensureNotifyPermission: jest.fn(async () => true),
+  notifyPermissionState: jest.fn(async () => 'undetermined'),
+}));
 jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(), notificationAsync: jest.fn(),
   ImpactFeedbackStyle: { Light: 1, Medium: 2, Heavy: 3 },
@@ -18,6 +22,7 @@ jest.mock('../../modules/rollcall-live', () => ({ endLiveActivity: jest.fn(async
 jest.mock('../lib/auth/apple', () => ({
   isAppleAuthAvailable: false,
   requestAppleIdentityToken: jest.fn(async () => null),
+  requestAppleCredential: jest.fn(async () => ({ identityToken: 'id.tok', authorizationCode: 'c0de' })),
 }));
 jest.mock('../lib/auth/google', () => ({
   isGoogleAuthAvailable: false,
@@ -73,6 +78,15 @@ test('APPLE_AVAILABLE resolves false when the auth seam reports unavailable', as
   expect(injected[0]).toContain('__onNativeResult(1, false');
 });
 
+// G-R4: the proto gets the authorization code with the token, so deletion can revoke Apple.
+test('APPLE_CREDENTIAL resolves the token and the authorization code', async () => {
+  const { injected, ref } = fakeRef();
+  expect(await handleBridgeMessage(ref, { type: 'APPLE_CREDENTIAL', id: 12 } as never)).toBe(true);
+  expect(injected[0]).toContain('id.tok');
+  expect(injected[0]).toContain('c0de');
+  expect(BRIDGE_SHIM).toContain('APPLE_CREDENTIAL');
+});
+
 test('APPLE_SIGNIN resolves null when the auth seam reports unavailable', async () => {
   const { injected, ref } = fakeRef();
   await handleBridgeMessage(ref, { type: 'APPLE_SIGNIN', id: 2 } as never);
@@ -120,6 +134,30 @@ test('PUSH_TOKEN resolves null when no token is available (denied / no EAS proje
 
 test('shim exposes push.token', () => {
   expect(BRIDGE_SHIM).toContain('PUSH_TOKEN');
+});
+
+// G-R10: a launch-time token read never shows the system notification question; only a primer's
+// Continue passes ask.
+test('PUSH_TOKEN never asks unless the proto says ask', async () => {
+  const { getPushToken } = jest.requireMock('../lib/notify') as { getPushToken: jest.Mock };
+  getPushToken.mockClear();
+  const { ref } = fakeRef();
+  await handleBridgeMessage(ref, { type: 'PUSH_TOKEN', id: 6 } as never);
+  expect(getPushToken).toHaveBeenLastCalledWith(false);
+  await handleBridgeMessage(ref, { type: 'PUSH_TOKEN', id: 7, ask: true } as never);
+  expect(getPushToken).toHaveBeenLastCalledWith(true);
+});
+
+test('NOTIFY_PERMISSION reports the state, and asks only with ask', async () => {
+  const { ensureNotifyPermission } = jest.requireMock('../lib/notify') as { ensureNotifyPermission: jest.Mock };
+  ensureNotifyPermission.mockClear();
+  const { injected, ref } = fakeRef();
+  expect(await handleBridgeMessage(ref, { type: 'NOTIFY_PERMISSION', id: 8 } as never)).toBe(true);
+  expect(ensureNotifyPermission).not.toHaveBeenCalled();
+  expect(injected[0]).toContain('undetermined');
+  await handleBridgeMessage(ref, { type: 'NOTIFY_PERMISSION', id: 9, ask: true } as never);
+  expect(ensureNotifyPermission).toHaveBeenCalledWith(true);
+  expect(BRIDGE_SHIM).toContain('NOTIFY_PERMISSION');
 });
 
 test('HAPTIC success routes to the notification generator, not an impact', async () => {

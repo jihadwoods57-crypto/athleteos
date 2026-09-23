@@ -24,6 +24,7 @@ import {
 import { loadPlanStyleForAthlete } from '../_shared/plan-style-load.ts';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { clientIpFrom } from '../_shared/client-ip.ts';
+import { missingConsent, consentSkipBody } from '../_shared/ai-consent.mjs';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 const REQUIRES_PLAN = Deno.env.get('DEEP_REQUIRES_PLAN') === '1';
@@ -157,6 +158,10 @@ Deno.serve(async (req) => {
   if (dataJson.length > 40_000) return json({ error: 'data too large' }, 400, cors);
 
   const svc = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+  // AI CONSENT (0243): the payload is the athlete's own history. No yes, no model call, and no
+  // weekly slot spent. A 200 the app reads as "AI reads are off".
+  if ((await missingConsent(svc, [userId])) !== null) return json(consentSkipBody('you'), 200, cors);
 
   // Paywall seam: once billing is live (DEEP_REQUIRES_PLAN=1), a caller with no unlocked
   // subscription row gets an honest 402. Free preview: open, still weekly-capped.

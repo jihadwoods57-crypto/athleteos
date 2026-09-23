@@ -125,7 +125,7 @@ export function visibleThread(msgs, muted = null) {
 
 /** The one sentence every thread shows when the mute filter leaves nothing to paint. A thread
  *  with messages in it must never render as blank or claim "no messages yet" — both are lies. */
-export const MUTED_HIDDEN_NOTE = 'Messages from people you muted are hidden.';
+export const MUTED_HIDDEN_NOTE = 'Messages from people you blocked are hidden.';
 
 export function layoutThread(msgs, { fmtTime = () => '', fmtDay = null, fmtDayLabel = null, muted = null } = {}) {
   /* `muted`: author ids this reader has blocked (RT.mutedUsers). Dropped HERE, in the one pure

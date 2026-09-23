@@ -3,6 +3,8 @@ import { icon } from '../icons.js';
 import { esc, safeImg, nonLiveBadge } from '../components.js';
 import { photoAgeBadge } from '../photo-hash.js';
 import { photoStats, photoQuality } from '../meal-intel.js';
+import { ensureAiConsent } from '../ai-consent.js';
+import { PHOTO_PRIVACY } from '../privacy-copy.js';
 
 /* ---- shared JPEG encode: one canvas pipeline for live frames AND picked files ----
    Downscale (max side) + JPEG-encode → { dataUrl, base64 }. Keeps the upload well under the
@@ -74,7 +76,7 @@ export default {
         <div class="standard-set prime-body">
           <div class="halo"><div class="core" style="background:linear-gradient(155deg, var(--green), var(--green-deep))">${icon('camera', 34)}</div></div>
           <div class="ob-title" style="margin-top:22px">Camera, for proof.</div>
-          <div class="ob-sub" style="padding:0 8px">OnStandard uses your camera to capture meal photos. They go to your coach connection only: never public, never sold, never used to train anything without asking.</div>
+          <div class="ob-sub" style="padding:0 8px">OnStandard uses your camera to capture meal photos. ${PHOTO_PRIVACY}</div>
         </div>
         <div class="ob-foot" style="margin-top:auto">
           <button class="btn primary" data-act="primeCamera" data-then="camera">Continue</button>
@@ -415,10 +417,18 @@ export const cameraConfirm = {
     // now (photo + timing credit, exactly as a manually-logged meal scores) and the analysis
     // continues in the background, landing in the thread. The old flow held them on a spinner for
     // the whole vision call before anything counted.
-    if (analyzeBtn) analyzeBtn.addEventListener('click', () => {
+    if (analyzeBtn) analyzeBtn.addEventListener('click', async () => {
       saveNote();
       const slot = MEAL.key || 'dinner';
+      /* AI CONSENT (0243, Guideline 5.1.2(i)): the first time a photo would go to the AI, ask. The
+         meal logs whatever the answer: proof and timing never depended on the read. With AI off
+         there is no scan to watch, so the athlete lands straight in the meal's thread, which says
+         so plainly and offers to turn it on. */
+      analyzeBtn.disabled = true;
+      const aiOn = await ensureAiConsent(RT.userId, { role: 'athlete' });
+      analyzeBtn.disabled = false;
       act.logMeal(slot);
+      if (!aiOn) { window.__go('meal-thread/' + slot, { dir: 'push', vt: 'plate' }); return; }
       // …by way of the scan. Log-first is right and stays: the meal is already committed here and
       // the outbox owns the read. But cutting straight to the thread meant the athlete's photo was
       // never visibly LOOKED at — the most satisfying feedback in the app disappeared, and logging

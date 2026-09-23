@@ -10,6 +10,7 @@ import { RT } from '../state.js';
 import { icon } from '../icons.js';
 import { esc } from '../components.js';
 import { track, EVENTS } from '../analytics.js';
+import { ssoNewNote } from '../social-auth.js';
 
 /* Every door wears the same blue tile (2026-09-22); the GLYPH tells them apart. The tiles used to
    be green (client, dietitian), purple (trainer) and cyan (nutrition pro): status hues doing an
@@ -42,6 +43,9 @@ function resumeTarget() {
   return role ? { go: raw, role } : null;
 }
 
+/** Set by the Sign-in screen when an Apple or Google account had no OnStandard profile yet. */
+function ssoNew() { const n = ssoNewNote(); return n ? n.provider : null; }
+
 export const ob2Role = {
   hideTabs: true,
   render() {
@@ -64,6 +68,7 @@ export const ob2Role = {
           <div class="role-chev">${icon('chevron', 18)}</div>
         </div>
         <div class="role-note role-note-gap">Or start over with a different role.</div>` : ''}
+        ${ssoNew() ? `<div class="role-note role-sso" role="status">You’re new to OnStandard. Pick how you’ll use it and answer a few questions, including your age. Then continue with ${ssoNew() === 'google' ? 'Google' : 'Apple'} on the last step.</div>` : ''}
         <div class="role-list">${ROLES.map(card).join('')}</div>
         <div class="role-note">Invited by a coach, trainer, or athlete? Pick your role. You’ll connect with your code in a minute.</div>
       </div>
