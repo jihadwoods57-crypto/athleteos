@@ -14,14 +14,18 @@
 //                         any older binary) sends no push, so the lock-screen card kept counting
 //                         down until the close. This sends the same answered update and team
 //                         fan-out a code ack does: the caller's own row only, and only once it has
-//                         an answer. Throttled per card (REFRESH_MIN_GAP_MS).
+//                         an answer. Once per card (claim_live_answered_update), never held back by
+//                         a teammate's count update. Answers { ok, result } with result one of
+//                         sent | already_answered | no_token | no_card | unavailable, so the phone
+//                         knows whether to end its card itself.
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { verifyRollCallCode, signWindowCode } from '../_shared/rollcall-code.ts';
 import { evaluateFlag, type FlagRow } from '../_shared/feature-flags.ts';
 import {
   httpStatusFor, teamCountUpdates, mintableWindows, bearerOf, WINDOW_CODE_DAYS, TEAM_UPDATE_MIN_GAP_MS,
-  refreshInstanceOf, refreshVerdict, wonAthleteIds, REFRESH_MIN_GAP_MS,
-  type TeamTarget,
+  refreshInstanceOf, refreshVerdict, wonAthleteIds,
+  answeredClaimOf, ownCardBeforePush, ownCardAfterPush, fansOutTeam,
+  type TeamTarget, type OwnCardResult,
 } from './logic.ts';
 import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
 import { pushLiveActivity, loadLiveCard, loadTeamBoard, sendLiveUpdates, ackUrlFor } from '../_shared/rollcall-live-send.ts';
@@ -92,42 +96,59 @@ async function refreshCard(req: Request, body: unknown): Promise<Response> {
   if (verdict === 'no_row') return json({ ok: false, error: 'no_row' }, httpStatusFor('no_row'));
   if (verdict === 'not_acked') return json({ ok: false, error: 'not_acked' }, 409);
 
-  // One card update per REFRESH_MIN_GAP_MS. A code ack stamps the card (gap 0) as it sends, so the
-  // app draining the same tap a second later is refused here instead of pushing the card twice,
-  // and a caller looping on this route cannot spend the device's APNs budget.
-  const { data: won } = await svc.rpc('claim_live_team_updates', {
-    p_instance: instanceId, p_athletes: [uid], p_gap_sec: Math.round(REFRESH_MIN_GAP_MS / 1000),
-  });
-  if (!wonAthleteIds(won).has(uid)) return json({ ok: true, refreshed: false });
-  await afterResponse(liveAfterCheckIn(svc, instanceId, uid, String((row as { acknowledged_at: string }).acknowledged_at)));
-  return json({ ok: true, refreshed: true });
+  const ackIso = String((row as { acknowledged_at: string }).acknowledged_at);
+  const apnsCfg = apnsFromEnv((k) => Deno.env.get(k));
+  const apns = apnsCfg ? new ApnsClient(apnsCfg) : null;
+  const card = apns ? await loadLiveCard(svc, instanceId) : null;
+  // The own card is awaited: its result IS the answer. The team fan-out runs after the response.
+  const result = await answeredOwnCard(svc, apns, card, instanceId, uid, ackIso);
+  if (apns && card && fansOutTeam(result)) await afterResponse(teamFanOut(svc, apns, card, instanceId, uid));
+  return json({ ok: true, result });
 }
 
-/** Everything the lock screen does after a check-in. Never throws, never costs the ack.
- *   1. The athlete's own card UPDATES to answered (place, points, the team count) and STAYS until
- *      the close, instead of ending. No alert: they are holding the phone.
- *   2. Every teammate with a live card gets the new count, at most once a minute each, never the
- *      athlete who just checked in (they had theirs in step 1). */
-async function liveAfterCheckIn(svc: SupabaseClient, instanceId: string, athleteId: string, ackIso: string): Promise<void> {
-  const apnsCfg = apnsFromEnv((k) => Deno.env.get(k));
-  if (!apnsCfg) return;
-  const apns = new ApnsClient(apnsCfg);
-  const card = await loadLiveCard(svc, instanceId);
-  if (!card) return;
+/** The athlete's OWN card turns answered (place, points, the team count) and STAYS until the
+ *  close. Claimed once per card (claim_live_answered_update), independent of the team-count
+ *  throttle: a teammate's count update carries this athlete's OLD phase, so if the answered
+ *  transition waited on that stamp the card sat on I'M UP (Task 5 fix round 2). Never throws. */
+async function answeredOwnCard(
+  svc: SupabaseClient, apns: ApnsClient | null, card: Awaited<ReturnType<typeof loadLiveCard>>,
+  instanceId: string, athleteId: string, ackIso: string,
+): Promise<OwnCardResult> {
+  try {
+    let claim = answeredClaimOf(null, 'not asked');
+    if (apns && card) {
+      const { data, error } = await svc.rpc('claim_live_answered_update', { p_instance: instanceId, p_athlete: athleteId });
+      claim = answeredClaimOf(data, error);
+    }
+    const early = ownCardBeforePush({ apns: !!apns, card: !!card, claim });
+    if (early) return early;
+    const board = await loadTeamBoard(svc, instanceId);
+    const pushed = await pushLiveActivity({
+      svc, apns, card: card!, phase: 'answered',
+      athleteIds: [athleteId],
+      checkedInAt: new Map([[athleteId, ackIso]]),
+      team: (id) => teamFields(board, id),
+      nowMs: Date.now(),
+    });
+    const after = ownCardAfterPush(claim, pushed);
+    if (after.release) {
+      try { await svc.rpc('release_live_answered_update', { p_instance: instanceId, p_athlete: athleteId }); } catch { /* best effort */ }
+    }
+    return after.result;
+  } catch {
+    return 'unavailable';
+  }
+}
+
+/** Every teammate with a live card gets the new count, at most once a minute each, never the
+ *  athlete who just checked in (they had theirs from answeredOwnCard). */
+async function teamFanOut(
+  svc: SupabaseClient, apns: ApnsClient, card: NonNullable<Awaited<ReturnType<typeof loadLiveCard>>>,
+  instanceId: string, athleteId: string,
+): Promise<void> {
   const board = await loadTeamBoard(svc, instanceId);
-  const nowMs = Date.now();
-
-  await pushLiveActivity({
-    svc, apns, card, phase: 'answered',
-    athleteIds: [athleteId],
-    checkedInAt: new Map([[athleteId, ackIso]]),
-    team: (id) => teamFields(board, id),
-    nowMs,
-  });
-  // Stamp their card so a teammate's check-in a second later does not update it again at once.
-  try { await svc.rpc('claim_live_team_updates', { p_instance: instanceId, p_athletes: [athleteId], p_gap_sec: 0 }); } catch { /* best effort */ }
-
   if (!board) return;
+  const nowMs = Date.now();
   const { data: tg } = await svc.rpc('rollcall_live_update_targets', { p_instance: instanceId });
   const planned = teamCountUpdates(instanceId, board, {
     targets: (Array.isArray(tg) ? tg : []) as TeamTarget[], card, checkedIn: athleteId, nowMs,
@@ -141,6 +162,19 @@ async function liveAfterCheckIn(svc: SupabaseClient, instanceId: string, athlete
   });
   const wonSet = wonAthleteIds(won);
   await sendLiveUpdates(svc, apns, planned.filter((u) => wonSet.has(u.athleteId)), nowMs);
+}
+
+/** Everything the lock screen does after a code check-in. Never throws, never costs the ack. The
+ *  own card first; the team only when this answer was not already announced (a re-posted code
+ *  used to push the athlete's card and the whole team's again on every post). */
+async function liveAfterCheckIn(svc: SupabaseClient, instanceId: string, athleteId: string, ackIso: string): Promise<void> {
+  const apnsCfg = apnsFromEnv((k) => Deno.env.get(k));
+  if (!apnsCfg) return;
+  const apns = new ApnsClient(apnsCfg);
+  const card = await loadLiveCard(svc, instanceId);
+  if (!card) return;
+  const result = await answeredOwnCard(svc, apns, card, instanceId, athleteId, ackIso);
+  if (fansOutTeam(result)) await teamFanOut(svc, apns, card, instanceId, athleteId);
 }
 
 /** Run after the response when the runtime allows it (Supabase EdgeRuntime.waitUntil), so a

@@ -132,6 +132,26 @@ let ackCache = null;
 /** Test seam. */
 export function _resetAckCodes() { ackCache = null; }
 
+/* A session change clears the cache: a sign-in right after a failed (401) mint gets codes at once
+   instead of 30 minutes later, and a sign-out never leaves one athlete's codes for the next.
+   Registered once per client. */
+const watched = new WeakSet();
+function watchSession(client) {
+  try {
+    if (!client || typeof client !== 'object' || watched.has(client)) return;
+    watched.add(client);
+    if (client.auth && typeof client.auth.onAuthStateChange === 'function') {
+      client.auth.onAuthStateChange((event) => {
+        // SIGNED_IN only clears a FAILED mint: supabase-js re-emits it when the app returns to the
+        // foreground, and clearing good codes there would mint on every beat. A different athlete
+        // signing in comes after a SIGNED_OUT, which always clears.
+        if (event === 'SIGNED_OUT') ackCache = null;
+        else if (event === 'SIGNED_IN' && ackCache && !ackCache.data) ackCache = null;
+      });
+    }
+  } catch { /* the cache simply expires on its TTL */ }
+}
+
 /**
  * The mint's answer, cached. Asks again when the cache is stale or when an instance about to be
  * armed was never part of an ask (a wake-up the coach just added).
@@ -142,6 +162,7 @@ export function _resetAckCodes() { ackCache = null; }
  */
 export async function fetchAckCodes(client, nowMs = Date.now(), needIds = []) {
   const need = Array.isArray(needIds) ? needIds.map(String) : [];
+  watchSession(client);
   if (ackCache && nowMs - ackCache.at >= 0 && nowMs - ackCache.at < ACK_CODES_TTL_MS) {
     if (need.every((id) => ackCache.asked.has(id))) return ackCache.data;
   }

@@ -522,14 +522,23 @@ comment on function save_commitment_place(jsonb) is
 -- only; the second grants block below revokes it from public, anon and authenticated.
 --
 --   last_update_at   the throttle: at most one team-count update per athlete card per minute.
+--   answered_update_at  when this card got the athlete's OWN answered update. Separate from the
+--                    count throttle on purpose: a teammate's count update stamps last_update_at
+--                    while still carrying MY old phase, so if the answered transition shared that
+--                    stamp, an answer inside the minute after a teammate's was never sent and the
+--                    card sat on I'M UP. The answered update is claimed once per card, never
+--                    throttled by counts (claim_live_answered_update).
 --   card_opened_at   the once-per-instance claim that STARTS the card at the open (10 minutes
 --                    before the start), apart from the start-time notification rung.
 --   summary_sent_at  the once-per-instance guard on the coach's closing summary.
 alter table rollcall_live_tokens add column if not exists last_update_at timestamptz;
+alter table rollcall_live_tokens add column if not exists answered_update_at timestamptz;
 alter table commitment_instances add column if not exists card_opened_at timestamptz;
 alter table commitment_instances add column if not exists summary_sent_at timestamptz;
 comment on column rollcall_live_tokens.last_update_at is
   'Last team-count Live Activity update sent to this update token (roll-call-ack throttle, 60 s). 0242.';
+comment on column rollcall_live_tokens.answered_update_at is
+  'When this card was sent the athlete''s own answered update (claim_live_answered_update): once per card, independent of the team-count throttle. 0242.';
 comment on column commitment_instances.card_opened_at is
   'When commitment-reminders claimed this wake-up to START its Live Activity at the open (claim_rollcall_card_opens). 0242.';
 comment on column commitment_instances.summary_sent_at is
@@ -637,6 +646,41 @@ language sql security definer set search_path = public as $$
   returning t.athlete_id;
 $$;
 
+-- The athlete's OWN answered update: claimed ONCE per card, and never throttled by team-count
+-- updates (see answered_update_at). Returns
+--   'claimed'           this caller stamped at least one live update token and must send the update
+--   'already_answered'  every live update token already had its answered update (a code ack, a
+--                       re-posted code, the app's drain right behind the intent's own post)
+--   'no_token'          the athlete has no live update token on this instance: no card the server
+--                       can reach, so the phone should end any card it holds itself
+-- Atomic: two refreshes in the same second cannot both claim the same card.
+create or replace function claim_live_answered_update(p_instance uuid, p_athlete uuid)
+returns text
+language plpgsql security definer set search_path = public as $$
+declare v_n int;
+begin
+  update rollcall_live_tokens t set answered_update_at = now(), last_update_at = now()
+   where t.instance_id = p_instance and t.athlete_id = p_athlete
+     and t.kind = 'update' and t.revoked_at is null and t.answered_update_at is null;
+  get diagnostics v_n = row_count;
+  if v_n > 0 then return 'claimed'; end if;
+  if exists (select 1 from rollcall_live_tokens t
+              where t.instance_id = p_instance and t.athlete_id = p_athlete
+                and t.kind = 'update' and t.revoked_at is null) then
+    return 'already_answered';
+  end if;
+  return 'no_token';
+end $$;
+
+-- Undo a claim whose push reached no device (APNs down, every token gone), so the next refresh
+-- can try again instead of reading 'already_answered' for an update nobody received.
+create or replace function release_live_answered_update(p_instance uuid, p_athlete uuid)
+returns void
+language sql security definer set search_path = public as $$
+  update rollcall_live_tokens set answered_update_at = null
+   where instance_id = p_instance and athlete_id = p_athlete and kind = 'update';
+$$;
+
 -- The windows an athlete's phone should hold codes for: their own wake-ups, not yet closed,
 -- starting within p_days (1..14). roll-call-ack's authenticated mint route reads this with the
 -- caller's VERIFIED user id; the function itself trusts no caller, which is why it is service only.
@@ -689,7 +733,8 @@ do $$ declare f text; begin
   foreach f in array array['rollcall_team_board_svc(uuid)', 'rollcall_live_card(uuid)',
                            'claim_rollcall_card_opens(int)', 'rollcall_live_update_targets(uuid)',
                            'claim_live_team_updates(uuid,uuid[],int)', 'rollcall_window_rows_svc(uuid,int)',
-                           'claim_rollcall_summary(uuid)'] loop
+                           'claim_rollcall_summary(uuid)', 'claim_live_answered_update(uuid,uuid)',
+                           'release_live_answered_update(uuid,uuid)'] loop
     execute format('revoke all on function %s from public, anon, authenticated', f);
     execute format('grant execute on function %s to service_role', f);
   end loop;

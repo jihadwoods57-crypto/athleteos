@@ -117,9 +117,49 @@ export function bearerOf(header: string | null | undefined): string {
    `{ action: 'refresh', instance_id }` with the athlete's own session sends the same answered
    update and team fan-out a code ack does. */
 
-/** A refresh right behind a code ack (the intent posts, then the app drains the same tap) must not
- *  send the card twice. Shorter than the team gap so a real in-app answer is never held a minute. */
-export const REFRESH_MIN_GAP_MS = 10_000;
+/** What happened to the athlete's OWN card after an answer. The refresh route returns it and the
+ *  phone decides from it whether to end its card itself (src/core/rollcall.ts):
+ *    sent              the answered update went out
+ *    already_answered  this card already had its answered update (a code ack, a re-post)
+ *    no_token          the server holds no live update token for this athlete: no card it can reach
+ *    no_card           the roll call has no live card (not a wake-up, or gone)
+ *    unavailable       APNs is not configured, or the push reached nobody */
+export type OwnCardResult = 'sent' | 'already_answered' | 'no_token' | 'no_card' | 'unavailable';
+
+/** claim_live_answered_update's answer. 'unknown' (an RPC error: a stack without 0242's claim)
+ *  sends anyway, the pre-claim behaviour, rather than go silent. */
+export type AnsweredClaim = 'claimed' | 'already_answered' | 'no_token' | 'unknown';
+
+export function answeredClaimOf(data: unknown, error: unknown): AnsweredClaim {
+  if (error) return 'unknown';
+  const v = Array.isArray(data)
+    ? (typeof data[0] === 'string' ? data[0] : Object.values((data[0] ?? {}) as Record<string, unknown>)[0])
+    : data;
+  return v === 'claimed' || v === 'already_answered' || v === 'no_token' ? v : 'unknown';
+}
+
+/** The answer before any push, or null to go ahead and push. Reads no count throttle on purpose:
+ *  a teammate's count update seconds earlier must never hold an answered transition back. */
+export function ownCardBeforePush(s: { apns: boolean; card: boolean; claim: AnsweredClaim }): OwnCardResult | null {
+  if (!s.apns) return 'unavailable';
+  if (!s.card) return 'no_card';
+  if (s.claim === 'already_answered' || s.claim === 'no_token') return s.claim;
+  return null;
+}
+
+/** The answer after the push. A claim whose push reached nobody is released, so the next refresh
+ *  can try again instead of reading 'already_answered' for an update no device received. */
+export function ownCardAfterPush(claim: AnsweredClaim, pushed: { updated: number; revoked: number }):
+  { result: OwnCardResult; release: boolean } {
+  if (pushed.updated > 0) return { result: 'sent', release: false };
+  return { result: pushed.revoked > 0 ? 'no_token' : 'unavailable', release: claim === 'claimed' };
+}
+
+/** Whether the teammates' counts move. Not for a repeat of an answer already announced (a
+ *  re-posted code used to fan out every time), and not without a card to build them from. */
+export function fansOutTeam(result: OwnCardResult): boolean {
+  return result !== 'already_answered' && result !== 'no_card';
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

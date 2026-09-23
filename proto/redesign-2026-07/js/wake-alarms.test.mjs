@@ -228,3 +228,46 @@ test('a morning the mint had no code for is not re-asked every beat', async () =
   assert.equal(n, 1);
   assert.equal(again, MINT);
 });
+
+test('signing in clears a cached failure, so the athlete gets codes at once, not in 30 minutes', async () => {
+  _resetAckCodes();
+  let n = 0;
+  let listener = null;
+  let signedIn = false;
+  const client = {
+    auth: { onAuthStateChange: (cb) => { listener = cb; return { data: { subscription: { unsubscribe() {} } } }; } },
+    functions: { invoke: async () => { n++; return signedIn ? { data: MINT, error: null } : { data: null, error: { message: '401' } }; } },
+  };
+  assert.equal(await fetchAckCodes(client, NOW, ['i1']), null); // signed out: the 401 is cached
+  assert.equal(n, 1);
+  assert.equal(typeof listener, 'function', 'the cache watches the session');
+  signedIn = true;
+  listener('SIGNED_IN', {});
+  assert.equal(await fetchAckCodes(client, NOW + 60000, ['i1']), MINT);
+  assert.equal(n, 2);
+  // supabase-js re-emits SIGNED_IN on a return to the foreground: good codes are NOT thrown away.
+  listener('SIGNED_IN', {});
+  assert.equal(await fetchAckCodes(client, NOW + 120000, ['i1']), MINT);
+  assert.equal(n, 2);
+  // Listening once per client, however many syncs run.
+  let registrations = 0;
+  const c2 = { auth: { onAuthStateChange: () => { registrations++; } }, functions: client.functions };
+  _resetAckCodes();
+  await fetchAckCodes(c2, NOW, ['i1']);
+  await fetchAckCodes(c2, NOW + ACK_CODES_TTL_MS, ['i1']);
+  assert.equal(registrations, 1);
+});
+
+test('signing out clears the cache too, so the next athlete on this phone never gets the last one codes', async () => {
+  _resetAckCodes();
+  let listener = null;
+  let n = 0;
+  const client = {
+    auth: { onAuthStateChange: (cb) => { listener = cb; } },
+    functions: { invoke: async () => { n++; return { data: MINT, error: null }; } },
+  };
+  await fetchAckCodes(client, NOW, ['i1']);
+  listener('SIGNED_OUT', null);
+  await fetchAckCodes(client, NOW + 1000, ['i1']);
+  assert.equal(n, 2);
+});

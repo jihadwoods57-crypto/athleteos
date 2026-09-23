@@ -21,7 +21,8 @@ describe('httpStatusFor', () => {
 });
 
 // ---------------------------------------------------------------- 2026-09-23: the team on every card
-import { teamCountUpdates, mintableWindows, bearerOf, TEAM_UPDATE_MIN_GAP_MS, refreshInstanceOf, refreshVerdict, REFRESH_MIN_GAP_MS, wonAthleteIds } from './logic';
+import { teamCountUpdates, mintableWindows, bearerOf, TEAM_UPDATE_MIN_GAP_MS, refreshInstanceOf, refreshVerdict, wonAthleteIds,
+  answeredClaimOf, ownCardBeforePush, ownCardAfterPush, fansOutTeam } from './logic';
 
 describe('teamCountUpdates: one check-in moves every teammate\'s count', () => {
   const NOW = Date.parse('2026-09-25T10:03:00Z');
@@ -115,9 +116,38 @@ describe('refresh: an answer that did not come through a code still turns the ca
     expect(refreshVerdict({ acknowledged_at: null })).toBe('not_acked');
     expect(refreshVerdict({ acknowledged_at: '2026-09-25T10:01:00Z' })).toBe('ok');
   });
-  test('a refresh right behind a code ack (intent post, then the app drain) sends nothing twice', () => {
-    expect(REFRESH_MIN_GAP_MS).toBe(10_000);
-    expect(REFRESH_MIN_GAP_MS).toBeLessThan(TEAM_UPDATE_MIN_GAP_MS);
+  test('reads the answered claim, and anything unreadable as unknown (an un-migrated stack)', () => {
+    expect(answeredClaimOf('claimed', null)).toBe('claimed');
+    expect(answeredClaimOf('already_answered', null)).toBe('already_answered');
+    expect(answeredClaimOf('no_token', null)).toBe('no_token');
+    expect(answeredClaimOf([{ claim_live_answered_update: 'claimed' }], null)).toBe('claimed');
+    expect(answeredClaimOf(null, { message: 'function does not exist' })).toBe('unknown');
+    expect(answeredClaimOf('weird', null)).toBe('unknown');
+  });
+  test('a count update seconds earlier never stops the answered update: the claim alone decides', () => {
+    // The throttle that bit (fix round 2) was a count stamp; the answered decision reads no
+    // last_update_at at all. 'claimed' and 'unknown' both send.
+    expect(ownCardBeforePush({ apns: true, card: true, claim: 'claimed' })).toBeNull();
+    expect(ownCardBeforePush({ apns: true, card: true, claim: 'unknown' })).toBeNull();
+  });
+  test('distinct reasons before the push', () => {
+    expect(ownCardBeforePush({ apns: false, card: true, claim: 'claimed' })).toBe('unavailable');
+    expect(ownCardBeforePush({ apns: true, card: false, claim: 'claimed' })).toBe('no_card');
+    expect(ownCardBeforePush({ apns: true, card: true, claim: 'already_answered' })).toBe('already_answered');
+    expect(ownCardBeforePush({ apns: true, card: true, claim: 'no_token' })).toBe('no_token');
+  });
+  test('after the push: sent, or the claim is released so the next refresh can try again', () => {
+    expect(ownCardAfterPush('claimed', { updated: 1, revoked: 0 })).toEqual({ result: 'sent', release: false });
+    expect(ownCardAfterPush('claimed', { updated: 0, revoked: 1 })).toEqual({ result: 'no_token', release: true });
+    expect(ownCardAfterPush('claimed', { updated: 0, revoked: 0 })).toEqual({ result: 'unavailable', release: true });
+    expect(ownCardAfterPush('unknown', { updated: 0, revoked: 0 })).toEqual({ result: 'unavailable', release: false });
+  });
+  test('the team hears about it unless this answer was already announced', () => {
+    expect(fansOutTeam('sent')).toBe(true);
+    expect(fansOutTeam('no_token')).toBe(true);
+    expect(fansOutTeam('unavailable')).toBe(true);
+    expect(fansOutTeam('no_card')).toBe(false);
+    expect(fansOutTeam('already_answered')).toBe(false);
   });
   test('reads the athletes a claim returned, in either row shape', () => {
     expect([...wonAthleteIds(['a', { claim_live_team_updates: 'b' }, null])]).toEqual(['a', 'b', '']);

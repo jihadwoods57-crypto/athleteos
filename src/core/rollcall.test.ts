@@ -4,7 +4,7 @@ import {
   coachActionFor, enqueueCoachAction, dropCoachAction,
   CHECK_IN_LABEL, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL, ackOutcome,
   routeNotificationResponse, ACTION_OPTIONS, buttonTitleFor, ROLLCALL_BG_TASK,
-  boardRouteFor, BOARD_TAP_MAX_AGE_MS, shouldEndCardLocally,
+  boardRouteFor, BOARD_TAP_MAX_AGE_MS, shouldEndCardLocally, refreshOutcomeOf,
 } from './rollcall';
 import {
   rollCallCategoryId as serverCategoryId,
@@ -213,15 +213,34 @@ describe('boardRouteFor: the alarm button opens the team board', () => {
   });
 });
 
+describe('refreshOutcomeOf: what the refresh route said, as the phone reads it', () => {
+  it('maps every reason the server gives', () => {
+    for (const r of ['sent', 'already_answered', 'no_token', 'no_card', 'unavailable'] as const) {
+      expect(refreshOutcomeOf({ ok: true, result: r }, null)).toBe(r);
+    }
+  });
+  it('an error, a refusal or an unreadable answer is a failure', () => {
+    expect(refreshOutcomeOf(null, { message: 'offline' })).toBe('failed');
+    expect(refreshOutcomeOf({ ok: false, error: 'not_acked' }, null)).toBe('failed');
+    expect(refreshOutcomeOf({ ok: true, result: 'weird' }, null)).toBe('failed');
+    expect(refreshOutcomeOf({ ok: true }, null)).toBe('failed');
+    expect(refreshOutcomeOf(null, null)).toBe('failed');
+  });
+});
+
 describe('shouldEndCardLocally: an answer the server could not turn into an answered card', () => {
-  it('a binary that can post taps itself keeps its card for the server to update', () => {
+  it('a binary that can post taps itself keeps its card when the server turned it (or already had)', () => {
     expect(shouldEndCardLocally(true, 'sent')).toBe(false);
-    // Throttled or no card on the server: a code ack already turned it, or there is nothing to turn.
-    expect(shouldEndCardLocally(true, 'skipped')).toBe(false);
+    expect(shouldEndCardLocally(true, 'already_answered')).toBe(false);
+  });
+  it('a card the server cannot reach is ended here: no token uploaded, no card, APNs down', () => {
+    expect(shouldEndCardLocally(true, 'no_token')).toBe(true);
+    expect(shouldEndCardLocally(true, 'no_card')).toBe(true);
+    expect(shouldEndCardLocally(true, 'unavailable')).toBe(true);
   });
   it('an older binary (build 43 and before) ends it, as it always did', () => {
     expect(shouldEndCardLocally(false, 'sent')).toBe(true);
-    expect(shouldEndCardLocally(false, 'skipped')).toBe(true);
+    expect(shouldEndCardLocally(false, 'already_answered')).toBe(true);
   });
   it('a refresh that failed (offline, queued answer, old server) ends it rather than leave it counting', () => {
     expect(shouldEndCardLocally(true, 'failed')).toBe(true);

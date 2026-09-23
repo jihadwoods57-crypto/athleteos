@@ -4,7 +4,7 @@
 // or a failed refresh ends the card locally rather than leave it counting down until the close.
 const mockState = {
   invoked: [] as Array<{ name: string; body: unknown }>,
-  refresh: { data: { ok: true, refreshed: true } as unknown, error: null as unknown },
+  refresh: { data: { ok: true, result: 'sent' } as unknown, error: null as unknown },
   rpcError: null as null | { message: string },
   ackPoster: true,
   ended: [] as string[],
@@ -43,7 +43,7 @@ import { settleLiveCard, drainLiveActivityTaps, takeBoardRoute } from './rollcal
 
 beforeEach(() => {
   mockState.invoked = [];
-  mockState.refresh = { data: { ok: true, refreshed: true }, error: null };
+  mockState.refresh = { data: { ok: true, result: 'sent' }, error: null };
   mockState.rpcError = null;
   mockState.ackPoster = true;
   mockState.ended = [];
@@ -59,10 +59,20 @@ describe('settleLiveCard', () => {
     expect(mockState.ended).toEqual([]);
   });
 
-  test('a throttled refresh (a code ack already turned it) leaves the card alone', async () => {
-    mockState.refresh = { data: { ok: true, refreshed: false }, error: null };
-    expect(await settleLiveCard('i1')).toBe('skipped');
+  test('a card the server already turned (a code ack got there first) is left alone', async () => {
+    mockState.refresh = { data: { ok: true, result: 'already_answered' }, error: null };
+    expect(await settleLiveCard('i1')).toBe('already_answered');
     expect(mockState.ended).toEqual([]);
+  });
+
+  test('a card whose token never reached the server is ended here, not left on the I-am-up button', async () => {
+    mockState.refresh = { data: { ok: true, result: 'no_token' }, error: null };
+    expect(await settleLiveCard('i1')).toBe('no_token');
+    expect(mockState.ended).toEqual(['i1']);
+    mockState.ended = [];
+    mockState.refresh = { data: { ok: true, result: 'no_card' }, error: null };
+    expect(await settleLiveCard('i1')).toBe('no_card');
+    expect(mockState.ended).toEqual(['i1']);
   });
 
   test('an older binary ends the card, as it always did', async () => {

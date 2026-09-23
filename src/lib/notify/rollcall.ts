@@ -8,7 +8,7 @@ import {
   enqueueCoachAction, dropCoachAction, type CoachAction, type QueuedCoachAction,
   CHECK_IN_LABEL, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL, ackOutcome, type AckOutcome,
   ROLLCALL_BG_TASK, ACTION_OPTIONS, buttonTitleFor, routeNotificationResponse, boardRouteFor,
-  shouldEndCardLocally, type RefreshOutcome,
+  shouldEndCardLocally, refreshOutcomeOf, type RefreshOutcome,
 } from '@/core/rollcall';
 
 const supaUrl = process.env.EXPO_PUBLIC_SUPABASE_URL?.trim();
@@ -356,8 +356,7 @@ export async function settleLiveCard(instanceId: string): Promise<RefreshOutcome
     };
     if (supabase) {
       const { data, error } = await supabase.functions.invoke('roll-call-ack', { body: { action: 'refresh', instance_id: id } });
-      const d = data as { ok?: unknown; refreshed?: unknown } | null;
-      if (!error && d && d.ok === true) outcome = d.refreshed === true ? 'sent' : 'skipped';
+      outcome = refreshOutcomeOf(data, error);
     }
   } catch { outcome = 'failed'; }
   try {

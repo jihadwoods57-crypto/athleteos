@@ -4359,7 +4359,9 @@ insert into _rc_t4calls values
   ('select * from rollcall_live_update_targets((select id from _rc_b))'),
   ('select * from claim_live_team_updates((select id from _rc_b), array[''eeee0000-0000-0000-0000-0000000000e1''::uuid], 60)'),
   ('select * from rollcall_window_rows_svc(''eeee0000-0000-0000-0000-0000000000e1''::uuid, 7)'),
-  ('select claim_rollcall_summary((select id from _rc_b))');
+  ('select claim_rollcall_summary((select id from _rc_b))'),
+  ('select claim_live_answered_update((select id from _rc_b), ''eeee0000-0000-0000-0000-0000000000e1''::uuid)'),
+  ('select release_live_answered_update((select id from _rc_b), ''eeee0000-0000-0000-0000-0000000000e1''::uuid)');
 grant select on _rc_t4calls to authenticated, anon;
 grant select on _rc_b to service_role;
 set role anon;
@@ -4421,6 +4423,28 @@ select _ok((select phase_hint from rollcall_live_update_targets((select id from 
        and (select phase_hint from rollcall_live_update_targets((select id from _rc_b))
              where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2') = 'late',
   '0242 task 4: the update targets say which phase each card is in');
+
+-- the answered transition is never throttled by a count-only stamp (Task 5 fix round 2): a
+-- teammate's count update stamped e2's card a moment ago, carrying e2's OLD phase; e2 then
+-- answers, and the answered update must still be claimed (and only once)
+select _ok(exists (select 1 from claim_live_team_updates((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e2']::uuid[], 0)),
+  '0242 task 5: (fixture) a count update just stamped e2''s card');
+select _ok(claim_live_answered_update((select id from _rc_b), 'eeee0000-0000-0000-0000-0000000000e2') = 'claimed',
+  '0242 task 5: an answer seconds after a count update is still claimed for its answered update');
+select _ok(claim_live_answered_update((select id from _rc_b), 'eeee0000-0000-0000-0000-0000000000e2') = 'already_answered',
+  '0242 task 5: the answered update is claimed once per card (a re-posted code sends nothing twice)');
+select _ok(not exists (select 1 from claim_live_team_updates((select id from _rc_b),
+              array['eeee0000-0000-0000-0000-0000000000e2']::uuid[], 60)),
+  '0242 task 5: the answered update also counts as the card''s latest update for the count throttle');
+select release_live_answered_update((select id from _rc_b), 'eeee0000-0000-0000-0000-0000000000e2');
+select _ok(claim_live_answered_update((select id from _rc_b), 'eeee0000-0000-0000-0000-0000000000e2') = 'claimed',
+  '0242 task 5: a released claim (the push reached nobody) can be claimed again');
+select _ok(claim_live_answered_update((select id from _rc_b), 'bbbbbbbb-0000-0000-0000-000000000002') = 'no_token',
+  '0242 task 5: an athlete with no live card token is told so (the phone ends its own card)');
+update rollcall_live_tokens set revoked_at = now() where token = 'tok-e1-0242';
+select _ok(claim_live_answered_update((select id from _rc_b), 'eeee0000-0000-0000-0000-0000000000e1') = 'no_token',
+  '0242 task 5: a revoked token is no card');
 delete from rollcall_live_tokens where token in ('tok-e1-0242', 'tok-e2-0242');
 
 -- the closing summary is claimed once per instance

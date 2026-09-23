@@ -176,16 +176,31 @@ export function boardRouteFor(taps: PendingBoardTap[] | null | undefined, nowMs:
   return best ? `rollcall-board/${best.instanceId}` : null;
 }
 
-/** What roll-call-ack's refresh route did: turned the card ('sent'), had nothing to do because a
- *  code ack just did it or no card is live ('skipped'), or could not be reached / refused ('failed'). */
-export type RefreshOutcome = 'sent' | 'skipped' | 'failed';
+/** What roll-call-ack's refresh route said about this athlete's own card (the server's
+ *  OwnCardResult), or 'failed' when it could not be reached or refused:
+ *    sent / already_answered   the server turned the card (now, or earlier): leave it be
+ *    no_token / no_card        the server holds no card it can reach: this phone must end its own
+ *    unavailable               APNs down, or the push reached nobody */
+export type RefreshOutcome = 'sent' | 'already_answered' | 'no_token' | 'no_card' | 'unavailable' | 'failed';
+
+const REFRESH_RESULTS = new Set<RefreshOutcome>(['sent', 'already_answered', 'no_token', 'no_card', 'unavailable']);
+
+/** Read the refresh route's answer. Anything unexpected is 'failed', which ends the card. */
+export function refreshOutcomeOf(data: unknown, error: unknown): RefreshOutcome {
+  if (error || !data || typeof data !== 'object') return 'failed';
+  const d = data as { ok?: unknown; result?: unknown };
+  if (d.ok !== true || typeof d.result !== 'string') return 'failed';
+  return REFRESH_RESULTS.has(d.result as RefreshOutcome) ? (d.result as RefreshOutcome) : 'failed';
+}
 
 /**
  * After an answer that did not come through a window code, whether THIS device should end its
- * lock-screen card itself. A binary whose intents post taps (hasAckPoster) leaves the card to the
- * server's answered update; an older binary, or a refresh that failed (offline, an answer still
- * queued), ends it, as the app always did, rather than leave it counting down until the close.
+ * lock-screen card itself. Only when the server says it turned the card (now or already) is the
+ * card left to the server. An older binary ends it as the app always did, and so does a phone
+ * whose card the server cannot reach (its token never uploaded, no card, APNs down, a failed or
+ * refused refresh): otherwise that card would sit on I'M UP until iOS timed it out.
  */
 export function shouldEndCardLocally(hasAckPoster: boolean, outcome: RefreshOutcome): boolean {
-  return !hasAckPoster || outcome === 'failed';
+  if (!hasAckPoster) return true;
+  return !(outcome === 'sent' || outcome === 'already_answered');
 }
