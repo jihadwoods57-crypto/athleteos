@@ -28,7 +28,7 @@
       "infoPlist": {
         "NSCameraUsageDescription": "OnStandard uses the camera so you can photograph a meal and get instant nutrition feedback. Photos are analyzed for your log only.",
         "NSPhotoLibraryUsageDescription": "OnStandard needs photo library access so you can pick an existing meal photo to log and analyze.",
-        "NSPhotoLibraryAddUsageDescription": "OnStandard can save a meal photo back to your library after you log it.",
+        "NSPhotoLibraryAddUsageDescription": "OnStandard saves a share card you create to your photos when you choose Save.",
         "ITSAppUsesNonExemptEncryption": false,
         "NSLocationWhenInUseUsageDescription": "OnStandard uses your location to check you in when you arrive where your coach asked you to be, and to center the map when a coach sets that place. Your location is only checked against that place. Your coach sees only whether you arrived, never where you are.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "So your arrival counts even when the app is closed, OnStandard checks you in when you walk into the place your coach set, only during the check-in window. Your coach sees only whether you arrived, never where you are.",
@@ -114,6 +114,14 @@
             ]
           },
           {
+            "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypePurchaseHistory",
+            "NSPrivacyCollectedDataTypeLinked": true,
+            "NSPrivacyCollectedDataTypeTracking": false,
+            "NSPrivacyCollectedDataTypePurposes": [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+            ]
+          },
+          {
             "NSPrivacyCollectedDataType": "NSPrivacyCollectedDataTypeProductInteraction",
             "NSPrivacyCollectedDataTypeLinked": false,
             "NSPrivacyCollectedDataTypeTracking": false,
@@ -171,6 +179,7 @@
       "bundler": "metro"
     },
     "plugins": [
+      "./plugins/withoutBackgroundFetch",
       [
         "expo-build-properties",
         {
@@ -255,8 +264,8 @@
         "@kingstinct/react-native-healthkit",
         {
           "_comment": "READ ONLY, and deliberately minimal. The plugin turns background-delivery ON by default and writes an UPDATE usage string by default. background:false still stands. The UPDATE string was `false` until 2026-09-02, on the principle that declaring a permission the app never uses is dishonest and an App Review flag. App Store Connect now REJECTS THE UPLOAD without it: 'EAS_UPLOAD_TO_ASC_MISSING_PURPOSE_STRING ... Missing keys reported by App Store Connect: NSHealthUpdateUsageDescription'. That is what had kept TestFlight on build 26 since 2026-08-20 \u2014 build #27 was the first with HealthKit and was never submitted, so nobody found out. The string now says plainly that the app never writes, which keeps the honesty and satisfies the validator. OnStandard never writes to Health and never reads in the background, so declaring either would be asking for a permission the app does not use, which is both dishonest and an App Review flag. background:false also keeps com.apple.developer.healthkit.background-delivery out of the entitlements, so the provisioning profile only has to carry com.apple.developer.healthkit.",
-          "NSHealthShareUsageDescription": "OnStandard reads last night's sleep, heart rate variability and resting heart rate so your recovery check-in has real context next to what you reported. It is read-only, it never changes your score, and nothing is ever written back to Health.",
-          "NSHealthUpdateUsageDescription": "OnStandard never writes to Apple Health. It only reads sleep and heart data, with your permission, so your recovery check-in has real context.",
+          "NSHealthShareUsageDescription": "OnStandard reads last night's sleep, heart rate variability and resting heart rate to give your recovery check-in real context. If your coach sets an activity standard, it also reads your steps, walking and running distance, exercise minutes, active energy and workouts, and your coach sees your progress toward that standard. Nothing is ever written to Health.",
+          "NSHealthUpdateUsageDescription": "OnStandard never writes to Apple Health. It only reads, with your permission, for your recovery check-in and any activity standard your coach sets.",
           "background": false
         }
       ]

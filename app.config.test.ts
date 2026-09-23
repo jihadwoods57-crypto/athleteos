@@ -45,6 +45,31 @@ describe('app.json — iOS App Store compliance', () => {
   // strings are what the athlete reads in the iOS prompt and what App Review reads first, so they
   // must say plainly what the app does with location, and the plugin must not be left to fill in
   // Expo's placeholder ("Allow $(PRODUCT_NAME) to access your location").
+  // expo-task-manager's plugin adds UIBackgroundModes "fetch" and nothing on iOS uses it (review
+  // pass 2026-09-23, 2.5.4). withoutBackgroundFetch strips it. Mods run in REVERSE plugin order,
+  // and expo-location applies expo-task-manager itself, so the strip must be the FIRST plugin listed
+  // to run last (verified with npx expo config --type introspect).
+  it('strips the unused background fetch mode, listed first so it runs last', () => {
+    const names = (appJson.expo.plugins as unknown[]).map((p) => (Array.isArray(p) ? p[0] : p));
+    expect(names[0]).toBe('./plugins/withoutBackgroundFetch');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const plugin = require('./plugins/withoutBackgroundFetch');
+    const run = (modes: string[] | undefined) => {
+      let out: any;
+      const cfg: any = { mods: { ios: {} } };
+      plugin(cfg);
+      // withInfoPlist registered a mod; call it directly with a fake Info.plist.
+      const mod = cfg.mods.ios.infoPlist;
+      return Promise.resolve(mod({ modResults: modes ? { UIBackgroundModes: modes } : {}, modRequest: { nextMod: (c: any) => c } }))
+        .then((r: any) => { out = r.modResults; return out; });
+    };
+    return Promise.all([run(['fetch']), run(['fetch', 'remote-notification']), run(undefined)]).then(([a, b, c]) => {
+      expect(a.UIBackgroundModes).toBeUndefined();
+      expect(b.UIBackgroundModes).toEqual(['remote-notification']);
+      expect(c.UIBackgroundModes).toBeUndefined();
+    });
+  });
+
   it('location purpose strings are present and plain', () => {
     expect(ios.infoPlist.NSLocationAlwaysAndWhenInUseUsageDescription).toMatch(/check you in when you arrive|checks you in when you walk into/i);
     // When-in-use serves two roles (2026-09-23): the athlete's check-in AND centring the coach's
