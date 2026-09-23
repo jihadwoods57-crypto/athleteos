@@ -395,11 +395,95 @@ begin
 end;
 $function$;
 
+-- ================================================================ 5. arrival by distance
+-- Task 6 restores the phone's location code; it will call verify_arrival_at with ONE reading.
+-- The coach's map (Tasks 7/10) saves places through save_commitment_place. Neither function ever
+-- stores, logs or echoes a coordinate: verify_arrival_at returns only {ok/within/distance_m}
+-- merged with verify_arrival's own result, and save_commitment_place writes lat/lng into
+-- commitment_locations (the COACH's typed place, 0138) exactly as upsert_commitment already does
+-- for that table — never an athlete's position.
+--
+-- _haversine_m is internal (revoked below, including from authenticated): every caller reaches it
+-- only through verify_arrival_at.
+create or replace function _haversine_m(lat1 double precision, lng1 double precision, lat2 double precision, lng2 double precision)
+returns double precision language sql immutable as $$
+  select 2 * 6371000 * asin(sqrt(
+    power(sin(radians(lat2 - lat1) / 2), 2) +
+    cos(radians(lat1)) * cos(radians(lat2)) * power(sin(radians(lng2 - lng1) / 2), 2)))
+$$;
+
+-- verify_arrival_at: the ONE new write path for a distance-checked arrival. It computes `within`
+-- from the instance's saved place and calls the EXISTING verify_arrival(instance, source, within,
+-- reason) — every gate that function already enforces (Verified Commitments switched on,
+-- ownership via the caller's own commitment_responses row, minor consent, the arrival-window
+-- clamp) stays the one place commitment_responses is written. This function never writes that
+-- table itself.
+--
+-- within = distance_m <= radius_m + least(accuracy_m, 75): a GPS fix is a circle, not a point, so
+-- up to 75 m of the phone's own stated error is forgiven (mirrors the on-device geofence radius
+-- padding this replaces on the server side of Task 6).
+create or replace function verify_arrival_at(p_instance uuid, p_source text, p_lat double precision,
+  p_lng double precision, p_accuracy_m double precision) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare loc commitment_locations; v_dist double precision; v_within boolean; v_res jsonb;
+begin
+  if p_lat is null or p_lng is null or p_lat not between -90 and 90 or p_lng not between -180 and 180 then
+    raise exception 'bad_position';
+  end if;
+  select l.* into loc from commitment_instances i join commitments c on c.id = i.commitment_id
+    join commitment_locations l on l.id = c.location_id where i.id = p_instance;
+  if not found then raise exception 'no_place'; end if;
+  v_dist := _haversine_m(p_lat, p_lng, loc.lat, loc.lng);
+  v_within := v_dist <= loc.radius_m + least(greatest(coalesce(p_accuracy_m, 0), 0), 75);
+  v_res := verify_arrival(p_instance, p_source, v_within,
+    case when v_within then null else format('%s m from %s', round(v_dist), loc.name) end);
+  return coalesce(v_res, '{}'::jsonb) || jsonb_build_object('within', v_within, 'distance_m', round(v_dist));
+end $$;
+comment on function verify_arrival_at(uuid, text, double precision, double precision, double precision) is
+  'Arrival verified by distance to the instance''s saved place. Calls verify_arrival() for the one write path; never stores or echoes a coordinate. 0242.';
+
+-- save_commitment_place: insert/update a commitment_locations row for the CALLER's own team or
+-- practice. A new place cannot be smaller than 100 m (tighter than the table''s 50 m floor, which
+-- exists for the handful of pre-existing small facilities) because a bubble that tight manufactures
+-- false negatives for consumer GPS and pushes honest athletes into 'unverified' or 'late'.
+--
+-- team_members (0001) carries no role column — only athlete_id + status; staff live in team_staff
+-- (role staff_role). There is therefore no "the caller's own team" to infer from team_members, and
+-- commitment_owner_is_staff already requires an explicit team_id/practice_id. This function REQUIRES
+-- the caller to name one; it does not guess.
+create or replace function save_commitment_place(p jsonb) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare v_id uuid; v_team uuid := nullif(p->>'team_id','')::uuid; v_practice uuid := nullif(p->>'practice_id','')::uuid;
+  v_r int := (p->>'radius_m')::int;
+begin
+  if v_r is null or v_r < 100 then raise exception 'radius_min'; end if;
+  if v_r > 1000 then raise exception 'radius_max'; end if;
+  if v_team is null and v_practice is null then raise exception 'team_or_practice_required'; end if;
+  if not commitment_owner_is_staff(v_team, v_practice) then raise exception 'not_authorized'; end if;
+  if (p->>'id') is not null then
+    update commitment_locations set name = left(p->>'name', 60), address = left(p->>'address', 200),
+      lat = (p->>'lat')::float8, lng = (p->>'lng')::float8, radius_m = v_r
+      where id = (p->>'id')::uuid and (team_id = v_team or practice_id = v_practice)
+      returning id into v_id;
+    if not found then raise exception 'not_authorized'; end if;
+  else
+    insert into commitment_locations (team_id, practice_id, name, address, lat, lng, radius_m, created_by)
+    values (v_team, v_practice, left(p->>'name', 60), left(p->>'address', 200), (p->>'lat')::float8, (p->>'lng')::float8, v_r, auth.uid())
+    returning id into v_id;
+  end if;
+  return v_id;
+end $$;
+comment on function save_commitment_place(jsonb) is
+  'Insert/update a commitment_locations row for the caller''s named team or practice. New places floor at 100 m (radius_min), cap at 1000 m (radius_max). 0242.';
+
 -- ================================================================ grants
 do $$ declare f text; begin
   foreach f in array array['rollcall_team_board(uuid)', 'rollcall_history(uuid,int)',
-                           'rollcall_arrival_verdict(text,timestamptz,timestamptz,int,timestamptz,timestamptz)'] loop
+                           'rollcall_arrival_verdict(text,timestamptz,timestamptz,int,timestamptz,timestamptz)',
+                           'verify_arrival_at(uuid,text,double precision,double precision,double precision)',
+                           'save_commitment_place(jsonb)'] loop
     execute format('revoke all on function %s from public, anon', f);
     execute format('grant execute on function %s to authenticated', f);
   end loop;
 end $$;
+revoke all on function _haversine_m(double precision,double precision,double precision,double precision) from public, anon, authenticated;

@@ -4530,6 +4530,92 @@ select _ok((select score from days where athlete_id = 'eeee0000-0000-0000-0000-0
   '0242 ceiling: a pending arrival is not assigned: an ordinary day');
 delete from days where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1' and date between current_date - 3 and current_date;
 
+-- ---- 0242 (part B): arrival verified by distance on the server; new places at least 100 m ----
+select _superuser();
+select _ok(round(_haversine_m(28.60, -81.20, 28.60, -81.20)) = 0, '0242: zero distance');
+select _ok(abs(_haversine_m(28.6000, -81.2000, 28.6009, -81.2000) - 100) < 3, '0242: ~100 m north is ~100 m');
+
+-- ---- save_commitment_place: new places floor at 100 m, cap at 1000 m, staff-only, owner-scoped ----
+select _as('11111111-0000-0000-0000-000000000001');   -- coach_1, staff of T1
+select _ok(_try($f$ select save_commitment_place('{"team_id":"77777777-1111-0000-0000-000000000001","name":"Too small","lat":28.6,"lng":-81.2,"radius_m":60}'::jsonb) $f$) like '%radius_min%',
+  '0242: new places cannot be smaller than 100 m');
+select _ok(_try($f$ select save_commitment_place('{"team_id":"77777777-1111-0000-0000-000000000001","name":"Too big","lat":28.6,"lng":-81.2,"radius_m":1500}'::jsonb) $f$) like '%radius_max%',
+  '0242: new places cannot be larger than 1000 m');
+select _ok(_try($f$ select save_commitment_place('{"name":"No owner","lat":28.6,"lng":-81.2,"radius_m":150}'::jsonb) $f$) like '%team_or_practice_required%',
+  '0242: a place must name a team or a practice; team_members has no role to guess one from');
+select _as('22222222-0000-0000-0000-000000000002');   -- coach_2, stranger to T1
+select _ok(_try($f$ select save_commitment_place('{"team_id":"77777777-1111-0000-0000-000000000001","name":"Intruder","lat":28.6,"lng":-81.2,"radius_m":150}'::jsonb) $f$) like '%not_authorized%',
+  '0242: a stranger coach cannot save a place for another team');
+select _as('11111111-0000-0000-0000-000000000001');
+create temp table _rc_place as
+  select save_commitment_place('{"team_id":"77777777-1111-0000-0000-000000000001","name":"Weight room","lat":28.6,"lng":-81.2,"radius_m":150}'::jsonb) as id;
+select _ok((select id is not null from _rc_place), '0242: staff save a 150 m place');
+select _ok((select radius_m = 150 and name = 'Weight room' and team_id = '77777777-1111-0000-0000-000000000001'
+              from commitment_locations, _rc_place where commitment_locations.id = _rc_place.id),
+  '0242: the saved place carries the team, name and radius given');
+-- an update to the same place, by id, still scoped to the caller's own team
+select _ok(_try($f$ select save_commitment_place(jsonb_build_object('id', (select id from _rc_place),
+    'team_id','77777777-1111-0000-0000-000000000001','name','Weight Room B','lat',28.6,'lng',-81.2,'radius_m',200)) $f$) = 'ok',
+  '0242: staff can update their own place');
+select _ok((select name = 'Weight Room B' and radius_m = 200 from commitment_locations, _rc_place where commitment_locations.id = _rc_place.id),
+  '0242: the update landed');
+select _as('22222222-0000-0000-0000-000000000002');
+select _ok(_try($f$ select save_commitment_place(jsonb_build_object('id', (select id from _rc_place),
+    'team_id','77777777-1111-0000-0000-000000000001','name','Hijacked','lat',28.6,'lng',-81.2,'radius_m',200)) $f$) like '%not_authorized%',
+  '0242: a stranger coach cannot update another team''s place');
+
+-- ---- fixture: a future roll call whose commitment now points at that place (0215 pattern) ----
+select _superuser();
+create temp table _rc_place_next as
+  select id, occurs_on from commitment_instances
+   where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and starts_at > now()
+   order by occurs_on limit 1;
+grant select on _rc_place_next to authenticated, anon;
+select _ok((select count(*) from _rc_place_next) = 1, '0242: (fixture) a future roll call exists');
+update commitments set location_id = (select id from _rc_place), arrival_grace_min = 10, arrive_by_min = 355
+ where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+update commitment_instances set arrive_by_at = starts_at where id = (select id from _rc_place_next);
+insert into commitment_responses (instance_id, athlete_id, status, acknowledged_at, arrived_at, arrival_source, unverified_reason)
+  values ((select id from _rc_place_next), 'eeee0000-0000-0000-0000-0000000000e1', 'pending', null, null, null, null)
+  on conflict (instance_id, athlete_id) do update
+    set status = 'pending', acknowledged_at = null, arrived_at = null, arrival_source = null, unverified_reason = null;
+
+-- ---- verify_arrival_at: 400 m away is refused, 55 m away is verified, nothing is echoed back ----
+select _as('eeee0000-0000-0000-0000-0000000000e1');   -- an adult: not gated by minor consent (vc2)
+select _ok((verify_arrival_at((select id from _rc_place_next), 'manual', 28.6036, -81.2, 10)->>'within')::boolean = false,
+  '0242: 400 m away is not within a 150 m bubble (now 200 m after the update above)');
+select _superuser();
+select _ok((select status = 'unverified' from commitment_responses
+             where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242: verify_arrival_at outside the bubble still writes through verify_arrival (unverified, never missed)');
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+create temp table _rc_vaj as
+  select verify_arrival_at((select id from _rc_place_next), 'manual', 28.6005, -81.2, 10) as j;
+select _superuser();
+select _ok((select (j->>'within')::boolean from _rc_vaj) = true, '0242: 55 m away is within');
+select _ok((select j->>'status' from _rc_vaj) = 'arrived', '0242: within, verify_arrival records the arrival (one write path)');
+select _ok((select not (j ?| array['lat','lng','latitude','longitude']) from _rc_vaj),
+  '0242: verify_arrival_at never echoes the position back');
+select _ok((select j ? 'distance_m' and j ? 'within' from _rc_vaj), '0242: the caller gets ok/within/distance_m');
+drop table _rc_vaj;
+select _as('eeee0000-0000-0000-0000-0000000000e1');   -- superuser bypasses grants; check as an ordinary user
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'manual', 999, -81.2, 10) $f$) like '%bad_position%',
+  '0242: an impossible latitude is refused before any distance math');
+select _ok(_try($f$ select _haversine_m(0,0,0,0) $f$) like 'denied%',
+  '0242: _haversine_m is internal — not even a signed-in user may call it directly');
+
+select _superuser();
+update commitments set location_id = null, arrive_by_min = null where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+-- restore this response row to the same untouched state materialization left it in, rather than
+-- deleting it: a later section may still count responses on this (dynamically-chosen) instance.
+update commitment_responses set status = 'pending', acknowledged_at = null, ack_source = null,
+       arrived_at = null, arrival_source = null, unverified_reason = null, departed_at = null,
+       completed_at = null
+ where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+delete from commitment_locations where id in (select id from _rc_place);
+drop table _rc_place_next;
+drop table _rc_place;
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
