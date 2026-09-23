@@ -13,6 +13,7 @@ const mockFake = {
   start: jest.fn(),
   stop: jest.fn(),
   abort: jest.fn(),
+  getStateAsync: jest.fn(async () => 'inactive'),
   addListener: jest.fn((name: string, fn: Listener) => {
     (mockListeners[name] ||= []).push(fn);
     return { remove: () => { mockListeners[name] = (mockListeners[name] || []).filter((f) => f !== fn); } };
@@ -40,11 +41,15 @@ beforeEach(() => {
   mockFake.isRecognitionAvailable.mockReturnValue(true);
   mockFake.supportsOnDeviceRecognition.mockReturnValue(true);
   mockFake.requestPermissionsAsync.mockResolvedValue({ granted: true, canAskAgain: true, status: 'granted' });
+  mockFake.getStateAsync.mockResolvedValue('inactive');
   __resetSpeechModuleForTest();
   __resetSessionsForTest();
   jest.useRealTimers();
 });
 const flush = () => new Promise((r) => setImmediate(r));
+/* The `end` listener may ask the recognizer for its state (an await), so let it settle. Works under
+   fake timers too (a few microtask turns, no timer involved). */
+const settle = async () => { for (let i = 0; i < 5; i++) await Promise.resolve(); };
 
 describe('the running transcript', () => {
   test('utterance-by-utterance results (interim, then final, then a fresh utterance) join up', () => {
@@ -201,8 +206,10 @@ describe('sessions never cross', () => {
     await jest.advanceTimersByTimeAsync(1500); // d1's end never came: forced
     await expect(second).resolves.toEqual({ ok: true, onDevice: true });
     expect(__currentSessionId()).toBe('d2');
+    mockFake.getStateAsync.mockResolvedValue('starting'); // d2's recognizer is coming up
     fire('end'); // d1's end, very late
-    expect(__currentSessionId()).toBe('d2'); // written off, d2 lives on
+    await settle();
+    expect(__currentSessionId()).toBe('d2'); // recognized as the stray, d2 lives on
     expect(b).toEqual([]);
     fire('start');
     fire('result', { isFinal: true, results: [{ transcript: 'toast' }] });
@@ -244,5 +251,56 @@ describe('sessions never cross', () => {
     expect(mockFake.abort).toHaveBeenCalled();
     expect(a).toEqual([{ sid: 'd1', type: 'end' }]);
     expect(__currentSessionId()).toBeNull();
+  });
+
+  /* Fix round 2 (re-review New-1): the stray `end` must be attributed, not counted. */
+  test('a new session whose recognizer fails before start ends, even with a stray end still owed', async () => {
+    jest.useFakeTimers();
+    const b: DictationEvent[] = [];
+    await startDictation(() => undefined, { sid: 'd1' });
+    fire('start');
+    const second = startDictation((e) => b.push(e), { sid: 'd2' });
+    await jest.advanceTimersByTimeAsync(1500); // d1 forced: its end may still come
+    await second;
+    // d2's recognizer fails at once: its OWN end arrives first, and the recognizer is idle.
+    mockFake.getStateAsync.mockResolvedValue('inactive');
+    fire('end');
+    await settle();
+    expect(b).toEqual([{ sid: 'd2', type: 'end' }]); // the page leaves "Listening…"
+    expect(__currentSessionId()).toBeNull();
+    fire('end'); // d1's stray, arriving after: nobody left to disturb
+    await settle();
+    expect(b).toHaveLength(1);
+  });
+
+  test('a stray taken for the old recognizer\'s cannot strand the page: an idle recognizer ends the session', async () => {
+    jest.useFakeTimers();
+    const b: DictationEvent[] = [];
+    await startDictation(() => undefined, { sid: 'd1' });
+    const second = startDictation((e) => b.push(e), { sid: 'd2' });
+    await jest.advanceTimersByTimeAsync(1500);
+    await second;
+    mockFake.getStateAsync.mockResolvedValue('starting');
+    fire('end'); // judged the stray: the recognizer says it is still starting
+    await settle();
+    expect(__currentSessionId()).toBe('d2');
+    // ...but it never starts and goes idle without another word (its own end was the one dropped).
+    mockFake.getStateAsync.mockResolvedValue('inactive');
+    await jest.advanceTimersByTimeAsync(2000);
+    expect(b).toEqual([{ sid: 'd2', type: 'end' }]);
+    expect(__currentSessionId()).toBeNull();
+  });
+
+  test('an end is never held back once the stray window has passed, or when the recognizer cannot say', async () => {
+    jest.useFakeTimers();
+    const b: DictationEvent[] = [];
+    await startDictation(() => undefined, { sid: 'd1' });
+    const second = startDictation((e) => b.push(e), { sid: 'd2' });
+    await jest.advanceTimersByTimeAsync(1500);
+    await second;
+    mockFake.getStateAsync.mockRejectedValue(new Error('older module'));
+    fire('end');
+    await settle();
+    expect(b).toEqual([{ sid: 'd2', type: 'end' }]);
   });
 });

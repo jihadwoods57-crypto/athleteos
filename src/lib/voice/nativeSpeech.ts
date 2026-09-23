@@ -124,7 +124,8 @@ export function levelOf(value: number): number {
    listener: the new session was torn down while its recognizer kept running (the orange dot on,
    the page showing an idle mic, and nothing left that could stop it). Now:
      - a session keeps its listeners until its own native `end` arrives (or FORCE_MS passes, after
-       which the recognizer is aborted again and that late `end` is written off in `owedEnds`);
+       which the recognizer is aborted again and a late `end` may still be on its way: see
+       `strayUntil` below);
      - a new start waits for the previous session to be released before it asks for anything;
      - every event carries the page's session id, and the page drops ids it has left;
      - stop and abort with no session still stop the recognizer (the stop control always stops). */
@@ -139,11 +140,37 @@ type Session = {
   started: boolean;
   pageEnded: boolean;
   force: ReturnType<typeof setTimeout> | null;
+  watch: ReturnType<typeof setTimeout> | null;
   done: Promise<void>;
   release: () => void;
 };
 let session: Session | null = null;
-let owedEnds = 0;
+/* A force-released session's `end` may still arrive, late, on the NEXT session's listener. It is
+   not written off blindly (fix round 2: a bare counter swallowed a new session's own legitimate
+   `end` when its recognizer failed before `start`, leaving the composer on "Listening…"). Instead:
+   only within STRAY_MS of a force-release, and only before this session's own `start`, an `end`
+   is checked against the recognizer's real state. Idle ('inactive') means nothing is listening, so
+   the session ends whatever the `end` was; still starting or recognizing means the `end` was the
+   old recognizer's, and it is dropped, with a watchdog that ends the session anyway if the
+   recognizer goes idle without a word. A composer can therefore never stay "Listening…" over an
+   idle recognizer. */
+const STRAY_MS = 3000;
+const WATCH_MS = 2000;
+let strayUntil = 0;
+/** Timers this file owns never hold a process open (jest, a headless run). No-op in React Native. */
+function unrefTimer(t: ReturnType<typeof setTimeout>): ReturnType<typeof setTimeout> {
+  (t as unknown as { unref?: () => void }).unref?.();
+  return t;
+}
+/** The recognizer's own state, or null when it cannot say (an older module, a throw). */
+async function nativeState(m: SpeechModule): Promise<string | null> {
+  try {
+    const f = (m as unknown as { getStateAsync?: () => Promise<string> }).getStateAsync;
+    return typeof f === 'function' ? String(await f.call(m)) : null;
+  } catch {
+    return null;
+  }
+}
 let startTicket = 0;
 
 /** Test seam: the session currently owning the recognizer. */
@@ -151,7 +178,7 @@ export function __currentSessionId(): string | null { return session ? session.s
 /** Test seam: forget every session (between tests). */
 export function __resetSessionsForTest(): void {
   if (session) { if (session.force) clearTimeout(session.force); session.release(); }
-  session = null; owedEnds = 0; startTicket = 0;
+  session = null; strayUntil = 0; startTicket = 0;
 }
 
 function endToPage(s: Session): void {
@@ -163,6 +190,7 @@ function endToPage(s: Session): void {
 /** Release the recognizer: listeners off, the next start may go ahead. */
 function releaseSession(s: Session): void {
   if (s.force) { clearTimeout(s.force); s.force = null; }
+  if (s.watch) { clearTimeout(s.watch); s.watch = null; }
   for (const sub of s.subs) { try { sub.remove(); } catch { /* already gone */ } }
   s.subs = [];
   try { s.app?.remove(); } catch { /* already gone */ }
@@ -174,15 +202,15 @@ function releaseSession(s: Session): void {
 /** If the native `end` never comes, abort again and let the session go anyway. */
 function armForce(s: Session): void {
   if (s.force) return;
-  s.force = setTimeout(() => {
+  s.force = unrefTimer(setTimeout(() => {
     s.force = null;
     if (session !== s) return;
-    owedEnds += 1;
+    strayUntil = Date.now() + STRAY_MS;
     const m = speechModule();
     if (m) { try { m.abort(); } catch { /* not running */ } }
     endToPage(s);
     releaseSession(s);
-  }, FORCE_MS);
+  }, FORCE_MS));
 }
 
 /**
@@ -236,7 +264,7 @@ export async function startDictation(
   let lastLevelAt = 0;
   let release: () => void = () => undefined;
   const done = new Promise<void>((r) => { release = r; });
-  const s: Session = { sid, subs: [], app: null, emit, phase: 'running', started: false, pageEnded: false, force: null, done, release };
+  const s: Session = { sid, subs: [], app: null, emit, phase: 'running', started: false, pageEnded: false, force: null, watch: null, done, release };
   session = s;
   const mine = () => session === s;
 
@@ -287,18 +315,34 @@ export async function startDictation(
     const code = errorCodeOf(e?.error);
     if (code) emit({ sid, type: 'error', code });
   }));
-  s.subs.push(m.addListener('end', () => {
+  const finishSession = () => { endToPage(s); releaseSession(s); };
+  s.subs.push(m.addListener('end', async () => {
     if (!mine()) return;
-    // The late `end` of a recognizer we stopped waiting for: not this session's.
-    if (!s.started && owedEnds > 0) { owedEnds -= 1; return; }
+    // Possibly the late `end` of a recognizer we stopped waiting for. Ask the recognizer.
+    if (!s.started && Date.now() < strayUntil) {
+      const st = await nativeState(m);
+      if (!mine()) return;
+      if (st === 'starting' || st === 'recognizing') {
+        strayUntil = 0; // that was the one stray; the next `end` is ours
+        if (!s.watch) {
+          s.watch = unrefTimer(setTimeout(async () => {
+            s.watch = null;
+            if (!mine() || s.started) return;
+            const later = await nativeState(m);
+            if (mine() && !s.started && (later === 'inactive' || later === null)) finishSession();
+          }, WATCH_MS));
+        }
+        return;
+      }
+      // Idle, or it cannot say: this end is real (or nothing is listening anyway). End it.
+    }
     if (retryNext && s.phase === 'running') {
       retryNext = false;
       step += 1;
       s.started = false;
       try { begin(); return; } catch { emit({ sid, type: 'error', code: 'unavailable' }); }
     }
-    endToPage(s);
-    releaseSession(s);
+    finishSession();
   }));
   // Leaving the app ends dictation: a microphone must never stay open behind the lock screen.
   s.app = AppState.addEventListener('change', (st) => { if (st !== 'active' && mine()) abortDictation(sid); });
