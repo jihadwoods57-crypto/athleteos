@@ -98,9 +98,10 @@ export type BridgeMessage =
   // until an { type:'end' }. STOP lets the recognizer deliver its last words; ABORT drops them.
   // Only the athlete's own words cross, only to the page, and nothing on either side logs them.
   | { type: 'DICTATION_AVAILABLE'; id: number }
-  | { type: 'DICTATION_START'; id: number; lang?: string }
-  | { type: 'DICTATION_STOP' }
-  | { type: 'DICTATION_ABORT' }
+  // `sid` is the page's name for the session; every event carries it back (fix round 1).
+  | { type: 'DICTATION_START'; id: number; lang?: string; sid?: string }
+  | { type: 'DICTATION_STOP'; sid?: string }
+  | { type: 'DICTATION_ABORT'; sid?: string }
   | { __log: { level: string; msg: string } };
 
 /** Serialize a value for safe injection into `window.__onNativeResult(id, <here>)`. */
@@ -462,16 +463,16 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
       return true;
     case 'DICTATION_START':
       try {
-        resolve(ref, msg.id, await startDictation((ev) => dictationEvent(ref, ev), { lang: msg.lang || undefined }));
+        resolve(ref, msg.id, await startDictation((ev) => dictationEvent(ref, ev), { lang: msg.lang || undefined, sid: msg.sid || undefined }));
       } catch (e) {
         resolve(ref, msg.id, { ok: false, code: 'failed' }, String((e as Error)?.message ?? e));
       }
       return true;
     case 'DICTATION_STOP':
-      stopDictation();
+      stopDictation(msg.sid || undefined);
       return true;
     case 'DICTATION_ABORT':
-      abortDictation();
+      abortDictation(msg.sid || undefined);
       return true;
     case 'REVIEW_REQUEST': {
       /* Ask the OS to show its rating prompt. Resolves TRUE only when we actually asked.
@@ -598,12 +599,13 @@ export const BRIDGE_SHIM = `
     // { name, address, lat, lng, radius_m }, or null when the coach cancels. Rejects only when no
     // map can open ('map-unavailable') or one is already open ('map-busy').
     // Dictation (composer upgrade, 2026-09-23). available() never prompts; start() does, the first
-    // time. Words arrive at window.__onDictation({ type:'text', text, final }) until { type:'end' }.
+    // time. Words arrive at window.__onDictation({ sid, type:'text', text, final }) until
+    // { sid, type:'end' }; the page drops any sid it has left.
     dictation: {
       available: function(){ return call('DICTATION_AVAILABLE', {}); },
-      start: function(lang){ return call('DICTATION_START', { lang: String(lang || '') }); },
-      stop: function(){ post({ type: 'DICTATION_STOP' }); },
-      abort: function(){ post({ type: 'DICTATION_ABORT' }); }
+      start: function(lang, sid){ return call('DICTATION_START', { lang: String(lang || ''), sid: String(sid || '') }); },
+      stop: function(sid){ post({ type: 'DICTATION_STOP', sid: String(sid || '') }); },
+      abort: function(sid){ post({ type: 'DICTATION_ABORT', sid: String(sid || '') }); }
     },
     maps: {
       pick: function(initial){

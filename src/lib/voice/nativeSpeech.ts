@@ -42,12 +42,14 @@ export type DictationPermission = 'granted' | 'denied' | 'undetermined';
 export type DictationStatus = { available: boolean; onDevice: boolean; permission: DictationPermission };
 /** The page's whole error vocabulary. Each maps to one plain line in dictation.js. */
 export type DictationErrorCode = 'denied' | 'unavailable' | 'no-speech' | 'network' | 'interrupted' | 'busy' | 'failed';
-export type DictationEvent =
+/** Every event names the session it belongs to (`sid`, chosen by the page), so an event from a
+ *  session the page has already left can never be mistaken for one from the session it is in. */
+export type DictationEvent = { sid: string } & (
   | { type: 'start'; onDevice: boolean }
   | { type: 'text'; text: string; final: boolean }
   | { type: 'level'; value: number }
   | { type: 'error'; code: DictationErrorCode }
-  | { type: 'end' };
+  | { type: 'end' });
 
 const UNAVAILABLE: DictationStatus = { available: false, onDevice: false, permission: 'undetermined' };
 
@@ -97,12 +99,15 @@ export function errorCodeOf(code: string | undefined): DictationErrorCode | null
  *  Some engines instead repeat everything so far in every result. Both shapes come out as one
  *  running string. Pure; exported for the test. */
 export type TranscriptState = { committed: string; text: string };
+const wordsOf = (x: string) => x.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 export function accumulate(state: TranscriptState, transcript: string, final: boolean): TranscriptState {
   const t = String(transcript || '').trim();
   const base = state.committed;
-  // Cumulative engine: the result already starts with everything committed so far.
-  const piece = base && t.toLowerCase().startsWith(base.toLowerCase()) ? t.slice(base.length).trim() : t;
-  const text = [base, piece].filter(Boolean).join(' ');
+  // Cumulative engine: the result already carries everything committed so far, possibly with its
+  // punctuation and capitals revised ("hello" -> "Hello, how are you"). Compared on the WORDS, and
+  // the engine's latest wording wins whole, so no stray " ," is stitched in.
+  const cumulative = !!base && wordsOf(t).startsWith(wordsOf(base));
+  const text = cumulative ? t : [base, t].filter(Boolean).join(' ');
   return final ? { committed: text, text } : { committed: base, text };
 }
 
@@ -113,30 +118,94 @@ export function levelOf(value: number): number {
   return Math.max(0, Math.min(1, v / 10));
 }
 
-type Session = { subs: { remove: () => void }[]; app: NativeEventSubscription | null; emit: (e: DictationEvent) => void };
-let session: Session | null = null;
+/* ONE RECOGNIZER, ONE OWNER (fix round 1, 2026-09-23). expo-speech-recognition's stop() and
+   abort() finish asynchronously and only then send `end`. Before this, a session aborted to make
+   way for a new one removed its listeners at once, so its late `end` landed on the NEW session's
+   listener: the new session was torn down while its recognizer kept running (the orange dot on,
+   the page showing an idle mic, and nothing left that could stop it). Now:
+     - a session keeps its listeners until its own native `end` arrives (or FORCE_MS passes, after
+       which the recognizer is aborted again and that late `end` is written off in `owedEnds`);
+     - a new start waits for the previous session to be released before it asks for anything;
+     - every event carries the page's session id, and the page drops ids it has left;
+     - stop and abort with no session still stop the recognizer (the stop control always stops). */
+const FORCE_MS = 1500;
 
-function endSession(): void {
-  const s = session;
-  session = null;
-  if (!s) return;
+type Session = {
+  sid: string;
+  subs: { remove: () => void }[];
+  app: NativeEventSubscription | null;
+  emit: (e: DictationEvent) => void;
+  phase: 'running' | 'stopping' | 'aborting';
+  started: boolean;
+  pageEnded: boolean;
+  force: ReturnType<typeof setTimeout> | null;
+  done: Promise<void>;
+  release: () => void;
+};
+let session: Session | null = null;
+let owedEnds = 0;
+let startTicket = 0;
+
+/** Test seam: the session currently owning the recognizer. */
+export function __currentSessionId(): string | null { return session ? session.sid : null; }
+/** Test seam: forget every session (between tests). */
+export function __resetSessionsForTest(): void {
+  if (session) { if (session.force) clearTimeout(session.force); session.release(); }
+  session = null; owedEnds = 0; startTicket = 0;
+}
+
+function endToPage(s: Session): void {
+  if (s.pageEnded) return;
+  s.pageEnded = true;
+  s.emit({ sid: s.sid, type: 'end' });
+}
+
+/** Release the recognizer: listeners off, the next start may go ahead. */
+function releaseSession(s: Session): void {
+  if (s.force) { clearTimeout(s.force); s.force = null; }
   for (const sub of s.subs) { try { sub.remove(); } catch { /* already gone */ } }
+  s.subs = [];
   try { s.app?.remove(); } catch { /* already gone */ }
+  s.app = null;
+  if (session === s) session = null;
+  s.release();
+}
+
+/** If the native `end` never comes, abort again and let the session go anyway. */
+function armForce(s: Session): void {
+  if (s.force) return;
+  s.force = setTimeout(() => {
+    s.force = null;
+    if (session !== s) return;
+    owedEnds += 1;
+    const m = speechModule();
+    if (m) { try { m.abort(); } catch { /* not running */ } }
+    endToPage(s);
+    releaseSession(s);
+  }, FORCE_MS);
 }
 
 /**
  * Start listening. Asks for the microphone and speech permissions the first time (the OS prompt,
  * with the purpose strings in app.json). Resolves once recognition has been asked to start, or with
- * the reason it could not. Events stream to `emit` until an `end`. One session at a time: a second
- * start aborts the first.
+ * the reason it could not. Events stream to `emit` until an `end`, each tagged with `sid`. One
+ * recognizer at a time: a running session is aborted and its native `end` awaited first.
+ * `lang` is the device's language (BCP-47); anything else, or a language the recognizer refuses,
+ * falls back to en-US.
  */
 export async function startDictation(
   emit: (e: DictationEvent) => void,
-  opts: { lang?: string } = {},
+  opts: { lang?: string; sid?: string } = {},
 ): Promise<{ ok: true; onDevice: boolean } | { ok: false; code: DictationErrorCode }> {
   const m = speechModule();
   if (!m) return { ok: false, code: 'unavailable' };
-  if (session) abortDictation();
+  const ticket = ++startTicket;
+  const sid = String(opts.sid || `s${ticket}`);
+  const prev = session;
+  if (prev) {
+    abortDictation(prev.sid);
+    await prev.done;
+  }
   try {
     if (!m.isRecognitionAvailable()) return { ok: false, code: 'unavailable' };
     const perm = await m.requestPermissionsAsync();
@@ -144,95 +213,129 @@ export async function startDictation(
   } catch {
     return { ok: false, code: 'unavailable' };
   }
+  // A later start arrived while this one waited: it owns the next session, this one never begins.
+  if (ticket !== startTicket || session) return { ok: false, code: 'busy' };
 
-  let onDevice = false;
-  try { onDevice = !!m.supportsOnDeviceRecognition(); } catch { onDevice = false; }
-  const lang = opts.lang && /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/.test(opts.lang) ? opts.lang : 'en-US';
+  let supportsDevice = false;
+  try { supportsDevice = !!m.supportsOnDeviceRecognition(); } catch { supportsDevice = false; }
+  const asked = opts.lang && /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/i.test(opts.lang) ? opts.lang : 'en-US';
+  // The ladder, tried in order when the recognizer refuses before hearing anything: on-device in
+  // the device's language, the network recognizer in that language, then the network in en-US.
+  const attempts: { lang: string; device: boolean }[] = [];
+  const push = (a: { lang: string; device: boolean }) => {
+    if (!attempts.some((x) => x.lang === a.lang && x.device === a.device)) attempts.push(a);
+  };
+  if (supportsDevice) push({ lang: asked, device: true });
+  push({ lang: asked, device: false });
+  push({ lang: 'en-US', device: false });
+  let step = 0;
 
   let transcript: TranscriptState = { committed: '', text: '' };
   let heard = false;
-  let retryPending = false;
+  let retryNext = false;
   let lastLevelAt = 0;
-  const s: Session = { subs: [], app: null, emit };
+  let release: () => void = () => undefined;
+  const done = new Promise<void>((r) => { release = r; });
+  const s: Session = { sid, subs: [], app: null, emit, phase: 'running', started: false, pageEnded: false, force: null, done, release };
   session = s;
-  const live = () => session === s;
+  const mine = () => session === s;
 
-  const begin = (device: boolean) => {
+  const begin = () => {
+    const a = attempts[step];
     m.start({
-      lang,
+      lang: a.lang,
       interimResults: true,
       continuous: true,
       // On-device where the OS supports it for this language: the audio never leaves the phone,
       // and there is no one-minute server limit. Otherwise Apple's / Google's service.
-      requiresOnDeviceRecognition: device,
+      requiresOnDeviceRecognition: a.device,
       addsPunctuation: true,
       iosTaskHint: 'dictation',
       volumeChangeEventOptions: { enabled: true, intervalMillis: 120 },
     });
   };
 
-  s.subs.push(m.addListener('start', () => { if (live()) emit({ type: 'start', onDevice }); }));
+  s.subs.push(m.addListener('start', () => {
+    if (!mine()) return;
+    s.started = true;
+    if (s.phase === 'running') emit({ sid, type: 'start', onDevice: attempts[step].device });
+  }));
   s.subs.push(m.addListener('result', (e) => {
-    if (!live()) return;
+    if (!mine() || s.phase === 'aborting') return;
     const best = e?.results?.[0]?.transcript ?? '';
     if (!best && !e?.isFinal) return;
     heard = true;
     transcript = accumulate(transcript, best, !!e?.isFinal);
-    emit({ type: 'text', text: transcript.text, final: !!e?.isFinal });
+    emit({ sid, type: 'text', text: transcript.text, final: !!e?.isFinal });
   }));
   s.subs.push(m.addListener('volumechange', (e) => {
-    if (!live()) return;
+    if (!mine() || s.phase !== 'running') return;
     const now = Date.now();
     if (now - lastLevelAt < 100) return;
     lastLevelAt = now;
-    emit({ type: 'level', value: levelOf(e?.value) });
+    emit({ sid, type: 'level', value: levelOf(e?.value) });
   }));
   s.subs.push(m.addListener('error', (e) => {
-    if (!live()) return;
-    // The on-device model for this language is not installed (Android, some iOS locales): once
-    // this attempt has ended, try the network recognizer, before anything was heard, rather than
-    // telling the athlete no. The restart waits for `end` so the two sessions never overlap.
-    if (onDevice && !retryPending && !heard && (e?.error === 'language-not-supported' || e?.error === 'service-not-allowed')) {
-      retryPending = true;
-      onDevice = false;
+    if (!mine() || s.phase === 'aborting') return;
+    // Refused before a word was heard (no on-device model, a language this recognizer does not
+    // do): once this attempt has ended, try the next rung rather than telling the athlete no.
+    if (s.phase === 'running' && !heard && step + 1 < attempts.length
+      && (e?.error === 'language-not-supported' || e?.error === 'service-not-allowed')) {
+      retryNext = true;
       return;
     }
     const code = errorCodeOf(e?.error);
-    if (code) emit({ type: 'error', code });
+    if (code) emit({ sid, type: 'error', code });
   }));
   s.subs.push(m.addListener('end', () => {
-    if (!live()) return;
-    if (retryPending) {
-      retryPending = false;
-      try { begin(false); return; } catch { emit({ type: 'error', code: 'unavailable' }); }
+    if (!mine()) return;
+    // The late `end` of a recognizer we stopped waiting for: not this session's.
+    if (!s.started && owedEnds > 0) { owedEnds -= 1; return; }
+    if (retryNext && s.phase === 'running') {
+      retryNext = false;
+      step += 1;
+      s.started = false;
+      try { begin(); return; } catch { emit({ sid, type: 'error', code: 'unavailable' }); }
     }
-    endSession();
-    emit({ type: 'end' });
+    endToPage(s);
+    releaseSession(s);
   }));
   // Leaving the app ends dictation: a microphone must never stay open behind the lock screen.
-  s.app = AppState.addEventListener('change', (st) => { if (st !== 'active' && live()) abortDictation(); });
+  s.app = AppState.addEventListener('change', (st) => { if (st !== 'active' && mine()) abortDictation(sid); });
 
   try {
-    begin(onDevice);
+    begin();
   } catch {
-    endSession();
+    releaseSession(s);
     return { ok: false, code: 'failed' };
   }
-  return { ok: true, onDevice };
+  return { ok: true, onDevice: attempts[0].device };
 }
 
-/** Stop listening and let the recognizer deliver its final words (a last `text`, then `end`). */
-export function stopDictation(): void {
+/** Stop listening and let the recognizer deliver its final words (a last `text`, then `end`).
+ *  `sid` names the session the page means; a stale id is ignored. With no session at all the
+ *  recognizer is aborted anyway, so the stop control can never leave a microphone open. */
+export function stopDictation(sid?: string): void {
   const m = speechModule();
-  if (!m || !session) return;
-  try { m.stop(); } catch { abortDictation(); }
+  if (!m) return;
+  const s = session;
+  if (!s) { try { m.abort(); } catch { /* not running */ } return; }
+  if (sid && s.sid !== sid) return;
+  if (s.phase !== 'running') return;
+  s.phase = 'stopping';
+  try { m.stop(); } catch { abortDictation(s.sid); return; }
+  armForce(s);
 }
 
-/** Stop at once, with no final result. The page has already moved on (a send, a navigation). */
-export function abortDictation(): void {
+/** Stop at once, with no final result. The page has already moved on (a send, a navigation), so
+ *  it is told `end` now; the session keeps the recognizer until its own native `end` arrives. */
+export function abortDictation(sid?: string): void {
   const m = speechModule();
   const s = session;
-  endSession();
+  if (sid && s && s.sid !== sid) return;
   if (m) { try { m.abort(); } catch { /* not running */ } }
-  if (s) s.emit({ type: 'end' });
+  if (!s || s.phase === 'aborting') return;
+  s.phase = 'aborting';
+  endToPage(s);
+  armForce(s);
 }
