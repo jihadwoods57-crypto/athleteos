@@ -270,7 +270,7 @@ test('loader: never rejects, even when the client explodes', async () => {
 /* ---------------- wiring ---------------- */
 
 test('meal-chat loads the dossier for the MEAL OWNER on every turn, athlete and coach_ask alike', () => {
-  const src = readFileSync(join(HERE, '..', 'meal-chat', 'index.ts'), 'utf8');
+  const src = readFileSync(join(HERE, '..', 'meal-chat', 'index.ts'), 'utf8').replace(/\r\n/g, '\n'); // checkout line endings must not matter
   assert.match(src, /import \{ loadAthleteDossier, renderDossier \} from '\.\.\/_shared\/athlete-dossier\.mjs'/);
   assert.match(src, /loadAthleteDossier\(service, mealRow\.athlete_id, \{\s*isSelf: mealRow\.athlete_id === callerId,\s*weightClient: userClient,/);
   assert.match(src, /viewer: !coachMode \? 'self' : body\?\.askerNoun === 'parent' \? 'guardian' : 'staff'/);
@@ -287,7 +287,7 @@ test('meal-chat loads the dossier for the MEAL OWNER on every turn, athlete and 
 });
 
 test('analyze-meal: the meal read carries the dossier, server-set only, never from the client', () => {
-  const src = readFileSync(join(HERE, '..', 'analyze-meal', 'index.ts'), 'utf8');
+  const src = readFileSync(join(HERE, '..', 'analyze-meal', 'index.ts'), 'utf8').replace(/\r\n/g, '\n');
   assert.match(src, /delete \(req as \{ dossier\?: unknown \}\)\.dossier/);
   assert.match(src, /loadAthleteDossier\(sb, userId, \{ isSelf: true, weightClient: null, dayDate: null \}\)/);
   assert.match(src, /req\.dossier = renderDossier\(await dossierP, \{\s*viewer: 'self', planStyle,/);
