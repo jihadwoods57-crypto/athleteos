@@ -172,7 +172,7 @@ export default {
       <div><div class="tt" id="rec-gain">${best.gain > 0
         ? `Current: ${S.score} · Earn up to +${best.gain}<span data-proj-wrap hidden> · Projected: <span data-proj>${P.to}</span></span>`
         : 'Refreshes your Recovery score tonight'}</div>
-      <div class="ts">Same math as your Score Breakdown: your answers set the exact number. ${S.coach.hasCoach ? `${esc(S.coach.name)} sees your readiness before tomorrow's practice.` : 'Honest answers are the whole point.'}</div></div>
+      <div class="ts">${S.coach.hasCoach ? `${esc(S.coach.name)} sees your readiness before tomorrow's practice.` : 'Honest answers are the whole point.'}</div></div>
     </div>
 
 

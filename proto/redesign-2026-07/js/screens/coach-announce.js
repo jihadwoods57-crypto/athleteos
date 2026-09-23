@@ -81,6 +81,16 @@ export const coachAnnounce = {
       : ANN.scopeKind === 'group' ? ((group && group.athlete_ids) || []).length
       : rows.length;
 
+    // Nobody to send to (review pass C-B8): "Send to the whole team" on an empty roster announced
+    // to no one. Loaded and empty says so and offers the code instead.
+    if (CD.roster && !CD.roster.offline && !rows.length) {
+      return `${backHead('Announcement', 'Lands in every selected athlete’s feed', 'coach-create')}
+      <div class="sidebox"><div class="req-icon b s38">${icon('users', 17)}</div>
+      <div><div class="tt">No athletes yet</div><div class="ts">Announcements go to the athletes on your roster. Share your team code and this opens up as they join.</div></div></div>
+      <div class="ro-gap"></div>
+      <button class="btn primary" data-go="coach-profile/code">${icon('share', 17)} Share athlete code</button>`;
+    }
+
     return `
     ${backHead('Announcement', 'Lands in every selected athlete’s feed', 'coach-create')}
 

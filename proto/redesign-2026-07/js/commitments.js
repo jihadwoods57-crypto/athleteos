@@ -681,7 +681,8 @@ export function groupByVerdict(inst, nowISO) {
 
 /** Counts for the board header. An athlete tap and a coach decision are never summed under one
  *  word: `checkedIn` is athlete taps only; `accountedFor` is everyone whose morning has an answer
- *  (taps + overrides + accepted reviews + excused); the remainder is out, missed, or under review. */
+ *  (on time or late from any source, overrides, accepted reviews, excused); the remainder is out,
+ *  missed, or under review. */
 export function verdictCounts(inst, nowISO) {
   const rows = boardVerdicts(inst, nowISO);
   const by = (f) => rows.filter(f).length;
@@ -699,7 +700,9 @@ export function verdictCounts(inst, nowISO) {
   return {
     total, onStandard, late, checkedIn, overrides, accepted, excused, review, missed, pending, stillOut,
     responded: onStandard + late,
-    accountedFor: checkedIn + overrides + accepted + excused,
+    // Any on-time or late row counts, whatever its source (C-B3: "1 of 4" beside "All in").
+    accountedFor: by((r) => r.verdict === VERDICT.ON_STANDARD || r.verdict === VERDICT.LATE
+      || r.verdict === VERDICT.EXCUSED || r.source === SOURCE.OVERRIDE || r.source === SOURCE.ACCEPTED),
     counted: total - excused,
   };
 }

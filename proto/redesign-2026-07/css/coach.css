@@ -896,3 +896,16 @@
 .nb-fuel .rn .s .warn { color: var(--amber-bright); }
 .nb-fuel .nb-bars { height: 22px; }
 .ib-end { margin-top: var(--s3); }
+
+/* The nudge editor (review pass C-B2): Home's priority card, the athlete page and the roster's bulk
+   bar. The message box used to share one row with Cancel and Send and collapsed to a ~38px stub at
+   390, 36px tall, under the exact-message note it could not show. The box now owns its own
+   full-width row at the 44px floor, and the pair sits under it. */
+.nx-edit { display: grid; gap: var(--s2); margin-top: var(--s2); }
+.nx-input.ob-input { width: 100%; min-height: 44px; height: auto; font-size: var(--t-sm); }
+.nx-acts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+.nx-acts .btn { width: 100%; min-height: 44px; }
+.nx-note { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); line-height: 1.45; }
+/* The roster's one-line "what to do next" when Create sent the coach here with a job (C-B9). */
+.ro-task { margin: 0 var(--s1) var(--s2); }
+.ro-gap { height: var(--s3); }

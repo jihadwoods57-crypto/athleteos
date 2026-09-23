@@ -9,7 +9,8 @@ import { buildPriorities } from '../priority.js';
 import { nudgePreset, nudgeResultCopy } from '../nudge-presets.js';
 import { PLANS } from '../ob2.js';
 import { teamPulse, statusLabel } from '../status.js';
-import { scoreColor, tierFor } from '../score-band.js';
+import { teamCounts, COUNT_BUCKETS, bucketLabel } from '../team-count.js';
+import { scoreColor } from '../score-band.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
 import { paintBoard } from './coach-commitments.js';
 import { flagStateByMeal } from '../inbox.js';
@@ -323,7 +324,10 @@ export function emptyTeamDashboard(code, teamName) {
           from the roster, which hasn't arrived. This used to render "0 of 2 required steps done ·
           2 to go" directly under a card saying "Loading your team…": the screen admitting it
           doesn't know and asserting a count in the same viewport. Don't grade what hasn't loaded. */''}
-    ${S.operatorIdentity.state === 'loading' ? ''
+    ${/* Only while the code itself is unknown (review pass C-Polish 11 / R3): the team row can
+          still be refreshing (teamLoading) with the code and the loaded roster already in hand,
+          and gating on that alone hid the checklist from exactly the new coach it is for. */''}
+    ${S.operatorIdentity.state === 'loading' && !code ? ''
     : st.ready
       ? (setupIncompleteCount(st) ? collapseSection('coach-setup', vocab().setup, setupIncompleteCount(st), setupChecklistCard(st), false) : '')
       : `<h2 class="eyebrow">${esc(vocab().setup)}</h2>${setupChecklistCard(st)}`}
@@ -400,29 +404,33 @@ function scopeSheet() {
    standing bar keeps its job under the ring, where the athlete's formula bar sits, and the
    legend reads it out. Nothing is estimated; a person with no log adds no score, and a scope with
    no scores yet shows the ring not started rather than a zero. */
-function pulseCard(rows, statuses) {
+function pulseCard(entries) {
+  const rows = entries.map(e => e.row);
+  const statuses = {}; for (const e of entries) statuses[e.row.athleteId] = e.status;
   const p = teamPulse(rows, statuses, roles.todayISO());
   if (p.avg == null && !rows.length) return '';
-  const keys = Object.values(statuses).map(s => s.key);
-  const count = (pred) => keys.filter(pred).length;
-  const g = count(k => k === 'on_standard');
-  const a = count(k => k === 'due_soon' || k === 'below_standard' || k === 'needs_review');
-  const r = count(k => k === 'overdue');
-  const d = count(k => k === 'no_activity' || k === 'excused');
-  const seg = (cls, c) => c ? `<span class="seg ${cls}" style="flex:${c}"></span>` : '';
+  // THE team count (status.js teamCounts): the Inbox briefing, Insights and the Roster chips read
+  // the same function, so the numbers on the four screens cannot disagree (review pass C-M3).
+  const c = teamCounts(entries);
+  const seg = (cls, n) => n ? `<span class="seg ${cls}" style="flex:${n}"></span>` : '';
   /* Each count is a door (2026-09-22): "2 overdue" is the question a coach opens Home to answer,
      and the answer is WHO, which lives on the roster. A tap opens the roster already filtered to
      exactly the statuses this count added up, so the number and the list can never disagree. */
-  const leg = (cls, c, label, keys) => c ? `<button type="button" class="it co-leg-go" data-roster-status="${keys}" data-roster-label="${esc(cap(label))}" aria-label="${c} ${label}. Open the roster filtered to them"><span class="dot ${cls}"></span><b>${c}</b> ${label}</button>` : '';
+  const leg = (b) => c[b.key] ? `<button type="button" class="it co-leg-go" data-roster-status="${b.statuses.join(',')}" data-roster-label="${esc(cap(b.label))}" aria-label="${c[b.key]} ${bucketLabel(b, c[b.key])}. Open the roster filtered to them"><span class="dot ${b.cls}"></span><b>${c[b.key]}</b> ${bucketLabel(b, c[b.key])}</button>` : '';
   const delta = p.deltaVsYesterday;
   const dCls = delta == null ? 'muted' : delta > 0 ? 'g' : delta < 0 ? 'r' : 'muted';
   const dTxt = delta == null ? 'First day of data' : delta === 0 ? 'Even with yesterday'
     : `${delta > 0 ? '▲' : '▼'} ${Math.abs(delta)} vs yesterday`;
-  const scored = rows.filter(x => x.score != null).length;
+  const scored = c.scored;
   const have = p.avg != null;
   const t = have ? tier(p.avg) : null;
+  const legendWords = COUNT_BUCKETS.filter(b => c[b.key]).map(b => `${c[b.key]} ${bucketLabel(b, c[b.key])}`).join(', ');
+  /* Requirements are totalled from each athlete's STANDARD (required items due by now x rostered
+     athletes, excused left out), never from the day rows that happen to exist. The old sum put
+     "15 of 15 requirements in today" beside two overdue athletes (review pass C-M1). */
+  const reqLine = c.reqDue ? `${c.reqDone} of ${c.reqDue} requirements due so far are in` : '';
   const aria = have
-    ? `Group score ${p.avg}, ${t.name}. ${g} on standard, ${a} need attention, ${r} overdue, ${d} no activity. ${p.tasksDone} of ${p.tasksTotal} requirements in today.`
+    ? `Group score ${p.avg}, ${t.name}. ${legendWords}.${reqLine ? ` ${reqLine}.` : ''}`
     : `Group score not started. ${rows.length} on the roster, none scored yet.`;
   return `
   <section class="xhero co-hero tappable" data-pulse role="button" aria-label="${esc(aria)}">
@@ -438,16 +446,16 @@ function pulseCard(rows, statuses) {
     <div class="xh-under">
       <div class="xh-k">Group score</div>
       <div class="xrow"><span class="status-pill ${dCls}">${esc(dTxt)}</span></div>
-      <div class="xh-line">${p.tasksTotal
-        ? `<b>${p.tasksDone}</b> of <b>${p.tasksTotal}</b> requirements in today <span class="sep">·</span> <b>${scored}</b> of <b>${rows.length}</b> scored`
+      <div class="xh-line">${c.reqDue
+        ? `<b>${c.reqDone}</b> of <b>${c.reqDue}</b> requirements due so far are in <span class="sep">·</span> <b>${scored}</b> of <b>${rows.length}</b> scored`
         : `<b>${scored}</b> of <b>${rows.length}</b> scored today`}</div>
     </div>
   </section>
   ${/* The standing bar and its legend sit OUTSIDE the tappable ring: the legend counts are
         buttons now, and a button nested in a role="button" is two controls in one hit area. */''}
   <div class="co-hero-stand">
-    <div class="co-standing co-hero-bar">${seg('g', g)}${seg('a', a)}${seg('r', r)}${seg('d', d)}</div>
-    <div class="co-legend co-hero-legend">${leg('g', g, 'on standard', 'on_standard')}${leg('a', a, 'need attention', 'due_soon,below_standard,needs_review')}${leg('r', r, 'overdue', 'overdue')}${leg('d', d, 'no activity', 'no_activity,excused')}</div>
+    <div class="co-standing co-hero-bar">${COUNT_BUCKETS.map(b => seg(b.cls, c[b.key])).join('')}</div>
+    <div class="co-legend co-hero-legend">${COUNT_BUCKETS.map(leg).join('')}</div>
     ${SHOW_PULSE ? `<div class="co-hero-note">The group score averages today's real ${CD.noun} scores (${scored} of ${rows.length} scored so far). The bar is your roster's live standing. Nothing is estimated; a ${CD.noun} with no log adds no score.</div>` : ''}
   </div>`;
 }
@@ -665,17 +673,16 @@ async function paintNutritionBoard(root) {
 }
 
 /* Ranked priority. Calm hierarchy, one primary action by tier, the rest subordinate. */
-/* Tier to .status-pill accent: critical and overdue are red (missed), due soon is blue. A
-   below-standard day takes its score's TIER accent (Building amber, Off Standard red), the same
-   name and hue the roster band and the athlete's own badge give that number. */
-const TIER_PILL = { critical: 'r', overdue: 'r', below: 'a', due: 'b' };
+/* The pill says the athlete's STATUS, in the one status vocabulary (statusLabel), not the queue's
+   private rank names. "Critical" and a tier name ("Building") were two more words for states the
+   Roster, Inbox and Insights already name, so Tyrek read red "Overdue" here and amber "Building" on
+   the Roster at the same moment (review pass C-M3). The rank still orders the queue; the pill is
+   the fact. Red means missed (overdue); amber is a real warning; a quiet day is a neutral fact. */
+const STATUS_PILL = { overdue: 'r', no_activity: 'muted', below_standard: 'a', needs_review: 'a', due_soon: 'a' };
 function priorityCard(c, i, nudgedToday) {
   const tier = ['critical', 'overdue', 'below'].includes(c.tier) ? c.tier : 'due';
-  // needs_review also tiers as 'below', but "Below standard" would contradict its own reason
-  // line ("Logged today · score pending"). Name it honestly when that's the actual status.
-  const belowLbl = statusLabel({ key: 'below_standard' }, c.score) || 'Below standard';
-  const tierLbl = c.statusKey === 'needs_review' ? 'Needs review' : { critical: 'Critical', overdue: 'Overdue', below: belowLbl, due: 'Due soon' }[tier];
-  const pillCls = tier === 'below' && c.statusKey !== 'needs_review' && c.score != null ? tierFor(c.score).cls : TIER_PILL[tier];
+  const tierLbl = statusLabel({ key: c.statusKey }) || 'Needs attention';
+  const pillCls = STATUS_PILL[c.statusKey] || 'muted';
   // Empty string, not --text-3, when there's no score: .co-pri supplies its own colour there.
   const scoreCol = c.score == null ? '' : scoreColor(c.score);
   const openPrimary = tier === 'below';  // below-standard → review the log; critical/due → send the nudge
@@ -722,12 +729,14 @@ function priorityCard(c, i, nudgedToday) {
       ${CD.caps.interventions ? `<button class="btn sm" data-phandle="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Handled</button>` : ''}
     </div>
     ${PNUDGE_ARM && PNUDGE_ARM.athleteId === c.athleteId ? `
-    <div style="display:flex;gap:6px;align-items:center;margin-top:8px">
-      <input id="pnudge-body" class="ob-input" maxlength="120" value="${esc(PNUDGE_ARM.body)}" aria-label="Nudge message" style="flex:1;height:36px;font-size:var(--t-sm)" />
-      <button class="btn sm" data-pnudge-cancel="1">Cancel</button>
-      <button class="btn sm primary" data-pnudge-send="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Send</button>
-    </div>
-    <div class="co-pri-reason" style="margin-top:4px">This exact message goes to them, from "${esc(S.operatorIdentity.handle)} is waiting".</div>` : ''}
+    <div class="nx-edit">
+      <input id="pnudge-body" class="ob-input nx-input" maxlength="120" value="${esc(PNUDGE_ARM.body)}" aria-label="Nudge message" />
+      <div class="nx-acts">
+        <button class="btn sm" data-pnudge-cancel="1">Cancel</button>
+        <button class="btn sm primary" data-pnudge-send="${esc(c.athleteId)}" data-key="${esc(c.reasonKey)}" data-tier="${esc(c.tier)}">Send</button>
+      </div>
+      <div class="nx-note">They'll get a push titled "${esc(S.operatorIdentity.handle)} is waiting" with this message.</div>
+    </div>` : ''}
     <div class="co-pstatus" id="pstatus-${esc(c.athleteId)}"></div>
   </div>`;
 }
@@ -765,7 +774,6 @@ export const coachHome = {
     }
 
     const entries = entriesFor(scope);
-    const statuses = {}; if (entries) for (const e of entries) statuses[e.row.athleteId] = e.status;
     const rows = entries ? entries.map(e => e.row) : [];
     const now = new Date();
     const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -797,7 +805,7 @@ export const coachHome = {
     <div class="sidebox">
       <div class="req-icon b s38">${icon('shield', 17)}</div>
       <div style="flex:1"><div class="tt">${esc(worthy[0].row.name)} hit ${worthy[0].streak} straight days</div>
-      <div class="ts">Reward it with camera-free meals.</div></div>
+      <div class="ts">Reward it: a pass lets them log meals without a photo for a few days.</div></div>
       ${/* .ghost, not the bare .btn: the bare button's fill is --surface-2, which is also the
             sidebox's fill, so "Give a pass" rendered as loose text with no edge in either theme. */''}
       <button class="btn ghost sm" data-go="pass-grant/${esc(worthy[0].row.athleteId)}" style="width:auto;padding:0 12px;height:30px;flex:none">Give a pass</button>
@@ -813,7 +821,7 @@ export const coachHome = {
           meal-review board (0197/0202) reads directly under it, painted async into its slot so
           the fetch never delays the priority queue. It used to lead the nutrition book (critique
           2026-08-18); the founder's later ruling puts the score first, the queue one scroll down. */''}
-    ${entries === null ? '' : pulseCard(rows, statuses)}
+    ${entries === null ? '' : pulseCard(entries)}
     ${isNutritionBook() ? '<div id="nut-board-slot"></div>' : ''}
     ${obPlanCard()}
     ${/* TRIAGE BEFORE EVERYTHING ELSE UNDER THE RING (2026-09-22). The ring keeps its place (the
@@ -825,7 +833,7 @@ export const coachHome = {
     ${entries === null ? `<div class="sidebox"><div class="req-icon b s38">${icon('bell', 17)}</div><div><div class="tt">Ranking the day…</div><div class="ts">Standards and exceptions are loading.</div></div></div>`
     : cards.length === 0 ? emptyState({ icon: 'check', title: 'Nothing needs you right now', body: 'Anything you nudge, assign, or mark handled stays out of this queue until the reason changes.', compact: true })
     : cards.slice(0, 6).map((c, i) => priorityCard(c, i, (RT.coachNudged || {})[c.athleteId] === roles.todayISO())).join('')
-      + (cards.length > 6 ? `<button class="btn ghost sm" data-go="coach-roster" style="width:auto;padding:0 16px;margin-top:4px">${cards.length - 6} more need attention</button>` : '')}
+      + (cards.length > 6 ? `<button class="btn ghost sm" data-go="coach-roster" style="width:auto;padding:0 16px;margin-top:4px">See ${cards.length - 6} more on the roster</button>` : '')}
 
     <div id="vc-board-slot"></div>
     <div id="cs-board-slot"></div>

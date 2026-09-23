@@ -31,6 +31,8 @@ export function normalizeDetected(detected) {
     const src = d && (d.per && typeof d.per === 'object' ? d.per : d);
     if (src && ['protein', 'kcal', 'carbs', 'fat'].some((k) => num(src[k]) > 0)) {
       out.per = { protein: num(src.protein), kcal: num(src.kcal), carbs: num(src.carbs), fat: num(src.fat) };
+      const unk = ['carbs', 'fat'].filter((k) => src[k] == null || src[k] === '' || !isFinite(Number(src[k])));
+      if (unk.length) out.perUnknown = unk;
     }
     if (d && d.edited) out.edited = true;
     // portionEdited is NOT edited, and the difference is the whole point. `edited` means the
@@ -161,7 +163,7 @@ function withStated(priced, stated) {
  *  fall back to `note`. */
 export function groundExtras(raw) {
   const r = raw || {};
-  const fiber = Math.max(0, Math.min(60, Math.round(Number(r.fiber) || 0)));
+  const fiber = r.fiber == null || r.fiber === '' || !isFinite(Number(r.fiber)) ? null : Math.max(0, Math.min(60, Math.round(Number(r.fiber))));
   const highlights = (Array.isArray(r.highlights) ? r.highlights : [])
     .slice(0, 3).map((h) => clean(h).slice(0, 120)).filter(Boolean);
   const detectedRich = normalizeDetected(r.detected);
@@ -263,9 +265,10 @@ export function applyFoodEdit(result, op) {
  *  mutated. Returns null when the name matches nothing. */
 export function applyFoodRemoval(src, name, { by, minutesLate } = {}) {
   if (!src || !name) return null;
+  const kn = (v) => (v == null ? null : v || 0);
   const orig = src.orig || {
-    protein: src.protein || 0, carbs: src.carbs || 0, fat: src.fat || 0, kcal: src.kcal || 0,
-    fiber: src.fiber || 0, quality: src.quality != null ? src.quality : null,
+    protein: src.protein || 0, carbs: kn(src.carbs), fat: kn(src.fat), kcal: src.kcal || 0,
+    fiber: kn(src.fiber), quality: src.quality != null ? src.quality : null,
   };
   const next = {
     ...src, orig,
@@ -279,11 +282,12 @@ export function applyFoodRemoval(src, name, { by, minutesLate } = {}) {
   const per = item.per && typeof item.per === 'object' ? item.per : null;
   if (per) {
     next.protein = Math.max(0, Math.round((next.protein || 0) - (Number(per.protein) || 0)));
-    next.carbs = Math.max(0, Math.round((next.carbs || 0) - (Number(per.carbs) || 0)));
-    next.fat = Math.max(0, Math.round((next.fat || 0) - (Number(per.fat) || 0)));
+    // An unknown carbs/fat stays unknown: removing a food cannot make it measured.
+    if (next.carbs != null) next.carbs = Math.max(0, Math.round(next.carbs - (Number(per.carbs) || 0)));
+    if (next.fat != null) next.fat = Math.max(0, Math.round(next.fat - (Number(per.fat) || 0)));
     next.kcal = Math.max(0, Math.round((next.kcal || 0) - (Number(per.kcal) || 0)));
     const q = mealQualityScore({
-      macros: next, fiber: next.fiber || 0, detected: next.detectedRich,
+      macros: next, fiber: next.fiber, detected: next.detectedRich,
       minutesLate: minutesLate != null ? minutesLate : (next.minutesLate || 0),
     });
     if (q != null) { next.quality = q; delete next.qualityAdj; }
@@ -573,9 +577,10 @@ export function qualityReason(macros, fiber, detected) {
   const issues = [];
   if ((p * 4) / total < 0.2) issues.push('protein came in low next to the carbs and fat');
   if ((f * 9) / total > 0.45) issues.push('fat ran above the range');
-  const fib = Math.max(0, Number(fiber) || 0);
+  const fibKnown = fiber != null && fiber !== '' && isFinite(Number(fiber));
+  const fib = fibKnown ? Math.max(0, Number(fiber)) : 0;
   const produce = hasVisibleProduce(detected);
-  if (fib < 4 && c >= 30) {
+  if (fibKnown && fib < 4 && c >= 30) {
     if (!produce) issues.push('almost no fiber');
     else if (fib > 0) issues.push('fiber reads lighter than the plate suggests');
     // produce visible + fiber estimate of 0: the estimate is the suspect — say nothing false
@@ -886,22 +891,37 @@ export function mealPatterns(recentMeals, { slot, mealProteinBar } = {}) {
 /** The one shared evaluation: every observable component judged met/partial/miss.
  *  Same thresholds qualityReason speaks to (protein share ≥25% of energy, fat ≤40%,
  *  the produce-guarded fiber rule) — null components when there's nothing to judge. */
+/* An unread macro is UNKNOWN, not zero (A-B4: Number(null) is 0, so an unread fat scored "Fat in
+   range" and full points). It earns no state, points or chip; the score re-weights the rest. */
+const knownNum = (v) => v != null && v !== '' && isFinite(Number(v));
+
 function componentStates({ minutesLate, macros, fiber, detected } = {}) {
   const m = macros || {};
-  const p = Math.max(0, Number(m.protein) || 0);
-  const c = Math.max(0, Number(m.carbs) || 0);
-  const f = Math.max(0, Number(m.fat) || 0);
-  const total = p * 4 + c * 4 + f * 9;
+  const pK = knownNum(m.protein), cK = knownNum(m.carbs), fK = knownNum(m.fat);
+  const p = pK ? Math.max(0, Number(m.protein)) : null;
+  const c = cK ? Math.max(0, Number(m.carbs)) : null;
+  const f = fK ? Math.max(0, Number(m.fat)) : null;
+  // Shares need all three macros, or an independent kcal larger than the known macros' energy
+  // (a kcal derived with the missing ones as zero would hand protein a 100% share back).
+  const knownEnergy = (p || 0) * 4 + (c || 0) * 4 + (f || 0) * 9;
+  // The meal model names it `cals`; stored rows and the AI payload say `kcal` / `calories`.
+  const kcalRaw = m.kcal != null ? m.kcal : m.cals != null ? m.cals : m.calories;
+  const kcal = knownNum(kcalRaw) ? Number(kcalRaw) : 0;
+  const total = (pK && cK && fK) ? knownEnergy : (kcal > knownEnergy + 1 ? kcal : 0);
   const late = typeof minutesLate === 'number' && minutesLate > 0;
-  const fib = Math.max(0, Number(fiber) || 0);
+  // Unmeasured fiber is judged only on visible produce (partial credit); otherwise left out.
+  const fibKnown = knownNum(fiber);
+  const fib = fibKnown ? Math.max(0, Number(fiber)) : null;
   const produce = hasVisibleProduce(detected);
   return {
-    p, c, f, total, late, fib, produce,
+    p, c, f, total, late, fib, fibKnown, produce,
     timing: late ? (minutesLate > 60 ? 'miss' : 'partial') : 'met',
-    protein: total > 0 ? ((p * 4) / total >= 0.25 ? 'met' : (p * 4) / total >= 0.2 ? 'partial' : 'miss') : null,
-    carbs: total > 0 ? ((c * 4) / total <= 0.6 ? 'met' : 'partial') : null,
-    fat: total > 0 ? ((f * 9) / total <= 0.4 ? 'met' : (f * 9) / total <= 0.45 ? 'partial' : 'miss') : null,
-    fiberState: fib >= 6 || (produce && fib >= 3) ? 'met' : produce ? 'partial' : fib >= 3 ? 'partial' : 'miss',
+    protein: pK && total > 0 ? ((p * 4) / total >= 0.25 ? 'met' : (p * 4) / total >= 0.2 ? 'partial' : 'miss') : null,
+    carbs: cK && total > 0 ? ((c * 4) / total <= 0.6 ? 'met' : 'partial') : null,
+    fat: fK && total > 0 ? ((f * 9) / total <= 0.4 ? 'met' : (f * 9) / total <= 0.45 ? 'partial' : 'miss') : null,
+    // Unmeasured fiber is never weighted: visible produce can only ever be a win, not a cost.
+    fiberState: !fibKnown ? null
+      : fib >= 6 || (produce && fib >= 3) ? 'met' : produce ? 'partial' : fib >= 3 ? 'partial' : 'miss',
   };
 }
 
@@ -924,10 +944,18 @@ const QUALITY_POINTS = {
 export function mealQualityScore({ macros, fiber, detected, minutesLate } = {}) {
   const s = componentStates({ minutesLate, macros, fiber, detected });
   if (!(s.total > 0)) return null;
+  // No macro judged at all is no honest score, same as no macros.
+  if (s.protein == null && s.carbs == null && s.fat == null) return null;
   const pts = QUALITY_POINTS;
-  const score = pts.protein[s.protein] + pts.carbs[s.carbs] + pts.fat[s.fat]
-    + pts.fiber[s.fiberState] + pts.timing[s.timing];
-  return Math.max(0, Math.min(100, Math.round(score)));
+  // Re-weighted over judged components; all five judged is the plain sum out of 100.
+  let got = 0, max = 0;
+  for (const [k, st] of [['protein', s.protein], ['carbs', s.carbs], ['fat', s.fat], ['fiber', s.fiberState], ['timing', s.timing]]) {
+    if (st == null) continue;
+    got += pts[k][st];
+    max += pts[k].met;
+  }
+  if (!max) return null;
+  return Math.max(0, Math.min(100, Math.round((got / max) * 100)));
 }
 
 /** The score, immediately explainable (founder 2026-08-04): the top 2–3 reasons the meal
@@ -969,8 +997,11 @@ export function scoreReasons({ macros, fiber, detected, minutesLate } = {}) {
       return { ...c, lost, label: (LABEL[c.k] && LABEL[c.k][c.state]) || '' };
     })
     .filter((c) => c.label);
+  // Produce in the photo with fiber unmeasured: a positive fact, never scored, never a cost.
+  if (!s.fibKnown && s.produce) scored.push({ k: 'produce', state: 'met', lost: 0, label: 'Produce showing' });
   const problems = scored.filter((c) => c.lost > 0).sort((a, b) => b.lost - a.lost);
-  const wins = scored.filter((c) => c.lost === 0).sort((a, b) => QUALITY_POINTS[b.k].met - QUALITY_POINTS[a.k].met);
+  const winPts = (c) => (QUALITY_POINTS[c.k] ? QUALITY_POINTS[c.k].met : 0);
+  const wins = scored.filter((c) => c.lost === 0).sort((a, b) => winPts(b) - winPts(a));
   // Up to 3 chips: the biggest costs first, then one win for balance (an all-problems row on a
   // decent plate reads harsher than the number). A clean plate leads with its top two wins.
   const out = [];
@@ -993,11 +1024,11 @@ export function coachFocus({ macros, fiber, detected, minutesLate, nextMealName,
   // with the produce-guarded fiber rule (never scold "no fiber" against a visible salad).
   const costs = [
     ['protein', s.protein], ['fat', s.fat], ['fiber', s.fiberState], ['carbs', s.carbs], ['timing', s.timing],
-  ].map(([k, st]) => ({
+  ].filter(([, st]) => st != null).map(([k, st]) => ({
     k, st,
     lost: QUALITY_POINTS[k].met - (QUALITY_POINTS[k][st] != null ? QUALITY_POINTS[k][st] : QUALITY_POINTS[k].met),
   }))
-    .filter((c) => !(c.k === 'fiber' && c.st === 'miss' && s.produce))
+    .filter((c) => !(c.k === 'fiber' && c.st === 'miss' && s.produce) && !(c.k === 'fiber' && !s.fibKnown))
     .sort((a, b) => b.lost - a.lost);
   const worst = costs[0];
   if (!worst || worst.lost === 0) return 'Great plate. Repeat this structure tomorrow.';
@@ -1038,19 +1069,19 @@ export function scoreRubric({ quality, minutesLate, macros, fiber, detected, sou
     note: late ? `${Math.round(minutesLate)} min past the window` : 'Inside the window',
   });
 
-  // Protein alignment — estimated for photo reads.
+  // Protein alignment — estimated for photo reads. An unread macro gets no row.
   if (total > 0) {
-    rows.push({
+    if (s.protein != null) rows.push({
       k: 'Protein alignment', exact: !est,
       state: s.protein,
       note: `${est ? `~${estRange(p, conf).text}` : p}g${est ? ' (estimated)' : ''}`,
     });
-    rows.push({
+    if (s.carbs != null) rows.push({
       k: 'Carbohydrate balance', exact: !est,
       state: s.carbs,
       note: `${est ? `~${c}` : c}g${est ? ' (estimated)' : ''}`,
     });
-    rows.push({
+    if (s.fat != null) rows.push({
       k: 'Fat within range', exact: !est,
       state: s.fat,
       note: `${est ? `~${f}` : f}g${est ? ' (estimated)' : ''}`,
@@ -1058,7 +1089,7 @@ export function scoreRubric({ quality, minutesLate, macros, fiber, detected, sou
   }
 
   // Produce & fiber — guarded by what's visible, same rule as qualityReason.
-  rows.push({
+  if (s.fiberState != null) rows.push({
     k: 'Produce & fiber', exact: false,
     state: s.fiberState,
     note: produce ? `Visible produce on the plate · ~${fib}g fiber (estimated)` : `~${fib}g fiber (estimated)`,
@@ -1367,9 +1398,15 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
   const rule = (CORRECTION_RULES[kind] || {})[String(value || '').toLowerCase()];
   if (!rule && kind !== 'other' && kind !== 'item' && kind !== 'add-foods') return null;
   // Freeze the ORIGINAL estimate exactly once — the audit trail's anchor.
+  // Unknown stays unknown through a correction: a carbs/fat/fiber the read never returned stays
+  // null unless this correction states that macro (review pass 2026-09-23).
+  const kn = (v) => (v == null ? null : v || 0);
   const orig = src.orig || {
-    protein: src.protein || 0, carbs: src.carbs || 0, fat: src.fat || 0,
-    kcal: src.kcal || 0, fiber: src.fiber || 0, quality: src.quality != null ? src.quality : null,
+    protein: src.protein || 0, carbs: kn(src.carbs), fat: kn(src.fat),
+    kcal: src.kcal || 0, fiber: kn(src.fiber), quality: src.quality != null ? src.quality : null,
+  };
+  const holdUnknown = (next, statedKeys) => {
+    for (const k of ['carbs', 'fat', 'fiber']) if (src[k] == null && !(statedKeys && statedKeys[k] != null)) next[k] = null;
   };
   const next = { ...src, orig };
   const log = Array.isArray(src.corrections) ? src.corrections.slice() : [];
@@ -1586,6 +1623,7 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
         next[k] = Math.max(0, Math.round((Number(src[k]) || 0) + (merged[k] - (Number(basePer[k]) || 0))));
       }
     }
+    holdUnknown(next, stated);
     // The FULL deterministic re-score — same engine, same inputs, every surface agrees.
     const q = mealQualityScore({
       macros: next, fiber: next.fiber, detected: next.detectedRich,
@@ -1723,6 +1761,7 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
       // priced): the new food rides on top of the stated totals rather than replacing them.
       for (const k of ['protein', 'carbs', 'fat', 'kcal']) next[k] = Math.max(0, Math.round((Number(src[k]) || 0) + addTot[k]));
     }
+    holdUnknown(next, null);
     const q = mealQualityScore({
       macros: next, fiber: next.fiber, detected: next.detectedRich,
       minutesLate: typeof minutesLate === 'number' ? minutesLate : undefined,
@@ -1744,19 +1783,22 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     log.push({ kind, detail: d });
   } else if (rule.scale) {
     for (const k of ['protein', 'carbs', 'fat', 'kcal', 'fiber']) {
-      next[k] = Math.max(0, Math.round((Number(src[k]) || 0) * rule.scale));
+      next[k] = src[k] == null && k !== 'protein' && k !== 'kcal' ? null : Math.max(0, Math.round((Number(src[k]) || 0) * rule.scale));
     }
     summary = `Corrected: ${rule.note}; macros rescaled (estimated)`;
     log.push({ kind, value, scale: rule.scale });
   } else {
-    const deltas = [];
+    const deltas = [], unmeasured = [];
     for (const k of ['protein', 'carbs', 'fat', 'fiber', 'kcal']) {
       if (rule[k]) {
+        // Adding oil to a fat that was never measured does not make it measured.
+        if (src[k] == null && k !== 'protein' && k !== 'kcal') { unmeasured.push(k); continue; }
         next[k] = Math.max(0, Math.round((Number(src[k]) || 0) + rule[k]));
         deltas.push(`${k === 'kcal' ? 'calories' : k} ${rule[k] > 0 ? '+' : ''}${rule[k]}${k === 'kcal' ? '' : 'g'}`);
       }
     }
-    summary = `Corrected: ${rule.note}${deltas.length ? `; ${deltas.join(', ')} (estimated)` : rule.certainty ? '; estimate confirmed' : ''}`;
+    summary = `Corrected: ${rule.note}${deltas.length ? `; ${deltas.join(', ')} (estimated)` : rule.certainty ? '; estimate confirmed' : ''}`
+      + (unmeasured.length ? `; ${unmeasured.join(' and ')} was not measured, so it stays unknown` : '');
     log.push({ kind, value });
   }
   next.corrections = log.slice(0, 8);
@@ -1767,8 +1809,8 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     if (kind === 'side' && (value === 'fruit' || value === 'vegetables')) dq = 4;
     if (kind === 'drink' && value === 'soda') dq = -4;
     if (kind === 'cooking' && (value === 'oil' || value === 'butter')) {
-      const total = next.protein * 4 + next.carbs * 4 + next.fat * 9;
-      if (total > 0 && (next.fat * 9) / total > 0.45) dq = -4;
+      const total = next.protein * 4 + (next.carbs || 0) * 4 + (next.fat || 0) * 9;
+      if (next.fat != null && next.carbs != null && total > 0 && (next.fat * 9) / total > 0.45) dq = -4;
     }
     if (rule && rule.scale && rule.scale < 1 && orig.protein >= 30) dq = -3; // smaller portion, less fuel
     if (dq !== 0) {

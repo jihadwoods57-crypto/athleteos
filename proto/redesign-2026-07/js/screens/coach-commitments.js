@@ -1054,7 +1054,8 @@ const TYPES = [
   'practice', 'strength', 'speed', 'team_meeting',
   'study_hall', 'tutoring', 'class', 'rehab', 'nutrition',
 ];
-const DOW = ['Su', 'M', 'Tu', 'W', 'Th', 'F', 'Sa'];
+// One day format with roll-call setup (review pass C-Polish 3); the aria-label carries the full name.
+const DOW = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 /* Writing prompts, NOT defaults. Tapping one loads it into the field to edit; nothing here is
    ever persisted unless the coach leaves it in the box. A coach who types nothing ships a card
@@ -1296,7 +1297,7 @@ export const coachCommitEdit = {
 
     <h2 class="eyebrow">Linked event <span class="opt">· optional</span></h2>
     <section class="card pad">
-      <label for="vc-link" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">What is this roll call for?</label>
+      <label for="vc-link" style="display:block;font-size:12.5px;font-weight:700;color:var(--text-2);margin-bottom:4px">${d.type === 'morning_roll_call' ? 'What is this roll call for?' : 'Is it tied to another commitment?'}</label>
       <select class="ob-input" id="vc-link">
         <option value="">Nothing, it stands alone</option>
         ${(RT.vcCommitments || []).filter((c) => c.type !== 'morning_roll_call')

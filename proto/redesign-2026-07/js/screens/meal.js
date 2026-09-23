@@ -169,15 +169,17 @@ async function warmParticipants(rolesMod, uid) {
 const NUT_ICONS = { protein: 'biceps', carbs: 'bars', fat: 'droplet', cals: 'flame' };
 const nutTile = (k, v, label) => `<div class="nt${k === 'protein' ? ' lead' : ''}"><span class="nt-ic ${k}">${icon(NUT_ICONS[k], 16)}</span><div class="nt-v">${v}</div><div class="nt-k">${label}</div></div>`;
 
-function macroRow(m) {
+export function macroRow(m) {
   // Per figure (0142): protein/carbs/fat behind showMacros, the calorie figure behind
   // showCalories — a professional can hide calories alone, and the prescription must hold
   // on every cell, not just the row.
   const cells = [];
+  // An unread figure prints a dash, never "nullg" (unknown is not 0; same rule as the tiles).
+  const g = (v) => (v == null ? '—' : `${v}<i>g</i>`);
   if (S.planStyle.showMacros) cells.push(
-    nutTile('protein', `${m.protein}<i>g</i>`, 'Protein'),
-    nutTile('carbs', `${m.carbs}<i>g</i>`, 'Carbs'),
-    nutTile('fat', `${m.fat}<i>g</i>`, 'Fat'),
+    nutTile('protein', g(m.protein), 'Protein'),
+    nutTile('carbs', g(m.carbs), 'Carbs'),
+    nutTile('fat', g(m.fat), 'Fat'),
   );
   if (S.planStyle.showCalories) cells.push(nutTile('cals', `${m.cals}`, 'Calories'));
   return cells.length ? `<div class="nut-tiles${cells.length === 3 ? ' three' : cells.length <= 2 ? ' two' : ''}">${cells.join('')}</div>` : '';
@@ -524,7 +526,7 @@ function openingInputs(M) {
     mealProteinBar: dayP.proteinTarget > 0 ? Math.round(dayP.proteinTarget / 4) : 0,
   });
   const sum = openingSummary({
-    quality: M.score, macros: M.macros, fiber: M.fiber, highlights: M.highlights, late: M.late, goal,
+    quality: M.score, macros: M.macrosRaw || M.macros, fiber: M.fiber, highlights: M.highlights, late: M.late, goal,
     detected: M.detectedRich, source: M.source, deadlineClock: M.deadlineLabel,
     day: dayP,
   // Plan style (0142): an Intuitive read never quotes a macro figure and never grades the
@@ -952,7 +954,7 @@ function correctionRow(slot) {
   </div>`;
 }
 
-export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete', targets = null, planStyle = null, dayTotals = null } = {}) {
+export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete', targets = null, planStyle = null, dayTotals = null, athleteName = '' } = {}) {
   // `viewer`: 'athlete' (the default, second person) or 'coach' (the professional reading an
   // athlete's plate: full figures, the athlete named in the third person, no self-service links).
   // `targets` / `planStyle` override the signed-in user's own (S.planTargets / PS) so a
@@ -963,6 +965,9 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
   // day context at all (the coach opening one row from the inbox) passes nothing and gets no
   // day bars, because the alternative is a day figure that is not the day's.
   const you = viewer !== 'coach';
+  // The athlete's first name for the coach's third-person lines (review pass C-M8): "Good balance
+  // for Marcus's goals", never "your goals" on a screen the athlete is not reading.
+  const whose = you ? 'your' : (athleteName ? `${String(athleteName).split(' ')[0]}'s` : 'their');
   const PS = planStyle || S.planStyle || {};
     // ---- 2. PHOTO + MEAL QUALITY (feedback 2026-07-16: quality is a separate concept from
     // compliance — banded color, its own label, and a one-line WHY so 58 never reads as green
@@ -970,12 +975,15 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
     const band = qualityBand(M.score);
     // The top 2-3 reasons the score is what it is (founder 2026-08-04: the score must be
     // immediately explainable) — same componentStates arithmetic as the number itself.
-    const reasons = scoreReasons({ macros: M.macros, fiber: M.fiber, detected: M.detectedRich, minutesLate: M.minutesLate });
+    // The RAW figures (null kept): `macros` coerces a missing one to 0, which the scoring helpers
+    // would judge as a measured zero ("Fat in range" under a dash; A-B4).
+    const judged = M.macrosRaw || M.macros;
+    const reasons = scoreReasons({ macros: judged, fiber: M.fiber, detected: M.detectedRich, minutesLate: M.minutesLate });
     // Coach's Focus (founder 2026-08-05): the one line to remember, from the same judgments.
     const dayProgCF = S.mealDayProgress || {};
     const nextMealCF = exec && exec.now && exec.now.proof === 'photo' ? exec.now.title : null;
     const focus = coachFocus({
-      macros: M.macros, fiber: M.fiber, detected: M.detectedRich, minutesLate: M.minutesLate,
+      macros: judged, fiber: M.fiber, detected: M.detectedRich, minutesLate: M.minutesLate,
       nextMealName: nextMealCF,
       dayGap: (Number(dayProgCF.proteinTarget) || 0) - (Number(dayProgCF.proteinSoFar) || 0),
       mealsRemaining: Number(dayProgCF.mealsRemaining) || 0,
@@ -984,7 +992,7 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
     // Expandable score rubric (upgrade 2026-07-16): the observable components behind the
     // number, each marked exact or estimated — same math as the feedback, so they agree.
     const rub = scoreRubric({
-      quality: M.score, minutesLate: M.minutesLate, macros: M.macros, fiber: M.fiber,
+      quality: M.score, minutesLate: M.minutesLate, macros: judged, fiber: M.fiber,
       detected: M.detectedRich, source: M.source, userNote: M.userNote, photoQ: M.photoQ,
     });
     const RUB_DOT = { met: 'g', partial: 'a', miss: 'r' };
@@ -1093,9 +1101,10 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
       if (/^Protein/.test(l)) return perMeal && PS.showMacros ? `Try to get about ${perMeal}g next time` : 'Lead the next plate with protein';
       if (/^Carbs balanced/.test(l)) return 'Good fuel for the work';
       if (/^Carb-heavy/.test(l)) return 'Trade some for protein next time';
-      if (/^Fat in range/.test(l)) return 'Good balance for your goals';
+      if (/^Fat in range/.test(l)) return `Good balance for ${whose} goals`;
       if (/^Fat/.test(l)) return 'Go lighter on oils and cheese';
       if (/^Good fiber/.test(l)) return 'Produce is showing';
+      if (/^Produce showing/.test(l)) return 'In the photo. Fiber was not measured';
       if (/^Fiber light/.test(l)) return 'Add fruit, veggies or higher fiber carbs';
       // Not "Nothing green on the plate": that is a claim about the photo, and the photo can show
       // edamame and lettuce while the fiber estimate reads zero (audit 2026-09-22). Say what to do.
@@ -1288,7 +1297,7 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
       ${/* "No targets" is claimed off the RAW targets, not the visible bars: a target a
             professional chose to hide still exists, and this line must not say otherwise. */''}
       ${targetBars.length || T.protein || T.calories ? '' : `<div class="est-note">${you ? "No coach targets set yet, so there's nothing to measure against. These are this meal's totals." : 'No targets set for this athlete yet, so there is nothing to measure against. These are this meal\'s totals.'}</div>`}
-      ${PS.showMacros ? `<div class="est-note" style="margin-top:8px">~${M.fiber}g fiber estimated. The full component read is under "Why did this meal score ${M.score != null ? M.score : 'this'}?".</div>` : ''}
+      ${PS.showMacros && M.fiber != null ? `<div class="est-note" style="margin-top:8px">~${M.fiber}g fiber estimated. The full component read is under "Why did this meal score ${M.score != null ? M.score : 'this'}?".</div>` : ''}
       ${M.userNote ? `<div class="est-note" style="margin-top:8px"><b style="color:var(--text-2)">${you ? 'Your note' : 'Their note'}:</b> ${esc(M.userNote)}</div>` : ''}
       ${corrLog ? `<div class="est-note" style="margin-top:8px;color:var(--blue-bright)"><b style="color:var(--blue-bright)">${you ? 'Corrected by you' : 'Corrected by the athlete'}</b>: ${corrLog} correction${corrLog === 1 ? '' : 's'} applied. The AI's original estimate is kept for reference${(() => {
         if (!M.orig) return '';

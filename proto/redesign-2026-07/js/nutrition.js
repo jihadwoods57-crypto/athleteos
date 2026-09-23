@@ -473,7 +473,15 @@ export function groundMealFromFoods(detectedRich) {
   const list = Array.isArray(detectedRich) ? detectedRich.filter(Boolean) : [];
   const foods = [];
   let p = 0, c = 0, f = 0, kcal = 0, matched = 0, adjusted = false, unpriced = 0;
+  // Meal carbs/fat is null only when no priced food reported it (unknown is not 0).
+  let pricedN = 0; const seen = { carbs: 0, fat: 0 };
   for (const d of list) {
+    if (foodHasMacros(d) || (d.userAdded && priceAddedFood(d.name, d.quantity))) {
+      pricedN++;
+      const unk = !d.userAdded && Array.isArray(d.perUnknown) ? d.perUnknown : [];
+      if (!unk.includes('carbs')) seen.carbs++;
+      if (!unk.includes('fat')) seen.fat++;
+    }
     if (foodHasMacros(d)) {
       const g = groundFood(d);
       foods.push({ ...d, per: g.per });
@@ -489,7 +497,9 @@ export function groundMealFromFoods(detectedRich) {
       } else { foods.push({ ...d }); unpriced++; }
     }
   }
-  const totals = reconcileKcal({ protein: Math.round(p), kcal: Math.round(kcal), carbs: Math.round(c), fat: Math.round(f) });
+  const cU = pricedN > 0 && !seen.carbs, fU = pricedN > 0 && !seen.fat;
+  const sums = { protein: Math.round(p), kcal: Math.round(kcal), carbs: Math.round(c), fat: Math.round(f) };
+  const totals = cU || fU ? { ...sums, carbs: cU ? null : sums.carbs, fat: fU ? null : sums.fat } : reconcileKcal(sums);
   const ratio = list.length ? matched / list.length : 0;
   let confidence = ratio >= 0.6 ? 'high' : ratio >= 0.3 ? 'medium' : 'low';
   if (adjusted || unpriced) confidence = confidence === 'high' ? 'medium' : 'low';
@@ -503,6 +513,8 @@ export function groundMealFromFoods(detectedRich) {
  */
 export function groundMealTotals(estimate, detectedNames) {
   const est = { protein: nn(estimate && estimate.protein), kcal: nn(estimate && estimate.kcal), carbs: nn(estimate && estimate.carbs), fat: nn(estimate && estimate.fat) };
+  const unknown = (k) => !estimate || estimate[k] == null || estimate[k] === '' || !isFinite(Number(estimate[k]));
+  const cU = unknown('carbs'), fU = unknown('fat');
   const names = Array.isArray(detectedNames) ? detectedNames.filter(Boolean) : [];
   let refP = 0, refC = 0, refF = 0, matched = 0, adjusted = false;
   for (const name of names) {
@@ -518,7 +530,8 @@ export function groundMealTotals(estimate, detectedNames) {
     return out;
   };
   const protein = clamp(est.protein, refP), carbs = clamp(est.carbs, refC), fat = clamp(est.fat, refF);
-  const totals = reconcileKcal({ protein: Math.round(protein), kcal: Math.round(est.kcal), carbs: Math.round(carbs), fat: Math.round(fat) });
+  const known = { protein: Math.round(protein), kcal: Math.round(est.kcal), carbs: Math.round(carbs), fat: Math.round(fat) };
+  const totals = cU || fU ? { ...known, carbs: cU ? null : known.carbs, fat: fU ? null : known.fat } : reconcileKcal(known);
   const ratio = names.length ? matched / names.length : 0;
   let confidence = ratio >= 0.6 ? 'high' : ratio >= 0.3 ? 'medium' : 'low';
   if (adjusted) confidence = confidence === 'high' ? 'medium' : 'low';
@@ -543,6 +556,8 @@ export function isCompleteMealResult(r) {
   let sum = 0;
   for (const k of ['protein', 'kcal', 'carbs', 'fat']) {
     const v = r[k];
+    // Carbs/fat may be honestly unknown (null); protein and kcal may not.
+    if ((v === null || v === undefined) && (k === 'carbs' || k === 'fat')) continue;
     if (v === null || v === undefined || v === '' || typeof v === 'boolean') return false;
     const n = Number(v);
     if (!Number.isFinite(n) || n < 0) return false;

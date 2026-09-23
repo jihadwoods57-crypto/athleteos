@@ -60,7 +60,7 @@ export default {
     <section class="card rows" role="list">
       <div class="lrow sx-row" role="listitem">
         <div class="lic sx-lic-g">${icon('bowl', 17)}</div>
-        <div class="lm"><div class="lt">Food</div><div class="ls">Every meal in your standard, logged on time and read well.</div></div>
+        <div class="lm"><div class="lt">Nutrition</div><div class="ls">Every meal in your standard, logged on time and read well.</div></div>
         <span class="lv">${food} pts</span>
       </div>
       ${morning ? `
@@ -71,12 +71,12 @@ export default {
       </div>` : ''}
       <div class="lrow sx-row" role="listitem">
         <div class="lic sx-lic-p">${icon('moon', 17)}</div>
-        <div class="lm"><div class="lt">Check-in submitted</div><div class="ls">Tonight, before the day closes.</div></div>
+        <div class="lm"><div class="lt">Recovery: check-in submitted</div><div class="ls">Tonight, before the day closes.</div></div>
         <span class="lv">${sent} pts</span>
       </div>
       <div class="lrow sx-row" role="listitem">
         <div class="lic sx-lic-p">${icon('check', 17)}</div>
-        <div class="lm"><div class="lt">Check-in answered</div><div class="ls">Every question answered. Your answers are never graded, only that you gave them.</div></div>
+        <div class="lm"><div class="lt">Recovery: every question answered</div><div class="ls">Your answers are never graded, only that you gave them.</div></div>
         <span class="lv">${answered} pts</span>
       </div>
       <div class="lrow sx-row" role="listitem">

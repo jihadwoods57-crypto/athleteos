@@ -9,10 +9,11 @@ import { avatarHead, esc, sparkline, errorState, skeletonRows } from '../compone
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, entriesFor, bookId } from '../coach-data.js';
 import { statusColor, statusLabel } from '../status.js';
+import { teamCounts } from '../team-count.js';
 import { styleLabel } from '../plan-style.js';
 import { initialsOf } from '../initials.js';
 import { hydrateAvatars } from '../avatar.js';
-import { scoreColor, tierFor } from '../score-band.js';
+import { scoreColor } from '../score-band.js';
 import { nudgePreset, tierForStatus } from '../nudge-presets.js';
 import { reasonKey } from '../priority.js';
 
@@ -65,14 +66,25 @@ const STATUS_ORDER = ['overdue', 'no_activity', 'needs_review', 'below_standard'
 
 const NO_MATCH_HTML = `<div style="padding:18px;text-align:center;font-size:12px;font-weight:600;color:var(--text-3)">No one matches that filter.</div>`;
 
-function lastActivityLabel(iso) {
+function lastActivityLabel(row) {
+  const iso = row && row.lastMealAt;
   // "No logs yet", not "No recent activity": at 320w the longer string pushed the whole
   // status line into a mid-word ellipsis, and it says the same thing in half the room.
-  if (!iso) return 'No logs yet';
+  // Only for an athlete with no history at all: meals are read for 2 days, the score history for 7,
+  // so a quiet-since-Monday athlete falls back to their last scored day (review pass C-M2).
+  if (!iso) return lastDayLabel(row && row.lastDayISO) || 'No logs yet';
   const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000);
   if (h < 1) return 'Active just now';
   if (h < 24) return `Active ${h}h ago`;
   return `Active ${Math.floor(h / 24)}d ago`;
+}
+
+/** "Last logged Mon" from a YYYY-MM-DD day, or '' when there is none. */
+export function lastDayLabel(dayISO) {
+  if (!dayISO || !/^\d{4}-\d{2}-\d{2}$/.test(dayISO)) return '';
+  const d = new Date(`${dayISO}T12:00:00`);
+  if (isNaN(d.getTime())) return '';
+  return `Last logged ${d.toLocaleDateString('en-US', { weekday: 'short' })}`;
 }
 
 function applyView(entries) {
@@ -93,7 +105,9 @@ function applyView(entries) {
     name: (a, b) => a.row.name.localeCompare(b.row.name),
     activity: (a, b) => String(b.row.lastMealAt || '').localeCompare(String(a.row.lastMealAt || '')),
   };
-  return [...list].sort(by[SORT] || by.score);
+  const sorted = [...list].sort(by[SORT] || by.score);
+  // Banded: group by status (stable sort keeps the chosen order inside each band).
+  return bandsApply() ? sorted.sort(by.status) : sorted;
 }
 
 /* The dot's colour and the score's colour BOTH already say "on standard" and "below standard"
@@ -107,7 +121,7 @@ function rosterRow(e) {
   // One calm status signal: a colored dot on the left. The label reads in quiet text-2,
   // not saturated body text — a roster full of red type reads as panic, not information.
   const scoreCol = scoreColor(r.score);
-  const activity = esc(lastActivityLabel(r.lastMealAt));
+  const activity = esc(lastActivityLabel(r));
   // Status reaches the coach three ways at once: the band header this row sits under, the dot on
   // the avatar, and this line. The third copy is the one that pushed "Active just now" into an
   // ellipsis, so it goes whenever a band header is carrying the same word. REDUNDANT_STATUS still
@@ -142,29 +156,30 @@ function rosterRow(e) {
 }
 
 /* ---------------- standing bands ----------------
-   The roster is sorted by score and rendered as one card of uniform rows, which makes a 14-person
-   squad a fourteen-line column where a 96 and a 47 look exactly alike: the coach has to read
-   every line to find the two people who need them. The sort already knows the answer — these
-   heads make it visible, so the shape of the day lands before a single name is read.
+   The roster is rendered as one card of uniform rows, which makes a 14-person squad a
+   fourteen-line column where a 96 and a 47 look exactly alike: the coach has to read every line to
+   find the two people who need them. Band heads make the shape of the day land before a name is
+   read.
 
-   Tier names and thresholds come from tierFor() (score-band.js); nothing is re-inlined here, so
-   the roster can never disagree with the badge on the athlete's own screen. Rows with no score
-   are their own trailing band, because "hasn't logged" is a different fact from "scored low" and
-   the coach acts on it differently.
+   ONE grouping (review pass 2026-09-23, C-M3/C-P3): the bands are the athlete's STATUS, in the same
+   words and order as the filter chips above them and the counts on Home, the Inbox and Insights.
+   They used to be score TIERS ("OnStandard / Locked In / Building / No log today") under status
+   chips ("Overdue / Below standard / On standard"): two vocabularies for one list, the brand name
+   used as a tier, and Tyrek red "Overdue" on Home while he sat under amber "Building" here. The
+   score keeps its tier colour on the number itself; the band says what the coach does about it.
 
-   Bands appear only when the score sort is doing the ordering and the list is the whole book:
-   under a name/status/recent sort or a search the ordering means something else, and a band head
-   would be labelling a list it did not arrange. */
+   Bands appear only when the list is the whole book in score or status order: under a name or
+   recent sort, a search or a status filter, a band head would be labelling a list it did not
+   arrange. Inside a band the rows keep the chosen order. */
 function bandKeyFor(e) {
-  if (e.row.score == null) return { key: 'none', name: 'No log today', color: 'var(--text-3)' };
-  const t = tierFor(e.row.score);
-  return { key: t.cls, name: t.name, color: scoreColor(e.row.score) };
+  const key = e.status && e.status.key;
+  return { key: key || 'none', name: statusLabel(e.status) || 'No status', color: statusColor({ key }) };
 }
 /* Select mode keeps its bands. Dropping them there would re-flow the whole list the instant the
    coach taps Select — the rows they were aiming at jump, which is the worst possible moment for
    the layout to move. Checkboxes replace the status dot inside the row; the heads are untouched. */
 function bandsApply() {
-  return SORT === 'score' && !Q.trim() && FILTER.kind !== 'status' && FILTER.kind !== 'statusSet';
+  return (SORT === 'score' || SORT === 'status') && !Q.trim() && FILTER.kind !== 'status' && FILTER.kind !== 'statusSet';
 }
 function listHtml(view) {
   if (!view.length) return NO_MATCH_HTML;
@@ -246,10 +261,10 @@ function absenceSheet() {
   <section class="card ro-sheet">
     <h2 class="eyebrow ro-sheet-h">Excuse ${SEL.size} ${CD.noun}${SEL.size === 1 ? '' : 's'}</h2>
     <div style="font-size:12px;font-weight:600;color:var(--text-2);line-height:1.5;margin-bottom:8px">Excused ${CD.nouns} drop out of the priority queue and today's completion math. And nothing pings them while excused.</div>
-    <input class="ob-input" id="abs-reason" aria-label="Reason" maxlength="120" placeholder="Reason (travel, injury, family…)" style="height:36px" />
+    <input class="ob-input nx-input" id="abs-reason" aria-label="Reason" maxlength="120" placeholder="Reason (travel, injury, family…)" />
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:8px">
-      <button class="btn sm" data-abs="0" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:12px">Just today</button>
-      <button class="btn ghost sm" data-abs="6" ${BULK_BUSY ? 'disabled' : ''} style="height:34px;font-size:12px">Through the week</button>
+      <button class="btn sm" data-abs="0" ${BULK_BUSY ? 'disabled' : ''} style="min-height:44px">Just today</button>
+      <button class="btn ghost sm" data-abs="6" ${BULK_BUSY ? 'disabled' : ''} style="min-height:44px">Through the week</button>
     </div>
     <div id="abs-status" style="font-size:11.5px;font-weight:600;color:var(--text-3);min-height:14px;margin-top:5px"></div>
   </section>`;
@@ -319,12 +334,40 @@ function updateBulkCounts(root) {
   const send = root.querySelector('[data-bulk="nudgesend"]');
   if (send) send.textContent = `Send to ${n}`;
   const note = root.querySelector('#bulk-nudge-note');
-  if (note) note.textContent = `This exact message goes to all ${n}, from "${S.operatorIdentity.handle} is waiting".`;
+  if (note) note.textContent = `All ${n} get a push titled "${S.operatorIdentity.handle} is waiting" with this message.`;
+}
+
+/* Arriving from the Create menu with a job to do (review pass C-B9). "Adjust a schedule" and
+   "Message an athlete" both used to land on the plain roster with no next step, and excusing lives
+   behind Select, then Excuse. #coach-roster/excuse opens straight into Select with a line saying
+   what to do; #coach-roster/message says to tap someone.
+   The intent is ARMED by the Create row's tap (armRosterTask) and CONSUMED by the next render, so
+   every choice of "Adjust a schedule" opens Select, a repaint after Done does not snap back into
+   it, and a plain return to the Roster tab clears a Select mode the intent opened. */
+let ARMED = null;          // the Create menu's intent, waiting for the roster's next render
+let INTENT_SELECT = false; // Select mode was opened by that intent, not by the coach
+export function armRosterTask(mode) { ARMED = mode === 'excuse' || mode === 'message' ? mode : null; }
+function taskFromSub(sub) {
+  const mode = sub === 'excuse' || sub === 'message' ? sub : null;
+  if (ARMED) {
+    const armed = ARMED; ARMED = null;
+    if (armed === 'excuse' && CD.caps.exceptions) { SELECTING = true; INTENT_SELECT = true; SEL.clear(); FILTER = { kind: 'all', value: null }; Q = ''; }
+  } else if (!mode && INTENT_SELECT) {
+    INTENT_SELECT = false; SELECTING = false; SEL.clear();
+  }
+  if (!SELECTING) INTENT_SELECT = false;
+  if (mode === 'excuse' && CD.caps.exceptions) return !SELECTING
+    ? `<div class="nx-note ro-task">Tap Select, then the ${CD.nouns} you want to excuse, then Excuse.</div>`
+    : SEL.size
+    ? `<div class="nx-note ro-task">Tap Excuse below to excuse ${SEL.size === 1 ? 'them' : `these ${SEL.size}`} for today or the week.</div>`
+    : `<div class="nx-note ro-task">Tap the ${CD.nouns} you want to excuse, then tap Excuse.</div>`;
+  if (mode === 'message' && !SELECTING) return `<div class="nx-note ro-task">Tap someone to open their page, then Nudge sends them a message.</div>`;
+  return '';
 }
 
 export const coachRoster = {
   nav: 'operator', tab: 'roster', pane: 'master',
-  render() {
+  render({ sub = null } = {}) {
     // ONE derivation, shared with coach-home. This screen used to re-derive a team coach's
     // initials from their HANDLE with the "Coach " prefix stripped ("Coach Reynolds" → RE) while
     // coach-home used S.operatorIdentity (name initials → DR). Same signed-in person, two sets of
@@ -363,7 +406,8 @@ export const coachRoster = {
     // on the chip so the row doubles as the roster's shape at a glance. A full squad still gets
     // every chip it earns; the currently-selected one is kept even if a search empties it, so the
     // control you just used can't vanish under you.
-    const statusCount = entries.reduce((m, e) => (m[e.status.key] = (m[e.status.key] || 0) + 1, m), {});
+    // THE team count (team-count.js), the same function Home, the Inbox and Insights read.
+    const statusCount = teamCounts(entries).byStatus;
     const liveStatuses = STATUS_ORDER
       .map((k) => [k, statusCount[k] || 0])
       .filter(([k, n]) => n > 0 || (FILTER.kind === 'status' && FILTER.value === k));
@@ -383,14 +427,17 @@ export const coachRoster = {
     </div>
     ${SHOW_GROUPS ? groupSheet(groups) : ''}
     ${SHOW_ABSENCE ? absenceSheet() : ''}
+    ${taskFromSub(sub)}
     <section class="card" id="roster-list" style="padding:2px 0">${listHtml(list)}</section>
     ${SELECTING && SEL.size ? (BULK_NUDGE_ARM != null ? `
     <div class="action-bar">
-      <input id="bulk-nudge-body" class="ob-input" maxlength="120" value="${esc(BULK_NUDGE_ARM)}" aria-label="Nudge message" style="width:100%;height:36px;font-size:var(--t-sm)" />
-      <div id="bulk-nudge-note" style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:6px 0">This exact message goes to all ${SEL.size}, from "${esc(S.operatorIdentity.handle)} is waiting".</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-        <button class="btn ghost sm" data-bulk="nudgecancel" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-xs)">Cancel</button>
-        <button class="btn sm primary" data-bulk="nudgesend" ${BULK_BUSY ? 'disabled' : ''} style="font-size:var(--t-xs)">Send to ${SEL.size}</button>
+      <div class="nx-edit">
+      <input id="bulk-nudge-body" class="ob-input nx-input" maxlength="120" value="${esc(BULK_NUDGE_ARM)}" aria-label="Nudge message" />
+      <div id="bulk-nudge-note" class="nx-note">All ${SEL.size} get a push titled "${esc(S.operatorIdentity.handle)} is waiting" with this message.</div>
+      <div class="nx-acts">
+        <button class="btn ghost sm" data-bulk="nudgecancel" ${BULK_BUSY ? 'disabled' : ''}>Cancel</button>
+        <button class="btn sm primary" data-bulk="nudgesend" ${BULK_BUSY ? 'disabled' : ''}>Send to ${SEL.size}</button>
+      </div>
       </div>
     </div>` : `
     <div class="action-bar" style="display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s1h)">

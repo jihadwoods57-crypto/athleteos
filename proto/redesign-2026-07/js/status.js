@@ -4,7 +4,7 @@
    excused > overdue > needs_review > below_standard > due_soon > no_activity > on_standard.
    Every input is real data (day row, resolved requirement windows, exception rows) —
    an unknown score/window degrades to the safest honest answer, never an invented one. */
-import { ON_STANDARD, tierColor, tierFor } from './score-band.js';
+import { ON_STANDARD, tierColor } from './score-band.js';
 
 /** @type {Record<string, { label: string, color: string }>} */
 export const STATUS_META = {
@@ -30,11 +30,10 @@ export function statusColor(status, score) {
   return meta ? meta.color : 'var(--text-3)';
 }
 
-/** The words for a status. A below-standard day says its tier ("Building", "Off Standard"),
- *  the name the athlete reads on their own Home, instead of a third vocabulary. */
-export function statusLabel(status, score) {
+/** One word per state on every coach surface; tier names stay on score chips (DESIGN.md
+ *  2026-09-23 "one count, one word"). `_score` is kept for existing call sites. */
+export function statusLabel(status, _score) {
   const key = status && status.key;
-  if (key === 'below_standard' && score != null) return tierFor(score).name;
   return STATUS_META[key] ? STATUS_META[key].label : '';
 }
 
@@ -65,13 +64,13 @@ export function runsOn(req, dow) {
  *  something. Ported from insights.js protoTasksAware(), which has guarded its own miss counts
  *  this way from the start: a legacy RN row carries NUMERIC task ids, and a pre-writer row carries
  *  none. Neither can prove an item was skipped, and status.js used to treat both as proof. */
-function tasksTrustworthy(row) {
+export function tasksTrustworthy(row) {
   const tasks = Array.isArray(row && row.tasks) ? row.tasks : [];
   return tasks.some((t) => t && t.id != null && !/^\d+$/.test(String(t.id)));
 }
 
 /** A photo-proof requirement is a meal slot, and days.meals is the map that actually records it. */
-const isMealSlot = (r) => r && r.proof === 'photo';
+export const isMealSlot = (r) => r && r.proof === 'photo';
 
 function openItems(nowMin, row, reqs, nowDow) {
   const doneById = {};

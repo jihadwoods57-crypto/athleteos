@@ -85,6 +85,12 @@ import { itemFromMeal, memoryContextForAnalysis, mealSignature } from './food-me
 import { foodMemory, warmFoodMemory, invalidateFoodMemory } from './food-memory-data.js';
 import { track, EVENTS } from './analytics.js';
 
+/** A macro to persist: its number (0 if falsy), or null when it was never read. */
+const keepN = (v) => (v == null ? null : v || 0);
+
+/** A stored figure as a number, or null when it was never read (null and 0 are different facts). */
+const nullNum = (v) => (v == null || v === '' || !isFinite(Number(v)) ? null : Number(v));
+
 /* minutes-from-midnight → "8:14 AM" (real logged times, never a canned '8:14 AM') */
 export function fmtClock(min) {
   if (min == null) return '';
@@ -152,6 +158,8 @@ loadMeal(); // restore an in-flight capture across a reload, before the first re
     (no per-food macros) and new-shape wire payloads through this exact function. */
 export function groundResult(d) {
   const clampN = (v, hi) => Math.max(0, Math.min(hi, Math.round(v || 0)));
+  // Unknown stays null, never a stored false 0 (meals.carbs/fat/fiber are nullable ints).
+  const clampOrNull = (v, hi) => (v == null ? null : clampN(v, hi));
   // Belt-and-braces: the AI response is untrusted text. Strip angle brackets at the source so a
   // crafted analyze-meal payload can never inject markup (render sites still escape as well).
   const clean = (v) => String(v == null ? '' : v).replace(/[<>]/g, '').slice(0, 200);
@@ -168,8 +176,8 @@ export function groundResult(d) {
   } else {
     totals = groundMealTotals(d, extras.detectedNames).totals;
   }
-  const protein = clampN(totals.protein, 120), carbs = clampN(totals.carbs, 250), fat = clampN(totals.fat, 150);
-  const kcal = clampN(totals.kcal || (4 * protein + 4 * carbs + 9 * fat), 2200);
+  const protein = clampN(totals.protein, 120), carbs = clampOrNull(totals.carbs, 250), fat = clampOrNull(totals.fat, 150);
+  const kcal = clampN(totals.kcal || (4 * protein + 4 * (carbs || 0) + 9 * (fat || 0)), 2200);
   const gm = { protein, carbs, fat, kcal };
 
   // ---- scoring: deterministic, timing measured on the athlete's clock at capture
@@ -522,7 +530,7 @@ function componentsDone() {
    this uses the proto's analysis macros so a logged meal contributes real protein to the score. */
 function loggingMacros() {
   const m = (S.logging && S.logging.macros) || {};
-  return { protein: m.protein || 0, kcal: m.cals || 0, carbs: m.carbs || 0, fat: m.fat || 0 };
+  return { protein: m.protein || 0, kcal: m.cals || 0, carbs: keepN(m.carbs), fat: keepN(m.fat) };
 }
 
 /* Meal slots surfaced as required rows (snack is an optional bonus slot, still loggable). */
@@ -645,6 +653,8 @@ export function mealDetail(slot) {
     score: meta.quality != null ? meta.quality : null,
     foods,
     macros: { protein: meta.protein || 0, carbs: meta.carbs || 0, fat: meta.fat || 0, cals: meta.kcal || 0 },
+    // null kept: what the scoring helpers and the tiles read (A-B4). `macros` stays coerced for sums.
+    macrosRaw: { protein: nullNum(meta.protein), carbs: nullNum(meta.carbs), fat: nullNum(meta.fat), cals: nullNum(meta.kcal) },
     img: slotImage(k),
     note: meta.note || '',
     userNote: meta.userNote || '', // the athlete's own review-step details (§5.5)
@@ -666,7 +676,7 @@ export function mealDetail(slot) {
     analysisFailed: meta.analysisFailed || null,
     rereadError: meta.rereadError || null, // the re-read couldn't fetch the photo back from storage
     mealId: meta.mealId || null, // real meals.id → powers the coach↔athlete comment thread
-    fiber: meta.fiber || 0,
+    fiber: nullNum(meta.fiber),
     highlights: Array.isArray(meta.highlights) ? meta.highlights : [],
     detectedRich: Array.isArray(meta.detectedRich) && meta.detectedRich.length
       ? meta.detectedRich
@@ -1061,7 +1071,7 @@ export const act = {
     const optimistic = hasPhoto && !MEAL.result;
     const meta = MEAL.result
       ? { quality: MEAL.result.quality, foods: MEAL.result.detected, note: MEAL.result.note, name: MEAL.result.name || MEAL.mealType,
-          fiber: MEAL.result.fiber || 0, highlights: MEAL.result.highlights || [], detectedRich: MEAL.result.detectedRich || [],
+          fiber: MEAL.result.fiber != null ? MEAL.result.fiber : null, highlights: MEAL.result.highlights || [], detectedRich: MEAL.result.detectedRich || [],
           analysis: MEAL.result.analysis || '', ...(MEAL.result.styleApplied ? { styleApplied: MEAL.result.styleApplied } : {}), ...(userNote ? { userNote } : {}), ...integrity }
       : { name: MEAL.mealType || cap(slot), ...(userNote ? { userNote } : {}), ...integrity,
           ...(optimistic ? { pending: true, pendingHash: MEAL.photoHash || null } : {}) };
@@ -1498,9 +1508,9 @@ export const act = {
     const { pending, pendingHash, pendingQuestions, analysisFailed, ...keep } = cur;
     DAY.slotMacros[slot] = {
       ...keep,
-      protein: r.protein || 0, kcal: r.kcal || 0, carbs: r.carbs || 0, fat: r.fat || 0,
+      protein: r.protein || 0, kcal: r.kcal || 0, carbs: keepN(r.carbs), fat: keepN(r.fat),
       quality: r.quality, foods: r.detected, note: r.note,
-      name: r.name || keep.name, fiber: r.fiber || 0,
+      name: r.name || keep.name, fiber: keepN(r.fiber),
       highlights: r.highlights || [], detectedRich: r.detectedRich || [],
       analysis: r.analysis || '', ...(r.styleApplied ? { styleApplied: r.styleApplied } : {}),
     };
@@ -1517,7 +1527,7 @@ export const act = {
     const mealId = DAY.slotMacros[slot].mealId;
     if (mealId && window.sb) {
       const fields = {
-        protein: r.protein || 0, carbs: r.carbs || 0, fat: r.fat || 0, kcal: r.kcal || 0,
+        protein: r.protein || 0, carbs: keepN(r.carbs), fat: keepN(r.fat), kcal: r.kcal || 0,
         quality: r.quality, note: r.note || null,
       };
       try {
@@ -2797,9 +2807,10 @@ export const act = {
       r.detectedRich = g.foods;
       r.detected = g.foods.map((f) => f.name);
       const clampN = (v, hi) => Math.max(0, Math.min(hi, Math.round(v || 0)));
-      r.protein = clampN(g.totals.protein, 120); r.carbs = clampN(g.totals.carbs, 250);
-      r.fat = clampN(g.totals.fat, 150);
-      r.kcal = clampN(g.totals.kcal || (4 * r.protein + 4 * r.carbs + 9 * r.fat), 2200);
+      const clampOrNull = (v, hi) => (v == null ? null : clampN(v, hi));
+      r.protein = clampN(g.totals.protein, 120); r.carbs = clampOrNull(g.totals.carbs, 250);
+      r.fat = clampOrNull(g.totals.fat, 150);
+      r.kcal = clampN(g.totals.kcal || (4 * r.protein + 4 * (r.carbs || 0) + 9 * (r.fat || 0)), 2200);
       const timing = analysisTiming(MEAL.capturedAtMin != null ? MEAL.capturedAtMin : minutesNow(), slotDeadline(MEAL.key || 'dinner'));
       const gm = { protein: r.protein, carbs: r.carbs, fat: r.fat, kcal: r.kcal };
       r.quality = mealQualityScore({ macros: gm, fiber: r.fiber, detected: r.detectedRich, minutesLate: timing ? timing.minutesLate : 0 });
@@ -4955,12 +4966,22 @@ export const S = {
   mealScoreImpact(slot) {
     try { return mealImpact(slot); } catch { return 0; }
   },
+  /* Morning Weight follows its own schedule, and "late" compares the real log time (A-B3). */
   get weightLine() {
+    const req = (this.scheduleCatalog || []).find((r) => r && r.id === 'weight') || CATALOG.find((r) => r.id === 'weight');
+    const due = req && req.window && typeof req.window.due === 'number' ? req.window.due : WEIGHT_DUE;
+    const trend = 'Counts for your season trend; never for the daily score.';
     if (RT.weightLogged) {
-      return { label: 'Morning Weight', state: 'late', note: 'Logged late tonight. Counts for your season trend; never for the daily score.' };
+      const late = RT.weightLoggedAt != null && RT.weightLoggedAt > due;
+      return late
+        ? { label: 'Morning Weight', state: 'late', note: `Logged after ${fmtClock(due)}. ${trend}` }
+        : { label: 'Morning Weight', state: 'logged', note: `Logged today. ${trend}` };
     }
-    return minutesNow() <= WEIGHT_DUE
-      ? { label: 'Morning Weight', state: 'open', note: `Weigh in by ${fmtClock(WEIGHT_DUE)} to keep your season trend current.` }
+    if (!req || !runsToday(req, new Date().getDay())) {
+      return { label: 'Morning Weight', state: 'off', note: `Not a weigh-in day${req && req.freq && req.freq.label ? ` (${req.freq.label})` : ''}.` };
+    }
+    return minutesNow() <= due
+      ? { label: 'Morning Weight', state: 'open', note: `Weigh in by ${fmtClock(due)} to keep your season trend current.` }
       : { label: 'Morning Weight', state: 'missed', note: "Missed today. It doesn't affect your score. Weight only tracks your season trend." };
   },
   get reachPlan() { return memo('reachPlan', () => {

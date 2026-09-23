@@ -43,7 +43,7 @@ test('the operator home leads with the group ring, the same hero the athlete has
   assert.match(ch, /scoreRing\(\{\s*score: have \? p\.avg : 0,/, 'the group average feeds the ring');
   assert.match(ch, /uid: 'group', notStarted: !have,/, 'no scores yet is not a zero');
   assert.match(ch, /<section class="xhero co-hero tappable" data-pulse/, "the athlete's hero classes, so it is the same ring at the same size");
-  const ring = ch.indexOf("${entries === null ? '' : pulseCard(rows, statuses)}");
+  const ring = ch.indexOf("${entries === null ? '' : pulseCard(entries)}");
   const board = ch.indexOf("${isNutritionBook() ? '<div id=\"nut-board-slot\"></div>' : ''}");
   assert.ok(ring > 0 && board > ring, 'the ring renders before the nutrition board on every book');
   assert.doesNotMatch(ch, /<div class="num">\$\{p\.avg/, 'the flat 60px numeral is gone');

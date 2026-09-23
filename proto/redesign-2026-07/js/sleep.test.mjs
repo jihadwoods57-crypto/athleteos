@@ -160,8 +160,9 @@ test('one hero per screen: the average steps down when a standard is present', (
 });
 
 test('the roster shows exceptions, not a badge on everyone', () => {
-  const coach = read('screens/coach.js');
-  assert.match(coach, /if \(night !== 'short' && night !== 'missed'\) return '';/);
+  // The sleep chip lived only on the Copilot screen, which no screen linked to; the route was
+  // unregistered in the 2026-09-23 review pass and the chip went with it.
+  assert.doesNotMatch(read('screens/coach.js'), /Sleep short|Sleep missed/);
   // A met standard is still carried in the DATA; it just does not earn a row of text on a list
   // whose entire job is who needs attention.
   assert.match(read('roles.js'), /if \(hours >= target\) return 'met';/);

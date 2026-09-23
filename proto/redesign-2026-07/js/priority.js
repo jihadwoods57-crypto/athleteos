@@ -46,7 +46,13 @@ function reasons(row, status, nowMs) {
       const h = Math.floor((nowMs - new Date(row.lastMealAt).getTime()) / 3600000);
       if (h >= 12) out.push(`No activity for ${h >= 48 ? Math.floor(h / 24) + ' days' : h + ' hours'}`);
     }
-  } else if (!row.loggedToday && !row.lastMealAt) out.push('No activity on record');
+  } else if (!row.loggedToday && !row.lastMealAt) {
+    // Meals are read for 2 days, scores for 7 (review pass C-M2): an athlete quiet since Monday is
+    // not "no activity on record". Their last scored day says so; the old line is kept for an
+    // athlete with no history at all.
+    const d = row.lastDayISO && /^\d{4}-\d{2}-\d{2}$/.test(row.lastDayISO) ? new Date(`${row.lastDayISO}T12:00:00`) : null;
+    out.push(d && !isNaN(d.getTime()) ? `Last logged ${d.toLocaleDateString('en-US', { weekday: 'short' })}` : 'No activity on record');
+  }
   return out;
 }
 

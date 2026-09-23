@@ -609,14 +609,16 @@ export function avatarHead(title, sub, initials, greeting) {
   // every 390px phone ("Good evening, Coach / Brooks"), with the bell and avatar floating
   // beside the wrap.
   const n = S.unreadNotifs;
+  // No header avatar on the profile itself: a duplicate that linked to its own screen (C-P5).
+  const onProfile = (() => { try { return String(location.hash || '').replace(/^#/, '') === roleProfileRoute(); } catch { return false; } })();
   return `<div class="back-head" style="align-items:center">
     <div style="flex:1;min-width:0">${greeting ? `<div class="hg">${esc(greeting)},</div>` : ''}<h1 class="ht">${esc(title)}</h1>${sub ? `<div class="hs">${esc(sub)}</div>` : ''}</div>
-    ${bellBtn(n, 'margin-right:10px')}
-    <div class="hd-avatar" role="button" tabindex="0" aria-label="Your profile and settings" data-go="${roleProfileRoute()}"
+    ${bellBtn(n, onProfile ? '' : 'margin-right:10px')}
+    ${onProfile ? '' : `<div class="hd-avatar" role="button" tabindex="0" aria-label="Your profile and settings" data-go="${roleProfileRoute()}"
       data-avatar-uid="${esc(RT.userId || '')}" data-avatar-ver="${esc(RT.avatarVer || '')}"
       style="position:relative;width:40px;height:40px;border-radius:50%;background:var(--blue-surface);color:var(--blue-bright);border:1.5px solid var(--blue-border);display:grid;place-items:center;font-size:var(--t-sm);font-weight:800;letter-spacing:0.02em;flex:none;cursor:pointer"><span data-avatar-fallback>${esc(initials || 'C')}</span>
       <span aria-hidden="true" style="position:absolute;right:-2px;bottom:-2px;width:16px;height:16px;border-radius:50%;background:var(--surface-3);border:1.5px solid var(--bg);display:grid;place-items:center;color:var(--text-2)">${icon('chevron', 10)}</span>
-    </div>
+    </div>`}
   </div>`;
 }
 

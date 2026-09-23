@@ -2115,7 +2115,7 @@ export function buildRosterRow(member, dayRow, extras = {}) {
     flag: logged ? tierFlag(score) : 'r',
     logs: logged && tasks.length ? `${done}/${tasks.length}` : (logged ? 'Logged' : '—'),
     note: logged
-      ? (score != null ? (score >= ON_STANDARD ? 'On standard today' : 'Logged · below the bar') : 'Logged today')
+      ? (score != null ? (score >= ON_STANDARD ? 'On standard today' : 'Below standard today') : 'Logged today')
       : 'No logs today',
     tasks,
     // The coach-facing half of the Recovery Standard: a VERDICT, never a number. A coach reading a
@@ -2125,10 +2125,19 @@ export function buildRosterRow(member, dayRow, extras = {}) {
     night: nightSignalOf(dayRow),
     scoreHistory: extras.scoreHistory || [],
     lastMealAt: extras.lastMealAt || null,
+    // Last scored day in the 7-day window: the fallback when no meal is in the 2-day read (C-M2).
+    lastDayISO: lastScoredDayOf(extras.scoreHistory),
     // Athlete IANA timezone (0088) so the coach status engine judges due/overdue in the athlete's
     // local day. null (no set, or pre-migration) → the caller falls back to the coach clock.
     timezone: extras.timezone || null,
   };
+}
+
+/** The latest date in a score history that carries a real score, or null. */
+export function lastScoredDayOf(history) {
+  let best = null;
+  for (const h of (history || [])) if (h && h.score != null && h.date && (!best || h.date > best)) best = h.date;
+  return best;
 }
 
 /** Distinct athlete ids across a book's member lists, in first-seen order. */

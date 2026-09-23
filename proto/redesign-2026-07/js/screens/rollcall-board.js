@@ -466,6 +466,13 @@ export default {
     const { id, view } = parseSub(sub);
     const coach = isOperator();
     const back = coach ? 'coach-home' : 'home';
+    // A bare #rollcall-board has nothing to load, and mount() returns early without an id, so it
+    // said "Loading the team board" forever (review pass C-Polish 8).
+    if (!id) {
+      return `${backHead('Roll call', '', back)}${emptyState({ icon: 'sun', title: 'Roll call not found',
+        body: 'This link has no roll call in it. Open it from your Home or the roll call list.',
+        action: { label: 'Back to Home', go: back } })}`;
+    }
     const board = VC.teamBoard(id);
     if (!board) {
       if (VC.teamBoardError(id)) {

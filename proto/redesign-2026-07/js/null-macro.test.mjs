@@ -109,3 +109,49 @@ test('the correction announcement never quotes a number the row does not have', 
   assert.match(COACH_SRC, /row\.protein != null \? \[`~\$\{r\.meta\.protein\}g protein`\] : \[\]/);
   assert.match(COACH_SRC, /row\.kcal != null \? \[`~\$\{r\.meta\.kcal\} kcal`\] : \[\]/);
 });
+
+/* ---- the score and the chips (review pass 2026-09-23, A-B4): unknown is not zero there either ---- */
+import { mealQualityScore, scoreReasons, scoreRubric, coachFocus } from './meal-intel.js';
+
+test('a missing carbs or fat earns no "in range" chip and no points', () => {
+  const macros = { protein: 52, carbs: null, fat: null };
+  const labels = scoreReasons({ macros, fiber: 6, detected: [], minutesLate: 0 }).map((r) => r.label);
+  assert.ok(!labels.some((l) => /^Fat|^Carb/.test(l)), labels.join(' | '));
+  // No independent calories: protein has no energy to be a share of, so nothing macro is judged
+  // and there is no honest quality score.
+  assert.equal(mealQualityScore({ macros, fiber: 6, detected: [], minutesLate: 0 }), null);
+  const rows = scoreRubric({ macros, fiber: 6, detected: [], minutesLate: 0 }).rows.map((r) => r.k);
+  assert.ok(!rows.includes('Fat within range') && !rows.includes('Carbohydrate balance'));
+  assert.doesNotMatch(JSON.stringify(scoreRubric({ macros: { protein: 52, carbs: null, fat: 10, kcal: 780 } }).rows), /nullg/);
+});
+
+test('with an independent calorie read, the known macros are judged and the score is re-weighted', () => {
+  // 52g protein of 780 kcal = 27% (met). Fat 10g of 780 = 12% (met). Carbs unknown: left out.
+  const macros = { protein: 52, carbs: null, fat: 10, kcal: 780 };
+  const q = mealQualityScore({ macros, fiber: 6, detected: [], minutesLate: 0 });
+  assert.equal(q, 100, 'every JUDGED component met is 100, not 85 (carbs missing) or 100 by accident');
+  const labels = scoreReasons({ macros, fiber: 6, detected: [], minutesLate: 0 }).map((r) => r.label);
+  assert.ok(!labels.some((l) => /^Carb/.test(l)));
+  // A calorie figure derived from the known macros alone (4p + 9f) is not independent: no judgment.
+  assert.equal(mealQualityScore({ macros: { protein: 52, carbs: null, fat: 10, kcal: 52 * 4 + 90 }, fiber: 6 }), null);
+  // A miss still costs its share of the re-weighted maximum.
+  const heavy = mealQualityScore({ macros: { protein: 10, carbs: null, fat: 40, kcal: 700 }, fiber: 6, minutesLate: 0 });
+  assert.ok(heavy < 70, `protein 6% and fat 51% of 700 kcal read poorly (${heavy})`);
+});
+
+test('all three known: the score is unchanged by the re-weighting', () => {
+  // protein 40*4=160, carbs 60*4=240, fat 20*9=180 -> 580; 28% protein met, 41% carbs met, 31% fat met.
+  assert.equal(mealQualityScore({ macros: { protein: 40, carbs: 60, fat: 20 }, fiber: 6, detected: [], minutesLate: 0 }), 100);
+  assert.equal(mealQualityScore({ macros: { protein: 40, carbs: 60, fat: 20 }, fiber: 0, detected: [], minutesLate: 90 }), 35 + 15 + 20 + 5 + 2);
+});
+
+test('coachFocus never ranks an unjudged macro', () => {
+  const f = coachFocus({ macros: { protein: 52, carbs: null, fat: null, kcal: 780 }, fiber: 6, detected: [], minutesLate: 0 });
+  assert.doesNotMatch(f, /leaner|carbs/);
+});
+
+test('the coach reads the athlete in the third person (review pass C-M8)', () => {
+  assert.match(MEAL_SRC, /return `Good balance for \$\{whose\} goals`/);
+  assert.doesNotMatch(MEAL_SRC, /'Good balance for your goals'/);
+  assert.match(COACH_SRC, /athleteName: \(\(CD\.roster && CD\.roster\.rows\.find/);
+});

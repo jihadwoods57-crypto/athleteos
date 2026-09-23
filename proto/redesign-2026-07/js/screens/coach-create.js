@@ -1,6 +1,8 @@
 import { backHead, esc } from '../components.js';
 import { icon } from '../icons.js';
-import { CD, loadBook } from '../coach-data.js';
+import { CD, loadBook, bookKindFor } from '../coach-data.js';
+import { armRosterTask } from './coach-roster.js';
+import { RT } from '../state.js';
 import { allowedCreateKeys, isReadonly } from '../staff-access.js';
 import { ROLLCALL_OFF } from '../commitments.js';
 
@@ -15,11 +17,12 @@ import { ROLLCALL_OFF } from '../commitments.js';
    table and fail silently. `cap: null` means "no book capability required". */
 const OPTIONS = [
   { grp: 'standard', key: 'assign',          cap: 'assignments',    icon: 'clipboard', title: 'Assign a one-off task', sub: 'Team, room, group, or the people you pick', go: 'coach-assign' },
-  { grp: 'tell', key: 'announce',        cap: 'announcements',  icon: 'share',     title: 'Send an announcement',  sub: 'Feed + push to the room you pick',  go: 'coach-announce' },
-  { grp: 'tell', key: 'message_athlete', cap: null,             icon: 'message',   title: 'Message an athlete',    sub: 'Pick from the roster',              go: 'coach-roster' },
-  { grp: 'tell', key: 'message_group',   cap: 'announcements',  icon: 'users',     title: 'Message a group',       sub: 'Announce to a custom group',        go: 'coach-announce' },
+  { grp: 'tell', key: 'announce',        cap: 'announcements',  icon: 'share',     title: 'Send an announcement',  sub: 'Feed + push to the team, a room or a group', go: 'coach-announce' },
+  { grp: 'tell', key: 'message_athlete', cap: null,             icon: 'message',   title: 'Message an athlete',    sub: 'Pick from the roster',              go: 'coach-roster/message' },
+  // "Message a group" opened this same composer (review pass C-P2); the audience picker in it
+  // already offers groups, so one row says so instead of two rows going to one screen.
   { grp: 'standard', key: 'standards',       cap: 'standards',      icon: 'bars',      title: 'Standards & templates', sub: 'Meals, windows, check-ins by room', go: 'coach-plan' },
-  { grp: 'standard', key: 'schedule',        cap: 'exceptions',     icon: 'clock',     title: 'Adjust a schedule',     sub: 'Mark travel or an excused stretch', go: 'coach-roster' },
+  { grp: 'standard', key: 'schedule',        cap: 'exceptions',     icon: 'clock',     title: 'Adjust a schedule',     sub: 'Mark travel or an excused stretch', go: 'coach-roster/excuse' },
   // WAKE-UP ROLL CALL AND THE COMMITMENT COMPOSER ARE OFF (founder, 2026-09-02) — see
   // ROLLCALL_OFF in commitments.js. Both entries are filtered out below rather than deleted,
   // so bringing the feature back is one constant, not an archaeology exercise.
@@ -39,7 +42,7 @@ const OPTIONS = [
 ];
 
 /* A trainer's create menu points at their own routes for the two options that survive. */
-const TRAINER_GO = { message_athlete: 'trainer-roster', add_athlete: 'trainer-profile' };
+const TRAINER_GO = { message_athlete: 'trainer-roster/message', schedule: 'trainer-roster/excuse', add_athlete: 'trainer-profile' };
 /* A practice has no rooms or groups, so the team-shaped sub-copy would describe scopes that
    don't exist on this book (assign_practice_requirement refuses anything but all-or-one). */
 const TRAINER_SUB = {
@@ -54,7 +57,10 @@ const TRAINER_TITLE = { message_athlete: 'Message a client', add_athlete: 'Add a
 export const coachCreate = {
   nav: 'operator', tab: 'create', transient: true,
   render() {
-    const practice = CD.kind === 'practice';
+    // Before the book lands CD.kind is still its 'team' default, so a trainer opening this cold (a
+    // restored route, a deep link) saw the TEAM menu: staff invites, "Grow the roster" (C-B4). The
+    // signed-in role decides until the book says otherwise.
+    const practice = CD.kind === 'practice' || RT.authRole === 'trainer';
     const back = practice ? 'trainer' : 'coach-home';
     const myRole = CD.extras ? CD.extras.myRole : null;
     // Staff roles are a team concept — a trainer owns their practice outright and is never read-only.
@@ -108,8 +114,14 @@ export const coachCreate = {
       <div class="ts">Broadcast announcements and staff roles are team tools. A practice is 1:1, so everything on this menu works on your book right now.</div></div>
     </div>` : ''}`;
   },
-  mount() {
+  mount(root) {
+    // Arm the roster's task on the tap itself (C-B9): consumed once by the roster's next render.
+    if (root) root.querySelectorAll('[data-go$="/excuse"], [data-go$="/message"]').forEach((el) => {
+      el.addEventListener('click', () => armRosterTask(String(el.getAttribute('data-go')).split('/').pop()));
+    });
     // Book load also fills CD.extras (incl. myRole) and repaints this route when it lands.
-    loadBook(false, CD.kind);
+    // The signed-in role's book, not CD.kind: cold, CD.kind is 'team' and a trainer loaded a coach
+    // book that does not exist. The router repaints this operator screen when the book arrives.
+    loadBook(false, bookKindFor(RT.authRole));
   },
 };

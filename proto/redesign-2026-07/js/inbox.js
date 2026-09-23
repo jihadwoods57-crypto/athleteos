@@ -93,28 +93,38 @@ export function previewSub(meal, role, resolved) {
  *  entriesFor). Groups by openItems[].id where state==='overdue' — an athlete with 2 overdue
  *  items counts once per item id, never double-counted within one id. */
 export function inboxAlerts(entries, nowMs) {
-  const byItem = {}; // itemId -> { title, count }
+  const byItem = {}; // itemId -> { title, count, dueMin }
   for (const e of (entries || [])) {
     const items = (e && e.status && e.status.openItems) || [];
     for (const it of items) {
       if (!it || it.state !== 'overdue') continue;
       const id = it.id;
-      if (!byItem[id]) byItem[id] = { title: it.title || id, count: 0 };
+      if (!byItem[id]) byItem[id] = { title: it.title || id, count: 0, dueMin: null };
       byItem[id].count++;
+      if (typeof it.dueMin === 'number' && (byItem[id].dueMin == null || it.dueMin < byItem[id].dueMin)) byItem[id].dueMin = it.dueMin;
     }
   }
   const out = [];
   for (const id of Object.keys(byItem)) {
-    const { title, count } = byItem[id];
+    const { title, count, dueMin } = byItem[id];
     out.push({
       kind: 'alert',
       id: `alert:overdue:${id}`,
       title: `${count} athlete${count === 1 ? '' : 's'} ${count === 1 ? "hasn't" : "haven't"} logged ${title}`,
       sub: 'Overdue requirement',
       ts: nowMs,
+      // When it went overdue (earliest in the group), never "now" (C-M9).
+      whenLabel: dueMin != null ? `since ${clockOf(dueMin)}` : '',
     });
   }
   return out;
+}
+
+/** "2:00 PM"; a copy of fmtClock, this module stays import-free. */
+function clockOf(min) {
+  let h = Math.floor(min / 60) % 12; if (h === 0) h = 12;
+  const ap = Math.floor(min / 60) % 24 < 12 ? 'AM' : 'PM';
+  return `${h}:${String(min % 60).padStart(2, '0')} ${ap}`;
 }
 
 /** categorizeInbox({ meals, comments, interventions, roster, pending, staff, staffInvites,
@@ -256,13 +266,3 @@ export function pageRows(rows, shown, page = 20) {
   return { rows: out, more: all.length > out.length, remaining: all.length - out.length, next: limit + size };
 }
 
-/** "Opened" is the union of this device's list (the optimistic layer, kept as the fallback when
- *  the server read fails) and every staff view the server returned (0229 meal_views). Either
- *  input may be missing; the result is always a Set. */
-export function unionSeen(localIds, serverIds) {
-  const out = new Set();
-  for (const id of (Array.isArray(localIds) ? localIds : [])) if (id) out.add(id);
-  const srv = serverIds instanceof Set ? serverIds : (Array.isArray(serverIds) ? serverIds : []);
-  for (const id of srv) if (id) out.add(id);
-  return out;
-}

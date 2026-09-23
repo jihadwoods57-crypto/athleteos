@@ -622,12 +622,12 @@ export function pastMealDetail(m) {
     slot: m.type || 'meal', name: cap(m.type), dish: m.name || '', logged: true, mealId: m.id,
     loggedAt: fmtLoggedAt(m.logged_at) || null, minutesLate: late, late: late > 0,
     score: m.quality != null ? m.quality : null,
-    // Two views of the same four numbers. `macros` is coerced for the scoring helpers (reasons,
-    // rubric), which do arithmetic; `macrosRaw` keeps null so the tiles can print a dash for a
-    // figure this row never had. null and 0 are different facts.
+    // Two views of the same four numbers. `macros` is coerced for callers that SUM; `macrosRaw`
+    // keeps null, and it is what the tiles AND the scoring helpers read (A-B4): a figure this row
+    // never had is not a measured zero. null and 0 are different facts.
     macros: { protein: m.protein || 0, carbs: m.carbs || 0, fat: m.fat || 0, cals: m.kcal || 0 },
     macrosRaw: { protein: nz(m.protein), carbs: nz(m.carbs), fat: nz(m.fat), cals: nz(m.kcal) },
-    fiber: m.fiber || 0, detectedRich: rich, foods: rich.map((d) => d.name),
+    fiber: nz(m.fiber), detectedRich: rich, foods: rich.map((d) => d.name),
     // A stored plate with a photo was read from it; without one it was entered by hand. The row
     // does not keep the source, so this is the honest reading of what it does keep.
     source: m.photo_path ? null : 'manual',
@@ -647,7 +647,8 @@ export const mealView = {
     if (!m) {
       return `${backHead('Meal', 'Not available', 'history')}
       <div class="sidebox"><div class="req-icon b s38">${icon('clipboard', 17)}</div>
-      <div><div class="tt">Couldn't open this meal</div><div class="ts">Open it from your Activity History.</div></div></div>`;
+      <div><div class="tt">Couldn't open this meal</div><div class="ts">Open it from your Activity History.</div></div></div>
+      <button class="btn primary mv-miss-go" data-go="history">${icon('clipboard', 17)} Activity history</button>`;
     }
     // THE SAME DESIGN AS TODAY'S MEAL (founder 2026-09-14): this screen was a simpler twin of the
     // meal thread and the difference showed the moment an athlete opened yesterday's plate. It now

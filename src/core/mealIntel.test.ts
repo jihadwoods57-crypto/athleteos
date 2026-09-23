@@ -37,8 +37,8 @@ describe('groundExtras', () => {
     expect(g.detectedRich).toEqual([{ name: 'Oats', confidence: 'medium' }, { name: 'Banana', confidence: 'high' }]);
     expect(g.detectedNames).toEqual(['Oats', 'Banana']);
   });
-  test('missing fields yield safe defaults', () =>
-    expect(groundExtras({})).toEqual({ fiber: 0, highlights: [], detectedRich: [], detectedNames: [], analysis: '' }));
+  test('missing fields yield safe defaults (unknown fiber is null, not 0: 2026-09-23)', () =>
+    expect(groundExtras({})).toEqual({ fiber: null, highlights: [], detectedRich: [], detectedNames: [], analysis: '' }));
   test('analysis clamps to 1200 chars and strips markup (0062)', () => {
     const g = groundExtras({ analysis: '<b>Strong plate.</b> ' + 'x'.repeat(2000) });
     expect(g.analysis.length).toBeLessThanOrEqual(1200);

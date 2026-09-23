@@ -15,7 +15,7 @@ const src = (p) => readFileSync(join(HERE, p), 'utf8');
 
 test('the read card + breakdown is one exported function, and today\'s thread calls it', () => {
   const meal = src('screens/meal.js');
-  assert.match(meal, /export function mealReadHtml\(M, \{ exec = null, past = false, viewer = 'athlete', targets = null, planStyle = null, dayTotals = null \} = \{\}\)/);
+  assert.match(meal, /export function mealReadHtml\(M, \{ exec = null, past = false, viewer = 'athlete', targets = null, planStyle = null, dayTotals = null, athleteName = '' \} = \{\}\)/);
   assert.match(meal, /const \{ photoBlock, breakdown \} = mealReadHtml\(M, \{ exec: e \}\);/, 'the meal thread renders through it');
   // The function owns the sections, not the render: neither block is built inline any more.
   assert.equal((meal.match(/const photoBlock = `/g) || []).length, 1);

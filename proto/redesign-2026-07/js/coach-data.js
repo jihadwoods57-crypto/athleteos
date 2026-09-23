@@ -18,7 +18,6 @@ import { athleteStatus } from './status.js';
 import { ON_STANDARD } from './score-band.js';
 import { dateKey } from './fmt-date.js';
 import { effectiveRoomLabel } from './rooms.js';
-import { unionSeen } from './inbox.js';
 
 /** The plan style a TEAM STANDARD governs for one roster row, or null when none does (0142).
  *  Reuses the SAME resolveRequirementSet() call every status computation already makes — CD.extras.sets
@@ -272,6 +271,19 @@ export const ACTIVITY_DAYS = 2;
 /** "Opened" for the loaded feed: this device's list (the optimistic layer and the fallback)
  *  unioned with every staff view the server returned. Callers pass RT.coachSeenMealIds in,
  *  since this module must not import state.js (see the cycle note at the top). */
+/* Lives here, not in inbox.js: this is its only runtime caller, and importing inbox.js for
+   it pulled the whole inbox engine into the eager boot graph. */
+/** "Opened" is the union of this device's list (the optimistic layer, kept as the fallback when
+ *  the server read fails) and every staff view the server returned (0229 meal_views). Either
+ *  input may be missing; the result is always a Set. */
+export function unionSeen(localIds, serverIds) {
+  const out = new Set();
+  for (const id of (Array.isArray(localIds) ? localIds : [])) if (id) out.add(id);
+  const srv = serverIds instanceof Set ? serverIds : (Array.isArray(serverIds) ? serverIds : []);
+  for (const id of srv) if (id) out.add(id);
+  return out;
+}
+
 export function seenMealSet(localIds) {
   return unionSeen(localIds, ACT && ACT.views instanceof Set ? ACT.views : null);
 }
@@ -499,6 +511,8 @@ export function entriesFor(scope) {
         needsReview: false, // slice D wires flagged-meal review state
       }),
       planStyle: set ? planStyleFromItems(set.items)?.style || null : null,
+      // For teamCounts(): the governing items and the athlete-local clock (C-M1).
+      reqs, nowMin: lc.nowMin, nowDow: lc.nowDow,
     };
   });
 }

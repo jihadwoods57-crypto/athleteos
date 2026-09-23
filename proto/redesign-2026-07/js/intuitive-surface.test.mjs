@@ -306,7 +306,8 @@ test('meal.js: every calorie figure rides showCalories, every macro cell rides s
   // visible for the calorie bar alone.
   assert.match(MEAL_SRC, /const projectedTotal = PS\.showMacros && T\.protein/);
   // So do the drawer's fiber note and the correction reference's two figures.
-  assert.match(MEAL_SRC, /PS\.showMacros \? `<div class="est-note"[^`]*fiber estimated/);
+  // (and on a fiber figure the read actually measured: unknown fiber prints nothing, 2026-09-23)
+  assert.match(MEAL_SRC, /PS\.showMacros && M\.fiber != null \? `<div class="est-note"[^`]*fiber estimated/);
   assert.match(MEAL_SRC, /if \(PS\.showMacros\) bits\.push\(`~\$\{M\.orig\.protein\}g protein`\)/);
   assert.match(MEAL_SRC, /if \(PS\.showCalories\) bits\.push\(`~\$\{M\.orig\.kcal\} kcal`\)/);
   // "No coach targets set yet" is claimed off the RAW targets — a hidden target still exists.

@@ -232,7 +232,7 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
      No headline "note" is built here: the merged card below states ciSubmitted status and
      quality directly. This block's only job is recRows — the per-metric detail (Energy, Sleep,
      ...) that only exists once the check-in is IN. When it is not, the two guaranteed rows on
-     the merged card ("Checked in tonight" / "How you answered") already say everything there is
+     the merged card ("Check-in submitted" / "Every question answered") already say everything there is
      to say; pushing a third "Tonight's check-in" row here would just repeat them. */
   const recRows = [];
   if (day.ciSubmitted) {
@@ -274,23 +274,24 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
       id: 'recovery', key: 'Recovery', accent: 'p', weightPct: recPossible,
       earned: recEarned, possible: recPossible,
       note: day.ciSubmitted
-        ? `Checked in tonight · Recovery quality ${c.recovery}%`
+        // Recovery pays for answering, not for the answers (day.js recoveryParts; A-M5).
+        ? `Check-in submitted · ${c.recovery >= 100 ? 'every question answered' : `${c.recovery}% of the questions answered`}`
         : 'Not checked in yet. Tonight’s check-in is the only way to earn this',
       remaining: day.ciSubmitted ? 0 : recPossible,
       remainingKind: day.ciSubmitted ? 'guaranteed' : 'upTo',
       remainingNote: day.ciSubmitted
         ? 'Tonight’s check-in is in. This category is settled for today.'
-        : `Submitting tonight’s check-in earns +${ciPts} guaranteed. Your answers set the last ${ansPts}.`,
+        : `Submitting tonight’s check-in earns +${ciPts} guaranteed. Answering every question earns the last ${ansPts}.`,
       rows: [
         {
-          label: 'Checked in tonight',
+          label: 'Check-in submitted',
           sub: day.ciSubmitted ? 'Submitted · guaranteed points' : 'Before bed · nothing carries from another day',
           value: day.ciSubmitted ? `${ciPts} of ${ciPts} pts` : `+${ciPts} on check-in`,
           state: day.ciSubmitted ? 'done' : 'open',
         },
         {
-          label: 'How you answered',
-          sub: day.ciSubmitted ? '' : 'Honest answers cost you almost nothing. A rough night is a few points',
+          label: 'Every question answered',
+          sub: day.ciSubmitted ? '' : 'Your answers are never graded, only that you gave them',
           value: day.ciSubmitted ? `${Math.round(w.recovery * c.recoveryContribution)} of ${ansPts} pts` : `up to +${ansPts}`,
           state: day.ciSubmitted ? 'done' : 'open',
         },

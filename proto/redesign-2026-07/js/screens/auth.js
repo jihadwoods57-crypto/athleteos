@@ -14,7 +14,7 @@ export default {
         <div class="wel-logo">${logoMark(104, 'welcome')}</div>
         <div class="wel-mark"><span class="on">On</span>Standard</div>
         <div class="wel-kicker">For athletes and everyone in their corner</div>
-        <h1 class="wel-head">The coach sets the standard.<br>You prove the work.<br><span class="accent">The score never lies.</span></h1>
+        <h1 class="wel-head">The coach sets the standard.<br>You prove the work.<br><span class="accent">Every number shows its proof.</span></h1>
       </div>
 
       <div class="wel-actions">

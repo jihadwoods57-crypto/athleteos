@@ -4202,11 +4202,14 @@ button.rw-cell:active { transform: scale(var(--press-btn)); }
 .rw-n { font-size: var(--t-md); font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .rw-t { font-size: var(--t-xs); font-weight: 800; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .rw-day.today .rw-d { color: var(--blue-bright); }
-.rw-day.moved .rw-cell { background: rgba(var(--blue-rgb), 0.12); border-color: var(--blue-bright); }
-.rw-day.moved .rw-t { color: var(--blue-bright); }
+/* A moved morning is a FACT, not a selection (review pass C-Polish 1): it wore selection blue and a
+   cancelled one read "Off" like a weekend. Each now says what happened in words, under the time. */
+.rw-day.moved .rw-cell { background: var(--surface-2); }
+.rw-m { font-size: var(--t-micro); font-weight: 800; color: var(--text-2); letter-spacing: 0; }
 .rw-day.off .rw-cell { background: transparent; }
 .rw-day.off .rw-n, .rw-day.off .rw-t { color: var(--text-3); }
-.rw-day.skipped .rw-cell { border-style: dashed; border-color: var(--blue-border); }
+.rw-day.skipped .rw-cell { border-style: dashed; }
+.rw-day.skipped .rw-t { font-size: var(--t-micro); color: var(--text-2); }
 .rw-day.past .rw-cell { background: transparent; }
 .rw-note { margin: var(--s3) var(--s1) 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.45; }
 .rw-note.is-error { color: var(--amber-bright); }
@@ -4330,12 +4333,6 @@ button.rw-cell:active { transform: scale(var(--press-btn)); }
   font-variant-numeric: tabular-nums; color: var(--purple-bright); }
 .rec-anchor-d { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); }
 
-/* The Recovery Standard on a roster row. A verdict, never an athlete's sleep duration: a coach
-   scanning a roster can act on "the standard was missed" and has no business with the hours. Rides
-   .status-pill so it speaks the one pill vocabulary; purple because it is recovery, muted when the
-   standard was met so a good night sits quietly instead of competing with the score beside it. */
-.rn-night { margin-left: var(--s1h); vertical-align: middle; }
-
 /* The coach's standard on the athlete's sleep screen. Accountability, sitting above the average
    rather than merged into it: the target is what a coach asked for and the average is what this
    body normally does, and scoring the second would give a habitual five-hour sleeper an easier
@@ -4406,3 +4403,6 @@ button.rw-cell:active { transform: scale(var(--press-btn)); }
 /* What logging does: a quiet fact above the actions, not a status-green box. */
 .ma-counts { margin: var(--s5) 0 0; font-size: var(--t-sm); font-weight: 600; line-height: 1.45; color: var(--text-2); }
 .ma-actions { margin-top: var(--s4); padding-bottom: var(--s2h); }
+
+/* The meal-view error's way out (review pass A-Polish 3). */
+.mv-miss-go { margin-top: var(--s3); }

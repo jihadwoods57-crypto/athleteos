@@ -1225,7 +1225,7 @@ export function dayLogMeal(userId, key, macros, meta) {
   DAY.meals[key] = true;
   DAY.mealLoggedAt[key] = minutesNow();
   const m = { ...(DAY.slotMacros[key] || {}) };
-  if (macros && typeof macros.protein === 'number') { m.protein = macros.protein || 0; m.kcal = macros.kcal || 0; m.carbs = macros.carbs || 0; m.fat = macros.fat || 0; }
+  if (macros && typeof macros.protein === 'number') { m.protein = macros.protein || 0; m.kcal = macros.kcal || 0; m.carbs = macros.carbs == null ? null : (macros.carbs || 0); m.fat = macros.fat == null ? null : (macros.fat || 0); }
   // Persist the AI plate meta (quality/foods/note + fiber/highlights/detectedRich) so meal-detail
   // survives reload — it rides through the checkin.slotMacros jsonb (pushDay/projectRowToDay).
   // Scoring reads only .protein.
@@ -1372,7 +1372,8 @@ export async function insertMeal(userId, key, macros, meta, photoPath) {
       photo_path: photoPath || null,
       name: m.name || (key.charAt(0).toUpperCase() + key.slice(1)),
       protein: (macros && macros.protein) || 0, kcal: (macros && macros.kcal) || 0,
-      carbs: (macros && macros.carbs) || 0, fat: (macros && macros.fat) || 0,
+      carbs: macros && macros.carbs == null ? null : ((macros && macros.carbs) || 0),
+      fat: macros && macros.fat == null ? null : ((macros && macros.fat) || 0),
       quality: m.quality != null ? m.quality : null,
       detected: Array.isArray(m.foods) ? m.foods : [],
       note: m.note || '',
