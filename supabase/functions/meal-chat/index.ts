@@ -51,6 +51,7 @@ import {
 // Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
 // refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
 import { sendExpoPush } from '../_shared/expo-push.mjs';
+import { missingConsent, consentSkipBody } from '../_shared/ai-consent.mjs';
 
 // Per-surface override first: one shared ANTHROPIC_MODEL meant chat could not move tiers
 // without dragging vision with it. Unset -> unchanged.
@@ -659,6 +660,19 @@ Deno.serve(async (req) => {
         await service.from('meal_comments').insert({ meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai', text });
       }
       return new Response(JSON.stringify({ ok: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
+
+    // AI CONSENT (0243, Guideline 5.1.2(i)). Everything below sends the thread to Anthropic: the
+    // meal owner's photos, numbers and dossier, and the caller's own words. It runs only when BOTH
+    // have said yes: the athlete first (their data is the subject), then the caller (a coach's
+    // question is the coach's data). Fail-closed. A 200 with a plain code, never an error: the
+    // client shows "AI replies are off" and the message the person wrote is already saved.
+    {
+      const missing = await missingConsent(service, [mealRow.athlete_id, callerId]);
+      if (missing !== null) {
+        return new Response(JSON.stringify(consentSkipBody(missing === mealRow.athlete_id && missing !== callerId ? 'athlete' : 'you')),
+          { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
     }
 
     // Plan style (0142) resolves for the MEAL OWNER, never the caller. In draft and coach-support

@@ -8,6 +8,7 @@
 import Anthropic from 'npm:@anthropic-ai/sdk@0.65.0';
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
+import { missingConsent, consentSkipBody } from '../_shared/ai-consent.mjs';
 import {
   composeSystem, violatesStyleLanguage, styleCorrectionMessage, SAFE_INTUITIVE, type PlanStyle,
 } from '../_shared/plan-style.ts';
@@ -110,6 +111,10 @@ Deno.serve(async (req) => {
   // Cache: a completed month's report is final — return the stored one, no AI spend, no cap claim.
   const { data: cached } = await svc.from('monthly_reports').select('payload').eq('athlete_id', userId).eq('period', period).maybeSingle();
   if (cached?.payload) return json(cached.payload, 200, cors);
+
+  // AI CONSENT (0243): the month is the athlete's own data. A stored report above costs nothing
+  // and sends nothing; a new one needs a yes. No yes, no model call.
+  if ((await missingConsent(svc, [userId])) !== null) return json(consentSkipBody('you'), 200, cors);
 
   // Cost cap (fail closed — a premium extra, not the logging path).
   try {

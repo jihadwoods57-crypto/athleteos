@@ -26,6 +26,7 @@ import { buildVoiceSystem, violatesProhibited, type VoiceConfig } from '../_shar
 import { loadVoiceForAthlete as loadVoice } from '../_shared/coach-voice-load.ts';
 import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';
 import { clientIpFrom } from '../_shared/client-ip.ts';
+import { missingConsent } from '../_shared/ai-consent.mjs';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 
@@ -142,6 +143,13 @@ Deno.serve(async (request) => {
   // signed-in athlete. Anon (preview / anon-key-only) -> null, no coach config is ever exposed.
   const uid = await resolveUserId(request);
   if (!uid) return json({ nudge: null }, cors);
+  // AI CONSENT (0243): the day's data is the athlete's. No yes, no model: null means the app shows
+  // its own deterministic copy, exactly as when Coach Voice is off.
+  if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+    && (await missingConsent(createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY), [uid])) !== null) {
+    return json({ nudge: null, skipped: 'ai_consent_required' }, cors);
+  }
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return json({ nudge: null }, cors);
 
   let body: { data?: unknown };
   try { body = await request.json(); } catch {

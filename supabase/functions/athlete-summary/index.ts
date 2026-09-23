@@ -16,6 +16,7 @@ import Anthropic from 'npm:@anthropic-ai/sdk@0.65.0';
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
 import { checkSpend, EST_USD } from '../_shared/spend-gate.ts';
+import { missingConsent, filterConsented, consentSkipBody } from '../_shared/ai-consent.mjs';
 import {
   composeSystem, violatesStyleLanguage, styleCorrectionMessage, type PlanStyle,
 } from '../_shared/plan-style.ts';
@@ -239,7 +240,15 @@ Deno.serve(async (req) => {
     const { data: due } = await svc.from('athlete_ai_summaries')
       .select('athlete_id,book_kind,book_id,cadence_days').lte('next_at', new Date().toISOString()).order('next_at').limit(SCAN_LIMIT);
     let done = 0, skipped = 0, failed = 0;
-    for (const row of ((due ?? []) as Array<{ athlete_id: string; book_kind: 'team' | 'practice'; book_id: string; cadence_days: number }>)) {
+    // AI CONSENT (0243): the facts are the athlete's, so only athletes who said yes are read by the
+    // model. The others wait a day and are looked at again; nothing is sent for them.
+    const dueRows = (due ?? []) as Array<{ athlete_id: string; book_kind: 'team' | 'practice'; book_id: string; cadence_days: number }>;
+    const consented = new Set(await filterConsented(svc, dueRows.map((r) => r.athlete_id)));
+    for (const row of dueRows) {
+      if (!consented.has(row.athlete_id)) {
+        await svc.from('athlete_ai_summaries').update({ next_at: new Date(Date.now() + 86400000).toISOString() }).match({ athlete_id: row.athlete_id, book_kind: row.book_kind, book_id: row.book_id });
+        skipped++; continue;
+      }
       // The spend gate is asked before every claim, and a closed gate ends the run: this job must
       // never starve the logging path.
       const spend = await checkSpend(EST_USD.text);
@@ -282,6 +291,9 @@ Deno.serve(async (req) => {
   const cadence = row && (row.cadence_days === 3 || row.cadence_days === 6) ? row.cadence_days : 6;
   const force = body.force === true;
 
+  // AI CONSENT (0243): no read of an athlete who has not said yes to the AI. A stored card from
+  // before stays visible; nothing new is generated. The coach's card says so in plain words.
+  if ((await missingConsent(svc, [athleteId])) !== null) return json({ ...consentSkipBody('athlete'), row }, 200, cors);
   if (row && row.generated_at && !force) return json({ row }, 200, cors);
   if (force && row && row.last_manual_at) {
     const since = Date.now() - Date.parse(String(row.last_manual_at));

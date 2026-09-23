@@ -15,6 +15,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';
 import { checkSpend, spendMessage, EST_USD } from '../_shared/spend-gate.ts';
+import { missingConsent, consentSkipBody } from '../_shared/ai-consent.mjs';
 
 // Cost sweep (audit item 20): default to Sonnet 5 (strictly better AND cheaper than the stale
 // sonnet-4-6). The old client-selectable Opus "deep" path was removed — narration is a <=512-token
@@ -204,6 +205,12 @@ Deno.serve(async (request) => {
   // Resolve the caller first: which spend ceiling applies depends on it (capacity audit F1,
   // docs/scale/CAPACITY-AUDIT.md).
   const uid = await resolveUserId(request);
+  // AI CONSENT (0243): the data is the caller's roster, narrated by the third-party AI. Only a
+  // signed-in caller who said yes; everyone else gets the deterministic data, as on any failure.
+  if (!uid || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY
+    || (await missingConsent(createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY), [uid])) !== null) {
+    return new Response(JSON.stringify({ narration: null, ...consentSkipBody('you') }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+  }
   // Global daily ceiling — ANONYMOUS callers only; a signed-in caller is never denied by this
   // platform-wide backstop. Their own per-user cap below still bounds their spend, and they are
   // tracked against a monthly tier-budget signal instead (never blocks).

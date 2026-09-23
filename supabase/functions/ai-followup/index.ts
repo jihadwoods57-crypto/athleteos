@@ -41,6 +41,7 @@ import {
 // Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
 // refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
 import { sendExpoPush } from '../_shared/expo-push.mjs';
+import { filterConsented } from '../_shared/ai-consent.mjs';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -150,7 +151,9 @@ async function dayGapPass(opts: {
   if (daysErr) return { scanned: 0, sends: [] };
   const days = (dayRows ?? []) as DayRowForGap[];
   if (!days.length) return { scanned: 0, sends: [] };
-  const athleteIds = [...new Set(days.map((d) => d.athlete_id))];
+  // AI CONSENT (0243): only athletes who said yes to the AI. Everyone else has no profile row in
+  // the map below, so the loop skips them before any model call.
+  const athleteIds = await filterConsented(svc, [...new Set(days.map((d) => d.athlete_id))]);
 
   // Timezones + opt-out; the coach-set protein target; and whether the follow-up already spoke
   // to this athlete today (its notification row is the durable record of that).
@@ -284,7 +287,9 @@ Deno.serve(async (req) => {
     if (!byAthlete.has(m.athlete_id)) byAthlete.set(m.athlete_id, []);
     byAthlete.get(m.athlete_id)!.push(m);
   }
-  const athleteIds = [...byAthlete.keys()];
+  // AI CONSENT (0243): the follow-up reads the athlete's meal with the model, so only athletes who
+  // said yes are candidates. Nothing is sent, and no model is called, for anyone else.
+  const athleteIds = await filterConsented(svc, [...byAthlete.keys()]);
 
   // Timezones + notification opt-out, one read.
   const profById = new Map<string, Prof>();
