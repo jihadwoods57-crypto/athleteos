@@ -43,7 +43,8 @@ import { productCacheKey } from '../_shared/food-resolve.ts';
 import { resolvePackagedProduct } from '../_shared/packaged-resolve.ts';
 import { groundPackagedItems, MAX_LOOKUPS as PACKAGED_MAX_LOOKUPS } from '../_shared/packaged-grounding.ts';
 import { composeOpenerText } from '../_shared/meal-opener.ts';
-import { athleteContextLine, type AthleteContextIn } from '../_shared/athlete-context.ts';
+import { athleteContextLine, positionWords, type AthleteContextIn } from '../_shared/athlete-context.ts';
+import { loadAthleteDossier, renderDossier } from '../_shared/athlete-dossier.mjs';
 import { dayContextLine } from '../_shared/day-context.ts';
 import { detectDayLeak, dayLeakOutcome } from '../_shared/day-leak.ts';
 import { earlierMealsLine } from '../_shared/day-meals.ts';
@@ -326,6 +327,9 @@ interface AnalyzeReq {
    *  (which is the PRE-meal total the analysis prompt needs) because conflating the two is the
    *  bug this mode exists to fix — see meal-opener.ts's OpenerContext. */
   dayAfter?: { proteinIncludingThisMeal?: number; proteinTarget?: number; mealsRemaining?: number };
+  /** SERVER-SET ONLY: the rendered athlete dossier (_shared/athlete-dossier.mjs). Any value a
+   *  client sends is discarded the moment the body is parsed. */
+  dossier?: string;
   /** Mode 'opener' ONLY: the finished, GROUNDED read — the exact object the Meal Breakdown card
    *  renders. Every figure the thread bubble states is composed from this and nothing else. */
   read?: Record<string, unknown>;
@@ -759,7 +763,10 @@ function userContent(req: AnalyzeReq, photoMime: string): unknown[] {
   // Who is eating (2026-09-02): sport, position, level, bodyweight, training/rest day. Rendered
   // and sanitized in _shared/athlete-context.ts; '' when the client sent nothing, so an older
   // build's prompt is byte-identical.
-  const athlete = athleteContextLine(req.athlete);
+  // The server-side dossier (2026-09-23), when it loaded, supersedes the client line: it carries
+  // the same identity (and the client's day type) plus goal, goal weight, standard and allergies.
+  const athlete = req.dossier ? '' : athleteContextLine(req.athlete);
+  const dossier = req.dossier ? `\n\n${req.dossier}` : '';
   // The free-text note is athlete-controlled: cap it (a "call" is metered but its tokens were
   // not — an uncapped note could carry ~100K tokens through one counted slot), collapse
   // newlines, and mark it as data so pasted text can't restyle the analysis.
@@ -849,7 +856,7 @@ function userContent(req: AnalyzeReq, photoMime: string): unknown[] {
   }
   blocks.push({
     type: 'text',
-    text: `${goal}${athlete} Meal slot: ${req.mealType}.${desc}${an}${timing}${day}${earlier} Analyze the meal${req.photoBase64 ? ' in the photo' : ' (no photo provided; infer a typical ' + req.mealType.toLowerCase() + ')'} and report it.${qa}${slot}${avoid}${memory}`,
+    text: `${goal}${athlete} Meal slot: ${req.mealType}.${desc}${an}${timing}${day}${earlier} Analyze the meal${req.photoBase64 ? ' in the photo' : ' (no photo provided; infer a typical ' + req.mealType.toLowerCase() + ')'} and report it.${qa}${slot}${avoid}${memory}${dossier}`,
   });
   return blocks;
 }
@@ -1021,6 +1028,8 @@ Deno.serve(async (request) => {
   let req: AnalyzeReq;
   try {
     req = await request.json();
+    // The dossier is the server's own read of the athlete; a client can never supply one.
+    if (req && typeof req === 'object') delete (req as { dossier?: unknown }).dossier;
   } catch {
     return new Response(JSON.stringify({ error: 'bad request' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
   }
@@ -1303,6 +1312,10 @@ Deno.serve(async (request) => {
   if (isMeal && userId) {
     const sb = svcClient();
     if (sb) {
+      // THE DOSSIER (2026-09-23): goal, goal weight, the coach's standard, declared allergies, age
+      // band, weight trend, read for the CALLER, who on the meal path is the athlete reading their
+      // own plate. Started first so it runs alongside the loads below; never rejects.
+      const dossierP = loadAthleteDossier(sb, userId, { isSelf: true, weightClient: null, dayDate: null });
       if (await flagOn(sb, 'coach_voice_v2', { userId })) {
         const loaded = await loadVoice(sb, userId);
         if (loaded) voiceCfg = loaded.cfg;
@@ -1322,6 +1335,10 @@ Deno.serve(async (request) => {
           req.avoid = (req.avoid || []).concat(memAvoid.filter((x) => !seen.has(x))).slice(0, 20);
         }
       }
+      // Rendered after plan style resolves: an Intuitive athlete's block carries no target figure.
+      req.dossier = renderDossier(await dossierP, {
+        viewer: 'self', planStyle, dayType: req.athlete?.dayType, positionWords,
+      }) || undefined;
     }
   }
   // Voice -> style -> base. `styledBase` is the prompt WITHOUT the coach voice but WITH the style:

@@ -32,7 +32,10 @@ import { memoryBlock, chatFactCandidate, factKey, memoryOfferLine, CHAT_FACT_KIN
 import { flagOn } from '../_shared/feature-flags.ts';
 import { routeForCoachMeal } from '../_shared/followup.ts';
 import { chatVoiceDirective } from '../_shared/coach-voice.ts';
-import { athleteContextLine } from '../_shared/athlete-context.ts';
+import { athleteContextLine, positionWords } from '../_shared/athlete-context.ts';
+// WHO THIS ATHLETE IS, read server-side for the meal OWNER (2026-09-23): goal, goal weight, the
+// coach's standard, allergies, age band, weight trend. Visibility per caller; see the module header.
+import { loadAthleteDossier, renderDossier } from '../_shared/athlete-dossier.mjs';
 // WHO IS THIS MESSAGE FOR. Byte-identical to proto/redesign-2026-07/js/ai-addressing.js
 // (`npm run lint:mirror` fails the build if they drift), so the client's decision not to spend
 // a turn and this function's refusal to spend one are the SAME decision, not two that agree.
@@ -585,7 +588,8 @@ Deno.serve(async (req) => {
     // renderer, same sanitization as analyze-meal — and '' when the client sends nothing, which
     // is what makes this safe to deploy ahead of the client that fills it in.
     const whoLine = athleteContextLine(body?.athlete);
-    const ctxBlock = `Context (deterministic, computed by the app):\n${JSON.stringify(context)}${whoLine ? `\n\nThe athlete this thread belongs to:${whoLine}` : ''}`;
+    // ctxBlock is assembled below, once the server-side dossier has loaded: the dossier replaces
+    // this client-sent line whenever it has anything to say.
 
     // ---- authorization (RLS does the work) ----
     // Athlete mode: the caller must OWN the meal. Coach mode: the RLS-scoped select succeeding
@@ -598,7 +602,7 @@ Deno.serve(async (req) => {
     const callerId = userData?.user?.id;
     if (!callerId) return bad(401, 'unauthorized', cors);
     telemUserId = callerId;
-    const { data: mealRow } = await userClient.from('meals').select('id, athlete_id').eq('id', mealId).maybeSingle();
+    const { data: mealRow } = await userClient.from('meals').select('id, athlete_id, day_date').eq('id', mealId).maybeSingle();
     if (!mealRow) return bad(403, 'unauthorized', cors);
     // Coach modes (coachSupport + coachAsk + draft): the RLS-scoped select above succeeding for a
     // NON-owner proves can_view (linked coach/staff), so a coach must NOT own the meal. Athlete
@@ -661,6 +665,16 @@ Deno.serve(async (req) => {
     // mode the caller is the COACH — but the person who reads the words is the athlete, so it is
     // their style that decides what may be said. Getting this backwards would let a coach
     // unknowingly send macro figures to an athlete who is deliberately not tracking them.
+    // THE DOSSIER (founder 2026-09-23: "the AI Nutritionist should know the athlete's
+    // requirements, goal weight, position"). Started FIRST so its reads run alongside the plan
+    // style, memory and voice loads below: one parallel batch, no model call. Keyed on the meal
+    // row's athlete_id (never a client id). A coach or trainer sees only what the database lets
+    // them see: weight facts are gated by can_view_weight, asked with the CALLER's JWT.
+    const dossierP = loadAthleteDossier(service, mealRow.athlete_id, {
+      isSelf: mealRow.athlete_id === callerId,
+      weightClient: userClient,
+      dayDate: typeof mealRow.day_date === 'string' ? mealRow.day_date : null,
+    });
     const planStyle: PlanStyle | null =
       (await loadPlanStyleForAthlete(service, mealRow.athlete_id))?.style ?? null;
     // ATHLETE MEMORY (0019), for the MEAL OWNER — same reasoning as plan style: the person the
@@ -677,6 +691,16 @@ Deno.serve(async (req) => {
     // when voice is off or unset, and a null directive keeps the prompt byte-identical to before.
     const voice = await loadVoiceForAthlete(service, mealRow.athlete_id);
     const voiceDirective = voice ? chatVoiceDirective(voice.cfg) : '';
+    // Guardians never reach this line (0081 took them out of can_view, so the meal select above
+    // refuses them); 'guardian' is the fail-closed answer should one ever arrive in a coach mode.
+    const dossier = renderDossier(await dossierP, {
+      viewer: !coachMode ? 'self' : body?.askerNoun === 'parent' ? 'guardian' : 'staff',
+      planStyle,
+      dayType: body?.athlete?.dayType,
+      positionWords,
+    });
+    const ctxBlock = `Context (deterministic, computed by the app):\n${JSON.stringify(context)}${
+      dossier ? `\n\n${dossier}` : whoLine ? `\n\nThe athlete this thread belongs to:${whoLine}` : ''}`;
     const styleSafe = (text: string): string => {
       // Shared tail of both call sites below: one corrected retry is handled inline by the
       // caller; this is the final rail that guarantees nothing unsafe is ever persisted.
