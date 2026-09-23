@@ -105,7 +105,10 @@ describe('Home: the next roll call', () => {
     expect(html).toContain('6:00 AM');
     expect(html).toContain('2 will get it');
     expect(html).toContain('Feet on the floor. Bus at 7.');
-    expect(html).toContain('data-wk-day="' + tomorrow + '"');
+    // Change opens the coach's week strip for this roll call (a553c146, "one way in per role"),
+    // where the day can be moved or skipped; the old in-place day editor (data-wk-day) is retired.
+    expect(html).toContain('data-go="rollcall-week/c1"');
+    expect(html).not.toContain('data-wk-day=');
     expect(html).toContain('data-wk-skip=');
     expect(html).not.toContain('for sure');       // the first tap only arms it
   });
