@@ -2,8 +2,8 @@
 
 Visual walkthrough (drawings + today's screenshots): https://claude.ai/artifact/VWQw2LKLnXneumgSxumZqK
 
-Status: **approved in principle by the founder 2026-09-23**, with the changes recorded below.
-No code written yet.
+Status: **approved by the founder 2026-09-23** ("Love it"). Corrections from the code map are in
+"Corrections after mapping the code" at the end; they win over anything above them.
 
 ## The vision, in the founder's words and choices
 
@@ -156,3 +156,36 @@ Founder chose to ship the native piece now.
 
 Photo proof, step-count proof, teammates reacting on the board, position-group competition,
 Android parity beyond what is already designed.
+
+## Corrections after mapping the code (2026-09-23)
+
+1. **Location was removed on 2026-09-09** (commit 8e7506bb, "take out arrival check-in") to cut the
+   biggest App Review risk: the native seam `src/lib/location`, the six LOCATION_* bridge messages,
+   the consent screen, "I'm here", the coach's place picker, expo-location, the location purpose
+   strings and UIBackgroundModes. **Founder decision 2026-09-23: bring ALL of it back in this build
+   ("Everything now"), including automatic walk-in check-in with "Always" location, accepting the
+   review risk.** It is restored from `git show 8e7506bb^:<path>`, not rewritten. Server columns and
+   RPCs were kept and are reused.
+2. **The server trusts the phone on arrival today** (`verify_arrival(p_within boolean)`). The
+   rebuild adds a server-side distance check: the phone sends one reading (lat, lng, accuracy), the
+   server computes the distance to the place and discards the coordinates.
+3. **Stop on the iPhone alarm already checks the athlete in** (`stopIntent: RollCallCheckInIntent`).
+   Kept: that IS the one tap. The alarm's second button ("I'm Up", the coach's words) also checks
+   in AND opens the app on the team board. The spec text above saying "Stop only silences" is void.
+4. **A lock-screen tap does not reach the server until the app opens** (the intent only records to
+   the App Group). The intent now posts the check-in itself with an instance-bound signed code,
+   and still records locally as the fallback.
+5. **The Live Activity carries no team data and ends on check-in.** Content state gains team count,
+   place in line and points; a check-in updates the card instead of ending it; the card ends at
+   close. Team-count updates fan out on each check-in, throttled.
+6. **No closing summary exists** (the coach digest fires at the deadline, opt-in). A summary push at
+   close is added.
+7. **Wake-ups open at start time today**, not 10 minutes before. Opening moves to 10 min before.
+8. **The radius floor in the table is 50 m.** New places are held to 100 m by the saving function;
+   existing rows are untouched.
+9. **The 8 morning points are already a shared budget** with the sleep standard
+   (`weightsForAssigned`, NIGHT_SHIFT). Arrival joins that budget: each assigned part gets
+   8 / (number assigned). Wake-up + arrival = 4 + 4, as designed; with sleep too, 8/3 each.
+10. **"Different time for a group" is deferred.** The instance model has one time per occurrence;
+    per-group times need a separate design. Move and cancel a morning ship now.
+11. No map library is installed: `expo-maps` (SDK 57: 57.0.3) is added for the coach's map.
