@@ -147,7 +147,6 @@ export const screens = {
   'coach-plan': lazy(coach, 'coachPlan'),
   'coach-plan-set': lazy(coach, 'coachPlanSet'),
   'coach-inbox': lazy(coach, 'coachInbox'),
-  copilot: lazy(coach, 'copilot'),
   // Trainer dashboard = the SAME operator modules the coach renders, under role-coherent routes
   // so a trainer's URL never reads #coach-*. The modules declare nav:'operator'; the router picks
   // the tab bar from RT.authRole and coach-data.js reduces them by capability.

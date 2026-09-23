@@ -126,7 +126,7 @@ assert.strictEqual(navFor(OPERATOR, undefined), 'coach');
   };
   // A tab id outside its shell lights NO tab — the screen paints with a dead bar. Profile-ish
   // screens legitimately do this (neither operator shell has a profile tab), so they're exempt.
-  const EXEMPT = new Set(['profile', 'copilot', 'note', 'grow', 'clients', 'team']);
+  const EXEMPT = new Set(['profile', 'note', 'grow', 'clients', 'team']);
   const orphans = [];
   for (const [route, mod] of Object.entries(screens)) {
     if (!mod || mod.hideTabs || !mod.tab || EXEMPT.has(mod.tab)) continue;

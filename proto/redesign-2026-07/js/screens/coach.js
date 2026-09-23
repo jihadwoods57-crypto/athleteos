@@ -31,7 +31,7 @@ import { openImageViewer } from '../image-viewer.js';
 import { overlayOpen } from '../overlay-guard.js';
 import { wireTapback } from '../tapback.js';
 import { CD, loadBook, bookKindFor, bookId as currentBookId, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock, logBookIntervention, resolvePos, seenMealSet } from '../coach-data.js';
-import { STATUS_META, statusColor, statusLabel } from '../status.js';
+import { STATUS_META, statusColor, statusLabel, teamCounts } from '../status.js';
 import { openRosterFiltered } from './coach-roster.js';
 import { everyone, people, audienceIds, audienceLabel, planSends, namesSummary, audienceHtml, wireAudience } from '../audience.js';
 import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin, planStyleFromItems } from '../requirements.js';
@@ -50,22 +50,6 @@ import { initialsOf } from '../initials.js';
 import { SPORT_POSITIONS } from './profile.js';
 import { VC, loadBoard } from '../commitment-data.js';
 import { hydrateAvatars } from '../avatar.js';
-
-/* The Recovery Standard on a roster row: a verdict in three characters, never an athlete's sleep
-   duration. Purple is recovery (DESIGN.md: one meaning per hue) and carries the two states worth a
-   coach's attention; a met standard says so quietly in the neutral pill rather than competing with
-   the score beside it. Absent entirely when no standard was assigned or no reading arrived, which
-   is most of a real roster and must cost those athletes nothing. */
-function nightChip(night) {
-  // EXCEPTIONS ONLY. A met standard renders nothing: this roster's entire job is "who needs
-  // attention", and on a full squad a chip on every athlete who slept fine is a row of text
-  // carrying no action, which is exactly the badges-for-everything the product's anti-references
-  // name. The signal itself still carries 'met' for surfaces that want completeness; a list you
-  // scan is not one of them.
-  if (night !== 'short' && night !== 'missed') return '';
-  return ` <span class="status-pill p rn-night">${night === 'short' ? 'Sleep short' : 'Sleep missed'}</span>`;
-}
-
 
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
@@ -1566,7 +1550,7 @@ export const coachPlanSet = {
 };
 
 /* ---------- Inbox v2 (Slice D): six real categories over real thread state ----------
-   Replaces the Copilot TAB (the copilot screen stays routable for deep links).
+   Replaces the old Copilot tab (its screen was unregistered in the 2026-09-23 review pass).
    Briefing = deterministic reads over the real roster — never narrated fiction.
    categorizeInbox (js/inbox.js) sorts/buckets the real data into Needs response · Athletes ·
    Meal reviews · Staff · Announcements · Resolved; this screen only fetches, escapes, and
@@ -1729,7 +1713,7 @@ function inboxOut() {
 function inboxRow(r) {
   // Right-aligned relative stamp per row (fmtWhen, the bell feed's own clock) so a coach can
   // tell an hour-old thread from last Tuesday's without opening either.
-  const when = r.ts ? fmtWhen(new Date(r.ts).toISOString(), Date.now()) : '';
+  const when = r.whenLabel || (r.ts ? fmtWhen(new Date(r.ts).toISOString(), Date.now()) : '');
   const stamp = when ? `<span class="ib-when">${esc(when)}</span>` : '';
   // No attention mark here on purpose. Each category renders on its own, so a "needs response"
   // dot would sit on 100% of the rows in that view and 0% everywhere else: it would restate the
@@ -1868,15 +1852,26 @@ export const coachInbox = {
       ? 'No clients yet. Share your client code from your Practice HQ and this becomes your morning read.'
       : 'No athletes yet. Share your team code and this becomes your morning read.';
     else {
-      const notLogged = rows.filter(r => !r.loggedToday);
-      const below = rows.filter(r => r.score != null && r.score < ON_STANDARD);
-      const top = rows.filter(r => r.score != null && r.score >= ON_STANDARD).sort((a, b) => b.score - a.score)[0];
-      const lines = [];
-      const bline = (color, html) => `<div class="l"><span class="dot" style="background:${color}"></span><span>${html}</span></div>`;
-      if (notLogged.length) lines.push(bline(statusColor({ key: 'overdue' }), `<b>${notLogged.length} not logged yet</b>. ${esc(notLogged.slice(0, 3).map(r => r.name.split(' ')[0]).join(', '))}${notLogged.length > 3 ? '…' : ''}.`));
-      if (below.length) lines.push(bline(statusColor({ key: 'below_standard' }), `<b>${below.length} below the bar</b> today (under 80).`));
-      if (top) lines.push(bline(scoreColor(top.score), `<b>${esc(top.name)}</b> leads the day at ${top.score}.`));
-      briefing = lines.join('') || `<div class="l"><span>Quiet so far. Logs land here as they come in.</span></div>`;
+      // THE team count (status.js teamCounts), the same function and the same words Home,
+      // Insights and the Roster use. This briefing used to count for itself ("2 below the bar
+      // today (under 80)") beside Home's "1 need attention · 2 overdue" (review pass C-M3).
+      const entries = entriesFor({ kind: 'team', value: null });
+      if (!entries) briefing = 'Reading your roster…';
+      else {
+        const c = teamCounts(entries);
+        const names = (key) => {
+          const list = entries.filter(e => e.status.key === key).map(e => e.row.name.split(' ')[0]);
+          return `${esc(list.slice(0, 3).join(', '))}${list.length > 3 ? '…' : ''}`;
+        };
+        const top = rows.filter(r => r.score != null && r.score >= ON_STANDARD).sort((a, b) => b.score - a.score)[0];
+        const lines = [];
+        const bline = (color, html) => `<div class="l"><span class="dot" style="background:${color}"></span><span>${html}</span></div>`;
+        if (c.overdue) lines.push(bline(statusColor({ key: 'overdue' }), `<b>${c.overdue} overdue</b>. ${names('overdue')}.`));
+        if (c.noActivity) lines.push(bline(statusColor({ key: 'no_activity' }), `<b>${c.noActivity} no activity</b> yet today. ${names('no_activity')}.`));
+        if (c.attention) lines.push(bline(statusColor({ key: 'below_standard' }), `<b>${c.attention} need attention</b>: below standard, due soon or waiting on review.`));
+        if (top) lines.push(bline(scoreColor(top.score), `<b>${esc(top.name)}</b> leads the day at ${top.score}.`));
+        briefing = lines.join('') || `<div class="l"><span>Quiet so far. Logs land here as they come in.</span></div>`;
+      }
     }
 
     // The briefing used to wear the book's hue: purple, or green on a nutrition book. Purple has
@@ -2051,62 +2046,6 @@ export const coachInbox = {
       e.stopPropagation();
       location.hash = `#${codeRoute()}`;
     });
-  },
-};
-
-/* ---------- Copilot: deterministic reads over the REAL roster (honest, not narrated fiction) ---------- */
-export const copilot = {
-  nav: 'coach', tab: 'copilot',
-  render() {
-    const rows = CD.roster ? CD.roster.rows : null;
-    // Offline must read as offline, not as a stuck "loading" (F-C1) or a false "no athletes":
-    // when the roster fetch failed, CD.roster.rows is [] with offline=true, which would otherwise
-    // fall through to the empty-roster summary. Mirror the Coach/Trainer tabs' honest offline card.
-    if (CD.roster && CD.roster.offline) {
-      return `${backHead('Copilot', 'Real numbers from your roster, never guesses', 'coach-home')}${errorState({ title: "Can't reach your roster", body: "Copilot reads only real team data. No numbers are invented while it's down. Reconnect and its reads fill in right here.", retryId: 'copilot-retry' })}`;
-    }
-    if (rows === null) {
-      return `${backHead('Copilot', 'Real numbers from your roster, never guesses', 'coach-home')}${skeletonRows(3, 'Loading the roster')}`;
-    }
-    if (rows.length === 0) {
-      // Audit G-1: an actionable empty, not the dead-pointer "Share your team code to get started".
-      return `${backHead('Copilot', 'Real numbers from your roster, never guesses', 'coach-home')}${emptyState({ icon: 'users', title: 'No athletes yet', body: 'Copilot reads your real roster. Share your athlete code and its reads fill in as your team logs.', action: { label: 'Share athlete code', go: 'coach-profile/code' } })}`;
-    }
-    const attention = rows.filter(r => r.flag === 'r');
-    const belowBar = rows.filter(r => r.score != null && r.score < ON_STANDARD);
-    const notLogged = rows.filter(r => !r.loggedToday);
-    const summary = rows.length === 0
-      ? 'No athletes on your roster yet. Share your team code to get started.'
-      : `${rows.length} athlete${rows.length > 1 ? 's' : ''} on your roster. `
-        + (attention.length ? `${attention.length} need attention (no logs or off standard). ` : belowBar.length ? `${belowBar.length} logged below the standard today. ` : 'Everyone who logged is on standard. ')
-        + (notLogged.length ? `${notLogged.length} haven't logged today.` : 'Everyone has logged today.');
-    return `
-    ${backHead('Copilot', 'Real numbers from your roster, never guesses', 'coach-home')}
-
-    <div class="ai-note">
-      <div class="av">${icon('sparkle', 18)}</div>
-      <div><div class="who">Copilot</div><p>${esc(summary)}</p></div>
-    </div>
-
-    ${belowBar.length ? `
-    <h2 class="eyebrow">The numbers behind it</h2>
-    <section class="card" style="padding:2px 0">
-      ${belowBar.map(r => `
-        <div class="roster-row" data-go="coach-athlete/${esc(r.athleteId)}" role="button" tabindex="0" aria-label="${esc(r.name)}${r.score != null ? `, score ${r.score}` : ''}. ${esc(r.note)}">
-          <div class="flagdot ${r.flag}"></div>
-          <div class="rn"><div class="t">${esc(r.name)}</div><div class="s">${esc(r.note)}${nightChip(r.night)}</div></div>
-          <span class="rs" style="color:${scoreColor(r.score)}">${r.score != null ? r.score : '—'}</span>
-        </div>`).join('')}
-    </section>` : `
-    <div class="sidebox"><div class="req-icon g s38">${icon('check', 17)}</div>
-    <div><div class="tt">Nobody below the bar</div><div class="ts">Every logged athlete is at 80+. Check back after tonight's logs.</div></div></div>`}
-    <div style="height:10px"></div>
-    `;
-  },
-  mount(root) {
-    loadBook(false, bookKindFor(RT.authRole));
-    const cRetry = root && root.querySelector('#copilot-retry');
-    if (cRetry) cRetry.addEventListener('click', () => { cRetry.disabled = true; loadBook(true, bookKindFor(RT.authRole)).then(() => window.__render()); });
   },
 };
 

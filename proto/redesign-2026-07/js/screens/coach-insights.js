@@ -3,6 +3,7 @@ import { icon } from '../icons.js';
 import { backHead, esc, errorState, skeletonRows, emptyState } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, entriesFor, getScope, scopeFilter } from '../coach-data.js';
+import { teamCounts, COUNT_BUCKETS } from '../status.js';
 
 /* nav:'operator'. Load whichever book the signed-in role owns (see coach-home.js). */
 const loadMyBook = (force) => loadBook(force, bookKindFor(RT.authRole));
@@ -241,12 +242,17 @@ export const coachInsights = {
     const scope = getScope();
     const entries = entriesFor(scope) || [];
     const by = (k) => entries.filter(e => e.status.key === k);
+    // THE team count (status.js teamCounts), the same function Home, the Inbox and the Roster read,
+    // and the same one word per state (review pass C-M3).
+    const c = teamCounts(entries);
+    const firstNames = (list) => `${list.slice(0, 3).map(e => e.row.name.split(' ')[0]).join(', ')}${list.length > 3 ? '…' : ''}`;
     const lines = [];
-    if (by('overdue').length) lines.push(`${by('overdue').length} ${CD.noun}${by('overdue').length > 1 ? 's are' : ' is'} overdue right now: ${by('overdue').slice(0, 3).map(e => e.row.name.split(' ')[0]).join(', ')}${by('overdue').length > 3 ? '…' : ''}.`);
-    if (by('no_activity').length) lines.push(`${by('no_activity').length} ${by('no_activity').length > 1 ? 'have' : 'has'} no activity in the last day.`);
-    if (by('below_standard').length) lines.push(`${by('below_standard').length} logged below the standard today.`);
-    if (by('needs_review').length) lines.push(`${by('needs_review').length} log${by('needs_review').length > 1 ? 's are' : ' is'} in. Waiting on a score or your review.`);
-    const top = entries.filter(e => e.row.score != null).sort((a, b) => b.row.score - a.row.score)[0];
+    if (c.overdue) lines.push(`${c.overdue} overdue right now: ${firstNames(by('overdue'))}.`);
+    if (c.noActivity) lines.push(`${c.noActivity} with no activity yet today.`);
+    if (c.byStatus.below_standard) lines.push(`${c.byStatus.below_standard} below standard today.`);
+    if (c.byStatus.due_soon) lines.push(`${c.byStatus.due_soon} due soon: a window closes within the hour.`);
+    if (c.byStatus.needs_review) lines.push(`${c.byStatus.needs_review} need${c.byStatus.needs_review === 1 ? 's' : ''} review: a log is in, waiting on a score or your review.`);
+    const top = entries.filter(e => e.row.score != null).sort((x, y) => y.row.score - x.row.score)[0];
     if (top) lines.push(`${top.row.name} leads the day at ${top.row.score}.`);
     if (!lines.length) {
       const logged = entries.filter(e => e.row.loggedToday).length;
@@ -256,13 +262,9 @@ export const coachInsights = {
     }
     // Recurring standing-bar motif — the same signature language as Home, so Insights opens
     // on the team's real shape at a glance before the sentences explain it.
-    const keys = entries.map(e => e.status.key);
-    const cnt = (p) => keys.filter(p).length;
-    const g = cnt(k => k === 'on_standard'), a = cnt(k => k === 'due_soon' || k === 'below_standard' || k === 'needs_review');
-    const r = cnt(k => k === 'overdue'), d = cnt(k => k === 'no_activity' || k === 'excused');
-    const seg = (cls, c) => c ? `<span class="seg ${cls}" style="flex:${c}"></span>` : '';
-    const leg = (cls, c, l) => c ? `<span class="it"><span class="dot ${cls}"></span><b>${c}</b> ${l}</span>` : '';
-    const lineDot = (l) => /overdue/i.test(l) ? 'r' : /no activity/i.test(l) ? 'd' : /below|waiting|review/i.test(l) ? 'a' : /leads/i.test(l) ? 'g' : 'b';
+    const seg = (cls, n) => n ? `<span class="seg ${cls}" style="flex:${n}"></span>` : '';
+    const leg = (bk) => c[bk.key] ? `<span class="it"><span class="dot ${bk.cls}"></span><b>${c[bk.key]}</b> ${bk.label}</span>` : '';
+    const lineDot = (l) => /overdue/i.test(l) ? 'r' : /no activity/i.test(l) ? 'd' : /below|due soon|review/i.test(l) ? 'a' : /leads/i.test(l) ? 'g' : 'b';
     /* One block, not two. The standing bar used to be its own eyebrow ("Where the team stands")
        over its own card, and that card held nothing but a 12px bar and a legend — a heading and a
        container built for two marks, floating above a second heading and a second container that
@@ -272,8 +274,8 @@ export const coachInsights = {
     return `${head}
     <h2 class="eyebrow co-minor">Today's read · ${esc(scopeLabel(scope))}</h2>
     <section class="card" style="padding:var(--s4)">
-      ${entries.length ? `<div class="co-standing" style="margin-top:0">${seg('g', g)}${seg('a', a)}${seg('r', r)}${seg('d', d)}</div>
-      <div class="co-legend" style="padding-bottom:var(--s4);border-bottom:1px solid var(--hairline-soft);margin-bottom:var(--s2)">${leg('g', g, 'on standard')}${leg('a', a, 'need attention')}${leg('r', r, 'overdue')}${leg('d', d, 'no activity')}</div>` : ''}
+      ${entries.length ? `<div class="co-standing" style="margin-top:0">${COUNT_BUCKETS.map(bk => seg(bk.cls, c[bk.key])).join('')}</div>
+      <div class="co-legend" style="padding-bottom:var(--s4);border-bottom:1px solid var(--hairline-soft);margin-bottom:var(--s2)">${COUNT_BUCKETS.map(leg).join('')}</div>` : ''}
       ${lines.map(l => dotLine(l, lineDot(l))).join('')}
     </section>
 

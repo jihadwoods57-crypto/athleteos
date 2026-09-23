@@ -93,28 +93,40 @@ export function previewSub(meal, role, resolved) {
  *  entriesFor). Groups by openItems[].id where state==='overdue' — an athlete with 2 overdue
  *  items counts once per item id, never double-counted within one id. */
 export function inboxAlerts(entries, nowMs) {
-  const byItem = {}; // itemId -> { title, count }
+  const byItem = {}; // itemId -> { title, count, dueMin }
   for (const e of (entries || [])) {
     const items = (e && e.status && e.status.openItems) || [];
     for (const it of items) {
       if (!it || it.state !== 'overdue') continue;
       const id = it.id;
-      if (!byItem[id]) byItem[id] = { title: it.title || id, count: 0 };
+      if (!byItem[id]) byItem[id] = { title: it.title || id, count: 0, dueMin: null };
       byItem[id].count++;
+      if (typeof it.dueMin === 'number' && (byItem[id].dueMin == null || it.dueMin < byItem[id].dueMin)) byItem[id].dueMin = it.dueMin;
     }
   }
   const out = [];
   for (const id of Object.keys(byItem)) {
-    const { title, count } = byItem[id];
+    const { title, count, dueMin } = byItem[id];
     out.push({
       kind: 'alert',
       id: `alert:overdue:${id}`,
       title: `${count} athlete${count === 1 ? '' : 's'} ${count === 1 ? "hasn't" : "haven't"} logged ${title}`,
       sub: 'Overdue requirement',
       ts: nowMs,
+      // The time it went overdue, not the time the inbox was opened: a lunch due at 2:00 PM read
+      // "now" at 8:10 PM (review pass C-M9). The earliest deadline across the group.
+      whenLabel: dueMin != null ? `since ${clockOf(dueMin)}` : '',
     });
   }
   return out;
+}
+
+/** minutes-from-midnight → "2:00 PM". A local copy of state.js fmtClock: this module stays
+ *  import-free. */
+function clockOf(min) {
+  let h = Math.floor(min / 60) % 12; if (h === 0) h = 12;
+  const ap = Math.floor(min / 60) % 24 < 12 ? 'AM' : 'PM';
+  return `${h}:${String(min % 60).padStart(2, '0')} ${ap}`;
 }
 
 /** categorizeInbox({ meals, comments, interventions, roster, pending, staff, staffInvites,

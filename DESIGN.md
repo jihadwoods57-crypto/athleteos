@@ -487,3 +487,23 @@ records what the CSS now says.
 - **Empty notes take no room.** A thread's one-line note (`.cmp-note`) is `display: none` while
   empty; no composer holds an empty line open under itself.
 
+
+## Amendments · 2026-09-23 one count, one word
+
+- **One word per state on every coach surface.** `statusLabel()` (status.js) returns the status's
+  own word (`Overdue`, `Below standard`, `Due soon`, `Needs review`, `No activity`, `Excused`,
+  `On standard`) and no longer narrows a below-standard day to its tier name. Tier names
+  (`OnStandard`, `Locked In`, `Building`, `Off Standard`) describe a SCORE and appear only in a
+  tier chip beside that score; the 2026-09-22 "a 71 says Building" rule is reversed, because it put
+  the same athlete under a red "Overdue" on Home and an amber "Building" on the Roster.
+- **One count.** Home's legend, the Inbox briefing, Insights' read and the Roster's chips read
+  `teamCounts()` (status.js) over `entriesFor()`, with the buckets in `COUNT_BUCKETS`: on standard,
+  need attention (due soon + below standard + needs review), overdue, no activity, excused.
+  Excused is its own bucket, never lumped into "no activity". Pinned by `team-counts.test.mjs`.
+- **Requirements are counted from the standard.** "N of M requirements due so far are in" totals
+  each athlete's required items whose deadline has passed (or that are already done), across the
+  rostered athletes, excused left out (`requirementsDue()`). It never sums the day rows that happen
+  to exist, which dropped an athlete with no row from the total.
+- **The Roster has one grouping.** Band heads are the status, in the chips' words and order;
+  inside a band the chosen sort holds. The priority card's pill is the athlete's status too; the
+  queue's rank orders the cards but is not printed as a fourth vocabulary ("Critical").

@@ -4330,12 +4330,6 @@ button.rw-cell:active { transform: scale(var(--press-btn)); }
   font-variant-numeric: tabular-nums; color: var(--purple-bright); }
 .rec-anchor-d { font-size: var(--t-xs); font-weight: 700; color: var(--text-3); }
 
-/* The Recovery Standard on a roster row. A verdict, never an athlete's sleep duration: a coach
-   scanning a roster can act on "the standard was missed" and has no business with the hours. Rides
-   .status-pill so it speaks the one pill vocabulary; purple because it is recovery, muted when the
-   standard was met so a good night sits quietly instead of competing with the score beside it. */
-.rn-night { margin-left: var(--s1h); vertical-align: middle; }
-
 /* The coach's standard on the athlete's sleep screen. Accountability, sitting above the average
    rather than merged into it: the target is what a coach asked for and the average is what this
    body normally does, and scoring the second would give a habitual five-hour sleeper an easier

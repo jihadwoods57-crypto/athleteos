@@ -12,7 +12,7 @@ import { statusColor, statusLabel } from '../status.js';
 import { styleLabel } from '../plan-style.js';
 import { initialsOf } from '../initials.js';
 import { hydrateAvatars } from '../avatar.js';
-import { scoreColor, tierFor } from '../score-band.js';
+import { scoreColor } from '../score-band.js';
 import { nudgePreset, tierForStatus } from '../nudge-presets.js';
 import { reasonKey } from '../priority.js';
 
@@ -65,14 +65,25 @@ const STATUS_ORDER = ['overdue', 'no_activity', 'needs_review', 'below_standard'
 
 const NO_MATCH_HTML = `<div style="padding:18px;text-align:center;font-size:12px;font-weight:600;color:var(--text-3)">No one matches that filter.</div>`;
 
-function lastActivityLabel(iso) {
+function lastActivityLabel(row) {
+  const iso = row && row.lastMealAt;
   // "No logs yet", not "No recent activity": at 320w the longer string pushed the whole
   // status line into a mid-word ellipsis, and it says the same thing in half the room.
-  if (!iso) return 'No logs yet';
+  // Only for an athlete with no history at all: meals are read for 2 days, the score history for 7,
+  // so a quiet-since-Monday athlete falls back to their last scored day (review pass C-M2).
+  if (!iso) return lastDayLabel(row && row.lastDayISO) || 'No logs yet';
   const h = Math.floor((Date.now() - new Date(iso).getTime()) / 3600000);
   if (h < 1) return 'Active just now';
   if (h < 24) return `Active ${h}h ago`;
   return `Active ${Math.floor(h / 24)}d ago`;
+}
+
+/** "Last logged Mon" from a YYYY-MM-DD day, or '' when there is none. */
+export function lastDayLabel(dayISO) {
+  if (!dayISO || !/^\d{4}-\d{2}-\d{2}$/.test(dayISO)) return '';
+  const d = new Date(`${dayISO}T12:00:00`);
+  if (isNaN(d.getTime())) return '';
+  return `Last logged ${d.toLocaleDateString('en-US', { weekday: 'short' })}`;
 }
 
 function applyView(entries) {
@@ -93,7 +104,9 @@ function applyView(entries) {
     name: (a, b) => a.row.name.localeCompare(b.row.name),
     activity: (a, b) => String(b.row.lastMealAt || '').localeCompare(String(a.row.lastMealAt || '')),
   };
-  return [...list].sort(by[SORT] || by.score);
+  const sorted = [...list].sort(by[SORT] || by.score);
+  // Banded: group by status (stable sort keeps the chosen order inside each band).
+  return bandsApply() ? sorted.sort(by.status) : sorted;
 }
 
 /* The dot's colour and the score's colour BOTH already say "on standard" and "below standard"
@@ -107,7 +120,7 @@ function rosterRow(e) {
   // One calm status signal: a colored dot on the left. The label reads in quiet text-2,
   // not saturated body text — a roster full of red type reads as panic, not information.
   const scoreCol = scoreColor(r.score);
-  const activity = esc(lastActivityLabel(r.lastMealAt));
+  const activity = esc(lastActivityLabel(r));
   // Status reaches the coach three ways at once: the band header this row sits under, the dot on
   // the avatar, and this line. The third copy is the one that pushed "Active just now" into an
   // ellipsis, so it goes whenever a band header is carrying the same word. REDUNDANT_STATUS still
@@ -142,29 +155,30 @@ function rosterRow(e) {
 }
 
 /* ---------------- standing bands ----------------
-   The roster is sorted by score and rendered as one card of uniform rows, which makes a 14-person
-   squad a fourteen-line column where a 96 and a 47 look exactly alike: the coach has to read
-   every line to find the two people who need them. The sort already knows the answer — these
-   heads make it visible, so the shape of the day lands before a single name is read.
+   The roster is rendered as one card of uniform rows, which makes a 14-person squad a
+   fourteen-line column where a 96 and a 47 look exactly alike: the coach has to read every line to
+   find the two people who need them. Band heads make the shape of the day land before a name is
+   read.
 
-   Tier names and thresholds come from tierFor() (score-band.js); nothing is re-inlined here, so
-   the roster can never disagree with the badge on the athlete's own screen. Rows with no score
-   are their own trailing band, because "hasn't logged" is a different fact from "scored low" and
-   the coach acts on it differently.
+   ONE grouping (review pass 2026-09-23, C-M3/C-P3): the bands are the athlete's STATUS, in the same
+   words and order as the filter chips above them and the counts on Home, the Inbox and Insights.
+   They used to be score TIERS ("OnStandard / Locked In / Building / No log today") under status
+   chips ("Overdue / Below standard / On standard"): two vocabularies for one list, the brand name
+   used as a tier, and Tyrek red "Overdue" on Home while he sat under amber "Building" here. The
+   score keeps its tier colour on the number itself; the band says what the coach does about it.
 
-   Bands appear only when the score sort is doing the ordering and the list is the whole book:
-   under a name/status/recent sort or a search the ordering means something else, and a band head
-   would be labelling a list it did not arrange. */
+   Bands appear only when the list is the whole book in score or status order: under a name or
+   recent sort, a search or a status filter, a band head would be labelling a list it did not
+   arrange. Inside a band the rows keep the chosen order. */
 function bandKeyFor(e) {
-  if (e.row.score == null) return { key: 'none', name: 'No log today', color: 'var(--text-3)' };
-  const t = tierFor(e.row.score);
-  return { key: t.cls, name: t.name, color: scoreColor(e.row.score) };
+  const key = e.status && e.status.key;
+  return { key: key || 'none', name: statusLabel(e.status) || 'No status', color: statusColor({ key }) };
 }
 /* Select mode keeps its bands. Dropping them there would re-flow the whole list the instant the
    coach taps Select — the rows they were aiming at jump, which is the worst possible moment for
    the layout to move. Checkboxes replace the status dot inside the row; the heads are untouched. */
 function bandsApply() {
-  return SORT === 'score' && !Q.trim() && FILTER.kind !== 'status' && FILTER.kind !== 'statusSet';
+  return (SORT === 'score' || SORT === 'status') && !Q.trim() && FILTER.kind !== 'status' && FILTER.kind !== 'statusSet';
 }
 function listHtml(view) {
   if (!view.length) return NO_MATCH_HTML;

@@ -453,7 +453,6 @@ const SHOTS = [
     pre: rbSeed({ now: [6, 12], mode: 'wake' }) },
   { g: 'coach', name: 'coach-plan', seed: 'coachIdentity', route: 'coach-plan', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'coach-profile', seed: 'coachIdentity', route: 'coach-profile', at: [20, 10], book: 'team' },
-  { g: 'coach', name: 'copilot', seed: 'coachIdentity', route: 'copilot', at: [20, 10], book: 'team' },
 
   // trainer
   { g: 'trainer', name: 'trainer-home', seed: 'trainerIdentity', route: 'coach-home', at: [7, 30], book: 'practice' },
@@ -729,7 +728,7 @@ try {
             if (s.pre) await evalJs(page, `(async () => { ${s.pre} return 1; })()`);
             await evalJs(page, setTheme(theme));
             await evalJs(page, `(() => { location.hash = '#${s.route}'; return 1; })()`);
-            await sleep(/^(coach|trainer|parent|copilot)/.test(s.route) ? 2600 : 1400);
+            await sleep(/^(coach|trainer|parent)/.test(s.route) ? 2600 : 1400);
             // `act` drives the screen after it settles: a JS snippet run in-page (tap a chip, open a
             // picker, tick rows), so a state that only exists after interaction gets a still too.
             if (s.act) { await evalJs(page, `(async () => { ${s.act} return 1; })()`); await sleep(s.actMs || 700); }

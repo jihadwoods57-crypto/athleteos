@@ -714,6 +714,20 @@ test('a coach override reads On Standard and is never an athlete tap', () => {
   assert.notEqual(`${c.checkedIn} / ${c.total} checked in`, '4 / 4 checked in');
 });
 
+test('an on-time answer with any other or no ack_source is still accounted for (review pass C-B3)', () => {
+  const inst = { starts_at: wake.starts_at, respond_by_at: wake.respond_by_at, type: 'morning_roll_call', rows: [
+    { name: 'A', status: 'acknowledged', acknowledged_at: NY('10:01:00'), ack_source: 'lockscreen' },
+    { name: 'B', status: 'acknowledged', acknowledged_at: NY('10:02:00'), ack_source: null },
+    { name: 'C', status: 'acknowledged', acknowledged_at: NY('10:03:00'), ack_source: 'widget' },
+    { name: 'D', status: 'acknowledged', acknowledged_at: NY('10:04:00') },
+  ] };
+  const c = verdictCounts(inst, NY('11:00:00'));
+  assert.equal(c.onStandard, 4);
+  assert.equal(c.checkedIn, 1, 'the tap label still counts athlete taps only');
+  assert.equal(c.accountedFor, 4, 'never "1 of 4 accounted for" beside "All in"');
+  assert.equal(c.accountedFor + c.pending + c.stillOut + c.missed + c.review, c.total, 'every row lands in exactly one bucket');
+});
+
 test('a delayed-sync review counts as nothing until a coach resolves it', () => {
   const rv = { ...wake, status: 'acknowledged', acknowledged_at: NY('10:12:00'), device_tapped_at: NY('10:04:00'), ack_source: 'lockscreen', sync_review: true, review_resolution: null };
   assert.equal(isUnderReview(rv), true);
