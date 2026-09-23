@@ -91,6 +91,22 @@ $$;
 comment on function rollcall_arrival_verdict(text, timestamptz, timestamptz, int, timestamptz, timestamptz) is
   'Arrival verdict: excused | on_standard | late | unverified | pending | missed. Pure. Never missed before arrive-by + grace; a phone that could not confirm the place is unverified, never missed. 0242.';
 
+-- 2b. The status the ARRIVAL is judged from (fix round 2, N1). On a morning roll call the row's
+-- `status` belongs to the WAKE-UP (pending / acknowledged / missed / excused): an arrival never
+-- moves it (section 8), because every nudge pipeline (reminder, card open/start, missed claim)
+-- gates on status = 'pending'. A morning's "the phone could not confirm the place" therefore lives
+-- only in unverified_reason with no arrived_at, and this reads it back as 'unverified' for the
+-- arrival verdict. For every other type it returns the status unchanged (there, 'unverified' IS the
+-- status and a confirmed arrival clears the reason). Excused always wins.
+create or replace function rollcall_arrival_status(p_status text, p_arrived_at timestamptz, p_unverified_reason text)
+returns text language sql immutable set search_path = public as $$
+  select case
+    when p_status = 'excused' then 'excused'
+    when p_arrived_at is null and p_unverified_reason is not null then 'unverified'
+    else p_status
+  end;
+$$;
+
 -- ================================================================ 2. the team board
 -- Two functions, ONE body. rollcall_team_board_svc builds the board with no caller check and is
 -- granted to service_role ONLY (the grants block at the end revokes it from public, anon and
@@ -112,7 +128,7 @@ begin
   v_close := rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at);
 
   with base as (
-    select r.athlete_id, p.full_name as name, r.status, r.acknowledged_at, r.arrived_at,
+    select r.athlete_id, p.full_name as name, r.status, r.acknowledged_at, r.arrived_at, r.unverified_reason,
       rollcall_verdict(r.status, r.acknowledged_at, coalesce(i.respond_by_at, i.starts_at), v_close, v_now,
         r.ack_source, r.sync_review, r.review_resolution) as verdict
     from commitment_responses r join profiles p on p.id = r.athlete_id
@@ -120,7 +136,7 @@ begin
   ), rows as (
     select b.*,
       case when c.location_id is null then null
-           else rollcall_arrival_verdict(b.status, b.arrived_at, coalesce(i.arrive_by_at, i.starts_at),
+           else rollcall_arrival_verdict(rollcall_arrival_status(b.status, b.arrived_at, b.unverified_reason), b.arrived_at, coalesce(i.arrive_by_at, i.starts_at),
                   c.arrival_grace_min::int, v_close, v_now) end as arrival_verdict,
       case when exists (select 1 from storage.objects o
                          where o.bucket_id = 'avatars' and o.name = b.athlete_id::text || '/avatar.jpg')
@@ -218,7 +234,7 @@ begin
       -- `acknowledged_at` is the moment that counts: the arrival for arrival only (first HERE)
       case when v_arr then r.arrived_at else r.acknowledged_at end as acknowledged_at,
       case when v_arr
-        then rollcall_arrival_verdict(r.status, r.arrived_at, coalesce(o.arrive_by_at, o.starts_at),
+        then rollcall_arrival_verdict(rollcall_arrival_status(r.status, r.arrived_at, r.unverified_reason), r.arrived_at, coalesce(o.arrive_by_at, o.starts_at),
                c.arrival_grace_min::int, rollcall_closes_at(c.type, o.respond_by_at, o.starts_at, o.ends_at), v_now)
         else rollcall_verdict(r.status, r.acknowledged_at, coalesce(o.respond_by_at, o.starts_at),
                rollcall_closes_at(c.type, o.respond_by_at, o.starts_at, o.ends_at), v_now,
@@ -855,6 +871,7 @@ $$;
 do $$ declare f text; begin
   foreach f in array array['rollcall_team_board(uuid)', 'rollcall_history(uuid,int)',
                            'rollcall_arrival_verdict(text,timestamptz,timestamptz,int,timestamptz,timestamptz)',
+                           'rollcall_arrival_status(text,timestamptz,text)',
                            'verify_arrival_at(uuid,text,double precision,double precision,double precision)',
                            'save_commitment_place(jsonb)'] loop
     execute format('revoke all on function %s from public, anon', f);
@@ -978,7 +995,7 @@ begin
   v_close := rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at);
 
   with base as (
-    select r.athlete_id, p.full_name as name, r.status, r.acknowledged_at, r.arrived_at,
+    select r.athlete_id, p.full_name as name, r.status, r.acknowledged_at, r.arrived_at, r.unverified_reason,
       rollcall_verdict(r.status, r.acknowledged_at, coalesce(i.respond_by_at, i.starts_at), v_close, v_now,
         r.ack_source, r.sync_review, r.review_resolution) as verdict
     from commitment_responses r join profiles p on p.id = r.athlete_id
@@ -990,7 +1007,7 @@ begin
   ), rows as (
     select b.*,
       case when c.location_id is null then null
-           else rollcall_arrival_verdict(b.status, b.arrived_at, coalesce(i.arrive_by_at, i.starts_at),
+           else rollcall_arrival_verdict(rollcall_arrival_status(b.status, b.arrived_at, b.unverified_reason), b.arrived_at, coalesce(i.arrive_by_at, i.starts_at),
                   c.arrival_grace_min::int, v_close, v_now) end as arrival_verdict,
       case when exists (select 1 from storage.objects o
                          where o.bucket_id = 'avatars' and o.name = b.athlete_id::text || '/avatar.jpg')
@@ -1080,7 +1097,7 @@ AS $function$
                    r.ack_source, r.sync_review, r.review_resolution),
       -- NEW (0242 section 7): the server's arrival verdict, null when no place is asked.
       'arrival_verdict', case when c.location_id is null then null
-                         else rollcall_arrival_verdict(r.status, r.arrived_at, coalesce(i.arrive_by_at, i.starts_at),
+                         else rollcall_arrival_verdict(rollcall_arrival_status(r.status, r.arrived_at, r.unverified_reason), r.arrived_at, coalesce(i.arrive_by_at, i.starts_at),
                                 c.arrival_grace_min::int,
                                 rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at), now()) end,
       'late_min', rollcall_late_min(r.acknowledged_at, coalesce(i.respond_by_at, i.starts_at)),
@@ -1117,9 +1134,11 @@ $function$;
 --   * ARRIVAL CLOSE = greatest(the roll call's close, arrive-by + grace), the same instant
 --     rollcall_arrival_verdict turns 'pending' into 'missed'. After it: raise 'arrival_closed'
 --     (a named code; the phone says "Check-in for this has closed"). Nothing is written.
---   * A morning_roll_call's acknowledged_at is never touched by an arrival, and its 'missed' status
---     (the wake-up's own verdict) is not flipped. The arrival lives in arrived_at, which is what
---     rollcall_arrival_verdict reads. Other commitment types keep 0208's behaviour.
+--   * A morning_roll_call's acknowledged_at and status are never touched by an arrival, on either
+--     branch (fix round 2, N1): status is the wake-up's, and every nudge pipeline gates on
+--     status = 'pending'. The arrival lives in arrived_at / unverified_reason, which
+--     rollcall_arrival_verdict reads through rollcall_arrival_status (2b). Other commitment types
+--     keep 0208's behaviour.
 --   * The lower clamp stays (a stamp is never earlier than arrive-by - 4h); the phone arms from
 --     start - 2h, so a real arrival never reaches it.
 -- Body copied from 0208 (the live definition); only the lines marked NEW changed.
@@ -1183,9 +1202,12 @@ begin
       acknowledged_at = case when v_morning then acknowledged_at else coalesce(acknowledged_at, v_at) end,
       -- THE 0208 LINE. A re-entry refutes the departure that preceded it.
       departed_at = null,
-      -- NEW: a morning's 'missed' is the wake-up's verdict and stays; arrived_at carries the arrival.
-      status = case when status in ('pending', 'acknowledged', 'unverified') then 'arrived'
-                    when status = 'missed' and not v_morning then 'arrived'
+      -- NEW: on a morning roll call `status` is the WAKE-UP's and an arrival never moves it
+      -- (fix round 2, N1: 'pending' -> 'arrived' took the athlete out of the reminder, card and
+      -- missed claims, and Home showed a green "Arrived" with no I'm Up while the wake-up went
+      -- missed). arrived_at carries the arrival. Other types keep 0208's transition.
+      status = case when v_morning then status
+                    when status in ('pending', 'acknowledged', 'unverified', 'missed') then 'arrived'
                     else status end,
       unverified_reason = null,
       updated_at = now()
@@ -1193,8 +1215,10 @@ begin
   else
     -- NEVER 'missed'. Absence of evidence is not evidence of absence.
     update commitment_responses set
-      status = case when status = 'pending' then 'unverified'
-                    when status = 'missed' and not v_morning then 'unverified'
+      -- A morning keeps its wake-up status here too; its "not confirmed" is unverified_reason with
+      -- no arrived_at, read back by rollcall_arrival_status (section 2b).
+      status = case when v_morning then status
+                    when status in ('pending', 'missed') then 'unverified'
                     else status end,
       unverified_reason = nullif(left(coalesce(p_reason, 'Could not confirm the location'), 60), ''),
       updated_at = now()

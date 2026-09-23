@@ -510,7 +510,13 @@ export function deriveCommitment(row, nowISO, offMinOverride) {
       confirmLine: `Completed at ${at(r.completed_at)}` };
   }
 
-  if (r.arrived_at) {
+  // A wake-up and its place check are judged APART (fix round 2, N1). Arriving before tapping I'm Up
+  // is not an answer: the wake-up still needs its tap, so a morning with arrived_at and no
+  // acknowledged_at falls through to the clock below, which offers I'm Up (and says late / missed
+  // exactly as for anyone else). It used to stop here on a green "Arrived" with no button, and the
+  // morning then went missed.
+  const upStillOwed = r.type === 'morning_roll_call' && asks.ack && !r.acknowledged_at;
+  if (r.arrived_at && !upStillOwed) {
     const where = r.location_name || 'the facility';
 
     // The coach asked for a minimum stay and it has not been met yet. Blue, not green: a session

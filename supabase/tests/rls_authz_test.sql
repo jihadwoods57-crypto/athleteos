@@ -4922,7 +4922,9 @@ select _as('eeee0000-0000-0000-0000-0000000000e1');   -- an adult: not gated by 
 select _ok((verify_arrival_at((select id from _rc_place_next), 'manual', 28.6036, -81.2, 10)->>'within')::boolean = false,
   '0242: 400 m away is not within a 150 m bubble (now 200 m after the update above)');
 select _superuser();
-select _ok((select status = 'unverified' from commitment_responses
+-- c1 is a MORNING roll call: its status is the wake-up's and an arrival never moves it (fix round
+-- 2, N1). "Unverified" lives in unverified_reason with no arrived_at, never in status, never missed.
+select _ok((select status = 'pending' and arrived_at is null and unverified_reason is not null from commitment_responses
              where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
   '0242: verify_arrival_at outside the bubble still writes through verify_arrival (unverified, never missed)');
 select _as('eeee0000-0000-0000-0000-0000000000e1');
@@ -4930,7 +4932,8 @@ create temp table _rc_vaj as
   select verify_arrival_at((select id from _rc_place_next), 'manual', 28.6005, -81.2, 10) as j;
 select _superuser();
 select _ok((select (j->>'within')::boolean from _rc_vaj) = true, '0242: 55 m away is within');
-select _ok((select j->>'status' from _rc_vaj) = 'arrived', '0242: within, verify_arrival records the arrival (one write path)');
+select _ok((select j->>'arrived_at' is not null and j->>'status' = 'pending' from _rc_vaj),
+  '0242: within, verify_arrival records the arrival (one write path); a morning''s wake-up status stays');
 select _ok((select not (j ?| array['lat','lng','latitude','longitude']) from _rc_vaj),
   '0242: verify_arrival_at never echoes the position back');
 select _ok((select j ? 'distance_m' and j ? 'within' from _rc_vaj), '0242: the caller gets ok/within/distance_m');
@@ -4972,9 +4975,9 @@ select _ok((select (j->>'within')::boolean from _rc_vag) = true,
   '0242: geofence with null coordinates = the OS region match: within true');
 select _ok((select j ? 'distance_m' and jsonb_typeof(j->'distance_m') = 'null' from _rc_vag),
   '0242: the region-match path reports distance_m null, never an invented number');
-select _ok((select status = 'arrived' and arrival_source = 'geofence' from commitment_responses
+select _ok((select arrived_at is not null and status = 'pending' and arrival_source = 'geofence' from commitment_responses
              where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
-  '0242: the region match writes through verify_arrival (arrived, source geofence)');
+  '0242: the region match writes through verify_arrival (arrived_at, source geofence)');
 drop table _rc_vag;
 select _as('bbbbbbbb-0000-0000-0000-000000000002');   -- no response on this instance
 select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'geofence', null, null, null) $f$) like '%not_authorized%',
@@ -5044,6 +5047,80 @@ select _ok((select arrived_at is null and acknowledged_at is null and status = '
               from commitment_responses
              where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
   '0242 s8: a refused late arrival writes nothing: missed stays missed');
+
+-- ---- 0242 fix round 2 (N1): arriving BEFORE the wake-up answer leaves the wake-up pending ----
+-- A morning's status is the wake-up's. Every nudge pipeline gates on status = 'pending', so an
+-- arrival (walk-in or I'm here) before I'm Up must not move it: the reminder, the lock-screen card
+-- and the missed claim still see the athlete, and I'm Up afterwards still works.
+select _superuser();
+update commitments set reminder_offsets_min = '{5}', active = true where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+update commitment_instances
+   set starts_at = now() - interval '2 minutes', respond_by_at = now() + interval '3 minutes',
+       ends_at = null, arrive_by_at = now() + interval '20 minutes', status = 'scheduled',
+       live_ended_at = null
+ where id = (select id from _rc_place_next);
+update commitment_responses set status = 'pending', acknowledged_at = null, arrived_at = null,
+       arrival_source = null, unverified_reason = null, departed_at = null, reminded_offsets = '{}',
+       card_started_at = null, ack_source = null
+ where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+insert into rollcall_live_tokens (athlete_id, instance_id, kind, token)
+  values ('eeee0000-0000-0000-0000-0000000000e1', null, 'start', 'tok-e1-n1-start');
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select verify_arrival_at((select id from _rc_place_next), 'geofence', null, null, null) $f$) = 'ok',
+  '0242 N1: an arrival before the wake-up answer is accepted');
+select _superuser();
+select _ok((select status = 'pending' and acknowledged_at is null and arrived_at is not null
+              from commitment_responses
+             where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 N1: the arrival writes arrived_at only; the wake-up row stays pending');
+select _ok(exists (select 1 from claim_due_commitment_reminders(10, 500) c
+                    where c.instance_id = (select id from _rc_place_next)
+                      and c.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 N1: the arrived-but-not-up athlete is still claimed for the reminder');
+select _ok(exists (select 1 from claim_rollcall_card_opens(500) c
+                    where c.instance_id = (select id from _rc_place_next)
+                      and 'eeee0000-0000-0000-0000-0000000000e1' = any(c.athlete_ids)),
+  '0242 N1: the arrived-but-not-up athlete is still claimed for the lock-screen card');
+select _ok((select r->>'verdict' = 'pending' and r->>'arrival_verdict' = 'on_standard'
+              from jsonb_array_elements(rollcall_team_board_svc((select id from _rc_place_next))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 N1: the board judges the two apart: wake-up pending, arrival on time');
+-- I'm Up afterwards still works, and keeps the arrival.
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($f$ select ack_commitment((select id from _rc_place_next)) $f$) = 'ok',
+  '0242 N1: I''m Up after arriving still works');
+select _superuser();
+select _ok((select acknowledged_at is not null and arrived_at is not null
+              from commitment_responses
+             where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 N1: after I''m Up the row carries both the answer and the arrival');
+
+-- The missed claim still sees an athlete who arrived and never tapped I'm Up.
+update commitment_responses set status = 'pending', acknowledged_at = null, ack_source = null,
+       arrived_at = now() - interval '1 minute', arrival_source = 'geofence'
+ where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+update commitment_instances set respond_by_at = now() - interval '1 minute' where id = (select id from _rc_place_next);
+select _ok(exists (select 1 from claim_missed_commitments(10, array['eeee0000-0000-0000-0000-0000000000e1']::uuid[], 500) c
+                    where c.instance_id = (select id from _rc_place_next)),
+  '0242 N1: an athlete who arrived but never answered is still claimed as missed');
+
+-- The not-confirmed branch leaves a morning's status alone too; the arrival reads unverified.
+update commitment_instances set respond_by_at = now() + interval '3 minutes' where id = (select id from _rc_place_next);
+update commitment_responses set status = 'pending', acknowledged_at = null, arrived_at = null,
+       arrival_source = null, unverified_reason = null
+ where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _try($f$ select verify_arrival_at((select id from _rc_place_next), 'manual', 28.6036, -81.2, 10) $f$);
+select _superuser();
+select _ok((select status = 'pending' and unverified_reason is not null
+              from commitment_responses
+             where instance_id = (select id from _rc_place_next) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 N1: a failed place check on a morning keeps the wake-up pending');
+select _ok((select r->>'arrival_verdict' = 'unverified'
+              from jsonb_array_elements(rollcall_team_board_svc((select id from _rc_place_next))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0242 N1: and the arrival still reads unverified (rollcall_arrival_status)');
+delete from rollcall_live_tokens where token = 'tok-e1-n1-start';
 
 -- M2: a commitment may only point at its own owner's place.
 insert into commitment_locations (id, team_id, name, lat, lng, radius_m, created_by)

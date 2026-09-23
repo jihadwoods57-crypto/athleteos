@@ -844,3 +844,27 @@ test('past the window with no server arrival verdict it is the settled check-in 
   assert.match(d.confirmLine, /^Checked in at [^·]+$/);
   assert.equal(d.statusColor, 'g');
 });
+
+/* Fix round 2 (N1): the wake-up and the place check are judged apart. Arriving before tapping
+   I'm Up is not an answer, so Home still offers I'm Up; it used to show a green "Arrived" with no
+   button while the wake-up quietly went missed. */
+test('a morning with a place: arrived but not up still offers I’m Up', () => {
+  const row = { ...rollCall, asks_arrival: true, location_name: 'Weight room',
+    closes_at: '2026-07-22T09:45:00Z', arrived_at: '2026-07-22T08:50:00Z' };
+  const d = deriveCommitment(row, '2026-07-22T08:55:00Z');
+  assert.equal(d.canAck, true, 'I’m Up is still offered');
+  assert.notEqual(d.stage, 'arrived');
+  // Late but before the close: still the ack, relabelled.
+  const late = deriveCommitment(row, '2026-07-22T09:20:00Z');
+  assert.equal(late.canAck, true);
+  // Once they tap, the arrived receipt is back.
+  const up = deriveCommitment({ ...row, status: 'acknowledged', acknowledged_at: '2026-07-22T08:56:00Z' }, '2026-07-22T08:57:00Z');
+  assert.equal(up.canAck, false);
+  assert.equal(up.stage, 'arrived');
+});
+
+test('an arrival-only commitment still settles on its arrival (unchanged)', () => {
+  const row = { ...rollCall, type: 'practice', asks_arrival: true, location_name: 'Stadium',
+    arrived_at: '2026-07-22T08:50:00Z', status: 'arrived' };
+  assert.equal(deriveCommitment(row, '2026-07-22T08:55:00Z').stage, 'arrived');
+});
