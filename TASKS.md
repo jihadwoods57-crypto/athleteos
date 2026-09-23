@@ -123,7 +123,7 @@ Legend: [ ] open · [x] done · [~] deliberately not done (reason)
 - Ratchets re-baselined to the new, lower counts (raw font sizes 234 -> 184 in screens.css;
   off-scale spacing 216 -> 200). Boot graph +1 module (week-bars.js extracted from Progress).
 
-# Roll call, rebuilt — 2026-09-23
+# Roll call, rebuilt: 2026-09-23
 
 Spec: `docs/superpowers/specs/2026-09-23-roll-call-rebuilt-design.md`. Branch:
 `feat/rollcall-rebuilt`. Shipped on the branch so far (Tasks 1 to 12): the live team board (`rb-`,

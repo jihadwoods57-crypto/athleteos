@@ -1,4 +1,4 @@
-# Go-live — roll call device test
+# Go-live: roll call device test
 
 Nothing in the roll-call rebuild has run on a real phone yet (per the design doc's own risk
 list). This is the script for the founder's two phones before it reaches a team: a coach device
@@ -16,6 +16,8 @@ an option on the athlete phone for steps that call for it.
    you are right now (radius 150 m), arrive-by 5 minutes from now.
    Expected: the setup saves in four answers plus the place step; the week strip shows today at
    the new time.
+   Also check the 100 m floor: try to save a radius of 50 m. Expected: refused with "The smallest
+   is 100 m." (not silently clamped, not accepted).
 2. **Athlete: lock the phone.** Do nothing else.
    Expected: the lock-screen card appears by itself within 1 minute of the window opening (the
    window opens 10 minutes before start, so if you want to see the open itself, set the roll call
@@ -45,14 +47,43 @@ an option on the athlete phone for steps that call for it.
    Expected: today's morning is counted in the 30-day on-time rate, and shows up in the
    day-by-day list for any athlete involved.
 
-## Older iOS (no AlarmKit)
+## Arrival-only run
 
-Devices below iOS 26.1 do not get the native alarm or its Stop/I'm Up buttons. Confirm instead:
+A roll call does not need a wake-up at all: "At the stadium by 3:30" with no alarm is a real,
+separate path (`type: practice` with a place, not a morning roll call), and it is worth the
+full 8 points alone. Run this once, on its own, after the core script above.
 
-- A time-sensitive notification arrives at the start time with an "I'm Up" action button.
-- Tapping that action checks the athlete in the same way the card does, without opening the app.
-- The lock-screen Live Activity card itself may not render (Live Activities need a supported OS);
-  the notification is the fallback path and must work on its own.
+1. **Coach: set up an arrival-only practice.** Arrival mode, a place (radius 100 m or more) and
+   an arrive-by time a few minutes out. No wake-up time, no alarm toggle to set.
+   Expected: the setup shows no alarm step at all; the week strip and the athlete's push both
+   describe it as a place and a time, not a wake-up.
+2. **Athlete: open it from the push or the bell,** app closed to start.
+   Expected: it lands on the team board (not the retired detail screen: this is the exact path
+   Task 12 found broken in the harness, so confirm it for real), with **"I'm here"** as the one
+   primary action. No alarm fires at any point for this roll call.
+3. **Outside the bubble, tap "I'm here."**
+   Expected: the app says plainly how far away the athlete is (not their coordinates) and does
+   not check them in.
+4. **Walk into the bubble and tap "I'm here" again** (or let automatic walk-in fire, if
+   "Always" is on).
+   Expected: checked in, the board shows "here" within a few seconds, and the athlete's day
+   shows the roll call counted.
+5. **Check the score.** On the athlete's day, this roll call alone should bank the full 8 points
+   (on time), not 4, which is the both-parts split from the core script's wake-up run.
+6. **Also check the unverified case:** have the athlete go into airplane mode (or deny location
+   entirely) right as the window opens, with nobody tapping "I'm here." Expected: the board shows
+   that athlete as "Place not confirmed" (unverified), not silently folded into missed.
+
+## Older iOS (17.2 to 26.0, no AlarmKit)
+
+Push-to-start Live Activities and the I'm Up check-in intent work from iOS 17.2 on; only the
+ring-through-silent-mode alarm needs iOS 26.1's AlarmKit. On a phone in this range:
+
+- The lock-screen Live Activity card is expected to appear the same way, with its I'm Up button,
+  and to check the athlete in the same way; test this on an actual iOS 17 or 18 phone rather
+  than assuming it; "may not render" is not a substitute for that test.
+- At the start time there is no alarm. Instead, a time-sensitive notification arrives with an
+  "I'm Up" action button. Tapping it checks the athlete in without opening the app.
 
 ## Also check on the device
 
@@ -60,7 +91,8 @@ Findings that reviewers flagged but could only be settled by hand, on a real pho
 concrete check with an expected result; run through these once as part of the same session.
 
 1. **Lock-screen card height with the team row.** The card's estimated height (~157 pt) is close
-   to Apple's cap (160 pt) for a Live Activity's compact presentation.
+   to Apple's cap (160 pt) for a Live Activity's lock-screen presentation (not the "compact"
+   presentation, which is the Dynamic Island's collapsed state).
    Check: with a full team (10+ faces) and a long coach name, nothing in the card is clipped or
    pushed off the bottom edge on the smallest supported phone.
 2. **Alarm's second button waits up to 8 s for the check-in post before opening the app.**

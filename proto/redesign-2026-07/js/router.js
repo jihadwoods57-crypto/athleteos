@@ -12,7 +12,6 @@ import { initKeyboard } from './keyboard.js';
 import { withTransition, canTransition, transitioning, afterTransition } from './view-transition.js';
 import { hydrateAvatars } from './avatar.js';
 import { initGestures, gestureActive, afterGesture } from './gestures.js';
-import { overlayOpen } from './overlay-guard.js';
 
 // Shell-level and route-independent: the keyboard has to behave the same on the composer, the food
 // search box and a profile field, and #device outlives every render() so this is wired once here
@@ -1105,21 +1104,49 @@ window.__render = function () {
    screen's next interaction repaints from the now-warm cache. What the guard can NOT mask is the
    hang class this listener exists for: a screen stuck on a skeleton or a bookless state has no
    focusable field, so its arrival always paints.
-   Second guard, same reasoning (2026-09-23): no repaint while an overlay is open. The roll call
-   board's Nudge/Override sheet is appended outside the normal render tree and warms the book on
-   first open (`responseIdFor`) when the coach lands straight on the board (a closing-summary
-   push, a lock-screen tap) with no roster load yet in flight — the sheet's own fetch is exactly
-   what fires this event. Without the guard, `window.__render()` tears down and rebuilds the
-   whole screen via `__screenCleanup`, which unconditionally closes any open sheet, so the coach
-   saw Nudge/Override for one frame and then nothing, on precisely the athletes it exists for
-   (not-yet-up, missed). `overlayOpen()` with no exception covers every overlay's own marker,
-   including the sheet's `.sheet-scrim`. */
+   Second guard (2026-09-23, revised after review): no repaint while a `.sheet-scrim` sheet is
+   open, DEFERRED rather than dropped. The roll call board's Nudge/Override sheet (also the
+   coach-athlete More sheet, the week-day sheet) is appended outside the normal render tree and
+   can warm the book on first open (`responseIdFor`) when the coach lands straight on a screen
+   with no roster load yet in flight — the sheet's own fetch is exactly what fires this event.
+   Without the guard, `window.__render()` tears down and rebuilds the whole screen via
+   `__screenCleanup`, which unconditionally closes any open sheet, so the coach saw Nudge/Override
+   for one frame and then nothing, on precisely the athletes it exists for (not-yet-up, missed).
+   The guard checks `.sheet-scrim` specifically, not every `overlayOpen()` marker: the tour,
+   image viewer, members sheet and tapback picker live at body level, outside `#device`, so a
+   repaint here never touches them either way — dropping their arrival bought nothing, only lost
+   it. A dropped arrival is remembered (`pendingBookArrival`) and replayed the moment the last
+   `.sheet-scrim` leaves the document (watched by a scoped MutationObserver, armed only while a
+   replay is owed), so a coach who closes the sheet still lands on a screen that has caught up —
+   `CD.kind` labels, the `rosterLoaded` dead-link guard, and the More template's rows are never
+   stuck on pre-arrival state.
+   First guard unchanged: no repaint while the user is typing in a field. A rebuild would eat any
+   text a screen only captures on its own control taps (the commitment composer), and data
+   arrival is a courtesy paint — typing wins. The cost is real and accepted: a form screen whose
+   fields render before the book lands (the commitment composer, pass-grant) can have its one
+   arrival repaint swallowed if the user is already typing, leaving picker options or a name one
+   tap late — the screen's next interaction repaints from the now-warm cache. What that guard can
+   NOT mask is the hang class this listener exists for: a screen stuck on a skeleton or a bookless
+   state has no focusable field, so its arrival always paints (or, if a sheet is open over it,
+   paints as soon as the sheet closes). */
+let pendingBookArrival = false;
+let bookArrivalObserver = null;
+function replayBookArrivalWhenSheetCloses() {
+  if (bookArrivalObserver) return;
+  bookArrivalObserver = new MutationObserver(() => {
+    if (document.querySelector('.sheet-scrim')) return;
+    bookArrivalObserver.disconnect();
+    bookArrivalObserver = null;
+    if (pendingBookArrival) { pendingBookArrival = false; window.__render(); }
+  });
+  bookArrivalObserver.observe(document.body, { childList: true, subtree: true });
+}
 window.addEventListener('onstd:book-arrival', () => {
   const mod = modOf(parse().route);
   if (!mod || (mod.nav !== 'coach' && mod.nav !== 'trainer' && mod.nav !== 'operator')) return;
   const el = document.activeElement;
   if (el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && el.closest && el.closest('#device')) return;
-  if (overlayOpen()) return;
+  if (document.querySelector('.sheet-scrim')) { pendingBookArrival = true; replayBookArrivalWhenSheetCloses(); return; }
   window.__render();
 });
 
