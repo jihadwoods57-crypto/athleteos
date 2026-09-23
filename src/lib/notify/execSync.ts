@@ -28,7 +28,8 @@ export async function syncExecNotifications(plan: ExecPlanItem[]): Promise<void>
   try {
     await Notifications.cancelAllScheduledNotificationsAsync();
     if (!plan.length) return;
-    const granted = await ensureNotifyPermission();
+    // Never asks (G-R10): reminders are scheduled only once the person has said yes elsewhere.
+    const granted = await ensureNotifyPermission(false);
     if (!granted) return;
     for (const p of plan) {
       const at = p.atISO ? new Date(p.atISO) : null;

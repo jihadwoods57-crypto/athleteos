@@ -133,7 +133,14 @@ export async function syncWakeAlarms(alarms: WakeAlarmRequest[]): Promise<number
     return 0;
   }
 
-  const wanted = (Array.isArray(alarms) ? alarms : []).filter(isUsable);
+  // ARM ONLY WHAT THE ATHLETE ALREADY ALLOWED (review pass 2026-09-23, G-P2). Scheduling an alarm
+  // while nobody has been asked makes AlarmKit put up its own permission question, and this sync
+  // runs on Home load, so the question used to arrive with nothing on screen to explain it. Until
+  // the athlete says yes from the roll call's Continue primer (wakeAlarmState({ ask: true })), the
+  // set is treated as empty: anything armed before is cancelled and nothing new is scheduled.
+  let authorized = false;
+  try { authorized = mod.alarmAuthorizationState() === 'authorized'; } catch { authorized = false; }
+  const wanted = authorized ? (Array.isArray(alarms) ? alarms : []).filter(isUsable) : [];
   const wantedIds = new Set(wanted.map((a) => a.instanceId));
 
   // Cancel first. If arming later fails, the athlete is left with no alarm rather than a stale one
@@ -194,8 +201,9 @@ export function cancelWakeAlarmFor(instanceId: string): void {
   void reportArmed(new Set(lastArmed), [id]);
 }
 
-/** What the app can honestly tell the athlete about alarms on this device. */
-export async function wakeAlarmState(): Promise<WakeAlarmState> {
+/** What the app can honestly tell the athlete about alarms on this device. Asks the system
+ *  question only when `ask` is true: the roll call's Continue primer (G-P2). */
+export async function wakeAlarmState(opts: { ask?: boolean } = {}): Promise<WakeAlarmState> {
   const mod = live();
   if (!mod) return { supported: false, authorization: 'unsupported', armed: 0 };
   let supported = false;
@@ -204,9 +212,8 @@ export async function wakeAlarmState(): Promise<WakeAlarmState> {
 
   let authorization: WakeAlarmState['authorization'] = 'unsupported';
   try { authorization = mod.alarmAuthorizationState(); } catch { /* leave unsupported */ }
-  // Ask once if nobody has been asked. Doing it here rather than at launch puts the system prompt
-  // next to the coach's wake-up card, where the reason for it is on screen.
-  if (authorization === 'notDetermined') {
+  // Ask once, and only when the athlete tapped Continue on the primer that explains it.
+  if (authorization === 'notDetermined' && opts.ask === true) {
     try { authorization = await mod.requestAlarmAuthorization(); } catch { /* leave as is */ }
   }
 

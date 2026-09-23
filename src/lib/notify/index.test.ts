@@ -1,5 +1,5 @@
 import * as Notifications from 'expo-notifications';
-import { isNotifyAvailable, shouldSchedule, refreshReminderSchedule, cancelReminders } from './index';
+import { isNotifyAvailable, shouldSchedule, refreshReminderSchedule, cancelReminders, ensureNotifyPermission, notifyPermissionState } from './index';
 import { reminderNotifySpecs, defaultReminderSettings, type ReminderSnapshot } from '@/core';
 
 const behind: ReminderSnapshot = {
@@ -48,6 +48,37 @@ describe('notify seam (local reminders)', () => {
   it('cancelReminders clears the schedule', async () => {
     await refreshReminderSchedule(reminderNotifySpecs(defaultReminderSettings(), behind), true);
     await cancelReminders();
+    expect(scheduled).toHaveLength(0);
+  });
+});
+
+// G-R10: nothing but a Continue primer shows the system notification question.
+describe('permission is asked only on purpose', () => {
+  const N = Notifications as unknown as { getPermissionsAsync: () => Promise<unknown>; requestPermissionsAsync: () => Promise<unknown> };
+  const realGet = N.getPermissionsAsync;
+  const realReq = N.requestPermissionsAsync;
+  let requested = 0;
+  beforeEach(() => {
+    requested = 0;
+    N.getPermissionsAsync = async () => ({ granted: false, status: 'undetermined', canAskAgain: true });
+    N.requestPermissionsAsync = async () => { requested++; return { granted: true }; };
+  });
+  afterAll(() => { N.getPermissionsAsync = realGet; N.requestPermissionsAsync = realReq; });
+
+  it('reads without asking by default', async () => {
+    expect(await ensureNotifyPermission()).toBe(false);
+    expect(requested).toBe(0);
+    expect(await notifyPermissionState()).toBe('undetermined');
+  });
+
+  it('asks when told to', async () => {
+    expect(await ensureNotifyPermission(true)).toBe(true);
+    expect(requested).toBe(1);
+  });
+
+  it('a reminder sync never asks', async () => {
+    await refreshReminderSchedule(reminderNotifySpecs(defaultReminderSettings(), behind), true);
+    expect(requested).toBe(0);
     expect(scheduled).toHaveLength(0);
   });
 });

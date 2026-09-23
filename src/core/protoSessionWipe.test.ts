@@ -196,7 +196,9 @@ test('_syncSession keeps a KNOWN authRole without refetching', async () => {
   const spyChain = (): any => new Proxy(function () { /* callable */ }, {
     get(_t, prop) {
       if (prop === 'then') return (resolve: (v: unknown) => void) => resolve({ data: null, error: null });
-      if (prop === 'select') return () => { roleFetched = true; return spyChain(); };
+      // Only a ROLE read counts. The session sync also reads the account's AI answer (0243,
+      // `select('ai_consent')`), which is a different column and not what this test forbids.
+      if (prop === 'select') return (cols: unknown) => { if (/primary_role/.test(String(cols))) roleFetched = true; return spyChain(); };
       return () => spyChain();
     },
     apply() { return spyChain(); },

@@ -30,7 +30,7 @@ import {
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { syncWakeAlarms, wakeAlarmState, cancelWakeAlarmFor } from '../lib/notify/wakeAlarms';
 import { drainLiveActivityTaps, settleLiveCard } from '../lib/notify/rollcall';
-import { getPushToken } from '../lib/notify';
+import { getPushToken, ensureNotifyPermission, notifyPermissionState } from '../lib/notify';
 import { getFlag } from '../store/flagsStore';
 import { requestMapPick } from '../lib/maps/pickRequest';
 import { dictationStatus, startDictation, stopDictation, abortDictation, type DictationEvent } from '../lib/voice/nativeSpeech';
@@ -58,12 +58,15 @@ export type BridgeMessage =
   // The proto owns the roll-call rows, so it is what says which mornings are armed; the whole set
   // is sent every time and the native side reconciles, which makes a dropped message harmless.
   | { type: 'WAKE_ALARMS'; id: number; alarms?: import('../lib/notify/wakeAlarms').WakeAlarmRequest[] }
-  | { type: 'WAKE_ALARM_STATE'; id: number }
+  | { type: 'WAKE_ALARM_STATE'; id: number; ask?: boolean }
   // The native star prompt. REQUEST returns whether a prompt was actually asked for — never
   // whether anyone rated, which no platform reports. See the handler for why the flag is checked
   // here rather than in the proto.
   | { type: 'REVIEW_REQUEST'; id: number }
-  | { type: 'PUSH_TOKEN'; id: number }
+  // `ask`: show the system notification question if it has not been answered. Only the Continue
+  // primers pass true (G-R10); a launch-time token read never asks.
+  | { type: 'PUSH_TOKEN'; id: number; ask?: boolean }
+  | { type: 'NOTIFY_PERMISSION'; id: number; ask?: boolean }
   | { type: 'OPEN_URL'; url?: string }
   | { type: 'IAP_AVAILABLE'; id: number }
   | { type: 'IAP_PURCHASE'; id: number; productId?: string; appUserId?: string }
@@ -214,7 +217,7 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
       return true;
     case 'WAKE_ALARM_STATE':
       try {
-        resolve(ref, msg.id, await wakeAlarmState());
+        resolve(ref, msg.id, await wakeAlarmState({ ask: msg.ask === true }));
       } catch (e) {
         resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
       }
@@ -510,10 +513,20 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
       // Expo push token for coach→athlete nudges (registered server-side by the proto via
       // register_device_token). Null when permission is denied / no EAS project / web.
       try {
-        const token = await getPushToken();
+        const token = await getPushToken(msg.ask === true);
         resolve(ref, msg.id, token ? { token, platform: Platform.OS } : null);
       } catch (e) {
         resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'NOTIFY_PERMISSION':
+      // Where notification permission stands; with `ask`, the system question first (a primer's
+      // Continue). Resolves 'granted' | 'denied' | 'undetermined' | 'unsupported'.
+      try {
+        if (msg.ask === true) await ensureNotifyPermission(true);
+        resolve(ref, msg.id, await notifyPermissionState());
+      } catch (e) {
+        resolve(ref, msg.id, 'unsupported', String((e as Error)?.message ?? e));
       }
       return true;
     default:
@@ -552,7 +565,7 @@ export const BRIDGE_SHIM = `
     // device has that is not in the list is cancelled, so one call is always enough.
     wakeAlarms: {
       sync: function(alarms){ return call('WAKE_ALARMS', { alarms: alarms || [] }); },
-      state: function(){ return call('WAKE_ALARM_STATE', {}); }
+      state: function(opts){ return call('WAKE_ALARM_STATE', { ask: !!(opts && opts.ask) }); }
     },
     secureStore: {
       getItem: function(key){ return call('SECURE_GET', { key: key }); },
@@ -570,7 +583,10 @@ export const BRIDGE_SHIM = `
     biometrics: {
       available: function(){ return call('BIO_AVAILABLE', {}); }
     },
-    notify: { sync: function(plan){ post({ type: 'NOTIFY_SYNC', plan: plan || [] }); } },
+    notify: {
+      sync: function(plan){ post({ type: 'NOTIFY_SYNC', plan: plan || [] }); },
+      permission: function(ask){ return call('NOTIFY_PERMISSION', { ask: !!ask }); }
+    },
     // Answered in the app: end the lock-screen card. Fire-and-forget, no answer expected.
     rollcall: {
       acked: function(instanceId){ post({ type: 'ROLLCALL_ACKED', instanceId: String(instanceId || '') }); },
@@ -578,7 +594,7 @@ export const BRIDGE_SHIM = `
       drain: function(){ return call('ROLLCALL_DRAIN', {}); }
     },
     openUrl: function(url){ post({ type: 'OPEN_URL', url: String(url || '') }); },
-    push: { token: function(){ return call('PUSH_TOKEN', {}); } },
+    push: { token: function(opts){ return call('PUSH_TOKEN', { ask: !!(opts && opts.ask) }); } },
     // Resolves true only if a prompt was actually requested — never whether a review was left.
     review: { request: function(){ return call('REVIEW_REQUEST', {}); } },
     iap: {
