@@ -28,7 +28,7 @@ import { backHead, esc } from '../components.js';
 import { loadVerificationConsent, lastLocationArm } from '../commitment-data.js';
 import {
   locationCapable, walkInCapable, probeLocation, locationStateCached, allowLocation,
-  disarmLocation, openLocationSettings,
+  disarmLocation, openLocationSettings, alwaysRefused,
 } from '../location.js';
 
 /* The SERVER's answer to "may this athlete be verified at all" (has_verification_consent, 0139).
@@ -55,7 +55,7 @@ const note = (tone, ic, title, body) => `
   </div>`;
 
 /** The part of the screen that depends on the phone and the server. Pure over its inputs. */
-export function consentActionHtml({ capable, state, walkIn, consent, consentAsked, optedOut, walkInStatus, busy = false }) {
+export function consentActionHtml({ capable, state, walkIn, consent, consentAsked, optedOut, walkInStatus, busy = false, refused = false }) {
   if (!capable) {
     return note('b', 'bolt', 'Update OnStandard to check in by location',
       'This version of the app can’t take a location reading. Until you update, your coach sees you as not arrived for a place check.');
@@ -89,7 +89,12 @@ export function consentActionHtml({ capable, state, walkIn, consent, consentAske
       ? note('a', 'alert', 'Walk-in check-in isn’t working on this phone', 'Your phone didn’t let OnStandard watch the place. Tap I’m here when you arrive. It counts exactly the same.')
       : `<p class="lc-state">${icon('check', 16)} Walk-in check-in is on. Arriving is enough.</p>
     <button type="button" class="btn ghost lc-btn" id="lc-off" ${busy ? 'disabled' : ''}>Turn off walk-in check-in</button>`) : ''}
-    ${offerAlways ? `<button type="button" class="btn primary lc-btn" id="lc-always" ${busy ? 'disabled' : ''}>${icon('target', 18)} Also check me in when I walk in</button>
+    ${offerAlways && refused && state === 'when_in_use'
+      // iOS asks for Always ONCE (fix round 2, m1). After "Keep Only While Using" a request does
+      // nothing, so the only way to walk-in check-in is Settings; never a button that asks again.
+      ? `<button type="button" class="btn ghost lc-btn" id="lc-settings">Open Settings</button>
+    <p class="ts lc-foot">For walk-in check-in, tap Location in Settings and choose Always. Rather not? I’m here works the same.</p>`
+      : offerAlways ? `<button type="button" class="btn primary lc-btn" id="lc-always" ${busy ? 'disabled' : ''}>${icon('target', 18)} Also check me in when I walk in</button>
     <p class="ts lc-foot">${on ? '' : 'Your phone asks next. Choose Change to Always Allow. '}Rather not? I’m here works the same, and nothing you earned changes.</p>` : ''}`;
   }
   // Never asked (or the prompt was dismissed): step one, While Using.
@@ -125,6 +130,7 @@ export default {
     <div class="lc-act">${consentActionHtml({
       capable, state: locationStateCached(), walkIn: walkInCapable(), consent: CONSENT, consentAsked: CONSENT_ASKED,
       optedOut: !!RT.locationOptOut, walkInStatus: arm && arm.walkIn ? String(arm.walkIn) : null, busy: BUSY,
+      refused: alwaysRefused(),
     })}</div>`;
   },
 

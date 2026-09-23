@@ -142,6 +142,7 @@ test('a place asked and not arrived offers I’m here; arrival mode counts who i
     assert.match(html, /rb-n">1<\/span> of 2 here/);
     assert.match(html, /First here: DeShawn/);
     // Item 2: a phone never asked gets the While Using explanation right under I'm here.
+    L.setConsentCachedForHarness(true);   // the server's consent rule says yes (m2)
     L.setLocationStateForHarness('undetermined');
     const ask = screen.render({ sub: 'i3' });
     assert.match(ask, /data-loc-allow/);
@@ -159,6 +160,7 @@ test('a place asked and not arrived offers I’m here; arrival mode counts who i
   } finally {
     cd.setNativeCapsForHarness(null);
     L.setLocationStateForHarness(null);
+    L.setConsentCachedForHarness(null);
     delete window.OnStandardNative;
   }
 });

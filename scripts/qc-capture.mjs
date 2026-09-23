@@ -132,7 +132,7 @@ const newBuild = (state = 'when_in_use') => `const cdN = await import('./js/comm
       request: async () => '${state}', arm: async () => ({ armed: 1, capped: 0, state: '${state}', walkIn: 'on' }),
       disarm: async () => true, check: async () => ({ within: true, reason: null, distance_m: 40 }), settings() {} },
     maps: { pick: async () => null } });
-  const LN = await import('./js/location.js'); LN.setLocationStateForHarness('${state}');
+  const LN = await import('./js/location.js'); LN.setLocationStateForHarness('${state}'); LN.setConsentCachedForHarness(true);
 `;
 /** The coach's roll call (Task 10): one standing wake-up ('rc-rule', Mon to Fri 6:00 AM), its
  *  saved places, the week ahead on the frozen clock (Thu 23 Jul: Fri moved to 5:30, Tue cancelled,

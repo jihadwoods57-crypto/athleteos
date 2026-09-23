@@ -718,7 +718,7 @@ export default {
         };
         L.mountLocationAsk(askSlot, () => L.probeLocation().then(fill, fill));
         fill();
-        L.probeLocation().then(fill, fill);
+        Promise.all([L.probeConsent(), L.probeLocation()]).then(fill, fill);
       }, () => { /* no card; the I'm here tap still asks */ });
     }
     void paintAlarmLine(root, VC.instance(sub));

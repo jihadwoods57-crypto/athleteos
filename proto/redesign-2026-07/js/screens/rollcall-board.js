@@ -44,6 +44,7 @@ import { buzz } from '../motion.js';
 import { CD, bookId, loadBook, bookKindFor } from '../coach-data.js';
 import {
   locationCapable, locationAskFor, locationAskClick, probeLocation, locationStateCached, checkInHere, hereErrorLine,
+  probeConsent, consentCached,
 } from '../location.js';
 
 /* ---------------------------------------------------------------- routes */
@@ -565,7 +566,11 @@ export default {
     const askLoc = () => {
       if (!wantsLoc()) return;
       const before = locationStateCached();
-      probeLocation().then((st) => { if (st !== before) paint(); }, () => {});
+      const beforeConsent = consentCached();
+      // The server's consent rule gates the card (m2); the permission state picks what it says.
+      Promise.all([probeConsent(), probeLocation()]).then(([c, st]) => {
+        if (st !== before || c !== beforeConsent) paint();
+      }, () => {});
     };
     askLoc();
     const onFg = () => { if (root.isConnected) { askLoc(); loadTeamBoard(id, true).then(() => paint()); } };

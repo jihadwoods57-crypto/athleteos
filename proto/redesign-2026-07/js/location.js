@@ -19,7 +19,7 @@
    sign-in / sign-out / foreground lifecycle lives in state.js and talks to the bridge directly,
    so the boot never needs this file. */
 
-import { invalidateTeamBoard, nativeCaps, noteLocationArm, lastLocationArm } from './commitment-data.js';
+import { invalidateTeamBoard, nativeCaps, noteLocationArm, lastLocationArm, loadVerificationConsent } from './commitment-data.js';
 import { esc } from './components.js';
 import { icon } from './icons.js';
 
@@ -176,6 +176,27 @@ export function locationStateCached() { return STATE; }
 /** Harness + test seam. */
 export function setLocationStateForHarness(s) { STATE = s || null; }
 
+/* May this athlete be location-checked at all? (fix round 2, m2). ONE rule, and it is the
+   SERVER's: has_verification_consent (0139) = not is_minor(), or a live consent row. The client
+   keeps no copy of the age rule (memory guardian-gate-unknown-age-2026-09-22: two client copies read
+   base_age alone, treated unknown age as a minor and walled off adults). loadVerificationConsent
+   asks the RPC; screens/location-consent.js asks the same one. true / false / null (couldn't ask).
+   A minor without consent is never shown the OS prompt: the server would refuse the check anyway. */
+let CONSENT = null;
+let CONSENT_PROBING = null;
+export function consentCached() { return CONSENT; }
+export function setConsentCachedForHarness(v) { CONSENT = v === true || v === false ? v : null; }
+export function probeConsent() {
+  if (CONSENT === true) return Promise.resolve(true);
+  if (CONSENT_PROBING) return CONSENT_PROBING;
+  CONSENT_PROBING = Promise.resolve().then(() => loadVerificationConsent()).then((ok) => {
+    CONSENT_PROBING = null;
+    if (ok === true || ok === false) CONSENT = ok;
+    return CONSENT;
+  }, () => { CONSENT_PROBING = null; return CONSENT; });
+  return CONSENT_PROBING;
+}
+
 /** Ask the phone for its permission state (never prompts). Resolves the state, or null when there
  *  is no location on this binary. Coalesced: concurrent callers share one bridge call. */
 export function probeLocation() {
@@ -197,20 +218,32 @@ export function openLocationSettings() {
 }
 
 const NOT_NOW_KEY = 'os.loc.alwaysNotNow';
-/** Did the athlete say "Not now" to Always on this phone? Per-phone convenience only. */
-export function alwaysDeclined() {
-  try { return !!(typeof localStorage !== 'undefined' && localStorage.getItem(NOT_NOW_KEY)); } catch { return false; }
-}
+const REFUSED_KEY = 'os.loc.alwaysRefused';
+const flag = (k) => { try { return !!(typeof localStorage !== 'undefined' && localStorage.getItem(k)); } catch { return false; } };
+/** Did the athlete say "Not now" to Always on this phone, or did iOS answer "Keep Only While
+ *  Using"? Either way the card stops offering a button. Per-phone convenience only. */
+export function alwaysDeclined() { return flag(NOT_NOW_KEY) || flag(REFUSED_KEY); }
+/** iOS shows the Always upgrade ONCE. After "Keep Only While Using" another request does nothing
+ *  at all, so a button that asks again would be dead (fix round 2, m1): only Settings can change
+ *  it now. */
+export function alwaysRefused() { return flag(REFUSED_KEY); }
 function setAlwaysDeclined(on) {
   try { if (on) localStorage.setItem(NOT_NOW_KEY, '1'); else localStorage.removeItem(NOT_NOW_KEY); } catch { /* no storage */ }
+}
+function setAlwaysRefused(on) {
+  try { if (on) localStorage.setItem(REFUSED_KEY, '1'); else localStorage.removeItem(REFUSED_KEY); } catch { /* no storage */ }
 }
 
 /** Step 1 then (optionally) step 2. `always` true asks for Always after While Using. Resolves the
  *  state; a grant of Always also arms walk-in right away. */
 export async function allowLocation(always) {
-  const st = await requestLocation(!!always && walkInCapable());
+  const askAlways = !!always && walkInCapable();
+  const st = await requestLocation(askAlways);
   STATE = st;
-  if (st === 'always') { setAlwaysDeclined(false); await armLocation(); }
+  if (st === 'always') { setAlwaysDeclined(false); setAlwaysRefused(false); await armLocation(); }
+  // Asked for Always and still While Using: iOS said "Keep Only While Using" (or had already), and
+  // it will not ask again. Stop offering the button (m1).
+  else if (askAlways && st === 'when_in_use') setAlwaysRefused(true);
   return st;
 }
 
@@ -221,6 +254,8 @@ export async function allowLocation(always) {
  *  screen, so it sends the athlete to one instead of raising the OS prompt cold. */
 export async function checkInHere(instanceId, { prompt = true } = {}) {
   if (!locationCapable()) return { error: 'unavailable' };
+  // A minor without consent: no OS prompt, no reading (m2). The server rule, asked once.
+  if ((CONSENT === null ? await probeConsent() : CONSENT) === false) return { error: 'consent' };
   let st = STATE || await probeLocation();
   if (st === 'unavailable' || st == null) return { error: 'unavailable' };
   if (st === 'undetermined' && !prompt) return { error: 'ask-first' };
@@ -238,6 +273,7 @@ export function hereErrorLine(r) {
   if (e === 'denied') return 'Location is off for OnStandard. Turn it on in Settings to use I’m here.';
   if (e === 'not-allowed') return 'I’m here needs your location. Tap it again to allow it.';
   if (e === 'ask-first') return 'Allow location first. It’s explained on the next screen.';
+  if (e === 'consent') return 'A parent or guardian has to approve location check-in first.';
   return 'Couldn’t get your location. Try again.';
 }
 
@@ -245,7 +281,7 @@ export function hereErrorLine(r) {
  *  at `place`. Pure over its inputs so it holds still in a test. '' when there is nothing to ask.
  *  Its buttons are the selection-blue secondary (lk-go), never a second primary: I'm here, right
  *  above it, is the one primary on the board. */
-export function locationAskHtml({ place = 'the check-in spot', state = null, walkIn = false, walkInStatus = null, optedOut = false, declined = false } = {}) {
+export function locationAskHtml({ place = 'the check-in spot', state = null, walkIn = false, walkInStatus = null, optedOut = false, declined = false, consent = true } = {}) {
   const where = esc(place);
   const card = (title, body, acts, foot = '') => `<section class="card pad lk-ask" role="region" aria-labelledby="lk-ask-t">
     <h3 class="lk-t" id="lk-ask-t">${icon('pin', 16)} ${title}</h3>
@@ -253,6 +289,14 @@ export function locationAskHtml({ place = 'the check-in spot', state = null, wal
     <div class="lk-acts">${acts}</div>${foot ? `<p class="lk-foot">${foot}</p>` : ''}
   </section>`;
   const how = '<button type="button" class="btn ghost sm lk-how" data-go="location-consent">How it works</button>';
+  // The server's consent rule first (m2): a minor without consent never sees a location prompt
+  // here, only the way to a guardian. Unknown (the server couldn't be asked): no card yet.
+  if (consent === false) {
+    return card('A parent or guardian approves this first',
+      'You’re under 18, so OnStandard won’t check your location until a guardian says yes. Until then, your coach sees Not arrived for the place.',
+      '<button type="button" class="btn sm lk-go" data-go="location-consent">See how</button>');
+  }
+  if (consent !== true) return '';
   if (state === 'undetermined') {
     return card('Check in with your location',
       `When you tap I’m here, your phone takes one reading and checks it against ${where}. Your coach and team see Arrived or Not arrived, never where you are.`,
@@ -306,6 +350,6 @@ export function locationAskFor(place, optedOut = false) {
   const arm = lastLocationArm();
   return locationAskHtml({
     place, state: STATE, walkIn: walkInCapable(), walkInStatus: arm && arm.walkIn ? String(arm.walkIn) : null,
-    optedOut: !!optedOut, declined: alwaysDeclined(),
+    optedOut: !!optedOut, declined: alwaysDeclined(), consent: CONSENT,
   });
 }

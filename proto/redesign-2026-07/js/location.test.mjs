@@ -13,6 +13,7 @@
  */
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 globalThis.window = globalThis.window || {};
 globalThis.localStorage = globalThis.localStorage || { getItem: () => null, setItem() {}, removeItem() {} };
@@ -216,4 +217,47 @@ test('the ask card: While Using explained first, Always only after, Settings aft
   assert.match(L.locationAskHtml({ place, state: 'always', walkIn: true, walkInStatus: 'unavailable' }), /isn’t working on this phone/);
   assert.equal(L.locationAskHtml({ place, state: null }), '', 'nothing before the phone has answered');
   assert.doesNotMatch(L.locationAskHtml({ place: '<b>x</b>', state: 'undetermined' }), /<b>x/, 'the place name is escaped');
+});
+
+/* ---- fix round 2: m1 (Keep Only While Using) and m2 (the server's consent rule) ---- */
+
+test('after "Keep Only While Using" the Always button is gone, not dead (m1)', async () => {
+  const mem = new Map();
+  const prev = globalThis.localStorage;
+  globalThis.localStorage = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) };
+  try {
+    shim({ location: { request: () => Promise.resolve('when_in_use') } });
+    L.setConsentCachedForHarness(true);
+    assert.equal(await L.allowLocation(true), 'when_in_use');
+    assert.equal(L.alwaysRefused(), true);
+    assert.equal(L.alwaysDeclined(), true);
+    L.setLocationStateForHarness('when_in_use');
+    assert.equal(L.locationAskFor('Weight room'), '', 'no card asking again');
+  } finally {
+    globalThis.localStorage = prev;
+    L.setConsentCachedForHarness(null);
+  }
+});
+
+test('a minor without consent never sees the prompt: the card and the tap both stop (m2)', async () => {
+  shim({ location: { available: () => Promise.resolve({ available: true, state: 'undetermined' }) } });
+  L.setConsentCachedForHarness(false);
+  try {
+    const card = L.locationAskHtml({ place: 'Weight room', state: 'undetermined', walkIn: true, consent: false });
+    assert.match(card, /parent or guardian/);
+    assert.doesNotMatch(card, /data-loc-allow|data-loc-always/);
+    assert.deepEqual(await L.checkInHere('i1'), { error: 'consent' });
+    assert.ok(!calls.some((c) => c[0] === 'request' || c[0] === 'check'), 'no OS prompt, no reading');
+    assert.match(L.hereErrorLine({ error: 'consent' }), /parent or guardian/);
+    // Consent unknown (the server could not be asked): no card yet, never a guess.
+    assert.equal(L.locationAskHtml({ place: 'x', state: 'undetermined', consent: null }), '');
+  } finally {
+    L.setConsentCachedForHarness(null);
+  }
+});
+
+test('the client keeps no copy of the age rule: consent is the server RPC', () => {
+  const src = readFileSync(new URL('./location.js', import.meta.url), 'utf8');
+  assert.match(src, /loadVerificationConsent/);
+  assert.doesNotMatch(src, /athlete_profiles|is_provable_minor/, 'no client query for age');
 });

@@ -68,3 +68,10 @@ test('the copy tells the truth about what the product does now', () => {
   assert.match(idx, /'location-consent': lazy\(\(\) => import\('\.\/location-consent\.js'\)\)/);
   assert.match(readFileSync(join(JS, 'screens', 'profile.js'), 'utf8'), /row\('location-consent'/);
 });
+
+test('after "Keep Only While Using" the screen offers Settings, never a button that asks again (m1)', () => {
+  const h = consentActionHtml({ ...base, state: 'when_in_use', refused: true });
+  assert.doesNotMatch(h, /id="lc-always"/);
+  assert.match(h, /id="lc-settings"/);
+  assert.match(h, /choose Always/);
+});
