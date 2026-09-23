@@ -1725,11 +1725,10 @@ export const trainerProfile = {
       <div class="lrow" data-go="trainer-profile/account"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Account</div><div class="ls">Email, password, billing, delete</div></div>${icon('chevron', 17)}</div>
     </section>
 
-    ${/* The four locked "Founder-gated sections" tiles left on 2026-08-11 (founder: ending the
-          screen on four dead squares reads as broken, not honest). The roadmap note survives as
-          ONE quiet line — still honest about what's unbuilt, no longer dressed as UI. When a
-          section ships it gets a real row above, same convention as before. */''}
-    <div style="font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin:12px 4px 0;line-height:1.5">Business health, an AI assistant, branding, and integrations are being built one slice at a time. Each appears here the day it's real.</div>
+    ${/* The roadmap line that sat here ("being built one slice at a time. Each appears here the day
+          it's real.") was a coming-soon note inside a shipped screen, which App Review reads as
+          2.1/2.2 placeholder content (review pass 2026-09-23, C-R5). When a section ships it gets
+          a real row above; until then the screen says nothing about it. */''}
 
     ${/* Sign out gets its own card at the END, like the coach's, instead of sitting as the last
           row of the settings list where it read as one more setting. co-bottom gives it the same
