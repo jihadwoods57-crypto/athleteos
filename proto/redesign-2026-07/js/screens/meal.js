@@ -169,15 +169,17 @@ async function warmParticipants(rolesMod, uid) {
 const NUT_ICONS = { protein: 'biceps', carbs: 'bars', fat: 'droplet', cals: 'flame' };
 const nutTile = (k, v, label) => `<div class="nt${k === 'protein' ? ' lead' : ''}"><span class="nt-ic ${k}">${icon(NUT_ICONS[k], 16)}</span><div class="nt-v">${v}</div><div class="nt-k">${label}</div></div>`;
 
-function macroRow(m) {
+export function macroRow(m) {
   // Per figure (0142): protein/carbs/fat behind showMacros, the calorie figure behind
   // showCalories — a professional can hide calories alone, and the prescription must hold
   // on every cell, not just the row.
   const cells = [];
+  // An unread figure prints a dash, never "nullg" (unknown is not 0; same rule as the tiles).
+  const g = (v) => (v == null ? '—' : `${v}<i>g</i>`);
   if (S.planStyle.showMacros) cells.push(
-    nutTile('protein', `${m.protein}<i>g</i>`, 'Protein'),
-    nutTile('carbs', `${m.carbs}<i>g</i>`, 'Carbs'),
-    nutTile('fat', `${m.fat}<i>g</i>`, 'Fat'),
+    nutTile('protein', g(m.protein), 'Protein'),
+    nutTile('carbs', g(m.carbs), 'Carbs'),
+    nutTile('fat', g(m.fat), 'Fat'),
   );
   if (S.planStyle.showCalories) cells.push(nutTile('cals', `${m.cals}`, 'Calories'));
   return cells.length ? `<div class="nut-tiles${cells.length === 3 ? ' three' : cells.length <= 2 ? ' two' : ''}">${cells.join('')}</div>` : '';
@@ -1102,7 +1104,7 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
       if (/^Fat in range/.test(l)) return `Good balance for ${whose} goals`;
       if (/^Fat/.test(l)) return 'Go lighter on oils and cheese';
       if (/^Good fiber/.test(l)) return 'Produce is showing';
-      if (/^Produce showing/.test(l)) return 'Fiber was not measured for this plate';
+      if (/^Produce showing/.test(l)) return 'In the photo. Fiber was not measured';
       if (/^Fiber light/.test(l)) return 'Add fruit, veggies or higher fiber carbs';
       // Not "Nothing green on the plate": that is a claim about the photo, and the photo can show
       // edamame and lettuce while the fiber estimate reads zero (audit 2026-09-22). Say what to do.

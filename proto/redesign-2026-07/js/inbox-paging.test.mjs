@@ -7,8 +7,8 @@
    promise. "Opened" is the union of this device's list and the server's staff views (0229). */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { countLabel, pageRows, unionSeen, MEAL_CATEGORIES, categorizeInbox } from './inbox.js';
-import { seenMealSet, ACTIVITY_LIMIT, ACTIVITY_DAYS } from './coach-data.js';
+import { countLabel, pageRows, MEAL_CATEGORIES, categorizeInbox } from './inbox.js';
+import { seenMealSet, unionSeen, ACTIVITY_LIMIT, ACTIVITY_DAYS } from './coach-data.js';
 
 test('the activity window is two days at the server clamp', () => {
   assert.equal(ACTIVITY_LIMIT, 400);

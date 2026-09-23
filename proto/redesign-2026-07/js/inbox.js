@@ -266,13 +266,3 @@ export function pageRows(rows, shown, page = 20) {
   return { rows: out, more: all.length > out.length, remaining: all.length - out.length, next: limit + size };
 }
 
-/** "Opened" is the union of this device's list (the optimistic layer, kept as the fallback when
- *  the server read fails) and every staff view the server returned (0229 meal_views). Either
- *  input may be missing; the result is always a Set. */
-export function unionSeen(localIds, serverIds) {
-  const out = new Set();
-  for (const id of (Array.isArray(localIds) ? localIds : [])) if (id) out.add(id);
-  const srv = serverIds instanceof Set ? serverIds : (Array.isArray(serverIds) ? serverIds : []);
-  for (const id of srv) if (id) out.add(id);
-  return out;
-}

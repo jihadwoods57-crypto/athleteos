@@ -3845,8 +3845,9 @@ export const coachMeal = {
       const rich = normalizeDetected(row.detected);
       return {
         mealId: row.id,
-        protein: row.protein || 0, carbs: row.carbs || 0, fat: row.fat || 0, kcal: row.kcal || 0,
-        fiber: row.fiber || 0, quality: row.quality != null ? row.quality : null,
+        // null kept: the re-score must not judge a macro the read never returned (A-B4).
+        protein: row.protein || 0, carbs: row.carbs == null ? null : row.carbs || 0, fat: row.fat == null ? null : row.fat || 0, kcal: row.kcal || 0,
+        fiber: row.fiber == null ? null : row.fiber || 0, quality: row.quality != null ? row.quality : null,
         detectedRich: rich, detected: rich.map((d) => d.name),
         corrections: [], minutesLate: row.minutes_late || 0,
       };
@@ -3855,8 +3856,8 @@ export const coachMeal = {
       const row = MEAL.id === sub && MEAL.row ? MEAL.row : null;
       if (!row) { FIX_NOTE = 'Still loading this meal. Try again in a second.'; window.__render(); return; }
       FIX_BUSY = true; window.__render();
-      /* A macro the read never returned stays ABSENT through a correction. metaFromRow coerces
-         null to 0 so the deterministic engines can do arithmetic, but neither removing a food nor
+      /* A macro the read never returned stays ABSENT through a correction. metaFromRow invents
+         nothing (null kept since 2026-09-23), and neither removing a food nor
          scaling a portion can conjure a number for a macro that was never read — there is no
          "state a macro" path in this panel. Writing the engine's 0 back would persist a
          fabricated zero into the meals row itself, poisoning every renderer (2026-09-08 review:
