@@ -100,9 +100,9 @@ test('account step: a new identity keeps the chosen role and saves; nobody is ev
   // A never-onboarded old account of this flow's role finishes onboarding.
   assert.equal(accountStepDecision({ user: old, prof: { primary_role: 'athlete', tos_accepted_at: null }, role: 'athlete', nowMs: now }), 'adopt');
   const oa = src('screens/ob-account.js');
-  assert.match(oa, /accountStepDecision\(\{ user: r\.user, prof: id\.prof, role \}\) === 'route'/);
+  assert.match(oa, /accountStepDecision\(\{ user: r\.user, prof: id\.prof, role, note: ssoNewNote\(\) \}\) === 'route'/);
   assert.match(oa, /primary_role: role/);
-  assert.match(oa, /if \(proceed\) await onSession\(true\)/, 'the onboarding answers are saved');
+  assert.match(oa, /if \(proceed\) \{ await onSession\(true\);/, 'the onboarding answers are saved');
 });
 
 test('Sign-in: a new social identity is signed out and sent to pick a role, never Home', () => {
@@ -152,4 +152,43 @@ test('no way back from a blocked age screen (A Polish 4, C Polish 7), and the co
   assert.match(e, /\$\{s\.noBack \? '' : /, 'the engine drops the back arrow');
   assert.doesNotMatch(a, /It verifies you are old enough/);
   assert.match(a, /Asked once\. OnStandard is for ages 13 and up\./);
+});
+
+/* R2-I1: Sign-in bounced a new Apple identity; the coach then spends MORE than 10 minutes in
+   coach onboarding and taps Apple on the account step. Result: a coach, onboarding saved, and the
+   age guard never asks them for a birth date. */
+test('R2-I1: bounce, 10+ minutes of coach onboarding, then Apple: a coach, not an athlete', async () => {
+  const SA = await import('./social-auth.js');
+  const t0 = Date.parse('2026-09-23T12:00:00Z');
+  const user = { id: 'u-coach', created_at: '2026-09-23T12:00:00Z' };
+  // The auth user exists with the column default role and no terms: exactly what prod holds.
+  const prof = { primary_role: 'athlete', tos_accepted_at: null };
+  const store = new Map();
+  globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: (k) => store.delete(k) };
+  SA.noteSsoNew(user.id, 'apple');                     // Sign-in bounced this identity
+  const later = t0 + 25 * 60 * 1000;                  // 25 minutes of coach onboarding
+  assert.equal(SA.accountStepDecision({ user, prof, role: 'coach', note: SA.ssoNewNote(), nowMs: later }), 'adopt');
+  // Without the note, the same account is never converted.
+  assert.equal(SA.accountStepDecision({ user, prof, role: 'coach', note: null, nowMs: later }), 'route');
+  // A note for someone else is no note.
+  assert.equal(SA.accountStepDecision({ user, prof, role: 'coach', note: { uid: 'other', provider: 'apple' }, nowMs: later }), 'route');
+  // Adopted: ob-account sets the flow's role, saves onboarding, then spends the note.
+  const oa = src('screens/ob-account.js');
+  assert.match(oa, /accountStepDecision\(\{ user: r\.user, prof: id\.prof, role, note: ssoNewNote\(\) \}\)/);
+  assert.match(oa, /act\.setAuthRole\(role\);/);
+  assert.match(oa, /if \(proceed\) \{ await onSession\(true\); clearSsoNew\(\); \}/);
+  // And a coach is never sent to the athlete DOB check.
+  assert.equal(ageGuardRoute('home', { userId: user.id, authRole: 'coach', ageKnown: false }), false);
+  assert.equal(ageGuardRoute('coach-home', { userId: user.id, authRole: 'coach', ageKnown: false }), false);
+  // The note is cleared on sign-out, and Sign-in writes it keyed by the auth user id.
+  assert.match(src('state.js'), /localStorage\.removeItem\('os\.sso\.new'\)/);
+  assert.match(src('screens/signin.js'), /noteSsoNew\(r\.user\.id, provider\)/);
+  SA.clearSsoNew();
+  assert.equal(SA.ssoNewNote(), null);
+});
+
+test('R2-M2: the age check has a way out', () => {
+  const s = src('screens/age-check.js');
+  assert.match(s, /id="ac-out">Sign out<\/button>/);
+  assert.match(s, /act\.signOut\(\)/);
 });

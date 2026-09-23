@@ -28,6 +28,24 @@ export function socialButtons({ apple = false, google = false } = {}) {
    signInWithIdToken call, so its created_at is seconds old. Both together = never onboarded. */
 export const NEW_IDENTITY_MS = 10 * 60 * 1000;
 
+/* THE BOUNCE NOTE (review R2-I1). When Sign-in sends a brand-new identity to sign-up, it records
+   that identity's auth user id here. The onboarding account step honours it however long
+   onboarding took: that account is new, takes the flow's role, and its onboarding is saved. The
+   note is cleared once onboarding saves or on sign-out. localStorage, not sessionStorage, so a
+   long onboarding (or the app being swapped out) does not lose it. */
+export const SSO_NEW_KEY = 'os.sso.new';
+export function noteSsoNew(uid, provider) {
+  try { localStorage.setItem(SSO_NEW_KEY, JSON.stringify({ uid: String(uid || ''), provider: provider === 'google' ? 'google' : 'apple' })); } catch { /* the 10-minute window still applies */ }
+}
+/** The note, or null. { uid, provider } */
+export function ssoNewNote() {
+  try {
+    const o = JSON.parse(localStorage.getItem(SSO_NEW_KEY) || 'null');
+    return o && typeof o === 'object' && o.uid ? { uid: String(o.uid), provider: String(o.provider || 'apple') } : null;
+  } catch { return null; }
+}
+export function clearSsoNew() { try { localStorage.removeItem(SSO_NEW_KEY); } catch { /* nothing to clear */ } }
+
 /** Created within the last few minutes. Pure. */
 export function isFreshUser(user, nowMs = Date.now()) {
   const t = Date.parse((user && user.created_at) || '');
@@ -51,14 +69,16 @@ export async function readIdentity(userId) {
 
 /**
  * The onboarding account step's decision for a social identity (pure, tested).
- *   'adopt'  a new or never-onboarded account of THIS flow's role: take the chosen role and save
- *            the onboarding (onSession).
+ *   'adopt'  a new account: take THIS flow's role and save the onboarding (onSession).
  *   'route'  an account that is already someone: go to its own home, never re-roled.
- * A never-onboarded OLD account whose role differs from this flow is routed, not converted, so a
- * coach can never be turned into an athlete (or the reverse) by tapping Apple on the wrong flow.
+ * New means: Sign-in bounced exactly this auth user here (the note, whatever the elapsed time),
+ * or it was created within the last few minutes. An account with a note for a DIFFERENT user, or
+ * no note and older than that, is never converted to another role; it is adopted only when it is
+ * already of this flow's role (finishing its own onboarding changes nobody).
  */
-export function accountStepDecision({ user, prof, role, nowMs = Date.now() }) {
+export function accountStepDecision({ user, prof, role, note = null, nowMs = Date.now() }) {
   if (prof && prof.tos_accepted_at) return 'route';
+  if (note && user && note.uid === String(user.id)) return 'adopt';
   if (isFreshUser(user, nowMs)) return 'adopt';
   return prof && prof.primary_role && prof.primary_role !== role ? 'route' : 'adopt';
 }

@@ -1,7 +1,7 @@
 import { logoMark } from '../components.js';
 import { icon } from '../icons.js';
 import { RT, act, routeForRole } from '../state.js';
-import { socialAvailability, socialButtonHtml, socialSignIn, readIdentity, isNewIdentity, isFreshUser } from '../social-auth.js';
+import { socialAvailability, socialButtonHtml, socialSignIn, readIdentity, isNewIdentity, isFreshUser, noteSsoNew } from '../social-auth.js';
 
 /* Real email/password sign-in (returning users). Premium reshape scoped under `.si`
    (see flows.css "Sign-in (v2)") so the shared .welcome / .ob-* rules that reset.js
@@ -157,7 +157,7 @@ export default {
         if (isNew) {
           // New to OnStandard: sign-up comes first, and it starts with who they are and their age.
           try { await window.sb.auth.signOut(); } catch { /* the role screen works either way */ }
-          try { sessionStorage.setItem('os.sso.new', provider); } catch { /* the note is a nicety */ }
+          noteSsoNew(r.user.id, provider);   // R2-I1: the account step adopts exactly this identity
           go('role');
           return;
         }

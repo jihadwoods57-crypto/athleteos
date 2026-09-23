@@ -10,6 +10,7 @@ import { RT } from '../state.js';
 import { icon } from '../icons.js';
 import { esc } from '../components.js';
 import { track, EVENTS } from '../analytics.js';
+import { ssoNewNote } from '../social-auth.js';
 
 /* Every door wears the same blue tile (2026-09-22); the GLYPH tells them apart. The tiles used to
    be green (client, dietitian), purple (trainer) and cyan (nutrition pro): status hues doing an
@@ -43,7 +44,7 @@ function resumeTarget() {
 }
 
 /** Set by the Sign-in screen when an Apple or Google account had no OnStandard profile yet. */
-function ssoNew() { try { return sessionStorage.getItem('os.sso.new'); } catch { return null; } }
+function ssoNew() { const n = ssoNewNote(); return n ? n.provider : null; }
 
 export const ob2Role = {
   hideTabs: true,

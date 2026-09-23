@@ -61,3 +61,12 @@ test('every sender that speaks for a person drops the people who blocked them', 
   const rc = src('roll-call-coach');
   assert.equal((rc.match(/await blockersOf\(svc, coachId,/g) || []).length, 2, 'roll call notice and nudge');
 });
+
+test('R2-M1: a blocked athlete gets the same dedupe and opt-out answers as anyone', () => {
+  const sp = readFileSync(join(process.cwd(), 'supabase', 'functions', 'send-push', 'index.ts'), 'utf8');
+  const dedupe = sp.indexOf("return json({ ok: true, pushed: 0, deduped: true }, 200, cors);");
+  const block = sp.indexOf("logBlocked('send-push:single', 1)");
+  assert.ok(dedupe > 0 && block > dedupe, 'dedupe answers first');
+  assert.match(sp.slice(block, block + 600), /suppressed: 'notifications_off'/);
+  assert.match(sp, /NUDGE_ECHO/);
+});

@@ -3,7 +3,7 @@
    persisted; the email is captured to RT.ob so a Terms detour doesn't lose it. */
 import { RT, act, routeForRole } from '../state.js';
 import { passwordStrength, weakPasswordReason } from '../ob-helpers.js';
-import { socialAvailability, socialButtonHtml, socialSignIn, readIdentity, accountStepDecision } from '../social-auth.js';
+import { socialAvailability, socialButtonHtml, socialSignIn, readIdentity, accountStepDecision, ssoNewNote, clearSsoNew } from '../social-auth.js';
 
 export function accountBody(opts = {}) {
   const terms = opts.terms || 'ob';
@@ -90,7 +90,7 @@ export function wireAccount(root, { role, onSession }) {
         // (terms never accepted, and created just now or already of this flow's role).
         const id = await readIdentity(r.user.id);
         if (!id.known) { err.textContent = label + ' sign-in failed. Use email instead.'; b.disabled = false; return; }
-        if (accountStepDecision({ user: r.user, prof: id.prof, role }) === 'route') {
+        if (accountStepDecision({ user: r.user, prof: id.prof, role, note: ssoNewNote() }) === 'route') {
           const own = (id.prof && id.prof.primary_role) || role;
           act.setAuthRole(own);
           window.__go(routeForRole(own));
@@ -104,7 +104,7 @@ export function wireAccount(root, { role, onSession }) {
         } catch { /* best-effort */ }
         proceed = true;
       } catch { err.textContent = label + ' sign-in failed. Use email instead.'; b.disabled = false; }
-      if (proceed) await onSession(true);
+      if (proceed) { await onSession(true); clearSsoNew(); }   // onboarding saved: the note is spent
     }));
   };
   void wireSocial();

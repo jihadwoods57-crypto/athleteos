@@ -3740,6 +3740,7 @@ export const act = {
     // attribute crossings under whoever signs in next on this phone).
     await this._disarmLocation();
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
+    try { localStorage.removeItem('os.sso.new'); } catch { /* R2-I1: the bounce note ends with the session */ }
     this._wipeUserScopedState({ keepPendingOb: true });
   },
 

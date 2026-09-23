@@ -93,3 +93,13 @@ test('Block is offered where people are: the members sheet (threads, squad) and 
   assert.match(bell, /data-block-announcement=/);
   assert.match(bell, /blockAnnouncementAuthor\(/);
 });
+
+test('R2-M4: a queued block that can never land (not a user id) is dropped, not retried for ever', async () => {
+  const sb = fakeSb();
+  sb.from = () => ({ insert: async () => ({ error: { code: '22P02' } }), select: () => ({ eq: async () => ({ data: [], error: null }) }), delete: () => ({ eq: () => ({ eq: async () => ({ error: null }) }) }) });
+  window.sb = sb;
+  RT.mutedUsers = ['not-a-uuid'];
+  await B.syncBlocks();
+  assert.equal(localStorage.getItem('os.blocks.pending.me'), null);
+  assert.equal(act.isMuted('not-a-uuid'), false);
+});

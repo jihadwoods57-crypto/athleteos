@@ -37,6 +37,8 @@ async function send(sb, uid, op, id) {
     if (op === 'add') {
       // insert, not upsert: the table grants insert/select/delete only, and a repeat is a 23505.
       const { error } = await sb.from('user_blocks').insert({ blocker_id: uid, blocked_id: id });
+      // R2-M4: not a person id (22P02) or no such person (23503) will never land: drop it.
+      if (error && (error.code === '22P02' || error.code === '23503')) return 'drop';
       return !error || error.code === '23505';
     }
     const { error } = await sb.from('user_blocks').delete().eq('blocker_id', uid).eq('blocked_id', id);
@@ -49,9 +51,10 @@ function run(uid, op, id) {
   const p = INFLIGHT.then(async () => {
     if (!sb) { enqueue(uid, op, id); return false; }
     const ok = await send(sb, uid, op, id);
-    if (ok) writeQueue(uid, readQueue(uid).filter((x) => x.id !== id));
+    if (ok === true) writeQueue(uid, readQueue(uid).filter((x) => x.id !== id));
+    else if (ok === 'drop') { writeQueue(uid, readQueue(uid).filter((x) => x.id !== id)); if (op === 'add') act.unmuteUser(id); }
     else enqueue(uid, op, id);
-    return ok;
+    return ok === true;
   });
   INFLIGHT = p.catch(() => false);
   return p;

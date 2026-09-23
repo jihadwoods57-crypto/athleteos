@@ -71,6 +71,7 @@ export default {
       </div>
       <div class="ob-foot">
         <button class="btn primary" id="ac-go" disabled>${BUSY ? 'Saving…' : 'Continue'}</button>
+        <button type="button" class="cam-textlink" id="ac-out">Sign out</button>
       </div>
     </div>`;
   },
@@ -87,6 +88,13 @@ export default {
     m.addEventListener('input', () => { digits(m, 2); if (m.value.length >= 2) d.focus(); sync(); });
     d.addEventListener('input', () => { digits(d, 2); if (d.value.length >= 2) y.focus(); sync(); });
     y.addEventListener('input', () => { digits(y, 4); sync(); });
+    // R2-M2: the wrong person on a shared phone, or a save that keeps failing, needs a way out.
+    const out = root.querySelector('#ac-out');
+    if (out) out.addEventListener('click', async () => {
+      out.disabled = true;
+      try { await act.signOut(); } catch { /* signed out locally either way */ }
+      location.hash = '#welcome';
+    });
     go.addEventListener('click', async () => {
       const dob = read();
       if (!dob || BUSY) return;
