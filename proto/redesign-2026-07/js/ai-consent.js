@@ -27,16 +27,39 @@ export const AI_CONSENT_REQUIRED = 'ai_consent_required';
 const CACHE = (uid) => `os.aiConsent.${uid}`;
 const PENDING = (uid) => `os.aiConsent.pending.${uid}`;
 const LOCAL = 'os.aiConsent.local';
+const MINOR = (uid) => `os.aiConsent.minor.${uid}`;
+/* M9: an onboarding answer is kept with its time and only ever lands on an account made within
+   this window, so an answer left on a shared phone never speaks for the next person. */
+const LOCAL_TTL_MS = 3 * 3600 * 1000;
 
 const get = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const put = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch { /* no storage */ } };
 const fromStr = (s) => (s === '1' ? true : s === '0' ? false : null);
 const toStr = (v) => (v === true ? '1' : v === false ? '0' : null);
 
+function readLocal() {
+  const raw = get(LOCAL);
+  if (!raw) return null;
+  try {
+    const o = JSON.parse(raw);
+    if (!o || typeof o !== 'object' || !Number.isFinite(o.at) || Date.now() - o.at > LOCAL_TTL_MS) return null;
+    return fromStr(o.v);
+  } catch { return null; }
+}
+
 /** The answer this device knows for `uid` (or the pre-account answer when `uid` is empty). */
 export function aiConsentCached(uid) {
-  return fromStr(get(uid ? CACHE(uid) : LOCAL));
+  return uid ? fromStr(get(CACHE(uid))) : readLocal();
 }
+
+/** I6: a provable minor whose parent has not approved yet. The server treats them as no consent
+ *  (has_ai_consent, 0243); the app does not offer them the sheet, and says why instead. */
+export function aiMinorPending(uid) {
+  return !!uid && get(MINOR(uid)) === '1';
+}
+
+/** The plain line for a person the AI is not reading. */
+export const AI_MINOR_LINE = 'AI reads start once a parent or guardian approves your account.';
 
 /** A server reply said the AI was skipped for lack of consent. Forget a stale yes on this device,
  *  so the next AI moment asks instead of silently failing. */
@@ -75,12 +98,20 @@ export async function refreshAiConsent(uid) {
   if (!sb || typeof sb.from !== 'function') return aiConsentCached(uid);
   let server;
   try {
-    const { data, error } = await sb.from('profiles').select('ai_consent').eq('id', uid).maybeSingle();
-    if (error) return aiConsentCached(uid);
+    // my_ai_consent (0243): the answer AND whether a parent still has to approve first.
+    let data = null;
+    let error = null;
+    if (typeof sb.rpc === 'function') ({ data, error } = await sb.rpc('my_ai_consent'));
+    if (error || !data || typeof data !== 'object') {
+      ({ data, error } = await sb.from('profiles').select('ai_consent').eq('id', uid).maybeSingle());
+      if (error) return aiConsentCached(uid);
+    } else {
+      put(MINOR(uid), data.minor_pending === true ? '1' : null);
+    }
     server = data && typeof data.ai_consent === 'boolean' ? data.ai_consent : null;
   } catch { return aiConsentCached(uid); }
   const pending = fromStr(get(PENDING(uid)));
-  const local = fromStr(get(LOCAL));
+  const local = readLocal();
   // A failed write from this device wins over what the server holds (it is newer); the onboarding
   // answer only fills an EMPTY record, so it can never undo a choice made later on another phone.
   const want = pending !== null ? pending : (server === null ? local : null);
@@ -94,7 +125,7 @@ export async function refreshAiConsent(uid) {
  *  server has it; false leaves it pending on the device, written at the next refresh. */
 export async function setAiConsent(uid, value) {
   const v = value === true;
-  if (!uid) { put(LOCAL, toStr(v)); return true; }
+  if (!uid) { put(LOCAL, JSON.stringify({ v: toStr(v), at: Date.now() })); return true; }
   put(CACHE(uid), toStr(v));
   const ok = await writeServer(v);
   put(PENDING(uid), ok ? null : toStr(v));
@@ -201,9 +232,12 @@ export function openAiConsentSheet(role = 'athlete') {
  * `uid` empty means no account yet (onboarding): the answer stays on the device.
  */
 export async function ensureAiConsent(uid, { role = 'athlete', ask = false } = {}) {
+  // I6: a minor waiting on a parent is never offered the sheet; the caller says why instead.
+  if (aiMinorPending(uid)) return false;
   let v = aiConsentCached(uid || null);
   if (v === true) return true;
   if (uid && v === null) v = await refreshAiConsent(uid);
+  if (aiMinorPending(uid)) return false;
   if (v === true) return true;
   if (v === false && !ask) return false;
   // Another overlay is up (a tour, a sheet): never stack on it. The caller treats it as not yet.

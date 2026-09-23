@@ -43,7 +43,10 @@ begin
   if (new.ai_consent is distinct from old.ai_consent or new.ai_consent_at is distinct from old.ai_consent_at)
      and coalesce(current_setting('app.ai_consent_write', true), '') <> 'on'
      and coalesce(auth.role(), '') <> 'service_role'
-     and current_user not in ('postgres', 'supabase_admin', 'service_role') then
+     -- M1: an owner role is exempt only OUTSIDE a client session (migrations, the dashboard). A
+     -- SECURITY DEFINER function runs as postgres but still carries the caller's auth.uid(), so it
+     -- cannot write consent on a client's behalf without going through set_ai_consent.
+     and not (current_user in ('postgres', 'supabase_admin') and auth.uid() is null) then
     raise exception 'ai_consent is set only through set_ai_consent' using errcode = '42501';
   end if;
   return new;
@@ -80,13 +83,35 @@ revoke all on function public.set_ai_consent(boolean) from public, anon;
 grant execute on function public.set_ai_consent(boolean) to authenticated;
 
 -- ---------------------------------------------------------------- read: the servers' one rule
--- True only for an explicit Continue. Null (never asked) and false both answer false. The edge
--- functions call this under the service role; it is not exposed to clients, who read their own
--- column instead (whether ANOTHER person agreed is not theirs to know).
+-- True only for an explicit Continue, AND never for a provable minor whose guardian has not
+-- verified (the promise the privacy policy makes: a minor's data does not leave the phone until a
+-- parent approves; the same pair of rules enforce_minor_consent uses, 0050). Null (never asked)
+-- and false both answer false. Service role only: whether ANOTHER person agreed is not a client's
+-- to know.
 create or replace function public.has_ai_consent(p uuid)
 returns boolean language sql stable security definer set search_path = public as $$
-  select coalesce((select ai_consent from public.profiles where id = p), false);
+  select coalesce((select ai_consent from public.profiles where id = p), false)
+     and not (public.is_provable_minor(p) and not public.has_verified_guardian_consent(p));
 $$;
 
 revoke all on function public.has_ai_consent(uuid) from public, anon, authenticated;
 grant execute on function public.has_ai_consent(uuid) to service_role;
+
+-- The same answer for many people at once, for the edge functions and crons (one round trip).
+create or replace function public.ai_consent_effective(p_ids uuid[])
+returns table (id uuid, ai_consent boolean) language sql stable security definer set search_path = public as $$
+  select x.id, public.has_ai_consent(x.id) from unnest(coalesce(p_ids, '{}'::uuid[])) as x(id);
+$$;
+revoke all on function public.ai_consent_effective(uuid[]) from public, anon, authenticated;
+grant execute on function public.ai_consent_effective(uuid[]) to service_role;
+
+-- The signed-in person's own answer and whether a parent still has to approve first. The app
+-- reads this instead of offering the consent sheet to a minor who cannot yet say yes.
+create or replace function public.my_ai_consent()
+returns jsonb language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'ai_consent', (select ai_consent from public.profiles where id = auth.uid()),
+    'minor_pending', coalesce(public.is_provable_minor(auth.uid()) and not public.has_verified_guardian_consent(auth.uid()), false));
+$$;
+revoke all on function public.my_ai_consent() from public, anon;
+grant execute on function public.my_ai_consent() to authenticated;

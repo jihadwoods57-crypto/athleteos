@@ -324,6 +324,11 @@ async function runLiveAnalysis(root, ctx) {
      asked here, before the photo leaves the phone. The answer is kept on the device and written to
      the account once it exists. Not now sends nothing and offers the sample meal. Tapping Analyze
      is an explicit ask, so an earlier Not now is asked again rather than silently refused. */
+  // I6: a 13-17 athlete's photo does not leave the phone before a parent approves.
+  if (RT.ob && RT.ob.dobMinor) {
+    fail('Nothing was sent. AI reads start once a parent or guardian approves your account. The sample meal shows the same experience.', 'Waiting on a parent');
+    return;
+  }
   DEMO.busy = true;
   const consented = await ensureAiConsent(RT.userId || null, { role: 'athlete', ask: true });
   if (!consented) {

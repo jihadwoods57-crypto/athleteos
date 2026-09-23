@@ -5,7 +5,7 @@
 import { backHead, esc, skeletonRows, errorState, emptyState } from '../components.js';
 import { icon } from '../icons.js';
 import { S, RT } from '../state.js';
-import { ensureAiConsent, isConsentSkip } from '../ai-consent.js';
+import { ensureAiConsent, isConsentSkip, aiMinorPending, AI_MINOR_LINE } from '../ai-consent.js';
 import * as roles from '../roles.js';
 import { buildMonthPayload } from '../monthly.js';
 import { track, EVENTS } from '../analytics.js';
@@ -249,8 +249,8 @@ export default {
     return `${backHead('Monthly report', esc(monthLabel(period)), 'progress')}
     ${locked ? lockedCard(CACHE.payload, period) : report && !report.error ? reportBody(report, period) : isConsentSkip(report) ? `
       <section class="card pad aic-off mr-aioff" role="status">
-        <span>AI reads are off, so there is no written report this month. Your numbers are all still yours in Progress.</span>
-        <button type="button" class="btn ghost sm" id="mr-ai-on">${icon('sparkle', 15)} Turn on AI reads</button>
+        <span>${aiMinorPending(RT.userId) ? `There is no written report this month. ${AI_MINOR_LINE}` : 'AI reads are off, so there is no written report this month.'} Your numbers are all still yours in Progress.</span>
+        ${aiMinorPending(RT.userId) ? '' : `<button type="button" class="btn ghost sm" id="mr-ai-on">${icon('sparkle', 15)} Turn on AI reads</button>`}
       </section>` : `
       ${errorState({
         title: "Couldn't build your report",

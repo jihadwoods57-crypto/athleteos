@@ -35,14 +35,15 @@ export function firstWithoutConsent(ids, rows) {
   return want.find((id) => !ok.has(id)) ?? null;
 }
 
-/** Read the answers for `ids` with a service-role client. Fails CLOSED: an unreadable answer is a
- *  no, because sending someone's data on a database hiccup is the one outcome this gate exists to
- *  prevent. Returns the rows (possibly empty). */
+/** Read the EFFECTIVE answers for `ids` with a service-role client (ai_consent_effective, 0243):
+ *  a yes only counts when the person is not a provable minor waiting on a guardian (I6). Fails
+ *  CLOSED: an unreadable answer is a no, because sending someone's data on a database hiccup is
+ *  the one outcome this gate exists to prevent. Returns rows of { id, ai_consent }. */
 export async function loadConsentRows(svc, ids) {
   const want = [...new Set((Array.isArray(ids) ? ids : []).filter(Boolean).map(String))];
   if (!svc || !want.length) return [];
   try {
-    const { data, error } = await svc.from('profiles').select('id, ai_consent').in('id', want);
+    const { data, error } = await svc.rpc('ai_consent_effective', { p_ids: want });
     if (error || !Array.isArray(data)) return [];
     return data;
   } catch {

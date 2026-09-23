@@ -24,10 +24,11 @@ const JS = dirname(fileURLToPath(import.meta.url));
 const C = await import('./ai-consent.js');
 
 /** A fake Supabase: one profiles row per id, and a set_ai_consent RPC that can be made to fail. */
-function fakeSb(rows = {}, { rpcFails = false, readFails = false } = {}) {
+function fakeSb(rows = {}, { rpcFails = false, readFails = false, minors = [] } = {}) {
   const calls = [];
   return {
     calls,
+    auth: null,
     from: () => ({
       select: () => ({
         eq: (_c, id) => ({
@@ -37,6 +38,12 @@ function fakeSb(rows = {}, { rpcFails = false, readFails = false } = {}) {
       }),
     }),
     rpc: async (fn, args) => {
+      if (fn === 'my_ai_consent') {
+        // The fake answers for the single account the test reads (the first key).
+        const id = Object.keys(rows)[0];
+        if (readFails) return { data: null, error: { message: 'down' } };
+        return { data: { ai_consent: id in rows ? rows[id] : null, minor_pending: minors.includes(id) }, error: null };
+      }
       calls.push([fn, args]);
       if (rpcFails) return { error: { message: 'offline' } };
       return { error: null };
@@ -48,8 +55,9 @@ test.beforeEach(() => { store.clear(); window.sb = null; });
 
 test('never asked is null; the server answer is cached per account', async () => {
   assert.equal(C.aiConsentCached('u1'), null);
-  window.sb = fakeSb({ u1: true, u2: false });
+  window.sb = fakeSb({ u1: true });
   assert.equal(await C.refreshAiConsent('u1'), true);
+  window.sb = fakeSb({ u2: false });
   assert.equal(await C.refreshAiConsent('u2'), false);
   assert.equal(C.aiConsentCached('u1'), true);
   assert.equal(C.aiConsentCached('u2'), false);
@@ -89,9 +97,28 @@ test('an unreachable server keeps the last known answer', async () => {
 });
 
 test('ensureAiConsent: a known yes never asks; a known Not now never nags', async () => {
-  window.sb = fakeSb({ u1: true, u2: false });
+  window.sb = fakeSb({ u1: true });
   assert.equal(await C.ensureAiConsent('u1'), true);
+  window.sb = fakeSb({ u2: false });
   assert.equal(await C.ensureAiConsent('u2'), false);
+});
+
+test('I6: a minor waiting on a parent is never offered the sheet and never counts as yes', async () => {
+  const sb = fakeSb({ kid: true }, { minors: ['kid'] });
+  window.sb = sb;
+  assert.equal(await C.refreshAiConsent('kid'), true, 'their own answer is kept');
+  assert.equal(C.aiMinorPending('kid'), true);
+  assert.equal(await C.ensureAiConsent('kid', { ask: true }), false, 'no sheet, no yes');
+  assert.deepEqual(sb.calls, []);
+  assert.match(C.AI_MINOR_LINE, /parent or guardian approves/);
+});
+
+test('M9: an onboarding answer older than a few hours never lands on the next account', async () => {
+  localStorage.setItem('os.aiConsent.local', JSON.stringify({ v: '1', at: Date.now() - 5 * 3600 * 1000 }));
+  const sb = fakeSb({ u9: null });
+  window.sb = sb;
+  assert.equal(await C.refreshAiConsent('u9'), null);
+  assert.deepEqual(sb.calls, []);
 });
 
 test('ensureAiConsent with no way to show the sheet sends nothing and records nothing', async () => {

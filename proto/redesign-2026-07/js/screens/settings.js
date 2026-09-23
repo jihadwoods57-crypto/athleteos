@@ -11,7 +11,7 @@ import { planById } from '../pricing.js';
 import { armReplay } from '../tour.js';
 import { normalizePressure } from '../ob-helpers.js';
 import { PHOTO_PRIVACY, ROLLCALL_BOARD_PRIVACY, AI_PROVIDER } from '../privacy-copy.js';
-import { aiConsentCached, refreshAiConsent, ensureAiConsent } from '../ai-consent.js';
+import { aiConsentCached, refreshAiConsent, ensureAiConsent, aiMinorPending, AI_MINOR_LINE } from '../ai-consent.js';
 import { ROLLCALL_OFF } from '../commitments.js';
 import { notifyPrimerHtml, wireNotifyPrimer, notifyPermission } from '../notify-permission.js';
 
@@ -227,6 +227,7 @@ function isOperator() {
    The row opens the same sheet, asked on purpose; its pill is the answer this device knows, then
    the server's once mount() has asked. */
 function aiPill(v) {
+  if (aiMinorPending(RT.userId)) return '<span class="status-pill muted" id="pv-ai-pill">After a parent’s OK</span>';
   return v === true ? '<span class="status-pill g" id="pv-ai-pill">On</span>'
     : v === false ? '<span class="status-pill muted" id="pv-ai-pill">Off</span>'
       : '<span class="status-pill muted" id="pv-ai-pill">Not set</span>';
@@ -234,7 +235,7 @@ function aiPill(v) {
 function aiPrivacySection(role) {
   if (!RT.userId) return '';
   const v = aiConsentCached(RT.userId);
-  const sub = role === 'athlete'
+  const sub = aiMinorPending(RT.userId) ? AI_MINOR_LINE : role === 'athlete'
     ? `Meal photos, meal messages and the facts the AI coaches from go to ${AI_PROVIDER} only while this is on. Never used to train AI.`
     : `Your questions to the AI Nutritionist go to ${AI_PROVIDER} only while this is on. Never used to train AI.`;
   return `<h2 class="eyebrow">AI</h2>
@@ -253,6 +254,7 @@ function wireAiPrivacyRow(root) {
   const paint = (v) => { const p = root.querySelector('#pv-ai-pill'); if (p) p.outerHTML = aiPill(v); };
   refreshAiConsent(RT.userId).then((v) => { if (root.isConnected) paint(v); }, () => {});
   row.addEventListener('click', async () => {
+    if (aiMinorPending(RT.userId)) return;   // I6: nothing to switch until a parent approves
     await ensureAiConsent(RT.userId, { role: isOperator() ? (RT.authRole || 'coach') : 'athlete', ask: true });
     if (root.isConnected) paint(aiConsentCached(RT.userId));
   });

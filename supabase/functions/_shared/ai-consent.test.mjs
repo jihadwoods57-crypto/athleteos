@@ -35,10 +35,10 @@ test('firstWithoutConsent names the data subject before the caller', () => {
 });
 
 test('an unreadable answer fails closed', async () => {
-  const broken = { from: () => ({ select: () => ({ in: async () => ({ data: null, error: { message: 'down' } }) }) }) };
+  const broken = { rpc: async () => ({ data: null, error: { message: 'down' } }) };
   assert.deepEqual(await loadConsentRows(broken, ['a']), []);
   assert.equal(await missingConsent(broken, ['a']), 'a');
-  const throws = { from: () => { throw new Error('boom'); } };
+  const throws = { rpc: () => { throw new Error('boom'); } };
   assert.equal(await missingConsent(throws, ['a']), 'a');
   assert.equal(await missingConsent(null, ['a']), 'a');
 });
@@ -46,7 +46,7 @@ test('an unreadable answer fails closed', async () => {
 test('filterConsented reads in chunks and returns only yes', async () => {
   const table = { a: true, b: null, c: true, d: false };
   const calls = [];
-  const svc = { from: () => ({ select: () => ({ in: async (_c, ids) => { calls.push(ids.length); return { data: ids.map((id) => ({ id, ai_consent: table[id] ?? null })), error: null }; } }) }) };
+  const svc = { rpc: async (fn, { p_ids: ids }) => { assert.equal(fn, 'ai_consent_effective'); calls.push(ids.length); return { data: ids.map((id) => ({ id, ai_consent: table[id] ?? null })), error: null }; } };
   assert.deepEqual(await filterConsented(svc, ['a', 'b', 'c', 'd', 'a'], 2), ['a', 'c']);
   assert.deepEqual(calls, [2, 2]);
 });
@@ -79,4 +79,11 @@ test('the inventory is complete: no other function talks to Anthropic', async ()
   });
   const unknown = talkers.filter((d) => !AI_FUNCTIONS.includes(d) && d !== 'beta-board');
   assert.deepEqual(unknown, [], `new AI caller(s) without a consent check: ${unknown.join(', ')}`);
+});
+
+test('the effective answer is the server rule: a yes from a minor waiting on a guardian is a no (I6)', () => {
+  const sql = readFileSync(join(process.cwd(), 'supabase', 'migrations', '0243_ai_consent.sql'), 'utf8');
+  assert.match(sql, /and not \(public\.is_provable_minor\(p\) and not public\.has_verified_guardian_consent\(p\)\)/);
+  assert.match(sql, /function public\.ai_consent_effective\(p_ids uuid\[\]\)/);
+  assert.match(readFileSync(join(process.cwd(), 'supabase', 'functions', '_shared', 'ai-consent.mjs'), 'utf8'), /rpc\('ai_consent_effective'/);
 });
