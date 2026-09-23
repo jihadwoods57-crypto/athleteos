@@ -40,10 +40,12 @@ module.exports = function withRollCallLiveActivity(config, props = {}) {
     cfg.modResults.NSAlarmKitUsageDescription =
       "OnStandard sets the wake-up alarm your coach assigns you, so a morning roll call rings "
       + "through Do Not Disturb and silent mode.";
-    // NSSupportsLiveActivitiesFrequentUpdates is deliberately NOT set. A roll call updates three
-    // times in half an hour, which is nowhere near frequent enough to need it, and asking for it
-    // adds a switch in Settings whose only effect here would be to let an athlete turn the feature
-    // off by accident.
+    // NSSupportsLiveActivitiesFrequentUpdates is deliberately NOT set. Since 2026-09-23 a card
+    // also carries a team count that can move once a minute, but those count updates go at APNs
+    // priority 5 (livePriority in supabase/functions/_shared/rollcall-live.ts), which does not
+    // spend the priority-10 budget. Only the athlete's own moments (start, answered, reminder,
+    // late, end) go at 10: a handful per morning. Asking for it would add a switch in Settings
+    // whose only effect here would be to let an athlete turn the feature off by accident.
     return cfg;
   });
 

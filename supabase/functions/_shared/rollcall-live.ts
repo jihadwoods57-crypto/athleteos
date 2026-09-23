@@ -204,16 +204,34 @@ export function rollCallPushData(
 
 /** APNs headers for any Live Activity push. The topic suffix is Apple's, and the dot before
  *  `push-type` is required (Apple's own curl uses it; one table in their docs omits it). */
-export function liveActivityHeaders(bundleId: string, jwt: string): Record<string, string> {
+export function liveActivityHeaders(bundleId: string, jwt: string, priority: LivePriority = 10): Record<string, string> {
   return {
     authorization: `bearer ${jwt}`,
     'apns-push-type': 'liveactivity',
     'apns-topic': `${bundleId}.push-type.liveactivity`,
-    // 10, not 5: priority 5 is delivered "opportunistically" and may be deferred, and a roll call
-    // that arrives late is the one thing this feature cannot do.
-    'apns-priority': '10',
+    // 10 by default: priority 5 is delivered "opportunistically" and may be deferred, and a roll
+    // call that arrives late is the one thing this feature cannot do. Only a team count goes at 5
+    // (livePriority).
+    'apns-priority': String(priority === 5 ? 5 : 10),
     'content-type': 'application/json',
   };
+}
+
+/** APNs priority for one Live Activity push (final review I3, 2026-09-23).
+ *
+ *  iOS budgets priority-10 Live Activity updates per app, and throttles past it. A card now lives
+ *  about 40 minutes (open to close) and the team-count fan-out can update it once a minute, so if
+ *  every push went at 10 the cosmetic count updates would spend the budget and the ones that matter
+ *  (the athlete's own answered card, the amber reminder, the red late) could be delayed or dropped
+ *  behind them. So:
+ *    'team_count'                                  5   a teammate checked in; the count moves
+ *    'start' | 'answered' | 'reminder' | 'late' | 'end'   10  this athlete's own moment
+ *  plugins/withRollCallLiveActivity.js leaves NSSupportsLiveActivitiesFrequentUpdates unset; with
+ *  the counts at 5 that stays true. */
+export type LivePriority = 5 | 10;
+export type LivePushKind = 'start' | 'answered' | 'reminder' | 'late' | 'end' | 'team_count';
+export function livePriority(kind: LivePushKind): LivePriority {
+  return kind === 'team_count' ? 5 : 10;
 }
 
 /** `sound` may be '' to alert SILENTLY: the card still lights the screen and carries the words,

@@ -1,7 +1,7 @@
 import {
   liveLine, liveContentState, liveStartPayload, liveUpdatePayload, liveEndPayload,
   liveActivityHeaders, LIVE_ATTRIBUTES_TYPE, LIVE_LINE_MAX_CHARS, LIVE_LINGER_SEC, rollCallPushData,
-  liveAnsweredUpdate, teamFields, pointsFor, liveWindowMs,
+  liveAnsweredUpdate, teamFields, pointsFor, liveWindowMs, livePriority,
   type LiveAttributes,
 } from './rollcall-live';
 
@@ -116,6 +116,21 @@ describe('headers', () => {
   });
   it('asks for immediate delivery: priority 5 may be deferred', () => {
     expect(liveActivityHeaders('b', 'j')['apns-priority']).toBe('10');
+  });
+  it('sends a count-only update at priority 5 when asked', () => {
+    expect(liveActivityHeaders('b', 'j', 5)['apns-priority']).toBe('5');
+    expect(liveActivityHeaders('b', 'j', 10)['apns-priority']).toBe('10');
+  });
+});
+
+/* Final review I3: a ~40-minute card with a once-a-minute team count would spend the priority-10
+   budget on cosmetic counts and let iOS delay the pushes that matter. */
+describe('livePriority', () => {
+  it('a teammate’s count moving is priority 5', () => {
+    expect(livePriority('team_count')).toBe(5);
+  });
+  it('the athlete’s own moments stay at 10: start, answered, reminder, late, end', () => {
+    for (const k of ['start', 'answered', 'reminder', 'late', 'end'] as const) expect(livePriority(k)).toBe(10);
   });
 });
 

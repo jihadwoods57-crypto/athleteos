@@ -13,7 +13,7 @@
 //   4. Payloads are capped at 4 KB.
 // (https://developer.apple.com/documentation/usernotifications/establishing-a-token-based-connection-to-apns)
 
-import { liveActivityHeaders } from './rollcall-live.ts';
+import { liveActivityHeaders, type LivePriority } from './rollcall-live.ts';
 
 export const APNS_HOST_PRODUCTION = 'https://api.push.apple.com';
 export const APNS_HOST_SANDBOX = 'https://api.sandbox.push.apple.com';
@@ -114,14 +114,14 @@ export class ApnsClient {
    * The caller should forget it — replaying a dead token every minute is how you get rate limited.
    */
   async send(
-    deviceToken: string, payload: Record<string, unknown>, nowMs: number = Date.now(),
+    deviceToken: string, payload: Record<string, unknown>, nowMs: number = Date.now(), priority: LivePriority = 10,
   ): Promise<{ ok: boolean; status: number; reason?: string; gone: boolean }> {
     const body = JSON.stringify(payload);
     if (new TextEncoder().encode(body).length > APNS_PAYLOAD_MAX_BYTES) {
       return { ok: false, status: 0, reason: 'PayloadTooLarge', gone: false };
     }
     try {
-      const headers = liveActivityHeaders(this.cfg.bundleId, await this.token(nowMs));
+      const headers = liveActivityHeaders(this.cfg.bundleId, await this.token(nowMs), priority);
       const res = await this.fetchImpl(`${this.host}/3/device/${deviceToken}`, {
         method: 'POST', headers, body,
       });

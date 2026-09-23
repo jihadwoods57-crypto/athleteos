@@ -9,7 +9,7 @@
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { ApnsClient } from './apns.ts';
 import {
-  liveStartPayload, liveUpdatePayload, liveEndPayload, liveContentState, liveAnsweredUpdate, liveWindowMs,
+  liveStartPayload, liveUpdatePayload, liveEndPayload, liveContentState, liveAnsweredUpdate, liveWindowMs, livePriority,
   type LiveAttributes, type LivePhase, type LiveAlert, type LiveTeam, type TeamBoard, type LiveContentState,
 } from './rollcall-live.ts';
 import { signWindowCode } from './rollcall-code.ts';
@@ -207,7 +207,8 @@ export async function windowCodesFor(
 }
 
 /** Send precomputed `update`s (the team-count fan-out, roll-call-ack teamCountUpdates) to update
- *  tokens. No alert, never a start, never throws; a dead token is revoked. */
+ *  tokens. No alert, never a start, never throws; a dead token is revoked. Every one of these is a
+ *  COUNT update for a teammate, so it goes at APNs priority 5 (livePriority, final review I3). */
 export async function sendLiveUpdates(
   svc: SupabaseClient, apns: ApnsClient,
   updates: Array<{ token: string; state: LiveContentState }>, nowMs: number,
@@ -216,7 +217,7 @@ export async function sendLiveUpdates(
   for (const u of updates) {
     const payload = u.state.phase === 'answered' ? liveAnsweredUpdate(u.state, nowMs) : liveUpdatePayload(u.state, nowMs);
     try {
-      const res = await apns.send(u.token, payload, nowMs);
+      const res = await apns.send(u.token, payload, nowMs, livePriority('team_count'));
       if (res.ok) out.updated++;
       else if (res.gone) {
         out.revoked++;

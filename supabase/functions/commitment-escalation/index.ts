@@ -125,14 +125,15 @@ async function sendClosingSummary(
   const { data: toks } = await svc.from('device_tokens').select('token,user_id').in('user_id', ids);
   const msgs: Array<Record<string, unknown>> = [];
   for (const t of (toks ?? []) as Array<{ token: string; user_id: string }>) {
-    const coachCode = await coachCodeFor(instId, t.user_id);
+    // NO action buttons (final review M4): the morning has CLOSED, so the digest category's
+    // "Nudge them" would offer to ring athletes whose window is over. Plain push; the tap opens
+    // the board on the misses, where the coach can override with a reason.
     msgs.push({
       to: t.token,
       title: s.title,
       body: s.body,
       // A PATH, never a query string (ruling R2): the board, opened on the misses.
-      data: { route: summaryRoute(instId), coach_code: coachCode },
-      categoryId: coachCode ? COACH_DIGEST_CATEGORY : undefined,
+      data: { route: summaryRoute(instId) },
       channelId: ROLLCALL_CHANNEL,
       priority: 'high',
       sound: 'default',
