@@ -1027,20 +1027,39 @@
    the home indicator. Two states, because the padding is two values: at rest (.notabs, app.css:
    24px, written here as --s6, + the inset)
    and with the keyboard up (body.kb-open: --s3, and the keyboard covers the inset).
-   A dock that is the LAST thing on the screen (the full chat) also gives that padding back with
-   a negative margin, or at the end of the scroll it rests a padding-height above the edge with
-   an empty strip of canvas under it. The meal page's dock is followed by its Back row, so only
-   the sticky offset applies there. Operator screens keep their tab bar and are untouched. */
+   Operator screens keep their tab bar and are untouched.
+   Every thread's dock is now the LAST thing on its screen (.dock-end, below), so these two rules
+   only still describe a dock that something follows. */
 .viewport.notabs .chat-dock {
   bottom: calc(-1 * var(--s6) - env(safe-area-inset-bottom, 0px));
   padding-bottom: calc(var(--s2h) + env(safe-area-inset-bottom, 0px));
 }
-.viewport.notabs > .view > .chat-dock:last-child { margin-bottom: calc(-1 * var(--s6) - env(safe-area-inset-bottom, 0px)); }
 body.kb-open .viewport.notabs .chat-dock { bottom: calc(-1 * var(--s3)); padding-bottom: var(--s2h); }
-body.kb-open .viewport.notabs > .view > .chat-dock:last-child { margin-bottom: calc(-1 * var(--s3)); }
-/* With the keyboard up the meal page's Back row is gone (.meal-foot, display:none below), so its
-   dock is the last thing on the page too and gives the padding back the same way. */
-body.kb-open .viewport.notabs .disc > .disc-dock:last-child { margin-bottom: calc(-1 * var(--s3)); }
+/* ONE FLUSH BAR (composer upgrade, 2026-09-23). Founder: "clean up that whole area at the bottom.
+   It should be as good as iMessage, or even this Claude app." What was there: the pill floating
+   over a grey band (this dock's inset padding, parked a viewport-padding above the edge by the
+   negative-offset rules above), then an 18px empty note line, then "Back to Home" under all of
+   it. And every one of those values SWITCHED in one frame on kb-open, while the shell was still
+   mid-transition: part of the glitch.
+   Now the four thread screens end with their dock (.dock-end: the meal page, a past meal, the
+   full chat, the coach's view of a meal), the scroller gives up its bottom padding for them, and
+   the dock sits at bottom:0, flush with the screen edge, in both states. Its own padding carries
+   the home-indicator inset at rest and gives it up while the keyboard is up (the keys cover the
+   indicator), over the keyboard's own duration and curve, so the pill arrives on the keys in the
+   same motion as the shell rather than jumping 34px at the start. Nothing changes in one frame. */
+body .viewport.notabs:has(.chat-dock.dock-end) { padding-bottom: 0; }
+.viewport.notabs .chat-dock.dock-end {
+  bottom: 0; margin-bottom: 0;
+  padding-bottom: calc(var(--s2h) + env(safe-area-inset-bottom, 0px));
+  transition: padding-bottom var(--kb-ms, 250ms) var(--kb-ease, ease-out);
+}
+body.kb-open .viewport.notabs .chat-dock.dock-end { bottom: 0; margin-bottom: 0; padding-bottom: var(--s2h); }
+@media (prefers-reduced-motion: reduce) { .viewport.notabs .chat-dock.dock-end { transition: none; } }
+/* A thread's one-line note (send failed, filtered, dictation refused) takes no room until it has
+   something to say. It used to hold an empty 18px line open under every box: more grey band. */
+.cmp-note { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); margin: var(--s1h) var(--s1) 0; }
+.cmp-note:empty { display: none; }
+.cmp-note.cmp-err { color: var(--red-bright); }
 /* The "replying about" strip is one quiet line in the dock, not a card: label, plate, and the
    way out. The tap-a-meal hint goes; the cards above are visibly buttons. */
 .chat-dock .nc-target { margin: 0 0 var(--s2); padding: var(--s1) var(--s2h); flex-wrap: nowrap; background: none; border: 0; border-radius: 0; }
@@ -1055,6 +1074,7 @@ body.kb-open .viewport.notabs .disc > .disc-dock:last-child { margin-bottom: cal
 /* Messages hides send until there is something to send; a dock with no attach control has no
    photo-only case, so send can vanish honestly here. It keeps its space so the pill never jumps. */
 .chat-dock .composer.at-end:not(.has-text):not(.has-photo) .send { opacity: 0; transform: scale(0.6); pointer-events: none; }
+/* ...and where dictation can run, the microphone takes that empty slot instead (below). */
 .chat-dock .composer .send { transition: opacity var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out); }
 .composer .field {
   /* min-width:0 — a flex item's default min-width is its content size, so on a 375px frame the
@@ -1148,6 +1168,45 @@ body.kb-open .viewport.notabs .disc > .disc-dock:last-child { margin-bottom: cal
 .composer-attach-pending button {
   border:0; background: var(--surface-2); color: var(--text-2); cursor:pointer; flex:none;
   border-radius: var(--r-chip); padding:var(--s1h) var(--s3); font-family: var(--font); font-size: var(--t-sm); font-weight: 800;
+}
+/* ===== The microphone (composer upgrade, 2026-09-23) =====
+   Founder: "I need the microphone button in order to talk out a message." It lives in send's
+   slot inside the pill, the way Messages and the Claude app keep it: the mic while the box is
+   empty, send (blue) once there is something to send, and a stop control while listening. Same
+   30px circle in the same place, so the pill never changes width as they trade.
+   Hidden unless html.can-dictate: js/dictation.js sets that only once the native shell confirms
+   recognition can run here, so the web and any binary without the speech module never show a
+   mic that cannot work. */
+.composer .mic {
+  display: none; position: relative; width: 30px; height: 30px; border-radius: 50%; flex: none;
+  place-items: center; padding: 0; margin: 0; border: 0; background: transparent; color: var(--text-2);
+  cursor: pointer; font-family: var(--font); -webkit-appearance: none; appearance: none;
+  transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out), transform var(--dur-1) var(--ease-out);
+}
+.composer .mic:active { transform: scale(var(--press-tap)); }
+.composer .mic:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
+.composer .mic .mic-stop { display: none; width: 10px; height: 10px; border-radius: 2px; background: currentColor; }
+html.can-dictate .composer.at-end:not(.has-text):not(.has-photo) .mic,
+html.can-dictate .composer.at-end.listening .mic { display: grid; animation: micIn var(--dur-1) var(--ease-out); }
+html.can-dictate .composer.at-end:not(.has-text):not(.has-photo) .send,
+html.can-dictate .composer.at-end.listening .send { display: none; }
+/* Listening: the mic becomes the one blue control on the bar, a stop square in a filled circle,
+   with a soft ring that breathes with the voice (--mic-level, 0 to 1, from the recognizer's own
+   volume events). Blue because it is the selected state (DESIGN.md 2026-09-22), not red: nothing
+   here is missed or wrong. */
+html.can-dictate .composer.listening .mic { background: var(--blue); color: var(--text-on-accent); }
+html.can-dictate .composer.listening .mic .ic-mic { display: none; }
+html.can-dictate .composer.listening .mic .mic-stop { display: block; }
+html.can-dictate .composer.listening .mic::before {
+  content: ''; position: absolute; inset: -4px; border-radius: 50%; pointer-events: none;
+  border: 2px solid var(--blue-bright); opacity: calc(0.25 + 0.6 * var(--mic-level, 0));
+  transform: scale(calc(1 + 0.22 * var(--mic-level, 0))); transition: transform 90ms linear, opacity 90ms linear;
+}
+.composer.listening .field { border-color: var(--blue-border); }
+@keyframes micIn { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  html.can-dictate .composer .mic { animation: none; }
+  html.can-dictate .composer.listening .mic::before { transform: none; transition: none; }
 }
 /* A photo inside a chat bubble. Capped so a portrait shot cannot push the whole thread offscreen. */
 .msg .bimg {
@@ -3720,17 +3779,6 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    per line and then covered it. The button takes its own width here; the text keeps the rest. */
 .mq-blocked .btn { flex: 0 0 auto; width: auto; padding: 0 var(--s4); }
 
-/* ===== The meal screen's foot =====
-   "Back to Home" is the last thing on the screen again (founder, 2026-09-07). It spent four days
-   above the conversation because at the bottom the keyboard used to bring it down onto the keys,
-   with the message box floating a button's height above it. The exit belongs at the end; the
-   keyboard case is handled at its source, by taking the foot away while typing.
-   Not full width and not a slab: the composer's pill sits directly above it, and two full-width
-   controls stacked on top of each other read as a choice between equals. This one is an exit. */
-.meal-foot { display: flex; justify-content: center; padding: var(--s6) 0 var(--s5); }
-.meal-foot .btn.meal-back { width: auto; min-width: 210px; color: var(--text-2); }
-.meal-foot .btn.meal-back:active { color: var(--text); }
-body.kb-open .meal-foot { display: none; }
 
 /* Members sheet: Report and Mute on a person's row (0227, Guideline 1.2). The row keeps its
    avatar and text; the actions sit under them on their own line so a long name never squeezes a

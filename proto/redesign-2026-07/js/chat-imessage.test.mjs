@@ -119,7 +119,7 @@ test('the meal page Team discussion is one conversation header, a scoped dock, a
   assert.match(meal, /<section class="disc" id="meal-disc"/, 'the discussion is its own section (the sticky dock is scoped to it)');
   assert.match(meal, /class="facepile disc-fp" id="meal-members"/, 'the faces are the members button');
   assert.match(meal, /class="disc-open" id="open-full-chat"/, 'Open is a real button');
-  assert.match(meal, /<div class="chat-dock disc-dock">/, 'the composer is docked');
+  assert.match(meal, /<div class="chat-dock disc-dock dock-end">/, 'the composer is docked, flush with the bottom edge');
   assert.match(meal, /`nutrition-chat\/\$\{M\.mealId\}`/, 'the door carries the meal id');
   assert.doesNotMatch(meal, /id="open-full-chat" role="button"/, 'the old inline text link is gone');
   const nc = src('screens/nutrition-chat.js');

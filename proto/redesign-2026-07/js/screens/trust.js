@@ -690,16 +690,15 @@ export const mealView = {
     <div class="thread" id="mv-thread" role="log" aria-label="Meal conversation">
       <div class="msg-status">Loading…</div>
     </div>
-    <div class="chat-dock disc-dock">
+    <div class="chat-dock disc-dock dock-end">
     ${composer({ inputId: 'mv-msg', sendId: 'mv-send', placeholder: 'Ask about this meal…', sendLabel: 'Send', attachId: 'mv-attach', atEnd: true })}
     <div class="composer-attach-pending" id="mv-attach-pending" hidden></div>
-    <div id="mv-note" style="min-height:18px"></div>
+    <div id="mv-note" class="cmp-note"></div>
     </div>
     </section>`;
-    const foot = `<div class="meal-foot">
-      <button class="btn ghost meal-back" data-go="history" aria-label="Back to history">${icon('back', 16)} Back to History</button>
-    </div>`;
-    return `<div class="meal-screen">${backHead(M.dish || M.name, '', 'history')}${execTop}${photoBlock}${breakdown}${discussion}${foot}</div>`;
+    // The exit is the header's back control, as on the live meal page (composer upgrade,
+    // 2026-09-23): the message box is the last thing on the screen, flush with its bottom edge.
+    return `<div class="meal-screen">${backHead(M.dish || M.name, '', 'history')}${execTop}${photoBlock}${breakdown}${discussion}</div>`;
   },
   mount(root, { sub }) {
     wireReadControls(root, mealView); // the read's See details / info / confidence controls

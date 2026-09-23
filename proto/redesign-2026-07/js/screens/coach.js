@@ -3526,13 +3526,9 @@ export const coachMeal = {
       <div class="tm-note" id="rx-note">Press and hold any message to react to it.</div>
     </div>`;
     })()}
-    <div class="chat-dock disc-dock">
-    ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment', attachId: 'cm-attach', aiId: 'cm-ai', atEnd: true })}
-    <div class="composer-attach-pending" id="cm-attach-pending" hidden></div>
-    <div id="cm-note" style="font-size:12.5px;font-weight:600;color:var(--red-bright);margin:6px 2px 0;min-height:16px"></div>
-    </div>
-    </section>
-
+    ${/* Private notes live INSIDE the discussion, above the message box (composer upgrade,
+          2026-09-23), so the box is the last thing on the screen and sits flush with its bottom
+          edge, the same bar as the athlete's page. */''}
     ${(() => {
       // Private notes (0068): coach-only margin notes the athlete NEVER sees (RLS-enforced).
       const notes = Array.isArray(MC.comments) ? privateNotes(MC.comments) : [];
@@ -3547,7 +3543,12 @@ export const coachMeal = {
         ${composer({ inputId: 'cm-note-input', sendId: 'cm-note-send', placeholder: 'Private note. The athlete never sees this…', sendLabel: 'Save note', sendIcon: 'lock', sendStyle: 'background:linear-gradient(150deg, var(--purple), var(--purple-deep))' })}
       </div>`;
     })()}
-    <div style="height:10px"></div>
+    <div class="chat-dock disc-dock dock-end">
+    ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment', attachId: 'cm-attach', aiId: 'cm-ai', atEnd: true })}
+    <div class="composer-attach-pending" id="cm-attach-pending" hidden></div>
+    <div id="cm-note" class="cmp-note cmp-err"></div>
+    </div>
+    </section>
     </div>`;
   },
   mount(root, { sub }) {
