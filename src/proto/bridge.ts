@@ -32,6 +32,7 @@ import { syncWakeAlarms, wakeAlarmState, cancelWakeAlarmFor } from '../lib/notif
 import { drainLiveActivityTaps, settleLiveCard } from '../lib/notify/rollcall';
 import { getPushToken } from '../lib/notify';
 import { getFlag } from '../store/flagsStore';
+import { requestMapPick } from '../lib/maps/pickRequest';
 
 type Ref = React.RefObject<WebView | null>;
 
@@ -76,7 +77,7 @@ export type BridgeMessage =
   | { type: 'HEALTH_READ_ACTIVITY'; id: number; from?: string; to?: string }
   | { type: 'HEALTH_OBSERVE_ACTIVITY'; id: number }
   // Verified Commitments (0139), restored 2026-09-23 and verified by DISTANCE on the server (0242).
-  // No message carries a coordinate across THIS bridge in either direction: LOCATION_CHECK takes
+  // No LOCATION_* message carries the device's position across THIS bridge: LOCATION_CHECK takes
   // one reading natively, sends it to verify_arrival_at, and hands the proto back the verdict
   // ({ within, reason, distance_m }). The coach's old "use where I'm standing" (LOCATION_PLACE) is
   // not restored: coaches pick places on a map.
@@ -85,6 +86,11 @@ export type BridgeMessage =
   | { type: 'LOCATION_ARM'; id: number }
   | { type: 'LOCATION_DISARM'; id: number }
   | { type: 'LOCATION_CHECK'; id: number; instanceId?: string }
+  // The coach's map (roll call rebuilt, 2026-09-23). Opens the native full-screen place picker
+  // and replies { place: { name, address, lat, lng, radius_m } }, or { place: null } on Cancel.
+  // The only coordinate that crosses the bridge is the one the coach chose on that map (never the
+  // device's own position), and nothing on either side logs it. One at a time: a second request while the map is open is refused.
+  | { type: 'MAP_PICK'; id: number; initial?: { lat?: number; lng?: number; radius_m?: number; name?: string } }
   | { __log: { level: string; msg: string } };
 
 /** Serialize a value for safe injection into `window.__onNativeResult(id, <here>)`. */
@@ -421,6 +427,15 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
         resolve(ref, msg.id, { within: false, reason: 'Something went wrong', distance_m: null }, String((e as Error)?.message ?? e));
       }
       return true;
+    case 'MAP_PICK':
+      // Errors ('map-unavailable', 'map-busy') still carry { place: null }, so a page that ignores
+      // the error reads it exactly as a Cancel.
+      try {
+        resolve(ref, msg.id, { place: await requestMapPick(msg.initial) });
+      } catch (e) {
+        resolve(ref, msg.id, { place: null }, String((e as Error)?.message ?? e));
+      }
+      return true;
     case 'REVIEW_REQUEST': {
       /* Ask the OS to show its rating prompt. Resolves TRUE only when we actually asked.
        *
@@ -541,6 +556,15 @@ export const BRIDGE_SHIM = `
       arm: function(){ return call('LOCATION_ARM', {}); },
       disarm: function(){ return call('LOCATION_DISARM', {}); },
       check: function(instanceId){ return call('LOCATION_CHECK', { instanceId: String(instanceId||'') }); }
+    },
+    // The coach's map. pick({ lat, lng, radius_m, name }?) resolves the saved place
+    // { name, address, lat, lng, radius_m }, or null when the coach cancels. Rejects only when no
+    // map can open ('map-unavailable') or one is already open ('map-busy').
+    maps: {
+      pick: function(initial){
+        return call('MAP_PICK', initial && typeof initial === 'object' ? { initial: initial } : {})
+          .then(function(r){ return r && r.place ? r.place : null; });
+      }
     },
   };
 

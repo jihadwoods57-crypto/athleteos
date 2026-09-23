@@ -224,3 +224,42 @@ describe('SECURE_SET keychain class', () => {
     expect(SS().setItemAsync).not.toHaveBeenCalled();
   });
 });
+
+describe('MAP_PICK: the coach draws the check-in bubble', () => {
+  // The coordinator is real (pure); only the presenter ProtoApp would register is faked.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { setMapPresenter } = require('../lib/maps/pickRequest') as typeof import('../lib/maps/pickRequest');
+  afterEach(() => setMapPresenter(null));
+
+  test('Save replies { place } with the name, address, point and radius', async () => {
+    const seen: unknown[] = [];
+    setMapPresenter(async (initial) => {
+      seen.push(initial);
+      return { name: 'Weight room', address: '4000 Central Florida Blvd', lat: 28.6, lng: -81.2, radius_m: 150 };
+    });
+    const { injected, ref } = fakeRef();
+    const handled = await handleBridgeMessage(ref, { type: 'MAP_PICK', id: 41, initial: { lat: 28.5, lng: -81.1, radius_m: 300, name: 'Old' } } as never);
+    expect(handled).toBe(true);
+    expect(seen[0]).toEqual({ lat: 28.5, lng: -81.1, radius_m: 300, name: 'Old' });
+    expect(injected[0]).toContain('__onNativeResult(41, {"place":{"name":"Weight room","address":"4000 Central Florida Blvd","lat":28.6,"lng":-81.2,"radius_m":150}}, null)');
+  });
+
+  test('Cancel replies { place: null } and is not an error', async () => {
+    setMapPresenter(async () => null);
+    const { injected, ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'MAP_PICK', id: 42 } as never);
+    expect(injected[0]).toContain('__onNativeResult(42, {"place":null}, null)');
+  });
+
+  test('no picker mounted: { place: null } with an error, never a hang', async () => {
+    const { injected, ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'MAP_PICK', id: 43 } as never);
+    expect(injected[0]).toContain('__onNativeResult(43, {"place":null}, "map-unavailable")');
+  });
+
+  test('the shim exposes maps.pick, which resolves the place itself (or null)', () => {
+    expect(BRIDGE_SHIM).toContain("call('MAP_PICK'");
+    expect(BRIDGE_SHIM).toMatch(/maps:\s*\{\s*pick: function\(initial\)/);
+    expect(BRIDGE_SHIM).toContain('r && r.place ? r.place : null');
+  });
+});

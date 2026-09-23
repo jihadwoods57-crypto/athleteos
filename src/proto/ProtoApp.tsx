@@ -15,6 +15,8 @@ import { runRollCallAck, drainAckQueue, ensureRollCallCategories, rememberRollCa
 import { routeNotificationResponse } from '../core/rollcall';
 import { installForegroundNotificationHandler } from '../lib/notify/foreground';
 import { registerGeofenceTask } from '../lib/location';
+import { PlacePicker } from '../lib/maps/placePicker';
+import { setMapPresenter, type PickInitial, type Place } from '../lib/maps/pickRequest';
 
 // A notification that arrives while the app is OPEN is shown only if a handler says so, and this
 // app had none — so every push and reminder that landed while someone was looking at the screen
@@ -88,6 +90,29 @@ export function ProtoApp() {
   const [err, setErr] = React.useState<string | null>(null);
   const [locked, setLocked] = React.useState<boolean | null>(null);
   const webviewRef = React.useRef<WebView>(null);
+
+  // The coach's map (MAP_PICK). The bridge has no React state, so this component registers the
+  // presenter it calls: a pending pick is rendered as the full-screen PlacePicker, and whatever the
+  // coach does (Save or Cancel) settles the page's promise. pickRequest allows one at a time.
+  const [mapPick, setMapPick] = React.useState<{ initial: PickInitial | null } | null>(null);
+  const mapPickResolve = React.useRef<((p: Place | null) => void) | null>(null);
+  React.useEffect(() => {
+    setMapPresenter((initial) => new Promise<Place | null>((res) => {
+      mapPickResolve.current = res;
+      setMapPick({ initial });
+    }));
+    return () => {
+      setMapPresenter(null);
+      mapPickResolve.current?.(null);
+      mapPickResolve.current = null;
+    };
+  }, []);
+  const finishMapPick = React.useCallback((place: Place | null) => {
+    const res = mapPickResolve.current;
+    mapPickResolve.current = null;
+    setMapPick(null);
+    res?.(place);
+  }, []);
 
   const tryUnlock = React.useCallback(async () => {
     try {
@@ -317,66 +342,69 @@ export function ProtoApp() {
   }
 
   return (
-    <WebView
-      ref={webviewRef}
-      source={{ uri }}
-      style={styles.web}
-      containerStyle={styles.web}
-      originWhitelist={['*']}
-      // External links leave the app. The proto's Terms / Privacy / support rows are real anchors;
-      // without this, a target=_blank tap loads the website INSIDE this WebView (there is no
-      // second window to open) and the shell is gone with no back gesture. The router intercepts
-      // those taps first (router.js); this catches whatever it does not — a window.open fallback,
-      // a redirect, a link inside injected content. The proto itself is served from file://, and
-      // its data goes over fetch, never navigation, so any http(s) main-frame load is external.
-      onShouldStartLoadWithRequest={(req) => {
-        if (/^https?:\/\//i.test(req.url)) { void Linking.openURL(req.url).catch(() => undefined); return false; }
-        return true;
-      }}
-      // iOS: sibling-file read (js/css/assets next to index.html) comes SOLELY from
-      // allowingReadAccessToURL pointing at the proto ROOT dir; allowFileAccess is Android-only.
-      // allowUniversalAccessFromFileURLs is load-bearing — it bypasses the null-origin CORS block
-      // on the proto's ES-module imports. Do NOT remove these two.
-      allowFileAccess
-      allowFileAccessFromFileURLs
-      allowUniversalAccessFromFileURLs
-      allowingReadAccessToURL={PROTO_ROOT_DIR}
-      allowsBackForwardNavigationGestures={false}
-      injectedJavaScriptBeforeContentLoaded={PRELUDE}
-      onMessage={onMessage}
-      onLoadEnd={onWebLoadEnd}
-      onError={(e) => setErr(`WebView error: ${e.nativeEvent.description}`)}
-      onRenderProcessGone={() => setErr('WebView crashed (render process gone)')}
-      javaScriptEnabled
-      domStorageEnabled
-      // Live camera viewfinder (getUserMedia inside the WebView). mediaCapturePermissionGrantType
-      // 'grant' forwards the OS-level camera permission (NSCameraUsageDescription / CAMERA) to the
-      // page without a second in-page prompt, on both WKWebView (iOS 15+) and Android's
-      // onPermissionRequest. allowsInlineMediaPlayback keeps the <video> element inline on iOS
-      // (without it the stream tries to go fullscreen). If getUserMedia is still unavailable on a
-      // device (e.g. older iOS refusing file:// origins), camera.js silently falls back to the
-      // native <input type=file capture> path — never a dead shutter.
-      allowsInlineMediaPlayback
-      mediaPlaybackRequiresUserAction={false}
-      mediaCapturePermissionGrantType="grant"
-      // iOS draws an up/down/Done accessory bar above the keyboard for every WKWebView text field.
-      // It sat between the message box and the keys in the founder's side-by-side with Messages
-      // (2026-09-03); Messages has no such bar, and neither does any composer here — Send is the
-      // return key (enterkeyhint) and the pill has its own button. iOS-only prop; Android has no bar.
-      hideKeyboardAccessoryView
-      bounces={false}
-      overScrollMode="never"
-      // No pinch-zoom, no double-tap-zoom — the UI is an app, not a page you can scale. iOS is
-      // handled by user-scalable=no in index.html's viewport meta (WKWebView honours it, unlike
-      // mobile Safari); these three are the Android half. There is no iOS-side zoom prop on this
-      // version of react-native-webview, which is why the meta tag carries that platform.
-      scalesPageToFit={false}
-      setBuiltInZoomControls={false}
-      setDisplayZoomControls={false}
-      setSupportMultipleWindows={false}
-      // Keep the native side transparent-dark so there is no white flash before first paint.
-      // (The proto paints its own dark ground immediately.)
-    />
+    <>
+      <WebView
+        ref={webviewRef}
+        source={{ uri }}
+        style={styles.web}
+        containerStyle={styles.web}
+        originWhitelist={['*']}
+        // External links leave the app. The proto's Terms / Privacy / support rows are real anchors;
+        // without this, a target=_blank tap loads the website INSIDE this WebView (there is no
+        // second window to open) and the shell is gone with no back gesture. The router intercepts
+        // those taps first (router.js); this catches whatever it does not — a window.open fallback,
+        // a redirect, a link inside injected content. The proto itself is served from file://, and
+        // its data goes over fetch, never navigation, so any http(s) main-frame load is external.
+        onShouldStartLoadWithRequest={(req) => {
+          if (/^https?:\/\//i.test(req.url)) { void Linking.openURL(req.url).catch(() => undefined); return false; }
+          return true;
+        }}
+        // iOS: sibling-file read (js/css/assets next to index.html) comes SOLELY from
+        // allowingReadAccessToURL pointing at the proto ROOT dir; allowFileAccess is Android-only.
+        // allowUniversalAccessFromFileURLs is load-bearing — it bypasses the null-origin CORS block
+        // on the proto's ES-module imports. Do NOT remove these two.
+        allowFileAccess
+        allowFileAccessFromFileURLs
+        allowUniversalAccessFromFileURLs
+        allowingReadAccessToURL={PROTO_ROOT_DIR}
+        allowsBackForwardNavigationGestures={false}
+        injectedJavaScriptBeforeContentLoaded={PRELUDE}
+        onMessage={onMessage}
+        onLoadEnd={onWebLoadEnd}
+        onError={(e) => setErr(`WebView error: ${e.nativeEvent.description}`)}
+        onRenderProcessGone={() => setErr('WebView crashed (render process gone)')}
+        javaScriptEnabled
+        domStorageEnabled
+        // Live camera viewfinder (getUserMedia inside the WebView). mediaCapturePermissionGrantType
+        // 'grant' forwards the OS-level camera permission (NSCameraUsageDescription / CAMERA) to the
+        // page without a second in-page prompt, on both WKWebView (iOS 15+) and Android's
+        // onPermissionRequest. allowsInlineMediaPlayback keeps the <video> element inline on iOS
+        // (without it the stream tries to go fullscreen). If getUserMedia is still unavailable on a
+        // device (e.g. older iOS refusing file:// origins), camera.js silently falls back to the
+        // native <input type=file capture> path — never a dead shutter.
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
+        mediaCapturePermissionGrantType="grant"
+        // iOS draws an up/down/Done accessory bar above the keyboard for every WKWebView text field.
+        // It sat between the message box and the keys in the founder's side-by-side with Messages
+        // (2026-09-03); Messages has no such bar, and neither does any composer here — Send is the
+        // return key (enterkeyhint) and the pill has its own button. iOS-only prop; Android has no bar.
+        hideKeyboardAccessoryView
+        bounces={false}
+        overScrollMode="never"
+        // No pinch-zoom, no double-tap-zoom — the UI is an app, not a page you can scale. iOS is
+        // handled by user-scalable=no in index.html's viewport meta (WKWebView honours it, unlike
+        // mobile Safari); these three are the Android half. There is no iOS-side zoom prop on this
+        // version of react-native-webview, which is why the meta tag carries that platform.
+        scalesPageToFit={false}
+        setBuiltInZoomControls={false}
+        setDisplayZoomControls={false}
+        setSupportMultipleWindows={false}
+        // Keep the native side transparent-dark so there is no white flash before first paint.
+        // (The proto paints its own dark ground immediately.)
+      />
+      {mapPick ? <PlacePicker initial={mapPick.initial} onDone={finishMapPick} /> : null}
+    </>
   );
 }
 
