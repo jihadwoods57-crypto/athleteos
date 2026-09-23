@@ -25,7 +25,7 @@ import {
 } from '../lib/health';
 import {
   isLocationAvailable, getPermissionState, requestPermission,
-  refreshGeofences, disarmAll, checkArrival, REPORTS_PRESENCE,
+  refreshGeofences, disarmAll, checkArrival, REPORTS_PRESENCE, walkInAllowed,
 } from '../lib/location';
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { syncWakeAlarms, wakeAlarmState, cancelWakeAlarmFor } from '../lib/notify/wakeAlarms';
@@ -87,6 +87,9 @@ export type BridgeMessage =
   | { type: 'LOCATION_ARM'; id: number }
   | { type: 'LOCATION_DISARM'; id: number }
   | { type: 'LOCATION_CHECK'; id: number; instanceId?: string }
+  // The athlete said no to location earlier: iOS never shows the prompt again, so the only way
+  // back is the app's own page in Settings (final fix round, item 2).
+  | { type: 'LOCATION_SETTINGS' }
   // The coach's map (roll call rebuilt, 2026-09-23). Opens the native full-screen place picker
   // and replies { place: { name, address, lat, lng, radius_m } }, or { place: null } on Cancel.
   // The only coordinate that crosses the bridge is the one the coach chose on that map (never the
@@ -398,13 +401,16 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
         // which is exactly what makes it usable as a capability probe: the proto reads a missing
         // field as false and stops claiming a minimum-stay is enforced. Never widen this to a
         // truthy default.
+        // `walkIn` false = the WALK_IN switch has walk-in off on this platform: the proto then
+        // never offers "Always" and shows "I'm here" only.
         resolve(ref, msg.id, {
           available: isLocationAvailable(),
           state: await getPermissionState(),
           presence: REPORTS_PRESENCE,
+          walkIn: walkInAllowed(),
         });
       } catch (e) {
-        resolve(ref, msg.id, { available: false, state: 'unavailable', presence: false }, String((e as Error)?.message ?? e));
+        resolve(ref, msg.id, { available: false, state: 'unavailable', presence: false, walkIn: false }, String((e as Error)?.message ?? e));
       }
       return true;
     case 'LOCATION_PERMISSION':
@@ -422,7 +428,7 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
       try {
         resolve(ref, msg.id, await refreshGeofences());
       } catch (e) {
-        resolve(ref, msg.id, { armed: 0, capped: 0, state: 'unavailable' }, String((e as Error)?.message ?? e));
+        resolve(ref, msg.id, { armed: 0, capped: 0, state: 'unavailable', walkIn: 'unavailable' }, String((e as Error)?.message ?? e));
       }
       return true;
     case 'LOCATION_DISARM':
@@ -432,6 +438,9 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
       } catch (e) {
         resolve(ref, msg.id, false, String((e as Error)?.message ?? e));
       }
+      return true;
+    case 'LOCATION_SETTINGS':
+      void Linking.openSettings().catch(() => undefined);
       return true;
     case 'LOCATION_CHECK':
       // The "I'm here" tap: one reading, sent natively to verify_arrival_at, which measures the
@@ -593,7 +602,8 @@ export const BRIDGE_SHIM = `
       request: function(background){ return call('LOCATION_PERMISSION', { background: !!background }); },
       arm: function(){ return call('LOCATION_ARM', {}); },
       disarm: function(){ return call('LOCATION_DISARM', {}); },
-      check: function(instanceId){ return call('LOCATION_CHECK', { instanceId: String(instanceId||'') }); }
+      check: function(instanceId){ return call('LOCATION_CHECK', { instanceId: String(instanceId||'') }); },
+      settings: function(){ post({ type: 'LOCATION_SETTINGS' }); }
     },
     // The coach's map. pick({ lat, lng, radius_m, name }?) resolves the saved place
     // { name, address, lat, lng, radius_m }, or null when the coach cancels. Rejects only when no

@@ -1,0 +1,36 @@
+diff --git a/node_modules/expo-location/ios/LocationModule.swift b/node_modules/expo-location/ios/LocationModule.swift
+index 6d41d09..0b17736 100644
+--- a/node_modules/expo-location/ios/LocationModule.swift
++++ b/node_modules/expo-location/ios/LocationModule.swift
+@@ -263,9 +263,9 @@ public final class LocationModule: Module {
+       guard CLLocationManager.isMonitoringAvailable(for: CLCircularRegion.self) else {
+         throw Exceptions.GeofencingUnavailable()
+       }
+-      guard try taskManager.hasBackgroundModeEnabled("location") else {
+-        throw Exceptions.LocationUpdatesUnavailable()
+-      }
++      // OnStandard patch: region monitoring (startMonitoring(for:)) does not need the "location"
++      // background mode, and iOS relaunches the app for a region event once Always is granted.
++      // The upstream guard refused geofencing without that mode; the app deliberately omits it.
+ 
+       try taskManager.registerTask(withName: taskName, consumer: EXGeofencingTaskConsumer.self, options: options)
+     }
+diff --git a/node_modules/expo-location/ios/TaskConsumers/EXGeofencingTaskConsumer.m b/node_modules/expo-location/ios/TaskConsumers/EXGeofencingTaskConsumer.m
+index 7e6482e..8519852 100644
+--- a/node_modules/expo-location/ios/TaskConsumers/EXGeofencingTaskConsumer.m
++++ b/node_modules/expo-location/ios/TaskConsumers/EXGeofencingTaskConsumer.m
+@@ -71,7 +71,13 @@
+     self->_regionStates = regionStates;
+ 
+     locationManager.delegate = self;
+-    locationManager.allowsBackgroundLocationUpdates = YES;
++    // OnStandard patch: CoreLocation raises an exception when allowsBackgroundLocationUpdates is set
++    // without the "location" background mode. Region monitoring does not need it, so it is set only
++    // when the app actually declares that mode.
++    NSArray *backgroundModes = [[NSBundle mainBundle] infoDictionary][@"UIBackgroundModes"];
++    if ([backgroundModes isKindOfClass:[NSArray class]] && [backgroundModes containsObject:@"location"]) {
++      locationManager.allowsBackgroundLocationUpdates = YES;
++    }
+     locationManager.pausesLocationUpdatesAutomatically = NO;
+ 
+     for (NSDictionary *regionDict in regions) {

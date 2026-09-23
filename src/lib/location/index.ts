@@ -13,6 +13,11 @@
  * region monitoring needs it, but does NOT declare UIBackgroundModes "location" (App Review 2.5.4
  * on 2026-09-18 was exactly that key). The OS watches the region and wakes the app; if iOS then
  * refuses a reading, the region match is reported without one (see geofence.ts).
+ * expo-location 57.0.19 refused startGeofencingAsync without that mode, and its geofencing
+ * consumer set allowsBackgroundLocationUpdates (which CoreLocation throws on without the mode), so
+ * it is PATCHED: patches/expo-location+57.0.19.patch, applied by the postinstall. Region
+ * monitoring itself never needed the mode. If the device test disproves that, WALK_IN in
+ * geofence.ts turns walk-in off per platform by OTA (docs/go-live/ROLLCALL-DEVICE-TEST.md).
  *
  * WHAT LEAVES THE DEVICE (0242, founder 2026-09-23): ONE position reading per arrival, sent once to
  * verify_arrival_at with the instance id and the phone's own stated accuracy. The server measures
@@ -25,10 +30,12 @@
  * The coach's "use where I'm standing" (capturePlace, LOCATION_PLACE) is deliberately NOT
  * restored: coaches pick places on a map.
  */
+import { Platform } from 'react-native';
 import { supabase } from '../supabase';
 import {
   armingPlan, arrivalArgs, handleRegionEvent, GEOFENCE_TASK, GEOFENCE_CAP,
-  type PositionFix, type RpcFn,
+  pruneRegions, nextClose, walkInEnabled,
+  type PositionFix, type RpcFn, type Region,
 } from './geofence';
 
 export type PermissionState = 'always' | 'when_in_use' | 'denied' | 'undetermined' | 'unavailable';
@@ -51,7 +58,23 @@ try {
   TaskManager = null;
 }
 
-export const isLocationAvailable = (): boolean => !!Location && !!TaskManager;
+/* The NATIVE module, not the JS package: the JS ships in every OTA, so a require can succeed on a
+   binary whose native side has no ExpoLocation at all (final review I-2). */
+function nativeLocationPresent(): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, global-require
+    const core = require('expo-modules-core') as { requireOptionalNativeModule: (n: string) => unknown };
+    return !!core.requireOptionalNativeModule('ExpoLocation');
+  } catch {
+    return false;
+  }
+}
+
+export const isLocationAvailable = (): boolean => !!Location && !!TaskManager && nativeLocationPresent();
+
+/** Whether THIS phone may use walk-in (region) check-in at all: the WALK_IN switch in geofence.ts.
+ *  When false, "Always" is never asked for and nothing is armed; "I'm here" still works. */
+export const walkInAllowed = (): boolean => walkInEnabled(Platform.OS);
 
 /** Whether THIS BINARY reports region exits, and therefore whether a minimum-stay can actually be
  *  enforced for an athlete running it (migration 0208).
@@ -89,7 +112,8 @@ export async function requestPermission(wantBackground: boolean): Promise<Permis
   try {
     const fg = await Location.requestForegroundPermissionsAsync();
     if (!fg.granted) return fg.canAskAgain ? 'undetermined' : 'denied';
-    if (!wantBackground) return 'when_in_use';
+    // Walk-in switched off for this platform (the device-test fallback): never ask for Always.
+    if (!wantBackground || !walkInAllowed()) return 'when_in_use';
     const bg = await Location.requestBackgroundPermissionsAsync();
     return bg.granted ? 'always' : 'when_in_use';
   } catch {
@@ -105,14 +129,25 @@ export async function requestPermission(wantBackground: boolean): Promise<Permis
  *  A failed fetch KEEPS the regions already armed (armingPlan): a network blip at 5:30 AM must not
  *  leave the athlete unseen at 5:43. `kept: true` tells the caller nothing changed. Only a
  *  successful answer with nothing in its window disarms; sign-out disarms via LOCATION_DISARM. */
+/** What walk-in check-in is doing on this phone after an arm:
+ *    'on'           regions armed, or the armed ones kept through a failed server read
+ *    'idle'         nothing inside its window right now (or no Always permission): nothing armed
+ *    'off'          switched off for this platform (WALK_IN, the device-test fallback)
+ *    'unavailable'  the OS refused to arm (the error is logged): the athlete taps "I'm here" */
+export type WalkInStatus = 'on' | 'idle' | 'off' | 'unavailable';
+
 export async function refreshGeofences(nowMs: number = Date.now()): Promise<{
-  armed: number; capped: number; state: PermissionState; kept?: boolean;
+  armed: number; capped: number; state: PermissionState; kept?: boolean; walkIn: WalkInStatus; error?: string;
 }> {
   const state = await getPermissionState();
+  if (!walkInAllowed()) {
+    await disarmAll();
+    return { armed: 0, capped: 0, state, walkIn: 'off' };
+  }
   if (state !== 'always' || !Location || !supabase) {
     // Without background permission we do NOT register anything — the athlete verifies by tapping.
     await disarmAll();
-    return { armed: 0, capped: 0, state };
+    return { armed: 0, capped: 0, state, walkIn: 'idle' };
   }
   let answer: { data?: unknown; error?: unknown; thrown?: boolean };
   try {
@@ -121,28 +156,87 @@ export async function refreshGeofences(nowMs: number = Date.now()): Promise<{
     answer = { thrown: true };
   }
   const plan = armingPlan(answer, nowMs);
-  if (plan.action === 'keep') return { armed: 0, capped: 0, state, kept: true };
+  if (plan.action === 'keep') {
+    // The server could not be read: keep what is armed, but never past its own close.
+    await pruneExpired(nowMs);
+    return { armed: 0, capped: 0, state, kept: true, walkIn: 'on' };
+  }
   if (plan.action === 'disarm') {
     await disarmAll();
-    return { armed: 0, capped: 0, state };
+    return { armed: 0, capped: 0, state, walkIn: 'idle' };
   }
   try {
     await Location.startGeofencingAsync(GEOFENCE_TASK, plan.regions);
-  } catch {
-    return { armed: 0, capped: plan.capped, state };
+  } catch (e) {
+    // NEVER silent again (final review C1: this catch once hid that iOS refused every arm). Log
+    // it, and tell the proto walk-in is unavailable so it says "tap I'm here" instead.
+    const error = String((e as Error)?.message ?? e);
+    console.warn('[location] walk-in check-in could not arm:', error);
+    return { armed: 0, capped: plan.capped, state, walkIn: 'unavailable', error };
   }
+  scheduleCloseSweep(plan.regions, nowMs);
   // A non-zero `capped` is reported so the UI can TELL the athlete which commitments need a tap,
   // rather than leaving them silently unverified.
-  return { armed: plan.regions.length, capped: plan.capped, state };
+  return { armed: plan.regions.length, capped: plan.capped, state, walkIn: 'on' };
 }
 
 export async function disarmAll(): Promise<void> {
+  if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
   if (!Location) return;
   try {
     if (await Location.hasStartedGeofencingAsync(GEOFENCE_TASK)) {
       await Location.stopGeofencingAsync(GEOFENCE_TASK);
     }
   } catch { /* nothing armed, or the module went away — either way we're disarmed */ }
+}
+
+/* ---------------------------------------------------------------- disarm at the close */
+
+/** The regions the OS is watching for our task right now (the options startGeofencingAsync was
+ *  given), or [] when nothing is registered. */
+async function armedRegions(): Promise<Region[]> {
+  if (!Location || !TaskManager) return [];
+  try {
+    if (!(await Location.hasStartedGeofencingAsync(GEOFENCE_TASK))) return [];
+    const opts = await TaskManager.getTaskOptionsAsync<{ regions?: Region[] }>(GEOFENCE_TASK);
+    return Array.isArray(opts?.regions) ? opts.regions : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Drop every region whose window has closed, and `drop` (one whose event came in out of time).
+ *  Re-registers the rest, or stops the task when none is left. No network: it works in a
+ *  background wake with no signal. */
+export async function pruneExpired(nowMs: number = Date.now(), drop: string | null = null): Promise<number> {
+  if (!Location) return 0;
+  const before = await armedRegions();
+  if (!before.length) return 0;
+  const keep = pruneRegions(before, nowMs, drop);
+  if (keep.length === before.length) return keep.length;
+  try {
+    if (!keep.length) await disarmAll();
+    else {
+      await Location.startGeofencingAsync(GEOFENCE_TASK, keep);
+      scheduleCloseSweep(keep, nowMs);
+    }
+  } catch (e) {
+    console.warn('[location] could not drop a closed region:', String((e as Error)?.message ?? e));
+  }
+  return keep.length;
+}
+
+/* While the app is alive (foreground, or a background wake still running), disarm at the earliest
+   close. iOS gives no way to run code at a set time in a suspended or killed app, so this is the
+   best effort; the guarantee is the event-time window check in handleRegionEvent. */
+let closeTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleCloseSweep(regions: Region[], nowMs: number) {
+  if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; }
+  const close = nextClose(regions);
+  if (close == null) return;
+  // setTimeout caps at ~24.8 days; a window is hours long, but clamp anyway.
+  const wait = Math.min(Math.max(0, close - nowMs) + 1000, 2 ** 31 - 1);
+  closeTimer = setTimeout(() => { closeTimer = null; void pruneExpired(); }, wait);
 }
 
 /* ---------------------------------------------------------------- one reading */
@@ -183,6 +277,8 @@ function reasonFor(message: string): string {
   if (/no_place|no location to verify/i.test(message)) return 'Your coach hasn’t set a place for this';
   if (/bad_position/i.test(message)) return 'Couldn’t get a location fix';
   if (/cancelled/i.test(message)) return 'This was cancelled';
+  // 0242 (final review I1): an arrival after the close is refused, never back-dated.
+  if (/arrival_closed/i.test(message)) return 'Check-in for this has closed';
   if (/consent/i.test(message)) return 'A parent or guardian needs to allow location check-in';
   if (/switched off/i.test(message)) return 'Location check-in is switched off';
   return 'Couldn’t check you in. Try again';
@@ -269,7 +365,11 @@ export function registerGeofenceTask(): void {
       // server measures it, or the bare region match when no reading can be had; an Exit goes to
       // record_departure (0208). An arrival is never
       // downgraded: verify_arrival coalesces arrived_at and record_departure cannot touch status.
-      await handleRegionEvent(data, { rpc, position: currentPosition });
+      // An event outside the region's own window sends nothing and drops that region (I2).
+      await handleRegionEvent(data, {
+        rpc, position: currentPosition, now: Date.now,
+        disarm: (identifier) => pruneExpired(Date.now(), identifier),
+      });
     });
   } catch { /* a defineTask collision on fast refresh is harmless */ }
 }

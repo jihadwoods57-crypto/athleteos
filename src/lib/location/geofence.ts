@@ -2,9 +2,12 @@
  *
  * THE WHOLE PRIVACY DESIGN IN ONE PLACE:
  * The OS is asked to watch ONE circle per scheduled commitment, ONLY while that commitment is
- * within its arming window, and the registration is torn down when the window closes. Between
- * events nothing is registered and nothing is watched. We never read a position stream and never
- * store a coordinate.
+ * within its arming window. Each region carries its own window in its identifier
+ * (`<instance>|<openMs>|<closeMs>`, regionId), so the region event itself knows whether it is in
+ * time, even when the app was killed and nothing ran at the close. An event outside its window
+ * takes no reading, sends nothing and removes that region (final review I2, 2026-09-23). The
+ * registration is also pruned at the close while the app is alive (index.ts), and on every
+ * foreground. We never read a position stream and never store a coordinate.
  *
  * WHAT CHANGED IN 0242 (founder 2026-09-23). An Enter now tries ONE position reading and sends it
  * to verify_arrival_at, which measures the distance to the coach's place on the server, records
@@ -65,6 +68,66 @@ const DEFAULT_LEN_MS = 3 * 60 * 60 * 1000;
 
 const num = (v: unknown): v is number => typeof v === 'number' && isFinite(v);
 
+/** WALK-IN CHECK-IN, ON OR OFF, PER PLATFORM. The one switch for the fallback in
+ *  docs/go-live/ROLLCALL-DEVICE-TEST.md: if the device test shows region monitoring does not wake
+ *  the app on iOS without the location background mode, set `ios` to false and ship an OTA. The
+ *  phone then never asks for "Always", never arms a region, and tells the proto walk-in is off,
+ *  which then offers "I'm here" only. Asking for Always is JS-driven, so no new build is needed. */
+export const WALK_IN: Readonly<Record<'ios' | 'android', boolean>> = { ios: true, android: true };
+export function walkInEnabled(os: string): boolean {
+  return os === 'ios' ? WALK_IN.ios : os === 'android' ? WALK_IN.android : false;
+}
+
+/** The arming window of one instance: [start - ARM_LEAD_MS, end + ARM_TAIL_MS], or null when the
+ *  row has no usable start. */
+export function armWindow(i: Pick<ArmableInstance, 'starts_at' | 'ends_at'>): { open: number; close: number } | null {
+  const start = i ? Date.parse(i.starts_at) : NaN;
+  if (!isFinite(start)) return null;
+  const end = i.ends_at ? Date.parse(i.ends_at) : start + DEFAULT_LEN_MS;
+  const endMs = isFinite(end) ? end : start + DEFAULT_LEN_MS;
+  return { open: start - ARM_LEAD_MS, close: endMs + ARM_TAIL_MS };
+}
+
+/** The OS region identifier: the instance and its window, so a region event can be judged in or
+ *  out of time with no lookup and no network. */
+export function regionId(instanceId: string, open: number, close: number): string {
+  return `${instanceId}|${Math.round(open)}|${Math.round(close)}`;
+}
+
+/** Parse a regionId. Null for anything else, including a bare instance id: a region without a
+ *  window is never trusted to be in time. */
+export function parseRegionId(identifier: unknown): { instanceId: string; open: number; close: number } | null {
+  if (typeof identifier !== 'string') return null;
+  const parts = identifier.split('|');
+  if (parts.length !== 3 || !parts[0]) return null;
+  if (!/^\d+$/.test(parts[1]) || !/^\d+$/.test(parts[2])) return null;
+  const open = Number(parts[1]); const close = Number(parts[2]);
+  if (close < open) return null;
+  return { instanceId: parts[0], open, close };
+}
+
+/** The armed regions that should stay armed at `nowMs`: every region whose window has not closed
+ *  (one not yet open stays: it was armed ahead on purpose), minus `drop` (a region whose event just
+ *  came in out of time). Pure; index.ts re-registers the result, or stops the task when empty. */
+export function pruneRegions<R extends { identifier: string }>(regions: R[], nowMs: number, drop?: string | null): R[] {
+  if (!Array.isArray(regions)) return [];
+  return regions.filter((r) => {
+    if (!r || r.identifier === drop) return false;
+    const w = parseRegionId(r.identifier);
+    return !!w && nowMs <= w.close;
+  });
+}
+
+/** The earliest close among armed regions, for the in-process disarm timer; null when none. */
+export function nextClose(regions: { identifier: string }[]): number | null {
+  let best: number | null = null;
+  for (const r of Array.isArray(regions) ? regions : []) {
+    const w = parseRegionId(r && r.identifier);
+    if (w && (best == null || w.close < best)) best = w.close;
+  }
+  return best;
+}
+
 /** Which instances the OS should be watching right now, nearest first, capped.
  *  Pure — `nowMs` is always an argument. */
 export function selectArmable(
@@ -79,22 +142,23 @@ export function selectArmable(
       // A malformed row must never be armed: lat/lng defaulting to 0 would put a geofence in the
       // Gulf of Guinea and quietly mark everyone unverified forever.
       if (!num(i.lat) || !num(i.lng) || !num(i.radius_m) || i.radius_m <= 0) return false;
-      const start = Date.parse(i.starts_at);
-      if (!isFinite(start)) return false;
-      const end = i.ends_at ? Date.parse(i.ends_at) : start + DEFAULT_LEN_MS;
-      const endMs = isFinite(end) ? end : start + DEFAULT_LEN_MS;
-      return nowMs >= start - ARM_LEAD_MS && nowMs <= endMs + ARM_TAIL_MS;
+      const w = armWindow(i);
+      return !!w && nowMs >= w.open && nowMs <= w.close;
     })
     .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))
     .slice(0, Math.max(0, cap));
 }
 
-/** The OS-facing shape. `identifier` carries the instance id so a crossing can be attributed to
- *  the right commitment without any lookup by coordinate. */
+/** The OS-facing shape. `identifier` carries the instance id AND its window (regionId), so a
+ *  crossing is attributed to the right commitment and judged in or out of time without any lookup
+ *  by coordinate. A row with no usable window is dropped (selectArmable already drops it). */
 export function toRegions(instances: ArmableInstance[]): Region[] {
   if (!Array.isArray(instances)) return [];
-  return instances.map((i) => ({
-    identifier: i.instance_id,
+  return instances.flatMap((i) => {
+    const w = armWindow(i);
+    return w ? [{ i, w }] : [];
+  }).map(({ i, w }) => ({
+    identifier: regionId(i.instance_id, w.open, w.close),
     latitude: i.lat,
     longitude: i.lng,
     radius: i.radius_m,
@@ -179,6 +243,10 @@ export type RegionEventDeps = {
   rpc: RpcFn;
   /** One position reading. Null (or a throw) means there is no fix. */
   position: () => Promise<PositionFix | null | undefined>;
+  /** The clock. Defaults to Date.now. */
+  now?: () => number;
+  /** Stop watching ONE region (its event came in out of time). */
+  disarm?: (identifier: string) => Promise<unknown> | unknown;
 };
 
 export type RegionEvent = {
@@ -189,7 +257,7 @@ export type RegionEvent = {
 
 /** 'arrival' = reported with a reading (distance-checked); 'region_match' = no reading could be
  *  taken, so the OS region match was reported instead. */
-export type RegionOutcome = 'arrival' | 'region_match' | 'departure' | 'failed' | 'ignored';
+export type RegionOutcome = 'arrival' | 'region_match' | 'departure' | 'failed' | 'ignored' | 'outside';
 
 /* Mirrors expo-location's LocationGeofencingEventType. Written out here so this file stays pure
    (no native import) and the tests can run without the module. */
@@ -208,13 +276,27 @@ const isExit = (t: unknown) => t === EXIT || t === 'exit';
  *  region match itself is reported: verify_arrival_at with null coordinates, which the server
  *  accepts from the geofence source only.
  *
+ *  FIRST the window: an event outside the region's own window (regionId) takes no reading, sends
+ *  nothing and asks deps.disarm to stop watching that region ('outside').
+ *
  *  EXIT reports the bare crossing to record_departure (0208) and takes no reading. The server
  *  decides what a departure means (a re-entry erases it; the grace absorbs indoor wobble), and
  *  record_departure cannot write `status`, so a stray Exit can neither invent a departure with no
  *  arrival nor mark anyone missed. */
 export async function handleRegionEvent(event: RegionEvent, deps: RegionEventDeps): Promise<RegionOutcome> {
-  const instanceId = event?.region?.identifier;
-  if (!event || !instanceId) return 'ignored';
+  const identifier = event?.region?.identifier;
+  if (!event || !identifier) return 'ignored';
+  if (!isEnter(event.eventType) && !isExit(event.eventType)) return 'ignored';
+  // THE WINDOW FIRST, before any reading and any network (final review I2). A region the app could
+  // not disarm at the close (it was killed, nothing ran) still fires; out of time it sends nothing
+  // and stops watching that place. A region with no window in its identifier is never trusted.
+  const nowMs = deps.now ? deps.now() : Date.now();
+  const w = parseRegionId(identifier);
+  if (!w || nowMs < w.open || nowMs > w.close) {
+    try { if (deps.disarm) await deps.disarm(identifier); } catch { /* the next foreground prunes it */ }
+    return 'outside';
+  }
+  const instanceId = w.instanceId;
   try {
     if (isEnter(event.eventType)) {
       let fix: PositionFix | null | undefined = null;

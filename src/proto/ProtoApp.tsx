@@ -9,6 +9,7 @@ import Constants from 'expo-constants';
 import { ensureProtoExtracted, PROTO_ROOT_DIR } from './protoBundle';
 import { PROTO_VERSION } from './protoVersion';
 import { BRIDGE_SHIM, handleBridgeMessage, type BridgeMessage } from './bridge';
+import { nativeCapsScript } from './nativeCaps';
 import { keyboardOverlap } from './keyboardOverlap';
 import { abortDictation } from '../lib/voice/nativeSpeech';
 import { authenticateBiometric } from '../lib/auth/biometrics';
@@ -82,7 +83,12 @@ const BUILD_CONFIG =
   `window.__PROTO_VERSION = ${JSON.stringify(PROTO_VERSION)};` +
   `window.__PLATFORM = ${JSON.stringify(Platform.OS)}; true;`;
 
-const PRELUDE = SUPABASE_CONFIG + ANALYTICS_CONFIG + BUILD_CONFIG + CONSOLE_BRIDGE + BRIDGE_SHIM;
+// What this binary can do (location, walk-in, the coach's map), read from the NATIVE side so an
+// OTA landing on an older build reports false instead of offering controls that cannot work
+// (nativeCaps.ts, final review I-1/I-2). Computed once: a binary's modules never change at runtime.
+const CAPS_CONFIG = (() => { try { return nativeCapsScript(); } catch { return 'true;'; } })();
+
+const PRELUDE = SUPABASE_CONFIG + ANALYTICS_CONFIG + BUILD_CONFIG + CAPS_CONFIG + CONSOLE_BRIDGE + BRIDGE_SHIM;
 
 function Center({ children }: { children: React.ReactNode }) {
   return <View style={styles.center}>{children}</View>;

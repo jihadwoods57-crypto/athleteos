@@ -58,6 +58,7 @@
     "jest": "^30.4.2",
     "jest-expo": "~57.0.2",
     "jsdom": "^20.0.3",
+    "patch-package": "8.0.1",
     "tsx": "^4.23.1",
     "typescript": "~6.0.3"
   },
@@ -68,6 +69,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "jest",
+    "postinstall": "patch-package",
     "eval": "tsx eval/run-eval.ts",
     "lint:xss": "node scripts/lint-innerhtml-esc.mjs",
     "lint:copy": "node proto/redesign-2026-07/tools/copy-lint.mjs",

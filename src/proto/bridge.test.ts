@@ -1,4 +1,4 @@
-jest.mock('react-native', () => ({ Share: { share: jest.fn() }, Platform: { OS: 'ios' } }));
+jest.mock('react-native', () => ({ Share: { share: jest.fn() }, Platform: { OS: 'ios' }, Linking: { openSettings: jest.fn(async () => undefined), openURL: jest.fn(async () => undefined) } }));
 jest.mock('../lib/notify', () => ({ getPushToken: jest.fn(async () => 'ExponentPushToken[abc]') }));
 jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn(), notificationAsync: jest.fn(),
@@ -39,6 +39,7 @@ jest.mock('../lib/location', () => ({
   disarmAll: jest.fn(async () => undefined),
   checkArrival: jest.fn(async () => ({ within: true, reason: null, distance_m: 40 })),
   REPORTS_PRESENCE: true,
+  walkInAllowed: jest.fn(() => true),
 }));
 
 // The dictation seam is mocked for ROUTING only; its own decisions are tested in
@@ -180,7 +181,22 @@ describe('location bridge', () => {
   test('LOCATION_AVAILABLE reports availability, permission state and presence support', async () => {
     const { injected, ref } = fakeRef();
     expect(await handleBridgeMessage(ref, { type: 'LOCATION_AVAILABLE', id: 20 } as never)).toBe(true);
-    expect(injected[0]).toContain('__onNativeResult(20, {"available":true,"state":"always","presence":true}');
+    expect(injected[0]).toContain('__onNativeResult(20, {"available":true,"state":"always","presence":true,"walkIn":true}');
+  });
+
+  test('LOCATION_AVAILABLE says when walk-in is switched off on this platform (the WALK_IN fallback)', async () => {
+    loc().walkInAllowed.mockReturnValueOnce(false);
+    const { injected, ref } = fakeRef();
+    await handleBridgeMessage(ref, { type: 'LOCATION_AVAILABLE', id: 26 } as never);
+    expect(injected[0]).toContain('"walkIn":false');
+  });
+
+  test('LOCATION_SETTINGS opens the app’s own Settings page (the only way back after a No)', async () => {
+    const RN = jest.requireMock('react-native') as { Linking: { openSettings: jest.Mock } };
+    const { ref } = fakeRef();
+    expect(await handleBridgeMessage(ref, { type: 'LOCATION_SETTINGS' } as never)).toBe(true);
+    expect(RN.Linking.openSettings).toHaveBeenCalled();
+    expect(BRIDGE_SHIM).toContain("type: 'LOCATION_SETTINGS'");
   });
 
   test('LOCATION_PERMISSION asks for background only when the proto says so', async () => {
