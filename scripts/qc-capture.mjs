@@ -166,6 +166,25 @@ const rsSeed = (o = {}) => `const cd = await import('./js/commitment-data.js');
     A('r2', 'Andre Wells', 21, 1, 0, 3, 14, 3), A('r1', 'DeShawn Cole', 22, 0, 0, 0, 22, 16),
   ] });
   if (O.draft) { const rs = await import('./js/screens/rollcall-setup.js'); rs.seedSetupForHarness(O.draft); }`;
+/** Roll call v3, Task 9: the athlete's next roll call (Home) and the assignment screen. Four
+ *  mornings ahead on the frozen clock (Thu 23 Jul 8:10 PM: Fri 24, Mon 27, Wed 29, Fri 31, 4:45 AM)
+ *  for commitment 'rc-v3', and the phone's alarm state. `o.alarm`: 'set' (this phone holds Friday's
+ *  alarm), 'sync' (allowed, not armed), 'ask' (never asked), 'denied', or 'none' (no rows at all). */
+const rnSeed = (o = {}) => `const cd = await import('./js/commitment-data.js');
+  const O = ${JSON.stringify(o)};
+  const T = (d, h, m) => new Date(2026, 6, d, h, m, 0).toISOString();
+  const row = (d) => ({ instance_id: 'rn-' + d, commitment_id: 'rc-v3', type: 'morning_roll_call', title: 'Morning Roll Call',
+    message: 'Up and at it. Lift at 7, be early.', action_label: 'I’m Up', coach_name: 'Coach Brooks', alarm: true,
+    occurs_on: '2026-07-' + d, starts_at: T(d, 4, 45), respond_by_at: T(d, 4, 50), closes_at: T(d, 5, 15),
+    starts_min: 285, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    status: 'pending', verdict: 'pending', acknowledged_at: null, instance_status: 'scheduled' });
+  cd.seedMineForHarness(O.alarm === 'none' ? [] : [24, 27, 29, 31].map(row), '2026-07-23');
+  const st = { set: { authorization: 'authorized', armed: 1, ids: ['rn-24'] }, sync: { authorization: 'authorized', armed: 0, ids: [] },
+    ask: { authorization: 'notDetermined', armed: 0, ids: [] }, denied: { authorization: 'denied', armed: 0, ids: [] } }[O.alarm] || { authorization: 'authorized', armed: 0, ids: [] };
+  window.__AP_STATE = { at: '2026-07-20T12:00:00Z', answer: 'not_now' };
+  window.OnStandardNative = Object.assign(window.OnStandardNative || {}, { push: { token: async () => null },
+    notify: { sync() {}, permission: async () => 'granted' }, location: { settings() {} },
+    wakeAlarms: { sync: async () => 0, state: async () => Object.assign({ supported: true }, st) } });`;
 const ROOT = process.cwd();
 
 /* ---------------- args ---------------- */
@@ -295,6 +314,14 @@ const SHOTS = [
   { g: 'rollcall', name: 'rollcall-week-sheet', seed: 'coachIdentity', route: 'rollcall-week/rc-rule', at: [20, 10], book: 'team', pre: rsSeed(),
     act: `const d = document.querySelector('[data-rw-day="i-24"]'); if (d) d.click();`, actMs: 700 },
   { g: 'rollcall', name: 'rollcall-history', seed: 'coachIdentity', route: 'rollcall-history/rc-rule', at: [20, 10], book: 'team', pre: rsSeed() },
+  // Roll call v3 (Task 9): the next roll call on Home, with THIS phone's alarm status, and the
+  // assignment screen the assignment push opens. Seeded after the page settles, then repainted.
+  { g: 'rollcall', name: 'rn-home-set', seed: 'dayComplete', route: 'home', at: [20, 10], act: rnSeed({ alarm: 'set' }) + ' window.__render();', actMs: 1400 },
+  { g: 'rollcall', name: 'rn-home-unset', seed: 'dayComplete', route: 'home', at: [20, 10], act: rnSeed({ alarm: 'sync' }) + ' window.__render();', actMs: 1400 },
+  { g: 'rollcall', name: 'rn-home-open-day', seed: 'dayMidday', route: 'home', at: [20, 10], act: rnSeed({ alarm: 'ask' }) + ' window.__render();', actMs: 1400 },
+  { g: 'rollcall', name: 'rn-home-none', seed: 'dayComplete', route: 'home', at: [20, 10], act: rnSeed({ alarm: 'none' }) + ' window.__render();', actMs: 1400 },
+  { g: 'rollcall', name: 'ra-assigned-set', seed: 'dayComplete', route: 'rollcall-assigned/rc-v3', at: [20, 10], pre: rnSeed({ alarm: 'set' }) },
+  { g: 'rollcall', name: 'ra-assigned-unset', seed: 'dayComplete', route: 'rollcall-assigned/rc-v3', at: [20, 10], pre: rnSeed({ alarm: 'denied' }) },
   // The "Day N locked." stamp: a body-level overlay, so it is captured by rendering Home with the
   // lock unacknowledged. Every other athlete seed marks it seen, or it would appear over whichever
   // screen rendered first and make the contact sheet nondeterministic.

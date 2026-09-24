@@ -4256,6 +4256,24 @@ button.rw-cell:active { transform: scale(var(--press-btn)); }
 .rh-bar { display: block; margin-top: var(--s1h); }
 .rh-row .rh-rate { flex: none; min-width: 48px; text-align: right; font-size: var(--t-md); }
 
+/* ================================================================ roll call v3: the athlete's next
+   roll call card (rn-) and the assignment screen (ra-). Neutral surfaces; green only for "Alarm set",
+   amber only for "Tap to fix" (a real warning), blue for the one action. */
+.rn-slot { margin-top: var(--s2); }
+.rn-card .rn-fix { font-family: var(--font); cursor: pointer; }
+.rn-card.rn-wrap { flex-wrap: wrap; }
+.rn-card.rn-wrap .rn-fix { flex: 1 0 100%; min-height: 44px; margin-top: var(--s2); font-size: var(--t-sm); }
+.ra-hero { display: flex; flex-direction: column; gap: var(--s1h); }
+.ra-hero .eyebrow { margin: 0; }
+.ra-t { margin: 0; font-size: var(--t-lg); font-weight: 800; color: var(--text); }
+.ra-when { margin: 0; font-size: var(--t-base); font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.ra-s { margin: 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.45; text-wrap: pretty; }
+.ra-msg { margin: var(--s2) 0 0; font-size: var(--t-sm); color: var(--text-2); line-height: 1.45; }
+.ra-alarm { margin-top: var(--s3); }
+.ra-why { margin-bottom: var(--s3); }
+.ra-set { display: flex; align-items: center; gap: var(--s2); margin: 0; font-size: var(--t-base); font-weight: 800; color: var(--green-bright); }
+.ra-list { margin-top: var(--s2); }
+
 /* ================================================================ location: the ask card (lk-)
    and the location check-in screen (lc-). Final fix round, item 2 (2026-09-23): While Using is
    explained before the phone's prompt, Always is offered only after, Settings after a No. The

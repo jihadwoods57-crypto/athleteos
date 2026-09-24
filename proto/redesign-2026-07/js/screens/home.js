@@ -288,41 +288,38 @@ const seenReceiptId = (seenAt) => `seen:${seenAt || ''}`;
 
 function paintCommitments(root) {
   const slot = root.querySelector('#vc-slot');
+  // A finished day has no cards, only the next roll call (v3).
+  const rn = root.querySelector('#rn-home');
+  if (rn) void import('../rollcall-next.js').then((RN) => RN.mountHomeNext(rn), () => {});
   if (!slot) return;
   const paint = () => {
     if (!slot.isConnected) return;
     const now = new Date().toISOString();
     paintPresenceReceipt(root);
     const today = vcToday();
-    // Tonight's preview (0216): from late afternoon, tomorrow's wake-up sits under today's cards,
-    // so a moved time or a skipped day is known BEFORE the alarm gets set. loadMine already
-    // fetches yesterday through tomorrow; this reads what is cached, nothing extra.
+    // From 4 PM a morning called OFF for tomorrow shows (0216); the next card (v3) says the rest.
     const evening = new Date().getHours() >= 16;
-    /* A settled receipt the athlete already cleared leaves the screen, and STAYS gone: at 11:59
-       an 8:30 check-in is proof of something finished, not a thing to act on. Only positive,
-       settled receipts are clearable - receipts.js canClear is the one place that line is drawn,
-       and a miss is never on the clearable side of it. */
+    /* A cleared receipt STAYS gone. Only positive, settled receipts clear (receipts.js canClear);
+       a miss never does. */
     const derived = VC.today(today).map((r) => deriveCommitment(r, now));
     const clearable = derived.filter((d) => d && d.visible && canClear(d) && d.instance_id);
     const shown = derived.filter((d) => !(canClear(d) && isCleared(RT.userId, today, d.instance_id)));
     RECEIPTS.ids = clearable
       .filter((d) => !isCleared(RT.userId, today, d.instance_id))
       .map((d) => String(d.instance_id));
-    /* ONE row per morning. An answered wake-up already has its receipt under the ring ("Up at
-       5:46 · +8 on today's score"), and the collapsed card in this slot said the same thing a
-       second time. The receipt is the door to the detail now; the card yields to it. A pending
-       offline answer keeps its card, because the receipt only speaks for a landed one. */
+    /* ONE row per morning: an answered wake-up's receipt under the ring is its door, so the card
+       yields. A pending offline answer keeps its card (the receipt only speaks for a landed one). */
     const receiptOnScreen = !!root.querySelector('.wk-receipt');
     const html = shown
       .filter((d) => !(receiptOnScreen && d.type === WAKEUP_TYPE && d.stage === 'acknowledged' && !d.pendingSync))
       .map((d) => commitmentCard(d))
       .filter(Boolean).join('')
-      + (evening ? tomorrowCard(tomorrowRollcall(VC.mine, today)) : '');
-    // An outage must never render as "you have nothing scheduled". For an athlete whose coach is
-    // counting on a 5:15 AM response, silence and a failed fetch look identical and mean opposite
-    // things — so when the fetch failed and we have nothing cached, say so.
+      + (() => { const t = evening && tomorrowRollcall(VC.mine, today); return t && t.skipped ? tomorrowCard(t) : ''; })();
+    // A failed fetch must never read as "nothing scheduled": say so.
     slot.innerHTML = html || (VC.mineError ? commitmentOfflineCard() : '');
     if (html) mountCommitmentCard(slot, () => paintCommitments(root));
+    // v3: the next roll call and whether THIS phone rings for it (js/rollcall-next.js).
+    void import('../rollcall-next.js').then((RN) => RN.mountHomeNext(slot, shown), () => {});
     // v3: the once-per-account alarm primer, else the notification one (js/alarm-primer.js).
     void import('../alarm-primer.js').then((AP) => AP.mountPrimers(slot, VC.mine, S.coach.kind === 'coach'), () => {});
     paintClearReceipts(root);
@@ -1308,6 +1305,7 @@ export default {
             appeared on Home. wakeupReceipt reads the athlete's own instance now. */''}
       ${receiptHtml(wakeupReceipt(VC.today().find((i) => i.type === WAKEUP_TYPE) || null, RT.userId), esc, Math.round(WAKEUP_SHIFT * 100))}
       <div id="reply-row"></div>
+      <div id="rn-home"></div>
       ${recentResults()}
       <div style="height:20px"></div>`;
     }
