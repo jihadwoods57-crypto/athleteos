@@ -4293,7 +4293,11 @@ button.rw-cell:active { transform: scale(var(--press-btn)); }
 .rhb-name { flex: 1; min-width: 0; font-size: var(--t-base); font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rhb-step { flex: none; font-size: var(--t-sm); font-weight: 700; color: var(--text-3); text-align: right; }
 .rhb-row[data-step="armed"] .rhb-step { color: var(--green-bright); }
-.rhb-row[data-step="no_push"] .rhb-step, .rhb-row[data-step="unseen"] .rhb-step, .rhb-row[data-step="seen"] .rhb-step { color: var(--amber-bright); }
+.rhb-row[data-step="unseen"] .rhb-step, .rhb-row[data-step="seen"] .rhb-step { color: var(--text-2); }
+/* Amber is a real warning (ruling 2026-09-24): Notifications off always; not opened and not set
+   only in the last two hours before the window opens (.soon), when there is little time left. */
+.rhb-row[data-step="no_push"] .rhb-step,
+.rhb-list.soon .rhb-row[data-step="unseen"] .rhb-step, .rhb-list.soon .rhb-row[data-step="seen"] .rhb-step { color: var(--amber-bright); }
 .rhb-row[data-step="excused"] .rhb-name, .rhb-row[data-step="excused"] .rhb-av { opacity: 0.55; }
 .btn.rhb-act { width: 100%; margin-top: var(--s4); gap: var(--s2); }
 .btn.rhb-act[disabled] { opacity: 1; color: var(--text-2); }
@@ -4305,6 +4309,8 @@ button.rw-cell:active { transform: scale(var(--press-btn)); }
 .rhb-links { margin-top: var(--s4); }
 .rhb-next { margin: var(--s4) var(--s1) 0; font-size: var(--t-sm); font-weight: 700; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .rhb-acts { margin-top: var(--s2); }
+/* iPad: the 720 column (.view, wide.css) holds it; the list never runs wider than that column. */
+html[data-layout] .rhb-body, html[data-layout] .rhb-acts { max-width: 720px; }
 .rhb-told { display: flex; align-items: center; gap: var(--s2); margin: var(--s2) 0 0; padding: var(--s2h) var(--s4); border-radius: var(--r-card-sm); background: var(--surface-1); border: 1px solid var(--hairline); font-size: var(--t-sm); font-weight: 700; color: var(--text-2); line-height: 1.4; }
 .rhb-told svg { flex: none; color: var(--text-3); }
 .rhb-told.g svg { color: var(--green-bright); }

@@ -575,9 +575,10 @@ export const rollcallNew = {
       d.id = id;
       location.replace(`#rollcall/${id}`);
       SAVING = false;
-      // Roll call v3: tell the athletes now, not at the next cron minute. The roll call screen it
-      // lands on says how that went (rollcall-v3-data.js toldState).
-      void tellAthletesNow(id);
+      // Roll call v3: tell the athletes now, not at the next cron minute, and the screen it lands
+      // on says how that went (rollcall-v3-data.js toldState). Only a live wake-up: an arrival-only
+      // or paused roll call has no alarm to tell anyone about (notify refuses both).
+      if (payload.type === 'morning_roll_call' && payload.active !== false) void tellAthletesNow(id);
       loadCommitments(own, CD.kind, true).then((rows) => { RT.vcCommitments = rows; }, () => {});
     });
   },
@@ -613,10 +614,13 @@ export function moveProblem(day, min, tz, nowMs = Date.now()) {
 }
 const dayOf = (iso) => new Date(`${iso}T12:00:00`);
 
-/** Seven days from today, each with its occurrence (or none), moved / skipped / started. */
-export function weekDays(rows, todayIso, nowMs = Date.now()) {
+/** `len` days from today (7: the strip; SHEET_DAYS: the day sheet, which the roll call screen's
+ *  Move and Cancel open on any morning they can name), each with its occurrence (or none), moved /
+ *  skipped / started. */
+export const SHEET_DAYS = 14;
+export function weekDays(rows, todayIso, nowMs = Date.now(), len = 7) {
   const list = Array.isArray(rows) ? rows : [];
-  return Array.from({ length: 7 }, (_, i) => {
+  return Array.from({ length: len }, (_, i) => {
     const iso = shiftISO(todayIso, i);
     let row = list.find((r) => r && r.occurs_on === iso) || null;
     // A cancelled occurrence the coach did not skip is the rule no longer repeating that day.
@@ -768,7 +772,7 @@ export function openDaySheet(root, commitmentId, instanceId, opener, rerender) {
   if (overlayOpen()) return;
   const rows = VC.upcomingFor(commitmentId) || [];
   const tz = (ruleOf(commitmentId) || {}).timezone;
-  const x = weekDays(rows, todayIn(tz)).find((d) => d.row && d.row.instance_id === instanceId);
+  const x = weekDays(rows, todayIn(tz), Date.now(), SHEET_DAYS).find((d) => d.row && d.row.instance_id === instanceId);
   if (!x) return;
   const rule = x.row.rule_starts_min != null ? x.row.rule_starts_min : x.min;
   const state = x.skipped ? `Cancelled. Usually ${fmtMin(rule)}.`
@@ -814,7 +818,7 @@ export function openDaySheet(root, commitmentId, instanceId, opener, rerender) {
     }
     let told = null;
     try { told = await notifyScheduleChange(instanceId); } catch { told = null; }
-    await loadUpcoming(commitmentId, 14, true);   // the roll call screen reads 14 days (the alarm horizon)
+    await loadUpcoming(commitmentId, SHEET_DAYS, true);   // the roll call screen reads 14 days (the alarm horizon)
     closeWeekSheet(opener);
     rerender();
     const note = document.querySelector('.rw-note');

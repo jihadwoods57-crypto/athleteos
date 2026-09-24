@@ -133,13 +133,6 @@ function wakeupHomeCard(inst) {
     : phase === 'late'
       ? (out ? `<span class="status-pill r">${out} still out</span>` : '<span class="status-pill g">All in</span>')
       : (out ? `<span class="status-pill muted">${out} pending</span>` : '<span class="status-pill g">All in</span>');
-  /* WHERE THE CARD GOES CHANGES WHEN THE WINDOW SHUTS (founder audit 2026-09-14).
-     Until now this always opened the LIVE board, in every phase. screens/wakeup-morning.js was
-     built for exactly the closed phase — its own header says "the surface this feature is built
-     around is the summary when the window SHUTS, not the live widget … this is the thing they
-     actually open at breakfast" — and it shipped with release 1, registered, styled and tested,
-     with nothing anywhere in the app navigating to it. A coach could not open it. The live board
-     stays one tap from that summary, so nothing became harder to reach. */
   /* ONE WAY IN (roll call rebuilt, 2026-09-23): the team board, in every phase. It is live while
      the window runs and is the morning's summary once it shuts (first up, the Missed group with a
      nudge on every face), the job wakeup-morning.js did; that route now hands over to it too. */

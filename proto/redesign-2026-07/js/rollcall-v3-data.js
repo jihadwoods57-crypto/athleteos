@@ -6,7 +6,7 @@
    eager, so it adds nothing to the boot graph.) A failed read is null (the fetcher contract: the
    caller shows an error state), never a fabricated empty answer. */
 
-import { vcUid } from './commitment-data.js';
+import { vcUid, remindMissing } from './commitment-data.js';
 
 const sb = () => (typeof window !== 'undefined' && window.sb) || null;
 
@@ -94,6 +94,9 @@ async function coachCall(body) {
     const ctx = error && error.context;
     const status = ctx && ctx.status;
     if (status === 429) return { ok: false, reason: 'rate_limited', data: null };
+    // 404: the morning already started, or the roll call is paused or not a wake-up. A decided
+    // answer, never "check your connection".
+    if (status === 404) return { ok: false, reason: 'no_instance', data: null };
     if (status === 403) {
       // 403 is both "not staff" and the switch being off; the body says which.
       let why = null;
@@ -134,7 +137,17 @@ export function toldState(commitmentId, nowMs = Date.now()) {
 }
 /** Harness seam: the landing line in a given state. */
 export function seedToldForHarness(commitmentId, state, sent = 0) {
-  TOLD.set(commitmentId, { state, sent, at: Date.now(), done: new Promise(() => {}) });
+  TOLD.set(commitmentId, { state, sent, at: Date.now(), done: new Promise(() => {}), watched: true, refreshed: true });
+}
+
+/** "Nudge the N not up" from the roll call screen: the same function as the board's, but read so
+ *  the switch being off (flag_off) says so. A transport failure falls back to remindMissing, whose
+ *  RPC path is the board's own fallback. */
+export async function nudgeAll(instanceId) {
+  if (!instanceId) return { sent: 0, reason: 'failed' };
+  const r = await coachCall({ action: 'nudge', instance: instanceId });
+  if (r.ok) return { sent: Number(r.data.targeted) || 0, reason: 'ok' };
+  return r.reason === 'failed' ? remindMissing(instanceId) : { sent: 0, reason: r.reason };
 }
 
 /** "Remind the N not set": the assignment push again, to everyone whose phone has not armed.

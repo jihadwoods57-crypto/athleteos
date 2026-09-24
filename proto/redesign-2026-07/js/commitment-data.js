@@ -424,12 +424,14 @@ export async function loadUpcoming(commitmentId, days = 7, force = false) {
   const have = RTC.upcoming.get(commitmentId);
   if (have && have.seeded) return have.rows;
   const c = sb(); if (!c || !commitmentId) return null;
-  if (!force && have && Date.now() - have.at < FRESH_MS) return have.rows;
+  // A 7-day read never serves, or shrinks, a 14-day cache.
+  const span = Math.max(days, (have && have.days) || 0);
+  if (!force && have && have.days >= days && Date.now() - have.at < FRESH_MS) return have.rows;
   try {
-    const { data, error } = await c.rpc('rollcall_upcoming', { p_commitment: commitmentId, p_days: days });
+    const { data, error } = await c.rpc('rollcall_upcoming', { p_commitment: commitmentId, p_days: span });
     if (error) return have ? have.rows : null;
     const rows = Array.isArray(data) ? data : [];
-    RTC.upcoming.set(commitmentId, { rows, at: Date.now() });
+    RTC.upcoming.set(commitmentId, { rows, at: Date.now(), days: span });
     return rows;
   } catch { return have ? have.rows : null; }
 }

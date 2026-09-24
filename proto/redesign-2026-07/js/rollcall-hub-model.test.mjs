@@ -63,3 +63,42 @@ test('labels', () => {
   assert.equal(dayWord({ occurs_on: '2026-09-25' }, '2026-09-24'), 'tomorrow');
   assert.equal(dayWord({ occurs_on: '2026-09-28' }, '2026-09-24'), 'Monday');
 });
+
+test('Move and Cancel only name a morning the day sheet can open', async () => {
+  const { movable } = await import('./rollcall-hub-model.js');
+  const now = Date.parse('2026-09-24T12:00:00Z');
+  const r = (d, o = {}) => ({ instance_id: 'i' + d, occurs_on: `2026-10-${String(d).padStart(2, '0')}`, starts_at: `2026-10-${String(d).padStart(2, '0')}T10:00:00Z`, ...o });
+  assert.equal(movable([r(9), r(2, { skipped: true })], now, '2026-10-07'), null, 'Oct 9 is past the sheet’s last day: no dead row');
+  assert.equal(movable([r(9), r(3)], now, '2026-10-07').instance_id, 'i3');
+  assert.equal(movable([r(9)], now, '').instance_id, 'i9');
+});
+
+test('amber waits for the last two hours before the window', async () => {
+  const { isSoon } = await import('./rollcall-hub-model.js');
+  const now = Date.parse('2026-09-24T12:00:00Z');
+  assert.equal(isSoon({ opens_at: '2026-09-24T13:30:00Z' }, now), true);
+  assert.equal(isSoon({ opens_at: '2026-09-24T20:00:00Z' }, now), false);
+  assert.equal(isSoon({ opens_at: '2026-09-24T11:00:00Z' }, now), false);
+});
+
+test('the close is said on the team’s clock', async () => {
+  const { clockIn } = await import('./rollcall-hub-model.js');
+  assert.equal(clockIn('2026-09-24T10:30:00Z', 'America/New_York'), '6:30');
+  assert.equal(clockIn('2026-09-24T10:30:00Z', 'America/Los_Angeles'), '3:30');
+  assert.equal(clockIn(null, 'America/New_York'), '');
+});
+
+test('a repaint waits while a sheet is open, then happens once', async () => {
+  const { repaintWhenFree } = await import('./rollcall-hub-model.js');
+  let sheet = true, n = 0, fire = null;
+  const doc = { body: {}, querySelector: (s) => (s === '.sheet-scrim' && sheet ? {} : null) };
+  class Obs { constructor(cb) { fire = cb; } observe() {} disconnect() { fire = null; } }
+  const st = {};
+  assert.equal(repaintWhenFree(doc, () => n++, Obs, st), 'deferred');
+  assert.equal(repaintWhenFree(doc, () => n++, Obs, st), 'queued');
+  fire(); assert.equal(n, 0, 'still open: nothing yet');
+  sheet = false; fire();
+  assert.equal(n, 1, 'one replay once it closes');
+  assert.equal(repaintWhenFree(doc, () => n++, Obs, st), 'now');
+  assert.equal(n, 2);
+});

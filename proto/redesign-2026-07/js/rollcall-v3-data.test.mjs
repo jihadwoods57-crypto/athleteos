@@ -90,3 +90,14 @@ test('a seeded arming board never refetches; a failed read is null', async () =>
   assert.equal(sb.calls.filter(([n]) => n === 'rollcall_arming').length, 1);
   delete globalThis.window;
 });
+
+test('review: 404 is its own quiet answer; a nudge with the switch off says so', async () => {
+  withSb(fakeSb({ 'roll-call-coach': () => ({ data: null, error: { context: { status: 404 } } }) }));
+  assert.deepEqual(await remindArm('i1'), { sent: 0, reason: 'no_instance' });
+  assert.deepEqual(await notifyRollcall('c1'), { sent: 0, reason: 'no_instance' });
+  const { nudgeAll } = await import('./rollcall-v3-data.js');
+  withSb(fakeSb({ 'roll-call-coach': () => ({ data: null, error: { context: { status: 403, json: async () => ({ error: 'flag_off' }) } } }) }));
+  assert.deepEqual(await nudgeAll('i1'), { sent: 0, reason: 'flag_off' });
+  withSb(fakeSb({ 'roll-call-coach': (b) => ({ data: { ok: true, action: b.action, targeted: 3 }, error: null }) }));
+  assert.deepEqual(await nudgeAll('i1'), { sent: 3, reason: 'ok' });
+});

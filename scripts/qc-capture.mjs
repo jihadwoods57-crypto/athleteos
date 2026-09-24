@@ -221,6 +221,7 @@ const rhbSeed = (o = {}) => `const cd = await import('./js/commitment-data.js');
     : O.arming === 'one' ? mixed.map((r) => (r.status === 'excused' || r.athlete_id === 'r10' ? r : A(r.athlete_id, r.name, 'armed')))
     : mixed;
   v3.seedArmingForHarness('i-24', { instance_id: 'i-24', commitment_id: 'rc-rule', alarm: O.alarm !== false, rows: arm });
+  v3.seedArmingForHarness('i-23', { instance_id: 'i-23', commitment_id: 'rc-rule', alarm: O.alarm !== false, rows: arm });
   if (O.told) v3.seedToldForHarness('rc-rule', O.told, 6);`;
 const ROOT = process.cwd();
 
@@ -356,6 +357,8 @@ const SHOTS = [
   // Roll call v3, Task 10: the coach's one roll call screen, before / during / after, every step,
   // one left (named), all set, the line Start leaves, a day's sheet from Cancel, and the Home card.
   { g: 'rollcall', name: 'rhb-before', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [20, 10], book: 'team', pre: rhbSeed() },
+  // 4:10 AM: Thursday's window opens at 5:50, so not opened and not set turn amber (the last two hours).
+  { g: 'rollcall', name: 'rhb-before-soon', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [4, 10], book: 'team', pre: rhbSeed() },
   { g: 'rollcall', name: 'rhb-before-one', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [20, 10], book: 'team', pre: rhbSeed({ arming: 'one' }) },
   { g: 'rollcall', name: 'rhb-before-all', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [20, 10], book: 'team', pre: rhbSeed({ arming: 'all' }) },
   { g: 'rollcall', name: 'rhb-landed', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [20, 10], book: 'team', pre: rhbSeed({ told: 'ok' }) },

@@ -98,3 +98,47 @@ export function dayWord(inst, todayIso) {
   if (Math.round((b - a) / 86400000) === 1) return 'tomorrow';
   return DAYS_LONG[new Date(`${inst.occurs_on}T12:00:00`).getDay()];
 }
+
+/** The morning Move and Cancel act on: the soonest one that has not started and is not cancelled,
+ *  inside the day sheet's reach (`lastIso`, the last day the sheet can open). Beyond it, null: a
+ *  row the sheet cannot open is a row that does nothing. */
+export function movable(rows, nowMs = Date.now(), lastIso = '') {
+  return (Array.isArray(rows) ? rows : []).filter((r) => r && r.instance_id && !r.skipped && r.instance_status !== 'cancelled'
+    && Date.parse(r.starts_at || '') > nowMs && (!lastIso || String(r.occurs_on || '') <= lastIso))
+    .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at))[0] || null;
+}
+
+/** The last two hours before the window opens: "Hasn't opened it" and "Seen, alarm not set" turn
+ *  amber then (design ruling 2026-09-24). Before that they are facts, not warnings. */
+export const SOON_MS = 2 * 3600000;
+export function isSoon(inst, nowMs = Date.now()) {
+  const o = Date.parse((inst && (inst.opens_at || inst.starts_at)) || '');
+  return Number.isFinite(o) && o > nowMs && o - nowMs <= SOON_MS;
+}
+
+/** "6:30" on the roll call's own clock (the team's zone, not the coach's phone). */
+export function clockIn(iso, tz) {
+  const t = Date.parse(iso || '');
+  if (!Number.isFinite(t)) return '';
+  try {
+    return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tz || undefined })
+      .format(new Date(t)).replace(/\s?[AP]M$/i, '');
+  } catch { return ''; }
+}
+
+/** Repaint now, or once every open sheet has closed: a full repaint under an open day sheet (the
+ *  router's __screenCleanup closes it) would snatch Move or Cancel from under the coach's thumb.
+ *  One replay however many repaints were asked for meanwhile. `Observer` is MutationObserver. */
+export function repaintWhenFree(doc, repaint, Observer, state = repaintWhenFree) {
+  const open = () => !!(doc && doc.querySelector('.sheet-scrim'));
+  if (!open()) { repaint(); return 'now'; }
+  if (state.waiting) return 'queued';
+  if (!Observer || !doc.body) return 'dropped';
+  state.waiting = true;
+  const mo = new Observer(() => {
+    if (open()) return;
+    mo.disconnect(); state.waiting = false; repaint();
+  });
+  mo.observe(doc.body, { childList: true, subtree: true });
+  return 'deferred';
+}
