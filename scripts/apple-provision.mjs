@@ -23,6 +23,11 @@
 //
 //   node scripts/apple-provision.mjs              # report only
 //   node scripts/apple-provision.mjs --apply      # actually create things
+//   node scripts/apple-provision.mjs --apply --only nse   # just the roll-call push extension
+//
+// ROLL CALL V3 (2026-09-24). A third target, the Notification Service Extension
+// com.onstandard.app.NotificationService, arms AlarmKit alarms from a push. It carries NO App
+// Group and no capability at all, so its bundle id and profile are fully scriptable here.
 import { readFileSync, writeFileSync, existsSync, copyFileSync } from 'node:fs';
 import { createPrivateKey, sign as cryptoSign } from 'node:crypto';
 
@@ -31,6 +36,14 @@ const APPLY = process.argv.includes('--apply');
 
 const APP_BUNDLE = 'com.onstandard.app';
 const WIDGET_BUNDLE = 'com.onstandard.app.RollCallWidget';
+const NSE_BUNDLE = 'com.onstandard.app.NotificationService';
+/** `--only app|widget|nse` mints just that profile. Minting the app's profile again is harmless but
+ *  pointless when only a new extension needs one. */
+const ONLY = (() => { const i = process.argv.indexOf('--only'); return i === -1 ? null : process.argv[i + 1]; })();
+if (ONLY !== null && !['app', 'widget', 'nse'].includes(ONLY)) {
+  console.error(`--only takes app, widget or nse (got ${ONLY ?? 'nothing'})`);
+  process.exit(2);
+}
 const APP_GROUP = 'group.com.onstandard.app';
 const API = 'https://api.appstoreconnect.apple.com';
 const TEAM_ID_PREFIX = 'C44B6N2KC6.';
@@ -166,8 +179,25 @@ function writeProfile(file, base64, expectIdentifier) {
     console.log(`${G}✓${X} created ${WIDGET_BUNDLE} ${D}(${widget.id})${X}`);
   }
 
+  // The roll-call push extension (roll call v3). No capability step: it needs none.
+  let nse = await findBundle(NSE_BUNDLE);
+  if (nse) {
+    console.log(`${G}✓${X} ${NSE_BUNDLE} already exists ${D}(${nse.id})${X}`);
+  } else if (!APPLY) {
+    console.log(`${Y}→${X} would CREATE bundle id ${B}${NSE_BUNDLE}${X}`);
+  } else {
+    const created = await api('POST', '/v1/bundleIds', {
+      data: { type: 'bundleIds', attributes: { identifier: NSE_BUNDLE, name: 'OnStandard Notification Service', platform: 'IOS' } },
+    });
+    nse = created.data;
+    console.log(`${G}✓${X} created ${NSE_BUNDLE} ${D}(${nse.id})${X}`);
+  }
+
   // ---- the App Groups capability on both
-  for (const [label, b] of [[APP_BUNDLE, app], [WIDGET_BUNDLE, widget]]) {
+  // Only for the targets this run mints a profile for: turning a capability on INVALIDATES that
+  // App ID's existing profiles, so `--only nse` must never touch the app's or the widget's.
+  for (const [key, label, b] of [['app', APP_BUNDLE, app], ['widget', WIDGET_BUNDLE, widget]]) {
+    if (ONLY && ONLY !== key) continue;
     if (!b) { console.log(`  ${D}(skipping capability for ${label}: no bundle id yet)${X}`); continue; }
     const caps = await capabilities(b.id);
     if (caps.has('APP_GROUPS')) {
@@ -186,7 +216,7 @@ function writeProfile(file, base64, expectIdentifier) {
     }
   }
 
-  console.log(`\n${Y}The one thing no API can do:${X} create the group ${B}${APP_GROUP}${X} and tick it
+  if (ONLY !== 'nse') console.log(`\n${Y}The one thing no API can do:${X} create the group ${B}${APP_GROUP}${X} and tick it
 on both identifiers. Apple has no appGroups endpoint. Do it once here:
   ${B}https://developer.apple.com/account/resources/identifiers/list/applicationGroup${X}
 Turning the CAPABILITY on (above) is not the same as choosing WHICH group; only the
@@ -214,9 +244,10 @@ but no group, and the build will still fail to sign.\n`);
   // portal step is done, and Apple rejects a profile whose name already exists on the team.
   const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
   const wanted = [
-    { name: `OnStandard App Store ${stamp}`, bundle: app, file: 'ios-certs/appstore.mobileprovision', label: APP_BUNDLE },
-    { name: `OnStandard Widget App Store ${stamp}`, bundle: widget, file: 'ios-certs/widget.mobileprovision', label: WIDGET_BUNDLE },
-  ];
+    { key: 'app', name: `OnStandard App Store ${stamp}`, bundle: app, file: 'ios-certs/appstore.mobileprovision', label: APP_BUNDLE },
+    { key: 'widget', name: `OnStandard Widget App Store ${stamp}`, bundle: widget, file: 'ios-certs/widget.mobileprovision', label: WIDGET_BUNDLE },
+    { key: 'nse', name: `OnStandard NSE App Store ${stamp}`, bundle: nse, file: 'ios-certs/nse.mobileprovision', label: NSE_BUNDLE },
+  ].filter((w) => !ONLY || w.key === ONLY);
 
   console.log('');
   for (const w of wanted) {
@@ -247,11 +278,13 @@ but no group, and the build will still fail to sign.\n`);
         console.log(`${R}✗ ${w.file} is for ${info.appId}, not ${w.label}. NOT trusting it.${X}`);
         continue;
       }
-      const groupNote = info.hasGroup
-        ? `${G}carries ${APP_GROUP}${X}`
-        : info.groups.length === 0
-          ? `${Y}App Groups is ON but NO group is bound — do the portal step above, then re-run${X}`
-          : `${Y}binds ${info.groups.join(', ')}, not ${APP_GROUP}${X}`;
+      const groupNote = w.key === 'nse'
+        ? `${D}(no App Group, by design)${X}`
+        : info.hasGroup
+          ? `${G}carries ${APP_GROUP}${X}`
+          : info.groups.length === 0
+            ? `${Y}App Groups is ON but NO group is bound — do the portal step above, then re-run${X}`
+            : `${Y}binds ${info.groups.join(', ')}, not ${APP_GROUP}${X}`;
       console.log(`${G}✓${X} ${w.file} ${D}(${info.bytes} bytes, ${info.appId})${X} ${groupNote}`);
     } catch (e) {
       console.log(`${R}✗${X} ${w.name}: ${e.message}`);
