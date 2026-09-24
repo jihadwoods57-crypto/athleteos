@@ -11,8 +11,14 @@
 --    what each athlete was last TOLD (notified_starts_at, notified_cancelled) with the schedule now
 --    and returns one row per morning that needs saying: assigned (never told about this roll call),
 --    moved, cancelled, extend (new days coming into range with no alarm yet), or silent (settle
---    without a push). It marks what it returns (notice_claimed_at) so two ticks cannot both send;
---    settle_rollcall_notices records what was said, or releases it for the next tick.
+--    without a push). It locks and marks what it returns (FOR UPDATE SKIP LOCKED, then
+--    notice_claimed_at, re-checked in the UPDATE) so two ticks cannot both send.
+--    settle_rollcall_notices records what was settled, or releases it for the next tick, and only
+--    for a claim it still owns (the row's claimed_at must match). SETTLED IS NOT TOLD: the claim's
+--    bookkeeping (notice_settled_at, notified_starts_at, notified_cancelled) is written for every
+--    settled row, but notified_at, the coach's "told", is stamped only for rows the sender says a
+--    push actually went out for ({ sent: true }). A silent row or an athlete with no device token
+--    is settled and still reads "Hasn't been told".
 -- 3. A MOVED MORNING FORGETS ITS ALARM. The phone armed it for the old time; alarm_armed_at is
 --    cleared by trigger, so the start push is not muted for a phone that will ring at the wrong
 --    time, and the coach does not see "Alarm set" for it.
@@ -26,9 +32,11 @@ alter table commitment_responses add column if not exists notified_starts_at tim
 alter table commitment_responses add column if not exists notified_cancelled boolean;
 alter table commitment_responses add column if not exists notice_claimed_at timestamptz;
 alter table commitment_responses add column if not exists seen_at timestamptz;
-comment on column commitment_responses.notified_at is 'When the assignment or change push for this morning last went out (0247).';
-comment on column commitment_responses.notified_starts_at is 'The start time that push told the athlete (0247). A different starts_at means they must be told again.';
-comment on column commitment_responses.notified_cancelled is 'Whether that push said this morning is off (0247).';
+alter table commitment_responses add column if not exists notice_settled_at timestamptz;
+comment on column commitment_responses.notified_at is 'When an assignment or change push for this morning last actually went out (0247). Never stamped for a silent settle or an athlete with no device token.';
+comment on column commitment_responses.notified_starts_at is 'The start time this morning was last settled at (0247). A different starts_at means it must be said again.';
+comment on column commitment_responses.notified_cancelled is 'Whether this morning was last settled as off (0247).';
+comment on column commitment_responses.notice_settled_at is 'When claim_rollcall_notices last settled this morning, pushed or not (0247). The claim''s bookkeeping; notified_at is what the coach reads.';
 comment on column commitment_responses.notice_claimed_at is 'In-flight claim by claim_rollcall_notices; cleared by settle (0247).';
 comment on column commitment_responses.seen_at is 'When the athlete opened the app or the assignment card for this roll call (0247).';
 
@@ -74,19 +82,27 @@ begin
 end $$;
 
 -- ================================================================ 4. the notice claim
+-- claimed_at joined the return shape during review; drop first so a re-run can change it.
+drop function if exists claim_rollcall_notices(uuid, int);
+drop function if exists rollcall_remind_rows_svc(uuid, uuid[]);
+
 create or replace function claim_rollcall_notices(p_commitment uuid default null, p_limit int default 500)
 returns table (
   response_id uuid, athlete_id uuid, commitment_id uuid, instance_id uuid, kind text,
-  starts_at timestamptz, occurs_on date, was_starts_at timestamptz, off boolean
+  starts_at timestamptz, occurs_on date, was_starts_at timestamptz, off boolean, claimed_at timestamptz
 )
 language plpgsql security definer set search_path = public as $$
 #variable_conflict use_column
 begin
+  if exists (select 1 from feature_flags where name = 'verified_commitments' and kill_switch) then return; end if;
   return query
   with base as (
+    -- SKIP LOCKED: a row another tick is claiming right now is left to it, never waited on and
+    -- then claimed again. The UPDATE below re-checks the claim condition as well.
     select r.id as rid, r.athlete_id as aid, c.id as cid, i.id as iid, i.starts_at as st, i.occurs_on as od,
            (i.status = 'cancelled' or i.skipped) as is_off,
-           r.notified_at as nat, r.notified_starts_at as nst, coalesce(r.notified_cancelled, false) as ncan,
+           r.notified_at as nat, r.notice_settled_at as sat,
+           r.notified_starts_at as nst, coalesce(r.notified_cancelled, false) as ncan,
            r.alarm_armed_at as arm, i.schedule_set_at as sset
       from commitment_responses r
       join commitment_instances i on i.id = r.instance_id
@@ -100,20 +116,21 @@ begin
        and i.starts_at < now() + interval '14 days'
        and (r.notice_claimed_at is null or r.notice_claimed_at < now() - interval '2 minutes')
        and vc_enabled(r.athlete_id)
+       for update of r skip locked
   ), kinded as (
     select b.*,
       case
         when b.is_off then
           case when b.ncan then null
-               when b.nat is not null or b.arm is not null then 'cancelled'
+               when b.nat is not null or b.arm is not null then 'cancelled'   -- was really told
                else 'silent' end
-        when b.nat is null and not exists (
+        when b.sat is null and not exists (
                select 1 from commitment_responses r2
                  join commitment_instances i2 on i2.id = r2.instance_id
                 where i2.commitment_id = b.cid and r2.athlete_id = b.aid and r2.notified_at is not null)
-          then 'assigned'
-        when b.nat is null and b.sset is not null then 'moved'   -- a morning the coach set by hand
-        when b.nat is null then 'new'
+          then 'assigned'                                        -- never actually told about it
+        when b.sat is null and b.sset is not null then 'moved'   -- a morning the coach set by hand
+        when b.sat is null then 'new'
         when b.nst is distinct from b.st then 'moved'
         when b.ncan then 'moved'                                 -- cancelled, then put back
         else null
@@ -131,50 +148,69 @@ begin
      limit greatest(1, coalesce(p_limit, 500))
   ), claimed as (
     update commitment_responses r set notice_claimed_at = now()
-      from due d where r.id = d.rid
-    returning r.id
+      from due d
+     where r.id = d.rid
+       and (r.notice_claimed_at is null or r.notice_claimed_at < now() - interval '2 minutes')
+    returning r.id, r.notice_claimed_at
   )
   select d.rid, d.aid, d.cid, d.iid, case when d.k = 'new' then 'extend' else d.k end,
-         d.st, d.od, d.nst, d.is_off
+         d.st, d.od, d.nst, d.is_off, cl.notice_claimed_at
     from due d join claimed cl on cl.id = d.rid;
 end $$;
 
+-- p_rows = [{ response_id, starts_at, off, claimed_at, sent }].
+--   p_notified true : settle. The claim's bookkeeping is written for every row; notified_at only
+--                     where sent is true (a push really went out). sent defaults to false.
+--   p_notified false: release the claim for the next tick.
+-- Either way a row is touched only while its claim is still the caller's: claimed_at must match
+-- notice_claimed_at to the millisecond (a JS Date round trip keeps milliseconds). A remind row has
+-- no claim; its claimed_at is null and matches only a row with no claim in flight.
 create or replace function settle_rollcall_notices(p_rows jsonb, p_notified boolean) returns integer
 language plpgsql security definer set search_path = public as $$
 declare n integer;
 begin
   if p_notified then
     update commitment_responses r
-       set notified_at = now(),
+       set notice_settled_at = now(),
+           notified_at = case when coalesce((x->>'sent')::boolean, false) then now() else r.notified_at end,
            notified_starts_at = (x->>'starts_at')::timestamptz,
            notified_cancelled = coalesce((x->>'off')::boolean, false),
            notice_claimed_at = null
       from jsonb_array_elements(coalesce(p_rows, '[]'::jsonb)) x
-     where r.id = (x->>'response_id')::uuid;
+     where r.id = (x->>'response_id')::uuid
+       and date_trunc('milliseconds', r.notice_claimed_at)
+           is not distinct from date_trunc('milliseconds', (x->>'claimed_at')::timestamptz);
   else
     update commitment_responses r set notice_claimed_at = null
       from jsonb_array_elements(coalesce(p_rows, '[]'::jsonb)) x
-     where r.id = (x->>'response_id')::uuid;
+     where r.id = (x->>'response_id')::uuid
+       and r.notice_claimed_at is not null
+       and date_trunc('milliseconds', r.notice_claimed_at) = date_trunc('milliseconds', (x->>'claimed_at')::timestamptz);
   end if;
   get diagnostics n = row_count;
   return n;
 end $$;
 
 -- The coach's "Remind the N not set": every upcoming, unarmed morning of this roll call for these
--- athletes, shaped like a claim row so the same sender builds the push.
+-- athletes, shaped like a claim row so the same sender builds the push. Nothing while the roll
+-- call is inactive or the kill switch is thrown.
 create or replace function rollcall_remind_rows_svc(p_commitment uuid, p_athletes uuid[])
 returns table (
   response_id uuid, athlete_id uuid, commitment_id uuid, instance_id uuid, kind text,
-  starts_at timestamptz, occurs_on date, was_starts_at timestamptz, off boolean
+  starts_at timestamptz, occurs_on date, was_starts_at timestamptz, off boolean, claimed_at timestamptz
 )
 language sql stable security definer set search_path = public as $$
-  select r.id, r.athlete_id, c.id, i.id, 'remind'::text, i.starts_at, i.occurs_on, r.notified_starts_at, false
+  select r.id, r.athlete_id, c.id, i.id, 'remind'::text, i.starts_at, i.occurs_on, r.notified_starts_at, false,
+         null::timestamptz
     from commitment_responses r
     join commitment_instances i on i.id = r.instance_id
     join commitments c on c.id = i.commitment_id
    where c.id = p_commitment
+     and c.active and c.type = 'morning_roll_call'
+     and not exists (select 1 from feature_flags where name = 'verified_commitments' and kill_switch)
      and r.athlete_id = any(p_athletes)
      and r.status <> 'excused' and r.acknowledged_at is null and r.alarm_armed_at is null
+     and vc_enabled(r.athlete_id)
      and i.status = 'scheduled' and not i.skipped
      and i.starts_at > now() and i.starts_at < now() + interval '14 days'
    order by i.starts_at;
@@ -227,9 +263,23 @@ begin
   if not rollcall_coach_authorized(p_instance, p_coach) then
     return jsonb_build_object('ok', false, 'reason', 'not_authorized');
   end if;
+  if exists (select 1 from feature_flags where name = 'verified_commitments' and kill_switch) then
+    return jsonb_build_object('ok', false, 'reason', 'disabled');
+  end if;
   select * into i from commitment_instances where id = p_instance;
-  if not found or i.starts_at <= now() or i.status = 'cancelled' or i.skipped then
+  if not found or i.starts_at <= now() or i.status = 'cancelled' or i.skipped
+     or not exists (select 1 from commitments c
+                     where c.id = i.commitment_id and c.active and c.type = 'morning_roll_call') then
     return jsonb_build_object('ok', false, 'reason', 'no_instance');
+  end if;
+  -- Who would be reminded, before the cooldown is spent: nobody eligible spends nothing.
+  select coalesce(array_agg(r.athlete_id), array[]::uuid[]) into v_targets
+    from commitment_responses r
+   where r.instance_id = p_instance and r.status <> 'excused'
+     and r.acknowledged_at is null and r.alarm_armed_at is null
+     and vc_enabled(r.athlete_id);
+  if cardinality(v_targets) = 0 then
+    return jsonb_build_object('ok', false, 'reason', 'nobody_to_remind');
   end if;
   update commitment_instances set arm_reminded_at = now()
    where id = p_instance
@@ -238,10 +288,6 @@ begin
   if not coalesce(v_claimed, false) then
     return jsonb_build_object('ok', false, 'reason', 'rate_limited');
   end if;
-  select coalesce(array_agg(r.athlete_id), array[]::uuid[]) into v_targets
-    from commitment_responses r
-   where r.instance_id = p_instance and r.status <> 'excused'
-     and r.acknowledged_at is null and r.alarm_armed_at is null;
   return jsonb_build_object('ok', true, 'commitment_id', i.commitment_id, 'athlete_ids', to_jsonb(v_targets));
 end $$;
 
@@ -378,8 +424,8 @@ grant execute on function rollcall_upcoming(uuid, int) to authenticated;
 -- set your alarm" and the app arms. The flag gates only whether pushes carry a schedule; nothing
 -- may depend on it being on.
 insert into public.feature_flags (name, description, default_on) values
-  ('rollcall_push_arming', 'Roll call v3: the assignment push carries the schedule and mutable-content so the Notification Service Extension arms the alarm (flip on after the device spike passes).', false)
-on conflict (name) do nothing;
+  ('rollcall_push_arming', 'Roll call v3: gates only whether the assignment push carries the schedule (and mutable-content). Keep OFF: the 2026-09-24 device spike failed (AlarmKit authorization is per bundle; the Notification Service Extension cannot arm), so the app arms the alarm and nothing depends on this flag.', false)
+on conflict (name) do update set description = excluded.description;   -- never touches default_on
 
 -- ================================================================ grants
 do $$ declare f text; begin
