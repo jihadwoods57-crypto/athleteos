@@ -19,7 +19,7 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { signRollCallCode } from '../_shared/rollcall-code.ts';
 import { rollCallCategoryId, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL } from '../_shared/rollcall-category.ts';
-import { composeReminderPush, codeDeadlineMs, platformCopy, isInitialPush, cardPlanAtRung, splitStartGroups, openingDelivery, clockIn, reminderRoute, type ReminderRow } from './logic.ts';
+import { composeReminderPush, codeDeadlineMs, platformCopy, isInitialPush, cardPlanAtRung, splitStartGroups, openingDelivery, clockIn, reminderRoute, coachAlarmOf, type ReminderRow } from './logic.ts';
 import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
 import { pushLiveActivity, loadLiveCard, loadTeamBoard, windowCodesFor, ackUrlFor } from '../_shared/rollcall-live-send.ts';
 import { rollCallPushData, teamFields } from '../_shared/rollcall-live.ts';
@@ -216,6 +216,23 @@ Deno.serve(async (req: Request) => {
     } catch { /* best-effort: nobody is muted, which is the pre-0239 behaviour */ }
   }
   const isArmed = (d: Due) => isInitialPush(d) && armed.has(`${d.instance_id}:${d.athlete_id}`);
+
+  // The coach's alarm setting (final review I2): a roll call whose coach turned the alarm off never
+  // gets the alarm tone; openingDelivery sends it the v2 start push. Read here, like armed above,
+  // not through the claim RPC. A failed read leaves it unset, which reads as on (the default).
+  if (openingWake.length) {
+    try {
+      const { data: ins } = await svc
+        .from('commitment_instances').select('id,commitments!inner(escalation)')
+        .in('id', [...new Set(openingWake.map((d) => d.instance_id))]);
+      const alarmOf = new Map<string, boolean>();
+      for (const r of (ins ?? []) as Array<{ id: string; commitments: { escalation?: unknown } | Array<{ escalation?: unknown }> | null }>) {
+        const c = Array.isArray(r.commitments) ? r.commitments[0] : r.commitments;
+        alarmOf.set(String(r.id), coachAlarmOf(c?.escalation));
+      }
+      for (const d of openingWake) if (alarmOf.has(d.instance_id)) d.alarm = alarmOf.get(d.instance_id)!;
+    } catch { /* unset reads as on */ }
+  }
 
   // ---------------------------------------------------------------- iOS Live Activity, FIRST
   // ONE roll call puts ONE thing on the lock screen. The card goes up before any notification is

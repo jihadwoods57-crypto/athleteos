@@ -1,7 +1,9 @@
 /* The athlete's next roll call. Run: node --test proto/redesign-2026-07/js/rollcall-next.test.mjs */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { upcomingWakeups, nextWakeup, alarmLine, whenLabel, daysLabel, assignedModel, nextCardHtml, pointsLine } from './rollcall-next.js';
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { upcomingWakeups, nextWakeup, alarmLine, whenLabel, daysLabel, assignedModel, nextCardHtml, nextCardRoute, pointsLine } from './rollcall-next.js';
 import { weightsForAssigned } from './plan-style.js';
 
 const NOW = new Date(2026, 8, 24, 20, 0).getTime();          // Thu 24 Sep 2026, 8:00 PM, phone clock
@@ -77,4 +79,52 @@ test('the points line never overclaims: the night budget is shared', () => {
   // Unknown (the assignment screen): no number at all.
   assert.equal(pointsLine(null), 'Up on time counts toward your day. Late counts half.');
   assert.doesNotMatch(pointsLine(null), /\d/);
+});
+
+/* ---- final review C1: the REAL my_commitments row ----
+   The fixtures above (and sb-stub / qc-capture) carried commitment_id long before the server did,
+   which is how "No roll call ahead" shipped past every test. These build the row from the keys the
+   LATEST migration that defines my_commitments actually returns, so a key the server drops fails here. */
+const MIG = fileURLToPath(new URL('../../../supabase/migrations/', import.meta.url));
+function realRowKeys() {
+  const files = readdirSync(MIG).filter((f) => /^\d{4}_.*\.sql$/.test(f)).sort();
+  let body = '';
+  for (const f of files) {
+    const sql = readFileSync(MIG + f, 'utf8');
+    const i = sql.search(/function\s+(public\.)?my_commitments\s*\(\s*p_from\s+date\s*,\s*p_to\s+date\s*\)/i);
+    if (i >= 0) {
+      const end = sql.indexOf('$function$;', i) >= 0 ? sql.indexOf('$function$;', i) : sql.indexOf('$$;', i);
+      body = sql.slice(i, end);
+    }
+  }
+  return [...body.matchAll(/'([a-z_]+)',\s*[^,'\n]/g)].map((m) => m[1]);
+}
+
+test('C1: the latest my_commitments returns commitment_id (the screen and the link key on it)', () => {
+  const keys = realRowKeys();
+  assert.ok(keys.includes('instance_id') && keys.includes('starts_at'), 'parsed the real key list');
+  assert.ok(keys.includes('commitment_id'), 'my_commitments must return commitment_id');
+});
+
+test('C1: assignedModel and the Home link on a row with exactly the real keys', () => {
+  const keys = realRowKeys();
+  const values = {
+    instance_id: 'aaaaaaaa-0000-0000-0000-00000000000a', commitment_id: 'cccccccc-0000-0000-0000-00000000000c',
+    type: 'morning_roll_call', title: 'Morning Roll Call', coach_name: 'Coach Brooks', message: 'Up.',
+    starts_at: at(25, 4, 45), status: 'pending', instance_status: 'scheduled', alarm: true, acknowledged_at: null,
+  };
+  const real = Object.fromEntries(keys.map((k) => [k, k in values ? values[k] : null]));
+  const m = assignedModel([real], 'cccccccc-0000-0000-0000-00000000000c', NOW);
+  assert.ok(m, 'the assignment screen finds the roll call on the real row');
+  assert.equal(m.next.instance_id, 'aaaaaaaa-0000-0000-0000-00000000000a');
+  assert.match(nextCardHtml(real, null, NOW), /data-go="rollcall-assigned\/cccccccc-0000-0000-0000-00000000000c"/);
+});
+
+test('C1: the Home link always carries an id; an empty id matches nothing', () => {
+  const noCid = row({ commitment_id: undefined });
+  assert.equal(nextCardRoute(noCid), 'rollcall-board/aaaaaaaa-0000-0000-0000-000000000001');
+  assert.doesNotMatch(nextCardHtml(noCid, null, NOW), /rollcall-assigned\/"/);
+  assert.equal(assignedModel([noCid], '', NOW), null);
+  assert.equal(assignedModel([noCid], undefined, NOW), null);
+  assert.equal(nextCardRoute(row()), 'rollcall-assigned/c1');
 });

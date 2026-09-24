@@ -203,6 +203,21 @@ describe('runRollcallNotices', () => {
     expect(m.data.rc.arm).toEqual([{ i: a.instance_id, at: Date.parse(a.starts_at), c: `code-${a.instance_id}` }]);
   });
 
+  it('I3: an extend group on a roll call whose coach turned the alarm off settles silently, no push', async () => {
+    const e = row({ kind: 'extend' });
+    const { d, settles, sent } = deps({ contexts: async () => new Map([['c1', { ...CTX, alarm: false }]]) });
+    await runRollcallNotices([e], d);
+    expect(sent).toHaveLength(0);
+    expect(untold(settles)).toEqual([e.response_id]);
+  });
+
+  it('I3 (control): the same extend group with the alarm on is sent quietly', async () => {
+    const { d, sent } = deps();
+    await runRollcallNotices([row({ kind: 'extend' })], d);
+    expect(sent).toHaveLength(1);
+    expect(sent[0][0]).toMatchObject({ interruptionLevel: 'passive', sound: null });
+  });
+
   it('flag on but the coach wants no alarm: no schedule', async () => {
     const { d, sent } = deps({ armOn: () => true, contexts: async () => new Map([['c1', { ...CTX, alarm: false }]]) });
     await runRollcallNotices([row()], d);

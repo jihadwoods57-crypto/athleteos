@@ -182,6 +182,9 @@ export async function runRollcallNotices(rowsIn: NoticeRow[], d: NoticeDeps): Pr
     }
     const ctx = ctxOf.get(g.commitmentId);
     if (!ctx) { await release(said); continue; }
+    // "Open OnStandard to set your next alarms" means nothing when the coach turned the alarm off
+    // (final review I3). The claim already makes these silent (0247); this holds if it ever did not.
+    if (g.kind === 'extend' && ctx.alarm === false) { await settle(said); continue; }
     const tokens = tokensOf.get(g.athleteId) ?? [];
     if (blockedBy.get(g.commitmentId)?.has(g.athleteId)) {
       out.ghost += tokens.length;

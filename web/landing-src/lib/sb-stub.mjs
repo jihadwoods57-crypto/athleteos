@@ -424,9 +424,14 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
     my_commitments: (p) => {
       const mode = window.__VC_MODE || 'none';
       if (mode === 'none') return [];
+      // The real row's shape (my_commitments, 0247): commitment_id, alarm, coach_name, message and
+      // the window times are all fields the server returns; a stub carrying a key the server did not
+      // is how "No roll call ahead" shipped (final review C1).
       const rollCall = (dayISO, ackAt) => ({
-        instance_id: 'rc-' + dayISO, commitment_id: 'cmt-1', occurs_on: dayISO,
+        response_id: 'rsp-' + dayISO, instance_id: 'rc-' + dayISO, commitment_id: 'cmt-1', occurs_on: dayISO,
         type: 'morning_roll_call', title: '5 AM Club', action_label: 'I’m Up',
+        message: null, coach_name: 'Coach Brooks', alarm: true,
+        opens_at: dayISO + 'T08:50:00Z', closes_at: dayISO + 'T09:40:00Z',
         status: ackAt ? 'acknowledged' : 'pending', instance_status: 'scheduled',
         respond_by_min: 315, opens_min: 255, starts_min: 300,
         respond_by_at: dayISO + 'T09:15:00Z', starts_at: dayISO + 'T09:00:00Z',

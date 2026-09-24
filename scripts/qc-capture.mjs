@@ -32,7 +32,7 @@ const rcSeed = (startedMinAgo) => `const cd = await import('./js/commitment-data
   const now = Date.now(); const min = 60000; const off = ${startedMinAgo};
   const iso = (m) => new Date(now + (off + m) * min).toISOString();
   const day = new Date(now - new Date().getTimezoneOffset() * min).toISOString().slice(0, 10);
-  const row = { instance_id: 'rc-shot', type: 'morning_roll_call', title: 'Wake-Up Roll Call',
+  const row = { instance_id: 'rc-shot', commitment_id: 'rc-rule', type: 'morning_roll_call', title: 'Wake-Up Roll Call',
     message: 'Up and at it. Lift at 7, be early.', action_label: 'I’m Up', coach_name: 'Coach Reed', alarm: true,
     starts_min: 360, respond_by_min: 365, opens_min: 360, ends_min: 390,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, occurs_on: day,
@@ -107,7 +107,7 @@ const rbSeed = (o) => `const cd = await import('./js/commitment-data.js');
     rows };
   cd.seedTeamBoardForHarness('rb-shot', board);
   const me = rows.find((r) => r.athlete_id === 'seed-athlete');
-  cd.seedMineForHarness([{ instance_id: 'rb-shot', type: arrival ? 'practice' : 'morning_roll_call', title: board.title,
+  cd.seedMineForHarness([{ instance_id: 'rb-shot', commitment_id: 'rb-rule', type: arrival ? 'practice' : 'morning_roll_call', title: board.title,
     message: 'Up and at it. Lift at 7, be early. Protein at breakfast.', action_label: 'I’m Up', coach_name: 'Coach Brooks',
     occurs_on: '2026-07-23', starts_at: board.starts_at, respond_by_at: board.respond_by_at, closes_at: board.closes_at,
     opens_at: arrival ? null : T(5, 50), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,

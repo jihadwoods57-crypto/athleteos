@@ -29,6 +29,10 @@
 --    the roll call hears "assigned" for whatever needs saying. The coach's "notify" and "remind" are
 --    cooled down per ROLL CALL. "Can push" (the coach's "Notifications off") also honours the
 --    athlete's own master switch, profiles.notifications_opt_out.
+-- 6. (final review) my_commitments carries commitment_id (the athlete's assignment screen matches
+--    on it). The quiet "extend" notice ("Open OnStandard to set your next alarms") is never sent for
+--    a roll call whose coach turned the alarm off, nor to an athlete who answered the alarm primer
+--    "not now": those rows settle silently.
 -- Every change is additive; no existing column changes shape.
 
 -- ================================================================ 1. columns
@@ -126,7 +130,10 @@ begin
            (i.status = 'cancelled' or i.skipped) as is_off,
            r.notified_at as nat, r.notice_settled_at as sat,
            r.notified_starts_at as nst, coalesce(r.notified_cancelled, false) as ncan,
-           r.alarm_armed_at as arm, i.schedule_set_at as sset
+           r.alarm_armed_at as arm, i.schedule_set_at as sset,
+           -- final review I3: no alarm to set, or the athlete said "not now" to alarms
+           (not coalesce((c.escalation ->> 'alarm')::boolean, true)
+              or coalesce((select p.alarm_primer_answer from profiles p where p.id = r.athlete_id), '') = 'not_now') as no_extend
       from commitment_responses r
       join commitment_instances i on i.id = r.instance_id
       join commitments c on c.id = i.commitment_id
@@ -154,6 +161,9 @@ begin
                  join commitment_instances i2 on i2.id = r2.instance_id
                 where i2.commitment_id = b.cid and r2.athlete_id = b.aid and r2.notified_at is not null)
           then 'assigned'
+        -- New mornings with nothing to arm (the coach turned the alarm off) or an athlete who said
+        -- "not now" to alarms: nothing worth a buzz, settled silently (final review I3).
+        when b.k0 = 'new' and b.no_extend then 'silent'
         else b.k0
       end as k
     from (
@@ -498,6 +508,82 @@ begin
   );
 end $$;
 grant execute on function rollcall_upcoming(uuid, int) to authenticated;
+
+-- ================================================================ 8b. my_commitments carries commitment_id
+-- Recreated from the LIVE body (0242 section 7b, the last definition); only 'commitment_id' is new,
+-- in the second (smaller) jsonb_build_object: the first is near the 100-argument limit.
+CREATE OR REPLACE FUNCTION public.my_commitments(p_from date, p_to date)
+ RETURNS jsonb
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(jsonb_agg(x order by x->>'starts_at'), '[]'::jsonb) from (
+    select jsonb_build_object(
+      'response_id', r.id, 'instance_id', i.id, 'occurs_on', i.occurs_on,
+      'type', c.type, 'title', c.title,
+      'message', coalesce(i.message_override, c.message),
+      'action_label', c.action_label,
+      -- NEW (0234): does this wake-up ring as a real alarm? Absent/unset reads as true.
+      'alarm', coalesce((c.escalation ->> 'alarm')::boolean, true),
+      'starts_at', i.starts_at, 'ends_at', i.ends_at,
+      'respond_by_at', i.respond_by_at, 'arrive_by_at', i.arrive_by_at,
+      'opens_min', case when c.opens_min is null then null
+                        else _rc_min_of(i.starts_at, c.timezone) - (c.starts_min - c.opens_min) end,
+      'starts_min', _rc_min_of(i.starts_at, c.timezone),
+      'ends_min', _rc_min_of(i.ends_at, c.timezone),
+      'respond_by_min', _rc_min_of(i.respond_by_at, c.timezone),
+      'arrive_by_min', _rc_min_of(i.arrive_by_at, c.timezone),
+      'rule_starts_min', c.starts_min,
+      'min_dwell_min', c.min_dwell_min, 'arrival_grace_min', c.arrival_grace_min,
+      'reminder_offsets_min', c.reminder_offsets_min,
+      'repeat_days', c.repeat_days, 'starts_on', c.starts_on, 'ends_on', c.ends_on,
+      'timezone', c.timezone,
+      'instance_status', i.status,
+      'linked_title', (select l.title from commitments l where l.id = c.linked_commitment_id),
+      'linked_starts_min', (select l.starts_min from commitments l where l.id = c.linked_commitment_id),
+      'asks_arrival', (c.location_id is not null),
+      'location_name', (select cl.name from commitment_locations cl where cl.id = c.location_id),
+      'coach_name', (select p.full_name from profiles p where p.id = c.created_by),
+      'status', r.status, 'acknowledged_at', r.acknowledged_at,
+      'arrived_at', r.arrived_at, 'completed_at', r.completed_at,
+      'departed_at', r.departed_at,
+      'presence', commitment_presence(r.arrived_at, r.departed_at, c.min_dwell_min),
+      'arrival_source', r.arrival_source, 'unverified_reason', r.unverified_reason,
+      'disputed_at', r.disputed_at, 'excused_reason', r.excused_reason
+    ) || jsonb_build_object(   -- a second object: jsonb_build_object takes at most 100 arguments
+      -- NEW (0247, final review C1): the roll call this morning belongs to. The athlete's assignment
+      -- screen (rollcall-assigned/<commitment_id>) and the Home card's link match on it.
+      'commitment_id', c.id,
+      'opens_at', rollcall_opens_at(c.type, i.starts_at, i.respond_by_at, c.starts_min, c.opens_min),
+      'closes_at', rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at),
+      'grace_min', case when c.respond_by_min is null then null else c.respond_by_min - c.starts_min end,
+      'verdict', rollcall_verdict(r.status, r.acknowledged_at, coalesce(i.respond_by_at, i.starts_at),
+                   rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at), now(),
+                   r.ack_source, r.sync_review, r.review_resolution),
+      -- NEW (0242 section 7): the server's arrival verdict, null when no place is asked.
+      'arrival_verdict', case when c.location_id is null then null
+                         else rollcall_arrival_verdict(rollcall_arrival_status(r.status, r.arrived_at, r.unverified_reason), r.arrived_at, coalesce(i.arrive_by_at, i.starts_at),
+                                c.arrival_grace_min::int,
+                                rollcall_closes_at(c.type, i.respond_by_at, i.starts_at, i.ends_at), now()) end,
+      'late_min', rollcall_late_min(r.acknowledged_at, coalesce(i.respond_by_at, i.starts_at)),
+      'ack_source', r.ack_source,
+      'last_nudge_at', r.last_nudge_at,
+      'correction_note', r.correction_note,
+      'corrected_by_name', (select p2.full_name from profiles p2 where p2.id = r.corrected_by),
+      'device_tapped_at', r.device_tapped_at, 'sync_review', r.sync_review,
+      'review_resolution', r.review_resolution, 'review_note', r.review_note,
+      'review_resolved_at', r.review_resolved_at,
+      'reviewer_name', (select p3.full_name from profiles p3 where p3.id = r.review_resolved_by)
+    ) as x
+    from commitment_responses r
+    join commitment_instances i on i.id = r.instance_id
+    join commitments c on c.id = i.commitment_id
+    where r.athlete_id = auth.uid()
+      and i.occurs_on between p_from and p_to
+      and vc_enabled()
+  ) s;
+$function$;
 
 -- ================================================================ 9. the push-arming flag
 -- OFF, and v3 is built to work with it off. The device spike (plan Task 1) FAILED: AlarmKit

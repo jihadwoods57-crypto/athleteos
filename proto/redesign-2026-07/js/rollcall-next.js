@@ -82,8 +82,12 @@ export function pointsLine(assigned = null) {
   return pts > 0 ? `Up on time counts +${pts} on your day. Late counts half.` : 'Up on time counts toward your day. Late counts half.';
 }
 
+/** Keyed on my_commitments' commitment_id (0247 added it; before that the real row had none, so
+ *  every assignment screen read "No roll call ahead"). An empty id matches nothing: '' === '' used
+ *  to match every row that lacked the field. */
 export function assignedModel(rows, commitmentId, nowMs = Date.now()) {
-  const mine = upcomingWakeups(rows, nowMs).filter((r) => String(r.commitment_id || '') === String(commitmentId || ''));
+  if (!commitmentId) return null;
+  const mine = upcomingWakeups(rows, nowMs).filter((r) => r.commitment_id && String(r.commitment_id) === String(commitmentId));
   if (!mine.length) return null;
   const first = mine[0];
   return {
@@ -92,6 +96,13 @@ export function assignedModel(rows, commitmentId, nowMs = Date.now()) {
     message: String(first.message || '').trim(),
     days: daysLabel(mine.map((r) => new Date(T(r.starts_at)).getDay())),
   };
+}
+
+/** Where the Home card goes. ALWAYS an id: the assignment screen for the roll call, or (a row with
+ *  no commitment_id, an older server) that morning's team board, never a bare "rollcall-assigned/". */
+export function nextCardRoute(row) {
+  if (row && row.commitment_id) return `rollcall-assigned/${String(row.commitment_id)}`;
+  return `rollcall-board/${String((row && row.instance_id) || '')}`;
 }
 
 export function nextCardHtml(row, line, nowMs = Date.now()) {
@@ -106,7 +117,7 @@ export function nextCardHtml(row, line, nowMs = Date.now()) {
       : `<span class="status-pill ${line.kind === 'set' ? 'g' : 'muted'}">${esc(line.text)}</span>`;
   const sub = msg ? `“${esc(msg.slice(0, 140))}${msg.length > 140 ? '…' : ''}”`
     : esc(row.coach_name ? `${title} · ${row.coach_name}` : title);
-  return `<div class="xrow-item rn-card${line && line.fix ? ' rn-wrap' : ''}" data-go="rollcall-assigned/${esc(String(row.commitment_id || ''))}">
+  return `<div class="xrow-item rn-card${line && line.fix ? ' rn-wrap' : ''}" data-go="${esc(nextCardRoute(row))}">
     <div class="xico sm blue">${icon('sun', 16)}</div>
     <div class="xr"><div class="xa">${esc(whenLabel(row, nowMs))}</div>
     <div class="xb">${sub}</div></div>

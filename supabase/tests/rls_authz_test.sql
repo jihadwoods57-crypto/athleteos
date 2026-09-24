@@ -5591,6 +5591,51 @@ select _ok((select not (r->>'can_push')::boolean from jsonb_array_elements(rollc
 select _superuser();
 update profiles set notifications_opt_out = false where id = 'eeee0000-0000-0000-0000-0000000000e1';
 
+-- ---- final review C1: my_commitments names the roll call ----
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok((select x->>'commitment_id' from jsonb_array_elements(my_commitments(current_date, current_date + 14)) x
+             where x->>'instance_id' = (select id from _v3_i)::text) = 'ccccdddd-0000-0000-0000-0000000000c1',
+  '0247 C1: my_commitments carries commitment_id (the assignment screen matches on it)');
+select _ok((select bool_and(x ? 'arrival_verdict' and x ? 'verdict' and x ? 'alarm') from jsonb_array_elements(my_commitments(current_date, current_date + 14)) x),
+  '0247 C1: and keeps every 0242 key');
+select _superuser();
+
+-- ---- final review I3: no "extend" for an alarm-off roll call or an athlete who said not now ----
+-- A fresh morning two days out (never settled, nothing armed) for e1, who HAS been told about the
+-- roll call before: that is exactly an "extend" row.
+create temp table _v3_d2 as
+  select (now() at time zone c.timezone)::date + 2 as d from commitments c where c.id = 'ccccdddd-0000-0000-0000-0000000000c1';
+update commitment_responses set notice_claimed_at = null
+ where instance_id in (select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1');
+delete from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = (select d from _v3_d2);
+select materialize_rollcall_ahead_svc('ccccdddd-0000-0000-0000-0000000000c1', 14);
+create temp table _v3_i2 as
+  select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = (select d from _v3_d2);
+update profiles set alarm_primer_answer = null, alarm_primer_at = null where id = 'eeee0000-0000-0000-0000-0000000000e1';
+update commitments set escalation = coalesce(escalation, '{}'::jsonb) - 'alarm' where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+create temp table _v3_x0 as select * from claim_rollcall_notices('ccccdddd-0000-0000-0000-0000000000c1', 500) x
+  where x.instance_id = (select id from _v3_i2) and x.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+select _ok((select kind from _v3_x0) = 'extend',
+  '0247 I3: (control) a new morning for a told athlete, alarm on, no primer answer, is an extend notice');
+update commitment_responses set notice_claimed_at = null where instance_id = (select id from _v3_i2);
+update commitments set escalation = coalesce(escalation, '{}'::jsonb) || '{"alarm": false}'::jsonb where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+create temp table _v3_x1 as select * from claim_rollcall_notices('ccccdddd-0000-0000-0000-0000000000c1', 500) x
+  where x.instance_id = (select id from _v3_i2) and x.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+select _ok((select kind from _v3_x1) = 'silent',
+  '0247 I3: the coach turned the alarm off: the new morning settles silently, no extend push');
+update commitment_responses set notice_claimed_at = null where instance_id = (select id from _v3_i2);
+update commitments set escalation = escalation - 'alarm' where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+update profiles set alarm_primer_answer = 'not_now', alarm_primer_at = now() where id = 'eeee0000-0000-0000-0000-0000000000e1';
+create temp table _v3_x2 as select * from claim_rollcall_notices('ccccdddd-0000-0000-0000-0000000000c1', 500) x
+  where x.instance_id = (select id from _v3_i2) and x.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+select _ok((select kind from _v3_x2) = 'silent',
+  '0247 I3: an athlete who answered the alarm primer "not now" gets no extend push');
+select settle_rollcall_notices((select jsonb_agg(jsonb_build_object('response_id', response_id, 'starts_at', starts_at, 'off', off, 'claimed_at', claimed_at, 'sent', false)) from _v3_x2), true);
+select _ok(not exists (select 1 from claim_rollcall_notices('ccccdddd-0000-0000-0000-0000000000c1', 500) x
+                        where x.instance_id = (select id from _v3_i2) and x.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0247 I3: settled silently, it is not claimed again');
+update profiles set alarm_primer_answer = null, alarm_primer_at = null where id = 'eeee0000-0000-0000-0000-0000000000e1';
+
 -- ---- the alarm primer: once per account, own row only ----
 select _as('eeee0000-0000-0000-0000-0000000000e1');
 select _ok(set_alarm_primer('continue'), '0247: an athlete records their primer answer');
