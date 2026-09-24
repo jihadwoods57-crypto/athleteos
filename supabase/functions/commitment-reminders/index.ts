@@ -26,6 +26,8 @@ import { rollCallPushData, teamFields } from '../_shared/rollcall-live.ts';
 // Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
 // refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
 import { sendExpoPush } from '../_shared/expo-push.mjs';
+import { sendRollcallNotices, type NoticeRunResult } from '../_shared/rollcall-notice-send.ts';
+import type { NoticeRow } from '../_shared/rollcall-notice.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -58,6 +60,23 @@ async function releaseCardStarts(svc: SupabaseClient, instanceId: string, athlet
   try {
     await svc.rpc('release_rollcall_card_start', { p_instance: instanceId, p_athletes: athleteIds });
   } catch { /* best effort */ }
+}
+
+/** Roll call v3: tell them. Wake-ups exist 14 days ahead (the alarm horizon), then ONE assignment /
+ *  change / cancel push per athlete per roll call for whatever changed since they were last told
+ *  (0247 claim_rollcall_notices). This is what makes a coach's 8 PM move reach a phone whose app is
+ *  closed. Runs AFTER the reminder rungs (a burst of assignments must never delay a 6:00 reminder)
+ *  and is independent of them: a failure costs one tick, never a reminder; an unsettled claim
+ *  lapses in two minutes and the next tick retries it. */
+async function runNotices(svc: SupabaseClient): Promise<NoticeRunResult | null> {
+  try {
+    await svc.rpc('materialize_rollcalls_ahead', { p_days: 14 });
+    const { data: nrows, error } = await svc.rpc('claim_rollcall_notices', { p_commitment: null, p_limit: 500 });
+    if (error) return null;
+    return await sendRollcallNotices({ svc, secret: ACK_SECRET, supabaseUrl: SUPABASE_URL, rows: (nrows ?? []) as NoticeRow[] });
+  } catch {
+    return null;
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -156,7 +175,7 @@ Deno.serve(async (req: Request) => {
     due.push(...rows);
     if (rows.length < CLAIM_LIMIT) break;
   }
-  if (!due.length) return json({ sent: 0, pushed: 0, materialized, opened });
+  if (!due.length) return json({ sent: 0, pushed: 0, materialized, opened, notices: await runNotices(svc) });
 
   // Who is speaking (0211): the coach on the first push of a roll call, OnStandard after that.
   // Composed once per claimed row so the durable bell row and the push say the same thing.
@@ -386,5 +405,6 @@ Deno.serve(async (req: Request) => {
   const pushed = pushOut.sent;
   if (pushOut.failed) console.error('commitment-reminders: push refused', pushOut.failed, pushOut.errors.join('; '));
 
-  return json({ sent: recorded, pushed, claimed: due.length, materialized, live, suppressed, opened });
+  const notices = await runNotices(svc);
+  return json({ sent: recorded, pushed, claimed: due.length, materialized, live, suppressed, opened, notices });
 });

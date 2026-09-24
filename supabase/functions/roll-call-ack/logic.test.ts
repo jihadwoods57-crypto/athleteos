@@ -1,5 +1,5 @@
 // supabase/functions/roll-call-ack/logic.test.ts
-import { httpStatusFor } from './logic';
+import { httpStatusFor, WINDOW_CODE_DAYS, armedFlagOf } from './logic';
 
 describe('httpStatusFor', () => {
   it('malformed/bad_sig -> 401', () => {
@@ -71,12 +71,12 @@ describe('teamCountUpdates: one check-in moves every teammate\'s count', () => {
 
 describe('mintableWindows: the codes the phone holds for the week', () => {
   const NOW = Date.parse('2026-09-23T12:00:00Z');
-  test('keeps windows that have not closed and open within 7 days, drops the rest', () => {
+  test('keeps windows that have not closed and open within 14 days, drops the rest', () => {
     const rows = [
       { instance_id: 'past', opens_at: '2026-09-22T09:50:00Z', closes_at: '2026-09-22T10:30:00Z' },
       { instance_id: 'now', opens_at: '2026-09-23T11:50:00Z', closes_at: '2026-09-23T12:30:00Z' },
       { instance_id: 'fri', opens_at: '2026-09-25T09:50:00Z', closes_at: '2026-09-25T10:30:00Z' },
-      { instance_id: 'far', opens_at: '2026-10-05T09:50:00Z', closes_at: '2026-10-05T10:30:00Z' },
+      { instance_id: 'far', opens_at: '2026-10-09T09:50:00Z', closes_at: '2026-10-09T10:30:00Z' },
       { instance_id: 'bad', opens_at: null, closes_at: 'x' },
     ];
     expect(mintableWindows(rows, NOW)).toEqual([
@@ -236,5 +236,17 @@ describe('runTeamFanOut: a count update is stamped with the moment its content w
       send: async () => { called = true; },
     });
     expect(called).toBe(false);
+  });
+});
+
+describe('roll call v3', () => {
+  it('mints window codes for the 14-day alarm horizon', () => {
+    expect(WINDOW_CODE_DAYS).toBe(14);
+  });
+  it('an armed report is "armed" unless it says armed: false', () => {
+    expect(armedFlagOf({ code: 'x' })).toBe(true);
+    expect(armedFlagOf({ code: 'x', armed: true })).toBe(true);
+    expect(armedFlagOf({ code: 'x', armed: false })).toBe(false);
+    expect(armedFlagOf(null)).toBe(true);
   });
 });

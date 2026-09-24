@@ -2,11 +2,11 @@
 // Deploy: supabase functions deploy roll-call-ack --use-api --no-verify-jwt
 //         supabase secrets set ROLLCALL_ACK_SECRET=<long random string>
 //
-// THREE ROUTES (2026-09-23):
+// FOUR ROUTES (2026-09-23; 'armed' 2026-09-24):
 //   { code, tapped_at }   the check-in. The code is a one-shot push code or a WINDOW code (the one
 //                         the Live Activity and the alarm hold so the tap posts with the app closed).
 //   { action: 'codes' }   the mint. Authorization: Bearer <the athlete's own session JWT>. Returns
-//                         window codes for the caller's own wake-ups over the next 7 days, plus the
+//                         window codes for the caller's own wake-ups over the next 14 days, plus the
 //                         URL to post them to, so the app can hand them to the native alarm.
 //                         --no-verify-jwt stays: this route verifies the JWT itself (auth.getUser).
 //   { action: 'refresh', instance_id }   Authorization: Bearer <the athlete's own session JWT>.
@@ -18,11 +18,15 @@
 //                         a teammate's count update. Answers { ok, result } with result one of
 //                         sent | already_answered | no_token | no_card | unavailable, so the phone
 //                         knows whether to end its card itself.
+//   { action: 'armed', code, armed? }   the push extension's report (roll call v3): this phone armed
+//                         (or, with armed: false, removed) the alarm for that morning. The WINDOW code
+//                         names athlete and instance; it is accepted days before its window
+//                         (allowEarly) and never after its close. Answers { ok, recorded }.
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { verifyRollCallCode, signWindowCode } from '../_shared/rollcall-code.ts';
 import { evaluateFlag, type FlagRow } from '../_shared/feature-flags.ts';
 import {
-  httpStatusFor, teamCountUpdates, mintableWindows, bearerOf, WINDOW_CODE_DAYS, TEAM_UPDATE_MIN_GAP_MS,
+  httpStatusFor, teamCountUpdates, mintableWindows, bearerOf, WINDOW_CODE_DAYS, TEAM_UPDATE_MIN_GAP_MS, armedFlagOf,
   refreshInstanceOf, refreshVerdict, wonAthleteIds,
   answeredClaimOf, fansOutTeam, runOwnCard, runTeamFanOut,
   type TeamTarget, type OwnCardResult,
@@ -73,6 +77,26 @@ async function mintCodes(req: Request): Promise<Response> {
     });
   }
   return json({ ok: true, ack_url: ackUrlFor(SUPABASE_URL), codes });
+}
+
+/** The push extension armed this morning's alarm (roll call v3). Athlete and instance come ONLY
+ *  from the verified code. Marking armed only ever mutes that athlete's own start push and shows
+ *  "Alarm set" to their coach, so a code is enough; nothing is answered. */
+async function armedReport(body: unknown): Promise<Response> {
+  const code = body && typeof body === 'object' && typeof (body as { code?: unknown }).code === 'string'
+    ? (body as { code: string }).code : '';
+  if (!code) return json({ ok: false, error: 'missing code' }, 400);
+  const v = await verifyRollCallCode(SECRET, code, Date.now(), GRACE_MS, 'athlete', { allowEarly: true });
+  if (!v.ok) return json({ ok: false, error: v.reason }, httpStatusFor(v.reason));
+  // Only a WINDOW code: a one-shot push code is a check-in credential, not an arming report.
+  if (!v.claims.window) return json({ ok: false, error: 'bad_kind' }, httpStatusFor('bad_kind'));
+  const svc = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
+  if (!(await flagAllows(svc, v.claims.athleteId))) return json({ ok: false, error: 'flag_off' }, httpStatusFor('flag_off'));
+  const { data, error } = await svc.rpc('set_wake_alarm_armed_svc', {
+    p_instance: v.claims.instanceId, p_athlete: v.claims.athleteId, p_armed: armedFlagOf(body),
+  });
+  if (error) return json({ ok: false, error: 'db_error' }, httpStatusFor('db_error'));
+  return json({ ok: true, recorded: data === true });
 }
 
 /** The refresh: the answered card for an answer that came through ack_commitment. The athlete id
@@ -209,6 +233,7 @@ Deno.serve(async (req: Request) => {
   } catch { /* empty */ }
   if (action === 'codes') return mintCodes(req);
   if (action === 'refresh') return refreshCard(req, rawBody);
+  if (action === 'armed') return armedReport(rawBody);
   if (!code) return json({ ok: false, error: 'missing code' }, 400);
 
   // 'athlete' is passed explicitly, not left to the default: this endpoint acks ONE athlete for

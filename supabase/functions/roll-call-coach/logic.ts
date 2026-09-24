@@ -3,8 +3,9 @@
 // Deno (edge) and jest (babel), so the rules below are tested from one implementation.
 
 /** The two things a coach can do to a roll-call digest without unlocking their phone, plus the
- *  in-app 'schedule': tell the roster that one day was moved or skipped (0216). */
-export type CoachAction = 'seen' | 'nudge' | 'schedule';
+ *  in-app 'schedule': tell the roster that one day was moved or skipped (0216), and roll call v3's
+ *  in-app 'notify' (send the assignment/change notice now) and 'remind_arm' ("Remind the N not set"). */
+export type CoachAction = 'seen' | 'nudge' | 'schedule' | 'notify' | 'remind_arm';
 
 export type CoachFailure =
   | 'malformed' | 'bad_sig' | 'bad_kind' | 'expired'   // credential
@@ -16,7 +17,7 @@ export type CoachFailure =
  *  than defaulted — defaulting an unrecognised action to 'seen' would silently swallow a future
  *  client's new button, and defaulting it to 'nudge' would push to athletes on a typo. */
 export function parseAction(raw: unknown): CoachAction | null {
-  return raw === 'seen' || raw === 'nudge' || raw === 'schedule' ? raw : null;
+  return raw === 'seen' || raw === 'nudge' || raw === 'schedule' || raw === 'notify' || raw === 'remind_arm' ? raw : null;
 }
 
 /** An optional single target for the in-app "Ping" on one athlete's row (0211). Only a uuid
@@ -45,6 +46,17 @@ export function httpStatusForCoach(reason: CoachFailure): number {
     case 'no_instance': return 404;
     case 'db_error': return 500;
   }
+}
+
+/** What rollcall_arm_remind_claim's refusal means to the coach (0247). "nobody_to_remind" is not a
+ *  failure (everyone armed between the board read and the tap; the cooldown was not spent), and
+ *  "disabled" is the verified_commitments kill switch, which the coach reads as the feature being
+ *  off. Anything unknown is a server fault, never silently a success. */
+export function remindArmOutcome(reason: unknown): CoachFailure | 'nobody' {
+  if (reason === 'nobody_to_remind') return 'nobody';
+  if (reason === 'disabled') return 'flag_off';
+  const known: CoachFailure[] = ['not_authorized', 'rate_limited', 'no_instance', 'flag_off', 'db_error'];
+  return known.includes(reason as CoachFailure) ? (reason as CoachFailure) : 'db_error';
 }
 
 /** Reasons the device should STOP retrying a queued action. A queued coach action is replayed on

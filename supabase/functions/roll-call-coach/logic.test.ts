@@ -1,4 +1,4 @@
-import { parseAction, httpStatusForCoach, isTerminal, nudgeBody, parseAthlete, scheduleNoticeBody, type CoachFailure } from './logic';
+import { parseAction, remindArmOutcome, httpStatusForCoach, isTerminal, nudgeBody, parseAthlete, scheduleNoticeBody, type CoachFailure } from './logic';
 
 describe('parseAction', () => {
   it('accepts exactly the three verbs', () => {
@@ -106,5 +106,28 @@ describe('scheduleNoticeBody (0216)', () => {
   it('never emits an em dash or an undefined', () => {
     const out = scheduleNoticeBody({ title: '', skipped: false, startsMin: null, occursOn: 'x', todayISO: '2026-09-02' });
     expect(out).not.toMatch(/undefined|—/);
+  });
+});
+
+describe('roll call v3 actions', () => {
+  it('accepts notify and remind_arm exactly, nothing near them', () => {
+    expect(parseAction('notify')).toBe('notify');
+    expect(parseAction('remind_arm')).toBe('remind_arm');
+    expect(parseAction('Notify')).toBeNull();
+    expect(parseAction('remind')).toBeNull();
+  });
+});
+
+describe('remindArmOutcome: the arm-remind claim refusal, as the coach reads it', () => {
+  it('nobody left to remind is a quiet success, the kill switch is flag_off', () => {
+    expect(remindArmOutcome('nobody_to_remind')).toBe('nobody');
+    expect(remindArmOutcome('disabled')).toBe('flag_off');
+  });
+  it('passes the known refusals through and never turns an unknown one into a success', () => {
+    expect(remindArmOutcome('rate_limited')).toBe('rate_limited');
+    expect(remindArmOutcome('not_authorized')).toBe('not_authorized');
+    expect(remindArmOutcome('no_instance')).toBe('no_instance');
+    expect(remindArmOutcome('something_new')).toBe('db_error');
+    expect(remindArmOutcome(undefined)).toBe('db_error');
   });
 });
