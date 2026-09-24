@@ -18,7 +18,7 @@ import {
 } from '../chat-attach.js';
 import { openImageViewer } from '../image-viewer.js';
 import { openMembersSheet } from '../members-sheet.js';
-import { ensureAiConsent, isConsentSkip, noteAiConsentRequired, aiMinorPending, AI_MINOR_LINE } from '../ai-consent.js';
+import { ensureAiConsent, isConsentSkip, noteAiConsentRequired, aiMinorPending, AI_MINOR_LINE, meetNiaDue, markMeetNia, MEET_NIA_TEXT } from '../ai-consent.js';
 import { openMealQuestions, autoShownFor, markAutoShown } from '../meal-questions-sheet.js';
 import { hydrateAvatars } from '../avatar.js';
 import { wireTapback } from '../tapback.js';
@@ -680,13 +680,14 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
           </div>
         </div></div>
       </div>` : '';
+  const tail = meetNiaRow(M) + confirmRow;
 
   // THE READ ITSELF IS NOW A REAL MESSAGE (2026-07-28). analyze-meal composes it and persists it
   // as an `ai` row, so it lives in the thread the athlete can reply to, reference tomorrow, and
   // scroll back through with their coach. This derived block only fills in when that row is not
   // there: meals logged before the change, and the rare case where the thread write did not land.
   // Without the fallback those meals would show a breakdown with nothing said about it.
-  if (hasPersistedRead) return wrap('', confirmRow);
+  if (hasPersistedRead) return wrap('', tail);
 
   // ONE VOICE (founder, 2026-08-02). This is the bubble the athlete sees the instant the read
   // lands locally, before the persisted `ai` row comes back from the server a beat later. It used
@@ -699,7 +700,7 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
   const body = fullText
     ? richText(fullText, esc)
     : [sum && sum.wentWell, sum && sum.opportunity, sum && sum.next].filter(Boolean).map(esc).join(' ');
-  if (!body) return wrap('', confirmRow);
+  if (!body) return wrap('', tail);
 
   // Nia's name goes only on words a model wrote (fullText is analyze-meal's own prose). The
   // summary floor is composed on this device, so it is a "Quick read", not Nia (R3, 2026-09-24).
@@ -709,14 +710,33 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
         <div class="av">${icon('flash', 14)}</div>
         <div class="stack"><div class="who">Quick read</div>
         <div class="bubble">${body}</div></div>
-      </div>`, confirmRow);
+      </div>`, tail);
   }
   return wrap(`
       <div class="msg ai last">
         <div class="av">${NIA_MARK}</div>
         <div class="stack">${whoHtml(AI_NAME, true)}
         <div class="bubble">${body}</div></div>
-      </div>`, confirmRow);
+      </div>`, tail);
+}
+
+/* MEET NIA, for people who said yes before she had a name (ai-consent.js meetNiaDue). One short
+   message in the next meal thread with a read in it, marked shown the moment it is drawn and kept
+   on THAT meal for the rest of this session, so a repaint never makes it vanish mid-read. */
+let MEET_NIA_ON = null;
+function meetNiaRow(M) {
+  if (!M || !M.mealId) return '';
+  if (MEET_NIA_ON !== M.mealId) {
+    if (!meetNiaDue(RT.userId)) return '';
+    MEET_NIA_ON = M.mealId;
+    markMeetNia(RT.userId);
+  }
+  return `
+      <div class="msg ai last" id="meet-nia">
+        <div class="av">${NIA_MARK}</div>
+        <div class="stack">${whoHtml(AI_NAME, true)}
+        <div class="bubble">${esc(MEET_NIA_TEXT)}</div></div>
+      </div>`;
 }
 
 /* ---------- Meal Analysis (AI, pre-log) ----------
