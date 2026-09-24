@@ -160,14 +160,18 @@ function resumeIfCut(key, el) {
  *
  * Everything here is inert unless something calls pauseReveals(). No caller, no queue, no change. */
 let PAUSED = false;
+let WIND = false;
 const QUEUE = [];
 
-/** Hold every reveal claimed from here until resumeReveals(). Idempotent. */
-export function pauseReveals() { PAUSED = true; }
+/** Hold every reveal claimed from here until resumeReveals(). Idempotent. `wind` (the launch
+ *  splash, router.js): a held ring rests at its START, so the frame the splash fades into is the
+ *  beginning of the draw rather than the finished ring that then snaps back to zero. */
+export function pauseReveals({ wind = false } = {}) { PAUSED = true; WIND = wind; }
 
 /** Release held reveals: play them, or (`drop`) retire their keys unplayed. Always unpauses. */
 export function resumeReveals({ drop = false } = {}) {
   PAUSED = false;
+  WIND = false;
   const held = QUEUE.splice(0, QUEUE.length);
   for (const h of held) {
     if (!drop) { h.run(); continue; }
@@ -250,7 +254,7 @@ export function reveal(el, { key, haptic = 'reveal', whenSeen = false, threshold
   /* The one gate between claiming a reveal and drawing it. Held reveals keep their key, so the
      once-only guard above still holds while they wait. */
   const start = () => {
-    if (PAUSED) { QUEUE.push({ key, run: play }); return; }
+    if (PAUSED) { if (WIND) windBack(el); QUEUE.push({ key, run: play }); return; }
     play();
   };
   if (!whenSeen || typeof IntersectionObserver !== 'function') { start(); return true; }

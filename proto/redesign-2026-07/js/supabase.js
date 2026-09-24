@@ -35,6 +35,20 @@ export const sb = makeClient();
 window.sb = sb;
 window.supabase = sb;
 
+/* Whose session this device has STORED, read straight from the Keychain adapter with no network
+   and no refresh (router.js boot paints that athlete's own cached Home while getSession() is still
+   refreshing an expired token). null when there is none or it cannot be read. supabase-js keeps
+   the session under auth.storageKey with the user inline (no separate userStorage is configured). */
+window.__storedSessionUid = async () => {
+  try {
+    const key = sb && sb.auth && sb.auth.storageKey;
+    if (!key) return null;
+    const j = JSON.parse((await secureStorage.getItem(key)) || 'null');
+    const s = j && (j.currentSession || j);
+    return (s && s.user && typeof s.user.id === 'string' && s.user.id) || null;
+  } catch { return null; }
+};
+
 // Keep the token fresh only while the app is foregrounded (mirrors the RN AppState behavior).
 if (sb) {
   document.addEventListener('visibilitychange', () => {

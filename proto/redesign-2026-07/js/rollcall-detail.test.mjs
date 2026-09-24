@@ -31,13 +31,15 @@ globalThis.sessionStorage = { getItem: () => null, setItem() {}, removeItem() {}
 globalThis.location = globalThis.window.location;
 
 const screen = (await import('./screens/roll-call.js')).default;
-const { seedMineForHarness } = await import('./commitment-data.js');
+const { seedMineForHarness, todayISO } = await import('./commitment-data.js');
 
 /* Times are built RELATIVE TO NOW so each phase is reachable without faking the clock: the screen
    reads `new Date()` itself. Shape copied from the real board row (commitments.test.mjs `wake`). */
 const iso = (msFromNow) => new Date(Date.now() + msFromNow).toISOString();
 const MIN = 60_000;
-const today = new Date().toISOString().slice(0, 10);
+// LOCAL dates, the app's own (commitment-data.js todayISO). A UTC date disagreed with the screen's
+// "today" every evening in the Americas, and the redirect test failed at those hours only.
+const today = todayISO();
 
 function wake(over = {}) {
   return {
@@ -105,7 +107,8 @@ test('a roll call with no coach-set label still explains itself', () => {
    that morning) and for every other commitment type. The router asks `redirect` BEFORE it paints,
    so an old push to roll-call/<id> never shows a frame of this screen for a wake-up. The render
    tests above still render the full detail on purpose: it is what the preview shows. */
-const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
 const { athleteRollcallRoute, isRollcall, ROLLCALL_ARRIVAL_TYPES } = await import('./commitments.js');
 
 test('an old roll-call/<id> link to today’s wake-up hands over to the board before painting', () => {
