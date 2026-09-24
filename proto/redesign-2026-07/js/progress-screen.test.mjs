@@ -64,3 +64,10 @@ test('the records list: nobody to send a roll call means no roll call row; Squad
   assert.doesNotMatch(solo, /Roll call record|>Squad</);
   assert.match(solo, /Monthly report/);
 });
+
+test('a best streak longer than the fetched history reads "N+", never a reset', () => {
+  const html = athlete(Array.from({ length: 60 }, (_, i) => [i + 1, 90]), { start: back(200) });
+  assert.match(html, /<b>60\+<\/b><small>best streak<\/small>/);
+  // Today is still open, so the last 30 days hold 29 finished ones, all known.
+  assert.match(html, /<b>29 of 29<\/b><small>days on standard<\/small>/);
+});

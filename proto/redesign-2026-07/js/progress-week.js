@@ -4,6 +4,10 @@
  * today; a day before the start is blank, a finished day with no score is MISSED, today is open.
  * COUNTED days are every finished day since the start plus today once it reached 80. The average
  * is over counted days that were logged; misses are counted, not averaged in as zeros.
+ * Nothing before the earliest fetched row is known (history is a ~60-day window, day.js
+ * streakInfo's rule), so it is never a miss; `startKey` (activation) wins over an older row, so a
+ * re-activated athlete's old gap is not a miss either. `windowDays` is the fetch window, used only
+ * to say a best streak runs past what was fetched (bestCut).
  * `rows` are DAY.scoreHistory; `todayScore` is null until today has scored. */
 import { ON_STANDARD } from './score-band.js';
 import { dateKey } from './fmt-date.js';
@@ -17,11 +21,13 @@ const avgOf = (days) => {
   return s.length ? Math.round(s.reduce((a, d) => a + d.score, 0) / s.length) : null;
 };
 
-export function progressRead({ rows = [], todayKey, todayScore = null, startKey = null } = {}) {
+export function progressRead({ rows = [], todayKey, todayScore = null, startKey = null, windowDays = 60 } = {}) {
   const byDay = new Map();
   for (const r of rows || []) if (r && r.date) byDay.set(String(r.date).slice(0, 10), Number(r.score) || 0);
   const first = [...byDay.keys()].sort()[0] || null;
-  const start = [startKey, first, todayKey].filter(Boolean).sort()[0];
+  const began = startKey || first || todayKey;
+  const known = first && first < todayKey ? first : todayKey;
+  const start = began > known ? began : known;
   const live = todayScore != null && Number(todayScore) > 0 ? Number(todayScore) : null;
 
   const day = (key) => {
@@ -64,8 +70,15 @@ export function progressRead({ rows = [], todayKey, todayScore = null, startKey 
     best = Math.max(best, run);
   }
 
+  // The best run began on the first known day and history goes back further than that: it may
+  // be longer than we can see.
+  const edge = shift(todayKey, 1 - windowDays);
+  let firstRun = 0;
+  for (let k = start; k <= todayKey; k = shift(k, 1)) { const d = day(k); if (!d.counted) continue; if (d.score >= ON_STANDARD) firstRun++; else break; }
+  const bestCut = best > 0 && firstRun === best && start === known && start <= edge && (!startKey || startKey < start);
+
   return {
-    week, days: counted.length, on,
+    week, days: counted.length, on, bestCut,
     missed: counted.filter((d) => d.state === 'missed').length,
     avg, prevAvg, delta: avg != null && prevAvg != null ? avg - prevAvg : null,
     weeks, rate30, month30, bestRun: best,

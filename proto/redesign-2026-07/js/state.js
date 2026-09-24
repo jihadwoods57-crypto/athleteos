@@ -21,7 +21,7 @@ import {
   dayUnlogMeal, dayMoveMeal,
   insertMeal, MEAL_KEYS, minutesNow, mealScored,
   setDayStandard, slotDeadline, slotGrace, slotLateCredit, slotOpen, setDayGoalConfig,
-  setDayPlanStyle, weightsForDay, DAY_SELECT_COLS, PROFILE_WEIGHTS, dayRev, CI_INVERSE,
+  setDayPlanStyle, weightsForDay, DAY_SELECT_COLS, PROFILE_WEIGHTS, dayRev, HISTORY_DAYS, CI_INVERSE,
 } from './day.js';
 import { MONTHS_SHORT, DAYS_SHORT, DAYS_LONG } from './fmt-date.js';
 import { creditsLeft } from './pass.js';
@@ -5521,7 +5521,7 @@ export const S = {
     const read = progressRead({
       rows: DAY.scoreHistory || [], todayKey: DAY.date,
       todayScore: RT.day0 || this.notYetScored ? null : this.score,
-      startKey: activationDateOnly(),
+      startKey: activationDateOnly(), windowDays: HISTORY_DAYS,
     });
     // Best score ever recorded (incl. today) and days with a real logged row: the verified
     // profile and the early-days copy read these.

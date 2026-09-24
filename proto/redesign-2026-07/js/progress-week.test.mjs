@@ -68,3 +68,31 @@ test('weekly averages skip weeks before the start and keep a started week with n
   const r = progressRead({ rows: rows([[20, 80], [19, 82], [6, 90]]), todayKey: TODAY, startKey: back(20) });
   assert.deepEqual(r.weeks.map((w) => w.avg), [81, null, 90]);
 });
+
+test('nothing before the earliest fetched row is a miss: a long perfect run reads 60+, not a reset', () => {
+  // 200 days in, every day 90, but history only holds the last 60 rows (the fetch window).
+  const hist = rows(Array.from({ length: 60 }, (_, i) => [i + 1, 90]));
+  const r = progressRead({ rows: hist, todayKey: TODAY, todayScore: 92, startKey: back(200), windowDays: 60 });
+  assert.equal(r.bestRun, 61, '60 fetched days plus today, nothing unfetched counted');
+  assert.equal(r.bestCut, true);
+  assert.deepEqual(r.month30, { on: 30, days: 30 });
+  assert.equal(r.weeks.length, 8);
+  assert.ok(r.weeks.every((w) => w.avg >= 90), 'no unfetched week averages in as misses');
+});
+
+test('with fewer than 30 days of rows, the count is over the known days only', () => {
+  const r = progressRead({ rows: rows(Array.from({ length: 10 }, (_, i) => [i + 1, 90])), todayKey: TODAY, startKey: back(200) });
+  assert.deepEqual(r.month30, { on: 10, days: 10 });
+  assert.equal(r.bestCut, false, 'ten rows is well inside the window: the run is complete');
+});
+
+test('re-activation: stale rows before the activation day are not misses', () => {
+  // Old rows from a previous stint 40 days ago, a long gap, then re-activated 3 days ago.
+  const r = progressRead({ rows: rows([[40, 85], [39, 88], [2, 90], [1, 91]]), todayKey: TODAY, startKey: back(3) });
+  assert.equal(r.week[2].state, 'before', 'the gap before re-activation is not a miss');
+  assert.equal(r.week[3].state, 'missed', 'the activation day itself had no log');
+  assert.equal(r.missed, 1);
+  assert.equal(r.bestRun, 2);
+  assert.equal(r.bestCut, false);
+  assert.equal(r.weeks.length, 1, 'no weeks from the old stint');
+});

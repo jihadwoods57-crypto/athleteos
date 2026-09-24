@@ -97,7 +97,7 @@ function statStrip(P) {
   return `
   <div class="pf-stats pg-stats">
     <button type="button" class="pf-stat" data-go="streak"><b>${st.days}</b><small>day streak</small></button>
-    <button type="button" class="pf-stat" data-go="streak"><b>${best}</b><small>best streak</small></button>
+    <button type="button" class="pf-stat" data-go="streak"><b>${best}${r.bestCut && best === r.bestRun ? '+' : ''}</b><small>best streak</small></button>
     ${third}
   </div>`;
 }
@@ -137,9 +137,12 @@ function weighIns() {
 }
 
 function weightLine(pts) {
+  // Spaced by DATE: two weigh-ins a week apart sit a week apart, not one step apart.
   const H = 56, vals = pts.map((p) => p.v);
   const min = Math.min(...vals), max = Math.max(...vals);
-  const xy = pts.map((p, i) => [2 + (i / (pts.length - 1)) * 96, H - 8 - ((p.v - min) / (max - min || 1)) * (H - 16)]);
+  const t = (k) => Date.parse(`${k}T12:00:00Z`);
+  const t0 = t(pts[0].key), span = t(pts[pts.length - 1].key) - t0 || 1;
+  const xy = pts.map((p) => [2 + ((t(p.key) - t0) / span) * 96, H - 8 - ((p.v - min) / (max - min || 1)) * (H - 16)]);
   const last = xy[xy.length - 1];
   return `<div class="pg-plot pg-wline" aria-hidden="true">
     <svg viewBox="0 0 100 ${H}" preserveAspectRatio="none">
