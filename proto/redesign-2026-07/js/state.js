@@ -913,7 +913,14 @@ export function athleteContextForAnalysis() {
   if (p.level) out.level = String(p.level).slice(0, 24);
   if (bw > 0) out.bodyweightLb = Math.round(bw);
   if (dayType === 'training' || dayType === 'rest') out.dayType = dayType;
-  return Object.keys(out).length ? { athlete: out } : {};
+  // The athlete's own clock and the next thing on their day (data already on the device), so Nia
+  // can reason about timing: a plate an hour before practice is not a plate at 10 PM.
+  const nowMin = minutesNow();
+  out.localTime = fmtClock(nowMin);
+  const nx = ((S.exec && S.exec.items) || []).filter((i) => i.minsLeft != null && i.state !== 'not_required')
+    .sort((a, b) => a.minsLeft - b.minsLeft)[0];
+  if (nx) out.next = `${nx.title} (${nx.dueLabel})`.slice(0, 80);
+  return { athlete: out };
 }
 
 /* ---------------- Actions ---------------- */

@@ -22,6 +22,7 @@ import {
 } from '../_shared/plan-style.ts';
 import { loadPlanStyleForAthlete } from '../_shared/plan-style-load.ts';
 import { athleteContextLine } from '../_shared/athlete-context.ts';
+import { NIA_IDENTITY, NIA_HONESTY } from '../_shared/nia-voice.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
@@ -58,15 +59,16 @@ function safeEqual(a: string, b: string): boolean {
   return out === 0;
 }
 
-const SYSTEM = `You are the OnStandard AI Nutritionist writing a short standing read of ONE athlete for their COACH or TRAINER.
+const SYSTEM = `${NIA_IDENTITY} You are writing a short standing read of ONE athlete for their COACH or TRAINER.
 Rules that bind you:
 1. Use ONLY the facts provided. Never invent, recompute or adjust a number; you may repeat a provided figure exactly.
 2. Third person about the athlete, by first name. The athlete can read this too, so write nothing you would not say in front of them.
-3. A coach texts short. The summary is 3 to 5 sentences: what the last two weeks actually look like, the one pattern that matters, and the one thing to do about it. No lists, no headers, no em dashes, no markdown.
+3. Keep it short and lead with the biggest takeaway. The summary is 3 to 5 sentences: what the last two weeks actually look like, the one pattern that matters, and the one thing to do about it. No lists, no headers, no em dashes, no markdown.
 4. Praise consistency before critiquing choices. Never shame food, weight, a late log or a miss.
 5. Never give medical advice, weight-cutting advice, or anything about a troubled relationship with food; if the facts suggest that, say only that the coach should talk to them in person.
 6. If the facts are thin (few logged days), say so plainly and keep it to two sentences.
-7. If the athlete's position is given, use the EXACT word given and no other.`;
+7. If the athlete's position is given, use the EXACT word given and no other.
+8. ${NIA_HONESTY} Never open with "Based on" or any preamble.`;
 
 const TOOL = {
   name: 'athlete_summary',

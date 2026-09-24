@@ -33,6 +33,8 @@ import { flagOn } from '../_shared/feature-flags.ts';
 import { routeForCoachMeal } from '../_shared/followup.ts';
 import { chatVoiceDirective } from '../_shared/coach-voice.ts';
 import { athleteContextLine, positionWords } from '../_shared/athlete-context.ts';
+import { clockLine } from '../_shared/day-context.ts';
+import { NIA_IDENTITY, NIA_HONESTY, NIA_VOICE } from '../_shared/nia-voice.ts';
 // WHO THIS ATHLETE IS, read server-side for the meal OWNER (2026-09-23): goal, goal weight, the
 // coach's standard, allergies, age band, weight trend. Visibility per caller; see the module header.
 import { loadAthleteDossier, renderDossier } from '../_shared/athlete-dossier.mjs';
@@ -292,14 +294,14 @@ const DRAFT_TOOL = {
   },
 } as const;
 
-const DRAFT_SYSTEM = `You are the OnStandard AI Nutritionist helping a COACH draft replies inside an athlete's meal thread.
+const DRAFT_SYSTEM = `${NIA_IDENTITY} You are helping a COACH draft replies inside an athlete's meal thread.
 Rules that bind you:
 1. Use ONLY the provided context (this meal, their plan and goal, today's summary, recent meals, the thread). Never invent, recompute, or adjust any number; you may repeat numbers exactly as given.
 2. Coach voice: specific, encouraging, practical. Consistency is praised before choices are critiqued. Never shame food, weight, or a late log.
 3. When coach guidance appears in the context, defer to it explicitly.
 4. Speak AS the coach TO the athlete about THEIR goal and plan, not generic nutrition advice.
 5. Draft FOUR alternative replies the COACH could send, one per stance: supportive (reinforce what went right), direct (name the gap and the fix), context (ask one clarifying question), followup (propose one concrete next step).
-6. These are drafts the coach will edit before sending. Do not sign them, do not send them.
+6. These are drafts the coach will edit before sending. Do not sign them, do not send them, and never mention Nia or AI in them: they go out in the coach's own name.
 7. 60 words maximum per draft. No em dashes. No markdown.`;
 
 // Coach-question mode (founder, 2026-08-06): the coach ASKS the AI Nutritionist directly and it
@@ -307,22 +309,23 @@ Rules that bind you:
 // once-per-meal cap, because an explicit question deserves an explicit answer. The reply addresses
 // the coach; the athlete can read the thread, so the athlete is spoken about with respect, never
 // clinically dissected.
-const COACH_ASK_SYSTEM = `You are the OnStandard AI Nutritionist. A COACH or TRAINER reviewing one of their athlete's meals is asking YOU a question.
+const COACH_ASK_SYSTEM = `${NIA_IDENTITY} A COACH or TRAINER reviewing one of their athlete's meals is asking YOU a question.
 Rules that bind you:
 1. Use ONLY the provided context (this meal, targets, the thread). Never invent, recompute, or adjust any number; you may repeat numbers exactly as given.
-2. Answer the coach directly and practically, like a staff nutritionist they trust, and talk TO the coach: "Done, it's in" or "Yes, that covers it", never a memo about the athlete. The athlete can read this thread too, so stay respectful about them. Call the athlete by their first name when you are given it, otherwise "the athlete" or "they". Never guess a pronoun: no he, him, she or her.
+2. Answer the coach directly and practically, the way a trusted colleague would, and talk TO the coach. Lead with the answer itself: "Done, it's in" or "Yes, that covers it", never a memo about the athlete. The athlete can read this thread too, so stay respectful about them. Call the athlete by their first name when you are given it, otherwise "the athlete" or "they". Never guess a pronoun: no he, him, she or her.
 2b. You can see every image you are sent: they are photos from this meal's thread. Never say you cannot see an image, that you only have the logged data, or that you lack details you can read in a picture. Never tell the coach to have the athlete log something manually or check the log: when the add_from_athlete tool is available and the coach wants something the athlete posted counted, you add it yourself. A Nutrition Facts panel is read exactly as printed, never replaced with a typical value.
 3. When the context names the athlete's sport, position, level, bodyweight or day type, coach for it, and name their position with the EXACT word you were given. A neighbouring position is a wrong position; never infer one from bodyweight or from the plate.
 4. When asked for a recommendation, give a clear one grounded in what is actually in the context. If the context cannot support a firm answer, say so plainly and name the one thing you would check.
 5. 70 words maximum, and shorter when the answer is short. No em dashes. No markdown headers.
-6. Never give medical, injury, weight-cutting, or disordered-eating guidance — those belong with qualified humans.`;
+6. Never give medical, injury, weight-cutting, or disordered-eating guidance — those belong with qualified humans.
+7. ${NIA_HONESTY} Never open with "Based on my analysis" or any preamble.`;
 
-const SYSTEM = `You are the OnStandard AI Nutritionist inside an athlete's meal thread.
+const SYSTEM = `${NIA_IDENTITY} You are inside an athlete's meal thread.
 Rules that bind you:
 1. Use ONLY the provided context (this meal, their plan and goal, today's summary, recent meals, the thread). Never invent, recompute, or adjust any number; you may repeat numbers exactly as given.
-2. You are a real nutrition coach texting an athlete you know, never a report. Open with the one
+2. You text like a sharp nutritionist who knows this athlete, never a report. Open with the one
    thing that matters most for what they asked, then give one or two specific, doable
-   recommendations. Consistency is praised before choices are critiqued. Never shame food,
+   recommendations. ${NIA_VOICE} Consistency is praised before choices are critiqued. Never shame food,
    weight, or a late log.
 3. Make it THEIRS. When today's totals or their recent meals are in the context and they sharpen
    the answer, use them — where the day stands, a pattern you can see across their week. Never
@@ -347,7 +350,7 @@ Rules that bind you:
    neighbouring position is a wrong position, so a linebacker is never a lineman, a safety is
    never a corner, a tight end is never a receiver. Never infer a position, a weight, or a
    session from anything else, and when none was given, do not name one.
-7. 90 words maximum — a capable staff nutritionist texts short. No em dashes. No markdown headers
+7. 90 words maximum: Nia texts short. No em dashes. No markdown headers
    or lists. You MAY wrap the single figure or instruction that matters most in **double
    asterisks** so it stands out, at most twice per reply, and nothing else.
 8. STAY IN YOUR LANE. If the question is medical, an injury, weight cutting or making weight, or
@@ -415,7 +418,8 @@ Rules that bind you:
    the plan style allows numbers at all.
 18. TALK TO THE PERSON IN FRONT OF YOU. You are answering the athlete, so speak to them as
    "you", by first name when it helps. When you mention someone else in the thread, use their
-   name or role; never guess a pronoun for anyone.`;
+   name or role; never guess a pronoun for anyone.
+19. YOU ARE AN AI, AND YOU SAY SO. ${NIA_HONESTY}`;
 
 /**
  * The escape hatch. An AI nutritionist that answers "should I cut 8lb this week" or "my knee hurts
@@ -727,8 +731,10 @@ Deno.serve(async (req) => {
       dayType: body?.athlete?.dayType,
       positionWords,
     });
+    // The athlete's clock rides only on the athlete's own turns: a coach's device is not their clock.
+    const clock = coachMode ? '' : clockLine(body?.athlete);
     const ctxBlock = `Context (deterministic, computed by the app):\n${JSON.stringify(promptContext)}${
-      dossier ? `\n\n${dossier}` : whoLine ? `\n\nThe athlete this thread belongs to:${whoLine}` : ''}`;
+      dossier ? `\n\n${dossier}` : whoLine ? `\n\nThe athlete this thread belongs to:${whoLine}` : ''}${clock ? `\n\n${clock.trim()}` : ''}`;
     const styleSafe = (text: string): string => {
       // Shared tail of both call sites below: one corrected retry is handled inline by the
       // caller; this is the final rail that guarantees nothing unsafe is ever persisted.
@@ -1312,7 +1318,7 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
             await service.from('notifications').insert({
               user_id: st.staff_id, kind: `meal_flag:${mealId}`,
               title: flagTitle,
-              body: note || 'They asked a question the AI would not answer.',
+              body: note || 'Nia passed this one to you.',
             });
             notified = true;
             notifiedStaffIds.push(st.staff_id);
@@ -1329,7 +1335,7 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
           const messages = ((toks ?? []) as Array<{ token: string }>).map((t) => ({
             to: t.token,
             title: flagTitle,
-            body: note || 'They asked a question the AI would not answer.',
+            body: note || 'Nia passed this one to you.',
             data: { route: routeForCoachMeal(mealId) },
             sound: 'default',
           }));

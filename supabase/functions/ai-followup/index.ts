@@ -42,6 +42,7 @@ import {
 // refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
 import { sendExpoPush } from '../_shared/expo-push.mjs';
 import { filterConsented } from '../_shared/ai-consent.mjs';
+import { NIA_IDENTITY, NIA_HONESTY, NIA_PUSH_TITLE } from '../_shared/nia-voice.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -79,7 +80,8 @@ const FOLLOWUP_TOOL = {
 } as const;
 
 const SYSTEM = [
-  'You are the athlete\'s nutrition coach, opening a conversation the morning after.',
+  `${NIA_IDENTITY} You are opening a conversation with an athlete the morning after.`,
+  NIA_HONESTY,
   'You get ONE short message. Make it worth the interruption.',
   'Rules:',
   '- Name the specific thing (the meal, the number if you are given one). Never generic encouragement.',
@@ -103,7 +105,8 @@ const DAYGAP_TOOL = {
 } as const;
 
 const DAYGAP_SYSTEM = [
-  'You are the athlete\'s nutrition coach, texting them early in the evening.',
+  `${NIA_IDENTITY} You are texting an athlete early in the evening.`,
+  NIA_HONESTY,
   'You get ONE short nudge, two sentences at most. Make it worth the interruption.',
   'Rules:',
   '- State the exact protein gap you are given, in grams, and which meal is still open.',
@@ -392,7 +395,7 @@ Deno.serve(async (req) => {
     wrote++;
     await svc.from('notifications').insert({
       user_id: s.athleteId, kind: notificationKind(s.meal.id),
-      title: 'Your nutritionist', body: s.text.slice(0, 160),
+      title: NIA_PUSH_TITLE, body: s.text.slice(0, 160),
     });
   }
 
@@ -403,7 +406,7 @@ Deno.serve(async (req) => {
   for (const s of gap.sends) {
     const { error } = await svc.from('notifications').insert({
       user_id: s.athleteId, kind: dayGapKind(s.nudge.slot),
-      title: 'Your nutritionist', body: s.text.slice(0, 160),
+      title: NIA_PUSH_TITLE, body: s.text.slice(0, 160),
     });
     if (error) continue;
     gapWrote++;
@@ -421,7 +424,7 @@ Deno.serve(async (req) => {
     const s = byUser.get(t.user_id);
     if (s) {
       messages.push({
-        to: t.token, title: 'Your nutritionist', body: s.text.slice(0, 160),
+        to: t.token, title: NIA_PUSH_TITLE, body: s.text.slice(0, 160),
         data: { route: routeForMeal(s.meal.id) },
         // Normal priority: this is a conversation, not a scheduled commitment. It waits for DND.
         sound: 'default',
@@ -430,7 +433,7 @@ Deno.serve(async (req) => {
     const g = gapByUser.get(t.user_id);
     if (g) {
       messages.push({
-        to: t.token, title: 'Your nutritionist', body: g.text.slice(0, 160),
+        to: t.token, title: NIA_PUSH_TITLE, body: g.text.slice(0, 160),
         // Straight to the camera for the slot that closes the gap.
         data: { route: routeForSlot(g.nudge.slot) },
         sound: 'default',

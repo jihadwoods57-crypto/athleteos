@@ -20,6 +20,9 @@ export type AthleteContextIn = {
   /** 'training' | 'rest' from the team week pattern; anything else means "unknown", and the
    *  model is told nothing rather than guessed for. */
   dayType?: unknown;
+  /** The athlete's own clock ('3:40 PM') and next open item; rendered by day-context clockLine. */
+  localTime?: unknown;
+  next?: unknown;
 };
 
 const word = (v: unknown, max = 32): string =>

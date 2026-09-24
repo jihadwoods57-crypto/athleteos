@@ -154,14 +154,18 @@ const READ_MAX = 520;
  * bad because the message was long, it was bad because it was EMPTY — it narrated a fact the
  * athlete created ten seconds earlier. Cut hollow sentences; never cut substance to hit a number.
  */
-/* THE EMPHASIS (founder 2026-09-14: the AI's opener should make what matters stand out). The
-   read's own figures are set in bold: "around 52g of protein" and "780 calories" are the two
-   numbers an athlete scans for. Marks are the light set the client draws (chat-view.js richText):
-   **bold**, __underline__, ==colour==. Nothing else in the read is touched, so the model's prose
-   stays the model's. Idempotent: a figure already inside a mark is left alone. */
-function emphasizeFigures(s: string): string {
+/* THE EMPHASIS (founder 2026-09-14: the AI's opener should make what matters stand out). ONE
+   figure in the read is set in bold, the first it names (2026-09-24: bolding every gram read as a
+   macro dump, and emphasis on everything is emphasis on nothing). With the day line's own bold
+   the whole opener carries at most two. Marks are the light set the client draws (chat-view.js
+   richText): **bold**, __underline__, ==colour==. Nothing else in the read is touched, so the
+   model's prose stays the model's. Idempotent: a figure already inside a mark is left alone, and
+   marks already present count against the one. */
+export function emphasizeFigures(s: string, max = 1): string {
   if (!s) return '';
-  return s.replace(/(?<![*\w])(~?\d{1,4}(?:\.\d)?\s?(?:g|kcal|cal|calories)\b(?: of protein| protein| of carbs| carbs| of fat| fat)?)(?![*\w])/gi, '**$1**');
+  let left = Math.max(0, max - Math.floor((s.match(/\*\*/g) || []).length / 2));
+  return s.replace(/(?<![*\w])(~?\d{1,4}(?:\.\d)?\s?(?:g|kcal|cal|calories)\b(?: of protein| protein| of carbs| carbs| of fat| fat)?)(?![*\w])/gi,
+    (m) => (left-- > 0 ? `**${m}**` : m));
 }
 
 function readCore(s: string): string {
