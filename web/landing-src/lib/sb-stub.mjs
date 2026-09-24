@@ -252,6 +252,12 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
   const RPCS = {
     team_roster: () => ROSTER,
     practice_roster: () => ROSTER,
+    // Roll call v3 (0247): the account's alarm primer answer is jsonb, never rows. The catch-all
+    // [] would read as a failed read and the primer would never show in a capture. A shot sets
+    // window.__AP_STATE to stand in for an account that already answered.
+    alarm_primer_state: () => (typeof window !== 'undefined' && window.__AP_STATE) || { at: null, answer: null },
+    set_alarm_primer: () => true,
+    mark_rollcall_seen: () => 0,
     // assign_requirement returns the fan-out COUNT (an int, not rows). The catch-all [] below
     // would read as zero matched and the composer would refuse to show its sent state.
     assign_requirement: (p) => p && p.p_scope_kind === 'team' ? ROSTER.length : p && p.p_scope_kind === 'position' ? ROSTER.filter(r => String(r.position || '').toUpperCase() === String(p.p_scope_value || '').toUpperCase()).length : 1,

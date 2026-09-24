@@ -102,15 +102,13 @@ test('sweep: no <button> anywhere in the shipped proto reads Allow', () => {
   assert.deepEqual(hits, []);
 });
 
-/* I4: the wake-up must not get weaker. The primer shows wherever an assigned roll call is seen,
-   and asks for the alarm too, but only when a question is still unanswered. */
-test('roll call primer: notifications and/or the alarm, only while unanswered', async () => {
+/* The roll call primer asks for NOTIFICATIONS only since roll call v3: the alarm question is the
+   once-per-account alarm primer (js/alarm-primer.js). */
+test('roll call primer: notifications only, only while unanswered', async () => {
   const N = await import('./notify-permission.js');
   const both = N.notifyPrimerHtml({ perm: 'undetermined', alarm: 'notDetermined', context: 'rollcall', later: false });
-  assert.match(both, /data-np-notify="1" data-np-alarm="1"/);
-  const alarmOnly = N.notifyPrimerHtml({ perm: 'granted', alarm: 'notDetermined', context: 'rollcall', later: false });
-  assert.match(alarmOnly, /Let your coach’s wake-up ring/);
-  assert.match(alarmOnly, /data-np-notify="" data-np-alarm="1"/);
+  assert.match(both, /data-np-notify="1" data-np-alarm=""/);
+  assert.equal(N.notifyPrimerHtml({ perm: 'granted', alarm: 'notDetermined', context: 'rollcall', later: false }), '', 'the alarm alone is not asked here');
   assert.equal(N.notifyPrimerHtml({ perm: 'granted', alarm: 'authorized', context: 'rollcall', later: false }), '', 'already allowed: nothing');
   assert.equal(N.notifyPrimerHtml({ perm: 'granted', alarm: 'notDetermined', context: 'settings', later: false }), '', 'settings never asks for alarms');
   const now = Date.parse('2026-09-23T10:00:00Z');
@@ -122,7 +120,10 @@ test('roll call primer: notifications and/or the alarm, only while unanswered', 
 
 test('the primer is mounted on Home and on the board / Your day, not only the detail', () => {
   const home = readFileSync(join(JS, 'screens', 'home.js'), 'utf8');
-  assert.match(home, /NP\.mountRollcallPrimer\(slot, VC\.mine\)/);
+  // Home's slot goes through the alarm primer first (roll call v3), which falls back to this one.
+  assert.match(home, /AP\.mountPrimers\(slot, VC\.mine, /);
+  const ap = readFileSync(join(JS, 'alarm-primer.js'), 'utf8');
+  assert.match(ap, /mountRollcallPrimer\(slot, rows\)/);
   const board = readFileSync(join(JS, 'screens', 'rollcall-board.js'), 'utf8');
   assert.match(board, /NP\.mountRollcallPrimer\(host, VC\.mine\)/);
   assert.match(board, /<div class="rb-primer"><\/div>/);

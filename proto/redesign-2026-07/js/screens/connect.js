@@ -38,6 +38,7 @@ export default {
         <div class="sd-t">${title}</div>
         <div class="sd-s">${sub}</div>
       </div>
+      ${isTrainer ? '' : '<div id="ap-slot"></div>'}
       ${!isTrainer && RT.myRoomLabel ? `
       <div class="lrow" style="cursor:default;margin-top:10px">
         <div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('users', 17)}</div>
@@ -114,6 +115,10 @@ export default {
     `;
   },
   mount(root) {
+    // Roll call v3: the one alarm question, right after joining a team (js/alarm-primer.js decides
+    // whether it shows: once per account, only on a phone that can ring and was never asked).
+    const apSlot = root.querySelector('#ap-slot');
+    if (apSlot) void import('../alarm-primer.js').then((AP) => AP.mountAlarmPrimer(apSlot, { onTeam: true }), () => {});
     const err = root.querySelector('#cc-err');
 
     // ---- confirm step ----

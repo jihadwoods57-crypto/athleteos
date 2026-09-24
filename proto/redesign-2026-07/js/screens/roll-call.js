@@ -417,11 +417,9 @@ function pushWarning(phase) {
   </div>`;
 }
 
-/* Whether this phone will ring for this wake-up, in one line. The 2026-09-16 critique found the
-   only surface that said so was #wakeup-squad, whose only door is gated on a squad an athlete's
-   own rows never carry: the loudest thing the product does was never explained to the person it
-   happens to. Says nothing on a device that cannot ring at all (an older iPhone), because there
-   is nothing for them to do about it. */
+/* Whether this phone will ring for this wake-up, in one line (the 2026-09-16 critique: nothing
+   told the athlete). Silent on a phone that cannot ring: there is nothing for them to do. This is
+   the roll call card, where the alarm question may come back after the primer's Not now (v3). */
 async function paintAlarmLine(root, row) {
   const slot = root && root.querySelector('#wk-alarm-line');
   if (!slot || !row) return;
@@ -439,6 +437,7 @@ async function paintAlarmLine(root, row) {
     if (go) go.addEventListener('click', async () => {
       go.disabled = true; go.textContent = 'Asking…';
       await wakeAlarmState({ ask: true });
+      void import('../rollcall-v3-data.js').then((D) => D.setPrimer('continue'), () => {}); // the account's answer
       try { await syncWakeAlarms([...(VC.rows || [row]), ...(aheadRows() || [])]); } catch { /* the next Home load arms it */ }
       void paintAlarmLine(root, row);
     });
@@ -750,7 +749,6 @@ export default {
         if (!npSlot.isConnected) return;
         npSlot.innerHTML = NP.notifyPrimerHtml({ perm, context: 'rollcall' });
         NP.wireNotifyPrimer(npSlot, {
-          withAlarms: true,
           after: async () => {
             await act.registerPushToken({ ask: true });   // already answered, so this only mints the token
             RT._lastPlan = null; act.syncNotifications();

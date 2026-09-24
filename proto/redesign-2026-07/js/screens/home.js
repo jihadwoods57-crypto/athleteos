@@ -323,8 +323,8 @@ function paintCommitments(root) {
     // things — so when the fetch failed and we have nothing cached, say so.
     slot.innerHTML = html || (VC.mineError ? commitmentOfflineCard() : '');
     if (html) mountCommitmentCard(slot, () => paintCommitments(root));
-    // I4: the Continue primer (notifications, then the alarm) where the roll call is seen.
-    void import('../notify-permission.js').then((NP) => NP.mountRollcallPrimer(slot, VC.mine), () => {});
+    // v3: the once-per-account alarm primer, else the notification one (js/alarm-primer.js).
+    void import('../alarm-primer.js').then((AP) => AP.mountPrimers(slot, VC.mine, S.coach.kind === 'coach'), () => {});
     paintClearReceipts(root);
     // The offline card's Retry re-runs THIS fetch — recovery on the card, not a dead notice.
     const retry = slot.querySelector('[data-vc-retry]');

@@ -9,8 +9,10 @@
  * Now: nothing asks on its own. The native side only READS permission (src/lib/notify), and the
  * one ask is this primer, shown where the reason is on screen:
  *   - on an athlete's roll call, "Get the roll call on your lock screen", which asks for
- *     notifications and then, where the phone has alarms and the coach wants one, alarms;
+ *     notifications;
  *   - on the Notifications settings screen, for every role.
+ * Alarms are NOT asked here since roll call v3 (2026-09-24): that is the once-per-account alarm
+ * primer, js/alarm-primer.js, which shares Home's slot with this card and goes first.
  * Its button says Continue, never Allow, and it never says which answer to pick.
  *
  * Pure markup + a thin bridge wrapper, no import from state.js (state.js imports this module).
@@ -51,24 +53,24 @@ const dayKey = () => { const d = new Date(); return `${d.getFullYear()}-${d.getM
 function laterSet() { try { return localStorage.getItem(LATER_KEY) === dayKey(); } catch { return false; } }
 function setLater() { try { localStorage.setItem(LATER_KEY, dayKey()); } catch { /* no storage */ } }
 
+/** The alarm primer's Not now (js/alarm-primer.js) also quiets this card for the day. */
+export function notifyPrimerLater() { setLater(); }
+
 /**
- * The primer card. '' unless a question is still unanswered: notifications never asked, or (on a
- * roll call with a coach's wake-up) alarms never asked. Never shown after a Not now today, except
- * on the settings screen. Pure over its inputs.
+ * The primer card. '' unless notifications were never asked. Never shown after a Not now today,
+ * except on the settings screen. Pure over its inputs. The alarm question is js/alarm-primer.js
+ * (roll call v3); `alarm` is accepted and ignored so an older caller cannot bring it back here.
  * @param {{ perm?: string|null, alarm?: string|null, context?: 'rollcall'|'settings', later?: boolean }} o
  */
-export function notifyPrimerHtml({ perm = PERM, alarm = null, context = 'rollcall', later = laterSet() } = {}) {
+export function notifyPrimerHtml({ perm = PERM, context = 'rollcall', later = laterSet() } = {}) {
   const askNotify = perm === 'undetermined';
-  const askAlarm = context === 'rollcall' && alarm === 'notDetermined';
-  if (!askNotify && !askAlarm) return '';
+  const askAlarm = false; // roll call v3: the alarm question is js/alarm-primer.js, once per account
+  if (!askNotify) return '';
   if (later && context !== 'settings') return '';
-  const t = context !== 'rollcall' ? 'Turn on reminders'
-    : askNotify ? 'Get the roll call on your lock screen' : 'Let your coach’s wake-up ring';
+  const t = context !== 'rollcall' ? 'Turn on reminders' : 'Get the roll call on your lock screen';
   const s = context !== 'rollcall'
     ? 'OnStandard sends the reminders you choose here, your coach’s roll calls and messages from your team. Your phone asks next.'
-    : askNotify
-      ? 'OnStandard can put your coach’s roll call on your lock screen, so one tap checks you in, and ring an alarm when your coach sets a wake-up. Your phone asks next.'
-      : 'Your coach set a wake-up. OnStandard can ring it as a real alarm, through Do Not Disturb and silent mode. Your phone asks next.';
+    : 'OnStandard can put your coach’s roll call on your lock screen, so one tap checks you in. Your phone asks next.';
   return `<section class="card pad np-card" role="region" aria-labelledby="np-t">
     <h3 class="np-t" id="np-t">${icon('bell', 16)} ${t}</h3>
     <p class="np-s">${s}</p>
@@ -90,24 +92,24 @@ export function rollcallReach(rows, nowMs = Date.now()) {
 }
 
 /**
- * The primer wherever an athlete sees an assigned roll call (review I4): Home's slot, the team
- * board and Your day, the detail screen. Reads (never asks) both permissions; draws the card only
- * when one is unanswered; a Continue asks notifications, then alarms. Athletes who already allowed
- * see nothing. `after` registers the token and re-arms.
+ * The primer wherever an athlete sees an assigned roll call (review I4): Home's slot (after the
+ * alarm primer, js/alarm-primer.js mountPrimers), the team board and Your day. Reads (never asks)
+ * notification permission; draws the card only while it is unanswered; Continue asks
+ * notifications only. Athletes who already answered see nothing. `after` registers the token and
+ * re-arms.
  */
 export async function mountRollcallPrimer(host, rows, after = () => reachAfter(rows)) {
   if (!host || host.querySelector('.np-card')) return;
   const reach = rollcallReach(rows);
   if (!reach.live && !reach.alarm) return;
   const perm = await notifyPermission(false);
-  const al = reach.alarm ? await alarmPermission(false) : null;
-  const html = notifyPrimerHtml({ perm, alarm: al && al.supported ? al.authorization : null, context: 'rollcall' });
+  const html = notifyPrimerHtml({ perm, context: 'rollcall' });
   if (!html || !host.isConnected || host.querySelector('.np-card')) return;
   const slot = document.createElement('div');
   slot.className = 'np-slot';
   slot.innerHTML = html;
   host.appendChild(slot);
-  wireNotifyPrimer(slot, { withAlarms: true, after });
+  wireNotifyPrimer(slot, { after });
 }
 
 /** After a primer's yes: mint the push token, reschedule reminders, arm the mornings. Loaded
@@ -126,10 +128,10 @@ export async function reachAfter(rows) {
 
 /**
  * Wire a rendered primer. `after(result)` runs once the phone has answered, so the caller can
- * register the push token, resync reminders and arm alarms. `withAlarms` asks for alarms right
- * after a yes to notifications (the roll call primer).
+ * register the push token, resync reminders and arm alarms (only where they were allowed
+ * already: arming never asks). Never asks for alarms (roll call v3).
  */
-export function wireNotifyPrimer(root, { after, withAlarms = false } = {}) {
+export function wireNotifyPrimer(root, { after } = {}) {
   if (!root) return;
   root.addEventListener('click', async (ev) => {
     const t = ev.target && ev.target.closest ? ev.target : null;
@@ -144,12 +146,10 @@ export function wireNotifyPrimer(root, { after, withAlarms = false } = {}) {
     if (!go || go.disabled) return;
     go.disabled = true;
     go.textContent = 'Asking…';
-    // Only the questions the card named. An older card with no flags asks notifications.
+    // Only the question the card named. An older card with no flags asks notifications.
     const askN = go.getAttribute('data-np-notify') !== '' || !go.hasAttribute('data-np-notify');
-    const askA = withAlarms && go.getAttribute('data-np-alarm') === '1';
     const perm = askN ? await notifyPermission(true) : await notifyPermission(false);
-    let alarms = null;
-    if (withAlarms && (askA || (askN && perm === 'granted'))) alarms = await alarmPermission(true);
+    const alarms = null;
     const card = go.closest('.np-card');
     if (card) card.remove();
     if (typeof after === 'function') { try { await after({ perm, alarms }); } catch { /* best effort */ } }

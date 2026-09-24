@@ -555,11 +555,23 @@ const SHOTS = [
   { g: 'review-b', name: 'b-loc-ask-notnow', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [15, 26],
     pre: newBuild('undetermined') + `localStorage.setItem('os.loc.wiuNotNow', '1');` + rbSeed({ now: [15, 26], mode: 'arrival', me: 'open' }) },
   { g: 'review-b', name: 'b-loc-ask-always', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [15, 26], pre: newBuild('when_in_use') + rbSeed({ now: [15, 26], mode: 'arrival', me: 'open' }) },
+  // Alarms already answered: Home's slot falls back to the notification primer.
   { g: 'review-b', name: 'b-home-primer', seed: 'dayMorning', route: 'home', at: [5, 40],
+    pre: `window.OnStandardNative = Object.assign(window.OnStandardNative || {}, { push: { token: async () => null },
+      notify: { sync() {}, permission: async () => 'undetermined' },
+      wakeAlarms: { sync: async () => 0, state: async () => ({ supported: true, authorization: 'authorized', armed: 1 }) } });`,
+    act: rcSeed(20) + ` window.__render();`, actMs: 1500 },
+  // Roll call v3 (Task 8): the once-per-account alarm primer, at the next open (Home) for an
+  // athlete already on a team, and right after joining one (Connect).
+  { g: 'review-b', name: 'b-home-alarm-primer', seed: 'dayMorning', route: 'home', at: [5, 40],
     pre: `window.OnStandardNative = Object.assign(window.OnStandardNative || {}, { push: { token: async () => null },
       notify: { sync() {}, permission: async () => 'undetermined' },
       wakeAlarms: { sync: async () => 0, state: async () => ({ supported: true, authorization: 'notDetermined', armed: 0 }) } });`,
     act: rcSeed(20) + ` window.__render();`, actMs: 1500 },
+  { g: 'review-b', name: 'b-connect-alarm-primer', seed: 'dayMorning', route: 'connect', at: [19, 10],
+    pre: `window.OnStandardNative = Object.assign(window.OnStandardNative || {}, { push: { token: async () => null },
+      notify: { sync() {}, permission: async () => 'undetermined' },
+      wakeAlarms: { sync: async () => 0, state: async () => ({ supported: true, authorization: 'notDetermined', armed: 0 }) } });` },
   { g: 'review-b', name: 'b-roll-call-primer', seed: 'dayMorning', route: 'roll-call/rc-shot', at: [6, 2],
     pre: `window.OnStandardNative = Object.assign(window.OnStandardNative || {}, { push: { token: async () => null },
       notify: { sync() {}, permission: async () => 'undetermined' },
