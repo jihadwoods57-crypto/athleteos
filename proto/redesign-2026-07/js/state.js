@@ -64,7 +64,7 @@ import {
 } from './meal-intel.js';
 import { groundMealFromFoods, groundMealTotals, gapFoods, labelProducts, isCompleteMealResult } from './nutrition.js';
 import { explainCategories, reachPlan as modelReachPlan, maxPossibleScore, mealMaxGain, CI_BEST } from './breakdown-model.js';
-import { cachedMealPhoto, cachedMealThumb, todayMealPhotoPath, invalidateMealPhoto, resolveMealPhoto } from './photo-store.js';
+import { cachedMealPhoto, cachedMealThumb, photoMissing, todayMealPhotoPath, invalidateMealPhoto, resolveMealPhoto } from './photo-store.js';
 import { dropLaunch } from './launch-cache.js';
 import { base64ToBytes, sha256Hex, photoAgeMinutes } from './photo-hash.js';
 import {
@@ -5170,6 +5170,7 @@ export const S = {
         impact: mealImpact(k),
         img, route: `meal-detail/${k}`,
         thumb: slotHasPhoto(k) ? cachedMealThumb(todayMealPhotoPath(RT.userId, String(DAY.date), k)) : null,
+        pending: slotHasPhoto(k) && !photoMissing(todayMealPhotoPath(RT.userId, String(DAY.date), k)),
       });
     }
     if (RT.weightLogged && DAY.currentWeight != null) a.push({ time: 'Today', type: 'Morning Weight', icon: 'scale', value: `${DAY.currentWeight} lb`, vClass: 'muted', img: null, route: 'weight' });

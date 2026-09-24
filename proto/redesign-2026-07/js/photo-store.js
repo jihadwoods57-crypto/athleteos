@@ -8,12 +8,15 @@
    leave the athlete staring at a blank frame for a photo that has since landed. */
 
 import { signedMealPhotoUrl, signedMealPhotoUrls } from './roles.js';
-import { launchCache, keepLaunch } from './launch-cache.js';
+import { launchCache, keepLaunch, currentLaunchOwner, onLaunchDrop } from './launch-cache.js';
 
 const TTL = 45 * 60 * 1000; // signed URLs live 60 min (roles.js) — refresh comfortably before expiry
 const NEG_TTL = 60 * 1000;  // a confirmed-missing object is re-checked after a minute, not never
 const CACHE = {};           // path -> { url: string|null, at: ms }  (url null = confirmed missing)
 const INFLIGHT = new Set();
+const THUMBED = new Set();  // paths whose thumbnail was asked for this session (made, in flight, or failed): never re-queued
+// Signed out: the last account's signed URLs and thumbnail bookkeeping go with its launch cache.
+onLaunchDrop(() => { for (const k of Object.keys(CACHE)) delete CACHE[k]; THUMBED.clear(); });
 
 export function todayMealPhotoPath(userId, dateISO, slot) {
   return userId ? `${userId}/${dateISO}/${slot}.jpg` : null;
@@ -56,16 +59,22 @@ export function invalidateMealPhoto(path) {
   if (typeof window !== 'undefined' && window.__render) window.__render();
 }
 
+/** True when the store has been told this object does not exist (the no-photo glyph is honest). */
+export function photoMissing(path) { const c = path && CACHE[path]; return !!c && c.url === null; }
+
 /** A small stand-in for the photo (launch-cache.js), painted under it until the real one arrives. */
 export function cachedMealThumb(path) { const k = path && kept(path); return (k && k.th) || null; }
 const kept = (path) => (launchCache().photos || {})[path];
-/** Merge (or, with null, forget) one path's kept entry; the newest 16 survive. */
-function keepPhoto(path, patch) {
-  const all = { ...(launchCache().photos || {}) };
+/** Merge (or, with null, forget) one path's kept entry; the newest 16 survive. `uid` is whose
+ *  request this was: a result that lands after that user is gone is dropped (launch-cache also
+ *  refuses it), so one account's photo never lands in another's cache. */
+function keepPhoto(path, patch, uid = currentLaunchOwner()) {
+  if (!uid || uid !== currentLaunchOwner()) return;
+  const all = { ...(launchCache(uid).photos || {}) };
   if (!patch && !all[path]) return;
   if (patch) all[path] = { ...all[path], ...patch }; else delete all[path];
   Object.keys(all).sort((a, b) => all[b].at - all[a].at).slice(16).forEach((k) => delete all[k]);
-  keepLaunch('photos', all);
+  keepLaunch('photos', all, uid);
 }
 /* Downloaded and decoded before the repaint that shows it, so a card goes from its placeholder
    straight to the picture and never through an empty frame. Capped: a slow photo never holds the
@@ -77,9 +86,10 @@ const decoded = (url) => (typeof Image !== 'function' ? Promise.resolve() : Prom
 /** `keep` (Home only): remember what resolved for the next cold launch, with a thumbnail, and
  *  repaint only once the new pictures are decoded. Resolves true when anything new resolved. */
 export function warmMealPhotos(paths, keep = false) {
+  const uid = currentLaunchOwner();
   const want = (paths || []).filter(Boolean);
   want.forEach(cachedMealPhoto);   // loads kept entries, expires stale ones
-  if (keep) thumbs(want.filter((p) => CACHE[p] && CACHE[p].url && !cachedMealThumb(p)));
+  if (keep) thumbs(want.filter((p) => CACHE[p] && CACHE[p].url && !cachedMealThumb(p)), uid);
   const need = want.filter((p) => !CACHE[p] && !INFLIGHT.has(p));
   if (!need.length) return Promise.resolve(false);
   need.forEach((p) => INFLIGHT.add(p));
@@ -88,16 +98,15 @@ export function warmMealPhotos(paths, keep = false) {
   return signedMealPhotoUrls(need)
     .then(async (map) => {
       const at = Date.now();
-      const got = [];
-      for (const p of need) {
-        const url = (map && map[p]) || null;   // absent = missing or transient: cached as a miss, re-checked after NEG_TTL
-        CACHE[p] = { url, at };
-        if (url) got.push(p);
-      }
+      const got = need.filter((p) => map && map[p]);
+      // Home's photos are published only once decoded: a URL in CACHE is painted by ANY repaint,
+      // and one that has not loaded yet paints as an empty card until it does.
+      if (keep) await Promise.all(got.map((p) => decoded(map[p])));
+      if (uid !== currentLaunchOwner()) return false;   // signed out / switched while this was in flight
+      for (const p of need) CACHE[p] = { url: (map && map[p]) || null, at };   // absent = missing or transient: a miss, re-checked after NEG_TTL
       if (keep) {
-        await Promise.all(got.map((p) => decoded(CACHE[p].url)));
-        got.forEach((p) => keepPhoto(p, { u: CACHE[p].url, at }));
-        thumbs(got);
+        got.forEach((p) => keepPhoto(p, { u: CACHE[p].url, at }, uid));
+        thumbs(got, uid);
       }
       if (got.length && typeof window !== 'undefined' && window.__render) window.__render();
       return got.length > 0;
@@ -105,7 +114,9 @@ export function warmMealPhotos(paths, keep = false) {
     .catch(() => false /* transient — nothing cached, the next repaint retries */)
     .finally(() => { need.forEach((p) => INFLIGHT.delete(p)); });
 }
-function thumbs(paths) {
-  if (!paths.length || typeof document === 'undefined') return;
-  import('./photo-thumb.js').then((m) => m.makeThumbs(paths.map((p) => [p, CACHE[p].url]), (p, th) => keepPhoto(p, { th, at: CACHE[p] ? CACHE[p].at : 0 })), () => {});
+function thumbs(paths, uid) {
+  const todo = paths.filter((p) => !THUMBED.has(p));
+  if (!todo.length || typeof document === 'undefined') return;
+  todo.forEach((p) => THUMBED.add(p));
+  import('./photo-thumb.js').then((m) => m.makeThumbs(todo.map((p) => [p, CACHE[p].url]), (p, th) => keepPhoto(p, { th, at: CACHE[p] ? CACHE[p].at : 0 }, uid)), () => {});
 }

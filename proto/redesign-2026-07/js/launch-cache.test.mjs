@@ -23,6 +23,7 @@ const flush = () => new Promise((r) => setTimeout(r, 350));   // keepLaunch coal
 
 test('kept per user: another id reads nothing, and the stored record names its owner', async () => {
   store.clear(); LC.dropLaunch();
+  LC.launchOwner('user-a');
   LC.keepLaunch('seen', { date: '2026-07-23', rows: [{ seen_at: 'x' }] }, 'user-a');
   await flush();
   assert.ok(store.has('onstd-launch-user-a'));
@@ -40,6 +41,7 @@ test('a record filed under the wrong key is never trusted', () => {
 
 test('sign-out drops every launch cache and nothing else', async () => {
   store.clear(); LC.dropLaunch();
+  LC.launchOwner('user-a');
   LC.keepLaunch('reply', [{ mealId: 'm1' }], 'user-a');
   await flush();
   store.set('onstd-launch-user-b', JSON.stringify({ uid: 'user-b' }));
@@ -51,6 +53,7 @@ test('sign-out drops every launch cache and nothing else', async () => {
 
 test('a pending write cannot resurrect a dropped cache', async () => {
   store.clear(); LC.dropLaunch();
+  LC.launchOwner('user-a');
   LC.keepLaunch('past', { date: 'd', rows: [] }, 'user-a');
   LC.dropLaunch();
   await flush();
@@ -84,4 +87,24 @@ test('the photo store keeps the newest 16 and forgets an invalidated path', asyn
   assert.equal(Object.keys(kept).length, 16);
   assert.equal(kept.p19, undefined);
   assert.ok(kept.p18 && !kept.p2, 'oldest pruned first');
+});
+
+test('only the owner can write: a late answer for a user who left is refused', async () => {
+  store.clear(); LC.dropLaunch();
+  assert.equal(LC.keepLaunch('seen', { x: 1 }, 'user-a'), false, 'nobody signed in');
+  LC.launchOwner('user-b');
+  assert.equal(LC.keepLaunch('seen', { x: 1 }, 'user-a'), false, 'another user is on screen');
+  assert.equal(LC.keepLaunch('seen', { x: 2 }, 'user-b'), true);
+  await flush();
+  assert.deepEqual([...store.keys()], ['onstd-launch-user-b']);
+});
+
+test('dropping runs the registered hooks (photo-store forgets its signed URLs)', () => {
+  store.clear(); LC.dropLaunch();
+  LC.launchOwner('user-a');
+  store.set('onstd-launch-user-a', JSON.stringify({ uid: 'user-a', photos: { p: { u: 'https://x.supabase.co/storage/v1/p', at: Date.now() } } }));
+  assert.ok(PS.cachedMealPhoto('p'));
+  LC.dropLaunch();
+  LC.launchOwner('user-a');
+  assert.equal(PS.cachedMealPhoto('p'), null);
 });

@@ -17,8 +17,8 @@ import { initWakeFace, armWakeFace } from '../wake-face.js';
 import { WAKEUP_SHIFT } from '../plan-style.js';
 import { canClear, isCleared, clearReceipts } from '../receipts.js';
 import { WAKEUP_TYPE } from '../wakeup-morning.js';
-import { warmMealPhotos, todayMealPhotoPath, cachedMealPhoto, cachedMealThumb } from '../photo-store.js';
-import { launchCache, keepLaunch, launchOwner } from '../launch-cache.js';
+import { warmMealPhotos, todayMealPhotoPath, cachedMealPhoto, cachedMealThumb, photoMissing } from '../photo-store.js';
+import { launchCache, keepLaunch, launchOwner, onLaunchDrop } from '../launch-cache.js';
 import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
 import { deriveCommitment, presenceOf, PRESENCE, tomorrowRollcall, wakeupPhase } from '../commitments.js';
 import { VC, loadMine, loadMineAhead, ackCommitment, todayISO as vcToday } from '../commitment-data.js';
@@ -150,7 +150,15 @@ function unreadReplies() {
    after arrival grows in, so what is below it slides down instead of jumping. */
 const SHOWN = {};
 function settleRow(el, slot, key, arriving) {
-  if (!arriving) { if (SHOWN[slot] === key) el.style.animation = 'none'; else el.classList.add('grow'); }
+  if (!arriving) {
+    el.style.animation = 'none';   // never the seen-in entrance on a repaint
+    const box = el.parentElement;
+    if (SHOWN[slot] !== key && box) {
+      el.style.animation = '';
+      box.classList.add('rcpt-grow');
+      box.addEventListener('animationend', () => box.classList.remove('rcpt-grow'), { once: true });
+    }
+  }
   SHOWN[slot] = key;
 }
 function paintCoachReply(root, fetch = true, arriving = false) {
@@ -195,15 +203,19 @@ function paintCoachReply(root, fetch = true, arriving = false) {
   if (!fetch || fresh || REPLY.loading) return;
   REPLY.loading = true;
   const since = new Date(Date.now() - REPLY_DAYS * 864e5).toISOString();
-  fetchMyReplyInputs(RT.userId, since).then((inputs) => {
+  // Whose read this is, fixed now: an answer that lands after a sign-out or an account switch
+  // belongs to nobody on screen and is dropped whole (the same rule for every fetch on Home).
+  const uid = RT.userId;
+  fetchMyReplyInputs(uid, since).then((inputs) => {
+    if (RT.userId !== uid) return;
     REPLY.loading = false;
     if (inputs === null) return; // failed: last-known stands, never a cleared row
-    REPLY = { uid: RT.userId, at: Date.now(), inputs, loading: false };
+    REPLY = { uid, at: Date.now(), inputs, loading: false };
     // What the next cold launch draws first. The coach's words stay out of it: the row never shows them.
-    keepLaunch('reply', unreadReplies().map((u) => ({ ...u, latestText: '' })), RT.userId);
+    keepLaunch('reply', unreadReplies().map((u) => ({ ...u, latestText: '' })), uid);
     arriving = false;
     draw();
-  }).catch(() => { REPLY.loading = false; });
+  }).catch(() => { if (RT.userId === uid) REPLY.loading = false; });
 }
 /* Any way into an unread thread counts as opening it: the past-meal read (meal-view/<id>) and
    today's live slot (meal-detail/<slot>) both stamp the view, so a reply read from the bell, a
@@ -492,8 +504,11 @@ function resCard(a) {
   /* The photo over its thumbnail (photo-thumb.js): the thumbnail paints on the first frame of a
      cold launch, and the photo covers it the moment it has downloaded. Either alone is fine. */
   const layers = [a.img, a.thumb].map(safeImg).filter(Boolean).map((u) => `url('${u}')`).join(',');
+  // A photo that exists but has not arrived: the card's own surface at full size, never the
+  // no-photo glyph, so the picture replaces nothing but an empty frame when it lands.
   const media = layers
     ? `<div class="res-media"${carries} style="background-image:${layers}"></div>`
+    : a.pending ? `<div class="res-media wait"${carries}></div>`
     : `<div class="res-media icon"${carries} style="background:linear-gradient(150deg, ${c1}, ${c2});color:${fg}">${icon(a.icon || 'droplet', 30)}${a.noPhoto ? '<span class="res-nophoto">No photo submitted</span>' : ''}</div>`;
   const metrics = a.qualityLabel
     ? `<div class="res-m"><span class="k">Quality</span><span class="v ${a.vClass}">${a.value}<small>${a.unit}</small></span></div>
@@ -565,20 +580,29 @@ async function warmPastResults(uid) {
   // silently vanish for a full minute per dropped request. Keep this athlete's last-known
   // rows and leave the stamp cold so the very next mount retries.
   const fetched = await fetchRecentMeals(uid, daysAgoISO(PAST_DAYS));
+  if (RT.userId !== uid) return;   // signed out / switched while this was in flight
   if (fetched === null) {
     PAST = { uid, rows: PAST.uid === uid ? PAST.rows : null, at: 0 };
     return;
   }
   const rows = Array.isArray(fetched) ? fetched : [];
   const past = rows.filter((r) => r && r.day_date && String(r.day_date) < today);
+  const onHome = () => /^#?(home)?$/.test(location.hash) && window.__render;
+  const same = PAST.uid === uid && JSON.stringify(PAST.rows) === JSON.stringify(past);
+  // Nothing on screen yet (no launch cache): the rails go up NOW, each card at its full size on a
+  // neutral surface, and their photos fill in as they decode. Only rails already showing wait
+  // for the photos, so a card that has a picture is never swapped for an empty one.
+  const shown = PAST.uid === uid && Array.isArray(PAST.rows);
+  if (!shown) { PAST = { uid, rows: past, at: Date.now() }; if (onHome()) window.__render(); }
   // Photos through photo-store (one signing batch, decoded before the paint, kept for the next
   // launch) instead of one signing call per row painted the instant it returned.
   const fresh = await warmMealPhotos(past.map((r) => r.photo_path), true);
-  const same = PAST.uid === uid && JSON.stringify(PAST.rows) === JSON.stringify(past);
+  if (RT.userId !== uid) return;
   PAST = { uid, rows: past, at: Date.now() };
   keepLaunch('past', { date: today, rows: past }, uid);
   // Unchanged rows (the common case: they were painted from the launch cache) repaint nothing.
-  if ((!same || fresh) && /^#?(home)?$/.test(location.hash)) window.__render && window.__render();
+  if (shown && !same && onHome()) window.__render();
+  else if (fresh && onHome()) window.__render();
 }
 const tsClock = (ts) => {
   const d = new Date(ts);
@@ -633,7 +657,7 @@ const pastResults = () => {
         qualityLabel: r.quality != null,
         vClass: r.quality != null ? qualityAccent(r.quality) : 'muted',
         impact: 0,
-        img: cachedMealPhoto(r.photo_path), thumb: cachedMealThumb(r.photo_path),
+        img: cachedMealPhoto(r.photo_path), thumb: cachedMealThumb(r.photo_path), pending: !!r.photo_path && !photoMissing(r.photo_path),
         route: r.id ? `meal-view/${r.id}` : 'history',
       });
     }).join('');
@@ -955,10 +979,12 @@ function paintSeen(root, fetch, arriving) {
   };
   if (SEEN.rows) injectReceipt(SEEN.rows);
   if (!fetch || Date.now() - SEEN.at < 60000) return;
-  fetchMyDayReceipts(RT.userId, seenDay).then((rows) => {
+  const uid = RT.userId;   // whose read this is; a late answer for anyone else is dropped
+  fetchMyDayReceipts(uid, seenDay).then((rows) => {
+    if (RT.userId !== uid) return;
     // Only a real answer (rows, or a confirmed no-receipts []) is cached fresh; a FAILED read
     // (null) leaves the cache cold so the next mount retries.
-    if (rows) { SEEN = { uid: RT.userId, date: seenDay, rows, at: Date.now() }; keepLaunch('seen', { date: seenDay, rows }, RT.userId); }
+    if (rows) { SEEN = { uid, date: seenDay, rows, at: Date.now() }; keepLaunch('seen', { date: seenDay, rows }, uid); }
     arriving = false;
     injectReceipt(rows);
   }).catch(() => { /* best-effort — the card simply doesn't render */ });
@@ -1171,6 +1197,21 @@ function fairnessNote(activationMin) {
     <div class="ts">Anything scheduled before now won't count against you today. Your first full score starts fresh tomorrow.</div></div>
   </div>`;
 }
+
+// Signed out: the in-memory receipts and rails go with the launch cache (account wipe).
+onLaunchDrop(() => {
+  PAST = { uid: null, rows: null, at: 0 };
+  SEEN = { uid: null, date: null, rows: null, at: 0 };
+  REPLY = { uid: null, at: 0, inputs: null, loading: false };
+  for (const k of Object.keys(SHOWN)) delete SHOWN[k];
+});
+
+/** Test seam (src/core/protoLaunchRace.test.ts): the three fetches that write the launch cache
+ *  and the module state they write, so a sign-out or account switch mid-flight can be proven. */
+export const homeFetchesForTest = {
+  warmPastResults, paintSeen, paintCoachReply,
+  state: () => ({ PAST, SEEN, REPLY }),
+};
 
 export default {
   tab: 'home',
