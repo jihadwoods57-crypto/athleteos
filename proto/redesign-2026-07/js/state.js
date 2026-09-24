@@ -14,8 +14,8 @@ import { tierFor, ON_STANDARD, qualityAccent, MEAL_QUALITY_GOOD } from './score-
 import { progressRead } from './progress-week.js';
 import { initialsOf } from './initials.js';
 import {
-  DAY, computeComponents as realComponents, projectedDay, scoreFor, dayFromHistoryRow,
-  streakDays as dayStreak, streakInfo, loadDay, reloadPassState, pushDay, uploadMealPhoto, flushDayPush,
+  DAY, computeComponents as realComponents, projectedDay, scoreFor, clampedScore, dayFromHistoryRow,
+  streakDays as dayStreak, streakInfo, loadDay, healStoredScore, reloadPassState, pushDay, uploadMealPhoto, flushDayPush,
   setSyncBlocked, isSyncBlocked, SYNC, setDayTaskProvider,
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayLogWeight, dayResetLocal, dayCheckTask,
   dayUnlogMeal, dayMoveMeal,
@@ -251,15 +251,21 @@ const WEIGHT_DUE = CATALOG.find((r) => r.id === 'weight').window.due;
    proto's displayed number was stale. */
 export function computeScore(c) {
   const w = liveWeights();
+  // Same terms, same ORDER as day.js scoreFor, so the float sum rounds identically.
   return Math.round(
     w.nutrition * c.nutrition +
     w.recovery  * c.recovery +
     w.commitment* c.commitment +
     w.checkin   * c.checkin +
     (w.wakeup || 0) * (c.wakeup || 0) +
+    (w.sleep || 0) * (c.sleep || 0) +
     (w.arrival || 0) * (c.arrival || 0)
   );
 }
+
+/* Which score inputs THIS session has actually read from the server (healStoredScore gate).
+   Last-known values are right to SHOW while offline, and wrong to WRITE over the coach's copy. */
+const SCORE_INPUTS = { profile: false, std: false };
 
 /* Score tiers — re-exported from score-band.js, which owns the thresholds. This used to be a
    fourth hand-written copy of the ladder with a 75 floor for "Locked In", five points below the
@@ -495,12 +501,12 @@ function friendlyAuth(msg) {
 }
 
 /* ---------------- Derived (live) — REAL, from the persisted DAY (parity-proven engine) ---------------- */
-// recovery is reported as its scoring CONTRIBUTION (0 unless a real check-in backs it), so
-// computeScore(componentsNow()) === the engine's athleteScore. See day.js + scoreParity.test.ts.
-function componentsNow() {
-  const c = realComponents(DAY);
-  return { nutrition: c.nutrition, recovery: c.recoveryContribution, commitment: c.commitment, checkin: c.checkin };
-}
+// recovery is its scoring CONTRIBUTION (0 unless a real check-in backs it) and the morning,
+// sleep and arrival slots ride along, so computeScore(comps(d)) === scoreFor(d). They used to be
+// dropped while the weights still gave them their share: a late wake-up showed the athlete 53
+// while the day row (and the coach) held 57 (2026-09-24, coach-score-truth.test.mjs).
+function comps(d) { const c = realComponents(d); return { ...c, recovery: c.recoveryContribution }; }
+function componentsNow() { return comps(DAY); }
 /* Honest per-meal Daily Score attribution: today's score minus the score of the same day
    WITHOUT this meal. Never fabricated — it's the same pure component math the score getter
    uses, run twice. A late meal shows its real half-credit; a duplicate-flagged slot shows 0. */
@@ -514,11 +520,7 @@ function mealImpact(k) {
   };
   delete stripped.mealLoggedAt[k];
   delete stripped.slotMacros[k];
-  const w = realComponents(DAY);
-  const wo = realComponents(stripped);
-  const withScore = computeScore({ nutrition: w.nutrition, recovery: w.recoveryContribution, commitment: w.commitment, checkin: w.checkin });
-  const withoutScore = computeScore({ nutrition: wo.nutrition, recovery: wo.recoveryContribution, commitment: wo.commitment, checkin: wo.checkin });
-  return Math.max(0, withScore - withoutScore);
+  return Math.max(0, computeScore(comps(DAY)) - computeScore(comps(stripped)));
 }
 /* The ceiling the athlete can still reach today. Clock-aware on purpose: a meal whose window
    has already closed can only be logged LATE from here, so it projects at half nutrition credit
@@ -528,10 +530,7 @@ function mealImpact(k) {
    breakdown-model.js maxDay). The hero could read "max today 100" while the sheet the athlete
    opens from that very hero said 87 — and the score ring's ceiling arc was drawn from the
    optimistic number, so the "path back" it showed was partly unreachable. */
-function componentsDone() {
-  const c = realComponents(projectedDay(minutesNow()));
-  return { nutrition: c.nutrition, recovery: c.recoveryContribution, commitment: c.commitment, checkin: c.checkin };
-}
+function componentsDone() { return comps(projectedDay(minutesNow())); }
 
 /* Macros for the meal currently being logged. Until the AI loop (Phase 5) fills real macros,
    this uses the proto's analysis macros so a logged meal contributes real protein to the score. */
@@ -3193,6 +3192,7 @@ export const act = {
     if (role === 'coach') { await this._loadTeamIntoRt(RT.userId); await this._loadCoachHandleIntoRt(); }
     if (role === 'athlete') { await this._loadCoachIntoRt(RT.userId); await this._loadTrainerIntoRt(RT.userId); await this._loadConsentIntoRt(RT.userId); await this._loadAssignmentsIntoRt(); }
     await loadDay(RT.userId);
+    await this._afterDayLoad();
     syncRtFromDay();
     return { ok: true, role };
   },
@@ -3236,16 +3236,19 @@ export const act = {
           catch { /* telemetry is never worth the hydrate */ }
         }
       }
-      let meta = null;
+      let meta = null, metaOk = false;
       try {
         const { data: pm, error: pmErr } = await sb.rpc('athlete_plan_meta', { athlete: userId });
-        if (!pmErr && Array.isArray(pm) && pm[0]) meta = pm[0];
-        else if (pmErr) {
+        if (!pmErr) { metaOk = true; if (Array.isArray(pm) && pm[0]) meta = pm[0]; }
+        else {
           // Pre-0103: the RPC doesn't exist yet but the columns are still directly readable.
-          const { data: legacy } = await sb.from('athlete_profiles').select('base_weight,targets').eq('athlete_id', userId).maybeSingle();
+          const { data: legacy, error: lErr } = await sb.from('athlete_profiles').select('base_weight,targets').eq('athlete_id', userId).maybeSingle();
+          if (!lErr) metaOk = true;
           if (legacy) meta = legacy;
         }
       } catch { /* offline — cached values survive untouched below */ }
+      // The goal and targets the score is graded on arrived (healStoredScore's precondition).
+      SCORE_INPUTS.profile = !apErr && metaOk;
       const patch = {};
       if (prof && prof.full_name) patch.name = prof.full_name;
       // Cross-device activation backstop: the server's committed_at is the first-day anchor when
@@ -3644,19 +3647,21 @@ export const act = {
      table not yet applied / offline, the fetch returns [] and we keep what we have. */
   async _loadAssignmentsIntoRt() {
     if (!RT.userId) return;
+    SCORE_INPUTS.std = false;
+    let stdOk = true;
     const rows = await fetchMyAssignments();
-    // null = the fetch FAILED. Splicing it in would wipe every real coach assignment out of
-    // local state and render the athlete's plan as if the coach never assigned anything.
-    // Keep last-known; the standard still resolves from whatever reqSets we already hold.
-    if (rows === null) { this._applyStandardFromSets(); return; }
-    // Even with no coach assignments, a solo athlete still needs their standard resolved (their
-    // personal meal count governs the scored day) — apply it before the early return.
-    if (!rows.length && !RT.assigned.some(a => a.real)) { this._applyStandardFromSets(); return; }
-    const coachName = (RT.myCoach && RT.myCoach.name) || 'Coach';
-    const prevSeen = new Set(RT.assigned.filter(a => a.seen).map(a => a.id));
-    const real = rows.map(r => assignedFromRow(r, coachName)).filter(Boolean)
-      .map(a => ({ ...a, seen: prevSeen.has(a.id) || a.done }));
-    RT.assigned = [...RT.assigned.filter(a => !a.real), ...real];
+    // null = the fetch FAILED: keep last-known (splicing it in would wipe every real coach
+    // assignment). No assignments: nothing to merge. EITHER WAY the standard below still loads.
+    // Both used to `return` here, so a team athlete with no one-off assignment in 7 days never
+    // fetched the team's standard and was scored on the classic 4-meal day while the coach
+    // judged their 3-meal standard (prod, 2026-09-24).
+    if (rows && (rows.length || RT.assigned.some(a => a.real))) {
+      const coachName = (RT.myCoach && RT.myCoach.name) || 'Coach';
+      const prevSeen = new Set(RT.assigned.filter(a => a.seen).map(a => a.id));
+      const real = rows.map(r => assignedFromRow(r, coachName)).filter(Boolean)
+        .map(a => ({ ...a, seen: prevSeen.has(a.id) || a.done }));
+      RT.assigned = [...RT.assigned.filter(a => !a.real), ...real];
+    }
     // The standing requirement sets that govern this athlete's scored day (WS3 slice 2). A
     // TEAM link also resolves the weekly pattern and the athlete's room; a PRACTICE link (0136)
     // has neither by design — rooms and week patterns are team concepts — so a trainer's client
@@ -3668,29 +3673,40 @@ export const act = {
       // Bounded read (0203): the RPC returns only the rows resolution can actually pick from;
       // it falls back to the full fetch on a pre-0203 server.
       const sets = await fetchRelevantRequirementSets(RT.myCoach.teamId, 'team');
-      if (sets !== null) RT.reqSets = sets;
+      if (sets !== null) RT.reqSets = sets; else stdOk = false;
       // The team's weekly pattern (0100) resolves this athlete's day-type. A real null (no
       // pattern configured) leaves day-type 'any', which is correct. { error:true } means the
       // read FAILED, and assigning that dropped rest-day gating for the session: the athlete
       // was then scored on training-day items on their rest day. Keep last-known instead.
       try {
         const wp = await fetchTeamWeekPattern(RT.myCoach.teamId);
-        if (!(wp && wp.error)) RT.weekPattern = wp;
-      } catch { /* best-effort */ }
+        if (!(wp && wp.error)) RT.weekPattern = wp; else stdOk = false;
+      } catch { stdOk = false; }
       // The athlete's assigned room label (0101): when set, their standard resolves against the ROOM
       // instead of their raw position. null (unassigned — every athlete until a coach assigns) = the
       // exact prior behavior; { error:true } = FAILED, which must not silently demote them to
       // position-based resolution (a different standard, scored the same day).
       try {
         const rl = await fetchMyRoomLabel(RT.myCoach.teamId);
-        if (!(rl && rl.error)) RT.myRoomLabel = rl;
-      } catch { /* best-effort */ }
+        if (!(rl && rl.error)) RT.myRoomLabel = rl; else stdOk = false;
+      } catch { stdOk = false; }
     } else if (RT.myTrainer && RT.myTrainer.practiceId) {
       const sets = await fetchRelevantRequirementSets(RT.myTrainer.practiceId, 'practice');
-      if (sets !== null) RT.reqSets = sets;
+      if (sets !== null) RT.reqSets = sets; else stdOk = false;
     }
+    SCORE_INPUTS.std = stdOk;
     this._applyStandardFromSets();
     save();
+  },
+  /* After loadDay: the standard, day type and style re-resolve for the date the day ACTUALLY
+     loaded (after midnight they were resolved for yesterday's), then the stored score is healed
+     only when every input behind it is known to be loaded (coach score truth). */
+  async _afterDayLoad() {
+    if (!RT.userId || (RT.authRole && RT.authRole !== 'athlete')) return;
+    this._applyStandardFromSets();
+    if (SCORE_INPUTS.std && SCORE_INPUTS.profile && RT.profile) {
+      try { await healStoredScore(RT.userId); } catch { /* best-effort */ }
+    }
   },
   /* Resolve the governing set (athlete > position room > team) into the DAY engine: slot
      list, deadlines, titles, and the nutrition denominator. No set → the classic day. */
@@ -4415,7 +4431,7 @@ export const act = {
         await this._loadAssignmentsIntoRt();
       }
     }
-    await loadDay(RT.userId); syncRtFromDay(); this.syncNotifications();
+    await loadDay(RT.userId); await this._afterDayLoad(); syncRtFromDay(); this.syncNotifications();
     void this.catchUpAiAdditions();
   },
   // User-driven recovery from the Plan offline card (data-act="retryProfile") — re-attempts the
@@ -4697,7 +4713,8 @@ export const S = {
   },
 
   get components() { return { now: componentsNow(), done: componentsDone() }; },
-  get score() { return memo('score', () => computeScore(componentsNow())); },
+  // THE number pushDay writes to days.score (the coach's copy), by the same function.
+  get score() { return memo('score', () => clampedScore(DAY)); },
   /* ONE ceiling engine. This was `computeScore(componentsDone())` — a projection that marks every
      remaining meal logged but never gives it protein, so with protein ~65% of nutrition it could
      answer "up to 63" while the breakdown's reach plan (which spreads the remaining protein

@@ -4,12 +4,12 @@ import { initialsOf } from '../initials.js';
 import { hydrateAvatars } from '../avatar.js';
 import { avatarHead, esc, safeImg, collapseSection, skeletonRows, errorState, emptyState, emailVerifyBanner, wireEmailVerifyBanner, copyText, scoreRing } from '../components.js';
 import * as roles from '../roles.js';
-import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention, passWorthy, bookId, seenMealSet } from '../coach-data.js';
+import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention, bookId, seenMealSet } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
 import { nudgePreset, nudgeResultCopy } from '../nudge-presets.js';
 import { PLANS } from '../ob2.js';
-import { teamPulse, statusLabel } from '../status.js';
-import { teamCounts, COUNT_BUCKETS, bucketLabel } from '../team-count.js';
+import { statusLabel } from '../status.js';
+import { teamCounts, COUNT_BUCKETS, bucketLabel, groupPulse, shownScore, passWorthy } from '../team-count.js';
 import { scoreColor } from '../score-band.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
 import { paintBoard } from './coach-commitments.js';
@@ -399,15 +399,14 @@ function scopeSheet() {
 
 /* THE GROUP RING (founder 2026-09-15: the coach's home should look closer to the athlete's,
    "the ring score on the coach's home page but instead that be the group score"). The same hero
-   the athlete sees, the same ring at the same size, fed the group average: teamPulse().avg, the
-   mean of today's real scores across the scope, exactly the number the flat numeral showed. The
+   the athlete sees, the same ring at the same size, fed the group average: groupPulse().avg, the
+   mean of the scores each athlete's own Home shows right now (team-count.js shownScore). The
    standing bar keeps its job under the ring, where the athlete's formula bar sits, and the
    legend reads it out. Nothing is estimated; a person with no log adds no score, and a scope with
    no scores yet shows the ring not started rather than a zero. */
 function pulseCard(entries) {
   const rows = entries.map(e => e.row);
-  const statuses = {}; for (const e of entries) statuses[e.row.athleteId] = e.status;
-  const p = teamPulse(rows, statuses, roles.todayISO());
+  const p = groupPulse(entries);
   if (p.avg == null && !rows.length) return '';
   // THE team count (status.js teamCounts): the Inbox briefing, Insights and the Roster chips read
   // the same function, so the numbers on the four screens cannot disagree (review pass C-M3).
@@ -417,20 +416,27 @@ function pulseCard(entries) {
      and the answer is WHO, which lives on the roster. A tap opens the roster already filtered to
      exactly the statuses this count added up, so the number and the list can never disagree. */
   const leg = (b) => c[b.key] ? `<button type="button" class="it co-leg-go" data-roster-status="${b.statuses.join(',')}" data-roster-label="${esc(cap(b.label))}" aria-label="${c[b.key]} ${bucketLabel(b, c[b.key])}. Open the roster filtered to them"><span class="dot ${b.cls}"></span><b>${c[b.key]}</b> ${bucketLabel(b, c[b.key])}</button>` : '';
-  const delta = p.deltaVsYesterday;
-  const dCls = delta == null ? 'muted' : delta > 0 ? 'g' : delta < 0 ? 'r' : 'muted';
-  const dTxt = delta == null ? 'First day of data' : delta === 0 ? 'Even with yesterday'
-    : `${delta > 0 ? '▲' : '▼'} ${Math.abs(delta)} vs yesterday`;
+  /* Like for like (2026-09-24): the delta exists only once today is settled for everyone counted
+     (groupPulse). Before that the pill names yesterday's final for what it is, never a drop. */
+  const delta = p.delta;
+  // Down is amber, as on the athlete's Home (xh-delta down): a lower day is not a missed one.
+  const dCls = delta == null ? 'muted' : delta > 0 ? 'g' : delta < 0 ? 'a' : 'muted';
+  const dTxt = delta != null
+    ? (delta === 0 ? 'Even with yesterday' : `${delta > 0 ? '▲' : '▼'} ${Math.abs(delta)} vs yesterday`)
+    : p.yesterday != null ? `Yesterday ended at ${p.yesterday}` : '';
   const scored = c.scored;
   const have = p.avg != null;
   const t = have ? tier(p.avg) : null;
+  // The athlete's own rule (home.js inProgressHero): a live day in the red band gets no verdict,
+  // just "In progress". "Off Standard" at lunch is the same unfairness as "down 28" at lunch.
+  const held = have && !p.settled && t.cls === 'r';
   const legendWords = COUNT_BUCKETS.filter(b => c[b.key]).map(b => `${c[b.key]} ${bucketLabel(b, c[b.key])}`).join(', ');
   /* Requirements are totalled from each athlete's STANDARD (required items due by now x rostered
      athletes, excused left out), never from the day rows that happen to exist. The old sum put
      "15 of 15 requirements in today" beside two overdue athletes (review pass C-M1). */
   const reqLine = c.reqDue ? `${c.reqDone} of ${c.reqDue} requirements due so far are in` : '';
   const aria = have
-    ? `Group score ${p.avg}, ${t.name}. ${legendWords}.${reqLine ? ` ${reqLine}.` : ''}`
+    ? `Group score ${p.avg}, ${held ? 'in progress' : t.name}. ${legendWords}.${reqLine ? ` ${reqLine}.` : ''}`
     : `Group score not started. ${rows.length} on the roster, none scored yet.`;
   return `
   <section class="xhero co-hero tappable" data-pulse role="button" aria-label="${esc(aria)}">
@@ -438,14 +444,14 @@ function pulseCard(entries) {
       ${scoreRing({
         score: have ? p.avg : 0,
         size: 280, stroke: 17,
-        tierName: have ? t.name : null,
-        tierCls: have ? t.cls : 'b',
+        tierName: have && !held ? t.name : null,
+        tierCls: have && !held ? t.cls : 'b',
         uid: 'group', notStarted: !have,
       })}
     </div>
     <div class="xh-under">
       <div class="xh-k">Group score</div>
-      <div class="xrow"><span class="status-pill ${dCls}">${esc(dTxt)}</span></div>
+      ${dTxt || held ? `<div class="xrow">${held ? '<span class="status-pill inprog">In progress</span>' : ''}${dTxt ? `<span class="status-pill ${dCls}">${esc(dTxt)}</span>` : ''}</div>` : ''}
       <div class="xh-line">${c.reqDue
         ? `<b>${c.reqDone}</b> of <b>${c.reqDue}</b> requirements due so far are in <span class="sep">·</span> <b>${scored}</b> of <b>${rows.length}</b> scored`
         : `<b>${scored}</b> of <b>${rows.length}</b> scored today`}</div>
@@ -778,7 +784,8 @@ export const coachHome = {
     const now = new Date();
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const nowMs = now.getTime();
-    const cards = entries ? buildPriorities({ nowMin, nowMs, entries, interventions: (CD.extras && CD.extras.interventions) || [] }) : [];
+    // Each card's number (and its rank) is the one the athlete's own Home shows (shownScore).
+    const cards = entries ? buildPriorities({ nowMin, nowMs, entries: entries.map((e) => ({ ...e, shown: shownScore(e, nowMs) })), interventions: (CD.extras && CD.extras.interventions) || [] }) : [];
     const pending = CD.roster.pending || [];
     const seen = seenMealSet(RT.coachSeenMealIds || []); // device list + every staff view (0229)
     const feed = CD.act && CD.act.rows ? CD.act.rows.filter(m => rows.some(r => r.athleteId === m.athlete_id)) : null;

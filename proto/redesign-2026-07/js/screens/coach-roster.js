@@ -9,7 +9,7 @@ import { avatarHead, esc, sparkline, errorState, skeletonRows } from '../compone
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, entriesFor, bookId } from '../coach-data.js';
 import { statusColor, statusLabel } from '../status.js';
-import { teamCounts } from '../team-count.js';
+import { teamCounts, shownScore } from '../team-count.js';
 import { styleLabel } from '../plan-style.js';
 import { initialsOf } from '../initials.js';
 import { hydrateAvatars } from '../avatar.js';
@@ -62,7 +62,7 @@ let BULK_BUSY = false;
 let GDEL = null;   // group id armed for delete (two-tap confirm), or null
 let BULK_NUDGE_ARM = null;   // the editable bulk-nudge body while previewing, or null
 
-const STATUS_ORDER = ['overdue', 'no_activity', 'needs_review', 'below_standard', 'due_soon', 'excused', 'on_standard'];
+const STATUS_ORDER = ['overdue', 'no_activity', 'needs_review', 'below_standard', 'due_soon', 'in_progress', 'excused', 'on_standard'];
 
 const NO_MATCH_HTML = `<div style="padding:18px;text-align:center;font-size:12px;font-weight:600;color:var(--text-3)">No one matches that filter.</div>`;
 
@@ -100,7 +100,7 @@ function applyView(entries) {
   if (FILTER.kind === 'status') list = list.filter(e => e.status.key === FILTER.value);
   if (FILTER.kind === 'statusSet') { const keys = new Set(String(FILTER.value).split(',')); list = list.filter(e => keys.has(e.status.key)); }
   const by = {
-    score: (a, b) => (b.row.score ?? -1) - (a.row.score ?? -1),
+    score: (a, b) => (shownScore(b) ?? -1) - (shownScore(a) ?? -1),
     status: (a, b) => STATUS_ORDER.indexOf(a.status.key) - STATUS_ORDER.indexOf(b.status.key),
     name: (a, b) => a.row.name.localeCompare(b.row.name),
     activity: (a, b) => String(b.row.lastMealAt || '').localeCompare(String(a.row.lastMealAt || '')),
@@ -116,7 +116,9 @@ function applyView(entries) {
 const REDUNDANT_STATUS = new Set(['on_standard', 'below_standard']);
 
 function rosterRow(e) {
-  const r = e.row, st = e.status;
+  // The score is the one THEIR Home shows right now (team-count.js shownScore), so a coach never
+  // reads a digit the athlete is not looking at. The status engine still reads the real row.
+  const r = { ...e.row, score: shownScore(e) }, st = e.status;
   const sel = SEL.has(r.athleteId);
   // One calm status signal: a colored dot on the left. The label reads in quiet text-2,
   // not saturated body text — a roster full of red type reads as panic, not information.

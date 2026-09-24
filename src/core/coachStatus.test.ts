@@ -1,6 +1,8 @@
 // Coach OS statuses — deterministic, precedence-ordered (spec §Roster statuses).
 // @ts-ignore
-import { athleteStatus, teamPulse, STATUS_META } from '../../proto/redesign-2026-07/js/status.js';
+import { athleteStatus, STATUS_META } from '../../proto/redesign-2026-07/js/status.js';
+// @ts-ignore
+import { groupPulse } from '../../proto/redesign-2026-07/js/team-count.js';
 
 const req = (id: string, open: number, due: number) => ({ id, title: id, required: true, proof: 'photo', window: { open, due } });
 const REQS = [req('breakfast', 420, 570), req('lunch', 720, 840), req('dinner', 1080, 1230)];
@@ -26,9 +28,16 @@ test('due soon: within 60 min of an open required item', () => {
   const s = athleteStatus({ nowMin: 800, row: row({ loggedToday: true, score: 85, tasks: [{ id: 'breakfast', done: true }, { id: 'lunch', done: false }] }), reqs: REQS, excused: false });
   expect(s.key).toBe('due_soon');
 });
-test('below standard: everything logged on time but score < 80', () => {
+test('under 80 with windows still open: in progress, no verdict and no number (the athlete rule)', () => {
   const s = athleteStatus({ nowMin: 700, row: row({ loggedToday: true, score: 55, tasks: [{ id: 'breakfast', done: true }] }), reqs: REQS, excused: false });
+  expect(s.key).toBe('in_progress');
+  expect(s.detail).not.toMatch(/\d/);
+});
+test('below standard: every window settled, score < 80', () => {
+  const all = [{ id: 'breakfast', done: true }, { id: 'lunch', done: true }, { id: 'dinner', done: true }];
+  const s = athleteStatus({ nowMin: 1300, row: row({ loggedToday: true, score: 55, tasks: all }), reqs: REQS, excused: false });
   expect(s.key).toBe('below_standard');
+  expect(s.detail).toBe('Scored 55 today');
 });
 // Overdue outranks no_activity by design — nowMin 500 keeps every item merely 'ready'.
 test('no activity: nothing today and no meal inside 24h', () => {
@@ -39,21 +48,23 @@ test('on standard', () => {
   const s = athleteStatus({ nowMin: 700, row: row({ loggedToday: true, score: 92, tasks: [{ id: 'breakfast', done: true }] }), reqs: REQS, excused: false });
   expect(s.key).toBe('on_standard');
 });
-test('teamPulse: counts + completion + delta from history', () => {
-  const rows = [
-    row({ athleteId: 'a1', score: 90, loggedToday: true, scoreHistory: [{ date: '2026-07-15', score: 80 }, { date: '2026-07-16', score: 90 }], tasks: [{ id: 'breakfast', done: true }] }),
-    row({ athleteId: 'a2', score: 50, loggedToday: true, scoreHistory: [{ date: '2026-07-15', score: 70 }, { date: '2026-07-16', score: 50 }], tasks: [{ id: 'breakfast', done: false }] }),
-  ];
-  const statuses = { a1: { key: 'on_standard' }, a2: { key: 'overdue' } };
-  const p = teamPulse(rows, statuses, '2026-07-16');
-  expect(p.avg).toBe(70);
-  expect(p.deltaVsYesterday).toBe(-5);   // (80+70)/2=75 yesterday → 70 today
-  expect(p.onStandard).toBe(1);
-  expect(p.overdue).toBe(1);
-  expect(p.completionPct).toBe(50);      // 1 of 2 tasks done
+test('groupPulse: average, and a delta only once today is settled', () => {
+  const e = (athleteId: string, score: number, yesterdayScore: number, meals: object, nowMin: number) => ({
+    row: row({ athleteId, score, yesterdayScore, loggedToday: true, meals }), status: { key: 'on_standard' }, reqs: REQS, nowMin,
+  });
+  const all = { breakfast: true, lunch: true, dinner: true };
+  // 9 PM: every window has closed, so today is finished and compares with yesterday.
+  const late = groupPulse([e('a1', 90, 80, all, 1260), e('a2', 50, 70, { breakfast: true, lunch: true }, 1260)]);
+  expect(late.avg).toBe(70);
+  expect(late.delta).toBe(-5);   // (80+70)/2=75 yesterday → 70 today
+  // 12:30 PM: dinner has not opened yet, so there is no delta, only yesterday's final.
+  const noon = groupPulse([e('a1', 57, 85, { breakfast: true, lunch: true }, 750)]);
+  expect(noon.avg).toBe(57);
+  expect(noon.delta).toBeNull();
+  expect(noon.yesterday).toBe(85);
 });
 test('every status key has display meta', () => {
-  for (const k of ['excused', 'overdue', 'needs_review', 'below_standard', 'due_soon', 'no_activity', 'on_standard']) {
+  for (const k of ['excused', 'overdue', 'needs_review', 'below_standard', 'due_soon', 'no_activity', 'in_progress', 'on_standard']) {
     expect(STATUS_META[k].label).toBeTruthy();
   }
 });

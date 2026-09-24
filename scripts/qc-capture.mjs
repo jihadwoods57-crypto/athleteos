@@ -40,6 +40,15 @@ const rcSeed = (startedMinAgo) => `const cd = await import('./js/commitment-data
     status: 'pending', verdict: 'pending', acknowledged_at: null, instance_status: 'scheduled' };
   cd.seedMineForHarness([row], day);`;
 const TODAY = '2026-07-23';
+/* The same roster at two earlier points of its day (coach score truth, 2026-09-24): before anyone
+   has logged (no day row today, so the group ring is not started and yesterday is labelled as
+   yesterday), and at lunch (breakfast + lunch in, dinner still open, so no "vs yesterday" yet). */
+const ROSTER_MORNING = ROSTER_ATHLETES.map((a) => ({ ...a, loggedToday: false, score: null, mealsToday: 0, tasks: [] }));
+const MIDDAY = { 'ath-1': 63, 'ath-2': 58, 'ath-3': 57, 'ath-4': 55, 'ath-5': 31 };
+const ROSTER_MIDDAY = ROSTER_ATHLETES.map((a) => (MIDDAY[a.id] == null ? a : {
+  ...a, score: MIDDAY[a.id], mealsToday: Math.min(2, a.mealsToday || 0),
+  tasks: (a.tasks || []).filter((t) => t.id === 'breakfast' || t.id === 'lunch'),
+}));
 /** The composer's bottom bar (composer upgrade, 2026-09-23). `dictOn` stands in for the native
  *  speech module through dictation.js's harness seam, so the mic shows as it does on a phone that
  *  can dictate; `toEnd` rests the thread on its newest message, where the bar is flush with the
@@ -528,6 +537,11 @@ const SHOTS = [
 
   // coach
   { g: 'coach', name: 'coach-home', seed: 'coachIdentity', route: 'coach-home', at: [20, 10], book: 'team' },
+  // The group score across the day (coach score truth, 2026-09-24): no data yet, lunch, and a
+  // finished day, the only one of the three that may compare itself with yesterday.
+  { g: 'coach', name: 'coach-home-morning', seed: 'coachIdentity', route: 'coach-home', at: [7, 10], book: 'team', athletes: ROSTER_MORNING },
+  { g: 'coach', name: 'coach-home-midday', seed: 'coachIdentity', route: 'coach-home', at: [12, 30], book: 'team', athletes: ROSTER_MIDDAY },
+  { g: 'coach', name: 'coach-home-settled', seed: 'coachIdentity', route: 'coach-home', at: [23, 40], book: 'team' },
   { g: 'coach', name: 'coach-roster', seed: 'coachIdentity', route: 'coach-roster', at: [20, 10], book: 'team' },
   { g: 'coach', name: 'coach-inbox', seed: 'coachIdentity', route: 'coach-inbox', at: [20, 10], book: 'team' },
   // The coach half of the conversation. Was never captured, so every change to it - names,
@@ -905,7 +919,7 @@ try {
           if (s.board) await seedOnNewDocument(page, `window.__CS_BOARD = ${JSON.stringify(s.board)};`);
           await seedOnNewDocument(page, sbStubSource({
             todayISO: TODAY,
-            athletes: s.book === 'practice' ? BOOK_CLIENTS : ROSTER_ATHLETES,
+            athletes: s.athletes || (s.book === 'practice' ? BOOK_CLIENTS : ROSTER_ATHLETES),
             // Intuitive seeds get the thread prose a real Intuitive athlete's server writes —
             // no stored figures. Everyone else keeps the numbers voice they really see.
             voice: /Intuitive/.test(s.seed || '') ? 'signals' : 'numbers',

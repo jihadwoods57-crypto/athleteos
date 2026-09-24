@@ -870,7 +870,11 @@ function projectRowToDay(row) {
   if (DAY.ciSubmitted && !ck.submitted) {
     localAhead = true;
   } else {
-    DAY.ci = { energy: ck.energy ?? DAY.ci.energy, recovery: ck.recovery ?? DAY.ci.recovery, sleep: ck.sleep ?? DAY.ci.sleep, confidence: ck.confidence ?? DAY.ci.confidence, soreness: ck.soreness ?? DAY.ci.soreness, motivation: ck.motivation ?? DAY.ci.motivation };
+    // EVERY answer, server first. Listing six of the eight dropped a style's digestion/cravings
+    // answers on each open, which scored an Intuitive check-in 4 of 6 answered (coach score truth).
+    const ci = { ...DAY.ci };
+    for (const k of CI_KEYS) if (ck[k] != null) ci[k] = ck[k];
+    DAY.ci = ci;
   }
   DAY.ciSubmitted = !!(DAY.ciSubmitted || ck.submitted);
   DAY.ciLast = ck.ciLast && ck.ciLast.date ? ck.ciLast : (typeof ck.ciLast === 'string' ? { date: ck.ciLast, recovery: ck.recovery ?? 0 } : DAY.ciLast);
@@ -964,7 +968,25 @@ export async function reloadPassState(userId) {
   saveCache(userId);
 }
 
+/* The score the server row held when loadDay read it, for healStoredScore. */
+let STORED = null;
+
+/** days.score is the coach's copy of the number this device shows. When a standard, style or
+ *  formula change since it was written leaves it stale, write the current one back up: but ONLY
+ *  when the caller has proved every score input is loaded for this date (state.js
+ *  _scoreInputsReady). A write from half-loaded inputs would replace a right number with a wrong
+ *  one, and two devices would take turns doing it. Returns true when it wrote. */
+export async function healStoredScore(userId) {
+  if (!userId || !STORED || STORED.date !== String(DAY.date)) return false;
+  const now = clampedScore(DAY);
+  if (now === STORED.score) return false;
+  STORED = { date: STORED.date, score: now };
+  await pushDay(userId, true);
+  return true;
+}
+
 export async function loadDay(userId) {
+  STORED = null;
   // Reset to a fresh day FIRST — never merge the fetch onto a previous session's (or a
   // previous calendar day's) in-memory residue. Without this, a user with no server row
   // for today inherits whatever DAY held before (another account's meals/score on a shared
@@ -1013,6 +1035,7 @@ export async function loadDay(userId) {
     if (nearErr) throw nearErr;
     if (farErr) throw farErr;
     if (data && weights.has(String(data.date))) data.current_weight = weights.get(String(data.date));
+    STORED = data && typeof data.score === 'number' ? { date: String(data.date), score: data.score } : null;
     const localAhead = projectRowToDay(data) || (!data && hasLoggedAnything());
     // Far tail first, then near — both arrive date-ascending and the ranges don't overlap, so
     // the concat IS the ordered 60-day history every consumer has always read.
@@ -1207,7 +1230,12 @@ export function dayResetLocal() {
   DAY.meals = { breakfast: false, lunch: false, snack: false, dinner: false };
   seedStandardSlots(); // a governing standard's extra slots (meal-5/meal-6) survive the reset
   DAY.mealLoggedAt = {}; DAY.slotMacros = {}; DAY.quickAdded = [false, false, false]; DAY.checkedTasks = {};
-  DAY.hydrationL = 0; DAY.dailyCommitment = null; DAY.commitmentFocus = null; DAY.ci = { ...DEFAULT_CI }; DAY.ciConfig = { ...DEFAULT_CICFG };
+  DAY.hydrationL = 0; DAY.dailyCommitment = null; DAY.commitmentFocus = null; DAY.ci = { ...DEFAULT_CI };
+  // The style's own check-in questions survive, exactly as the style does (state.js
+  // applyStyleCheckinConfig): the defaults silently un-asked an Intuitive athlete's two.
+  DAY.ciConfig = { ...DEFAULT_CICFG };
+  const sig = PKNOBS && PKNOBS.signals;
+  if (sig) for (const k of ['digestion', 'cravings']) DAY.ciConfig[k] = !!sig[k];
   DAY.ciSubmitted = false; DAY.ciLast = null; DAY.currentWeight = null; DAY.scoreHistory = []; DAY.passes = []; DAY.passSpends = [];
   DAY.wakeup = null;
   DAY.arrival = null;

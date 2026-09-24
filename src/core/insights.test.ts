@@ -232,9 +232,19 @@ test('weekVsMonth: averages the score windows correctly', () => {
     ...olderDays.map(day => rr('a1', day, { score: 60 })),
   ];
   const v = weekVsMonth({ rollup, todayISO: TODAY } as never);
+  // Finished days only (2026-09-24): today (07-16) is still in progress and sits out of both.
   expect(v.weekAvg).toBe(80);
-  expect(v.monthAvg).toBe(65); // (7*80 + 21*60) / 28 = 65
-  expect(v.text).toBe("This week's average score (80) is above the trailing 28-day average (65).");
+  expect(v.monthAvg).toBe(64); // (6*80 + 21*60) / 27 = 64.4
+  expect(v.text).toBe("This week's average score (80) is above the trailing 28-day average (64).");
+});
+
+test('weekVsMonth + athletesToWatch: a lunch-time score today never drags a trend down', () => {
+  const days = ['2026-07-12', '2026-07-13', '2026-07-14', '2026-07-15'];
+  const rollup = [...days.map(day => rr('a1', day, { score: 85 })), rr('a1', TODAY, { score: 40 })];
+  const v = weekVsMonth({ rollup, todayISO: TODAY } as never);
+  expect(v.weekAvg).toBe(85);
+  const w = athletesToWatch({ rollup, roster: [{ athleteId: 'a1', name: 'A' }], todayISO: TODAY } as never);
+  expect(w.decliners).toEqual([]);
 });
 
 test('weekVsMonth: no scored days -> silent (empty text, null averages)', () => {

@@ -3,7 +3,7 @@ import { icon } from '../icons.js';
 import { backHead, esc, errorState, skeletonRows, emptyState } from '../components.js';
 import * as roles from '../roles.js';
 import { CD, loadBook, bookKindFor, entriesFor, getScope, scopeFilter } from '../coach-data.js';
-import { teamCounts, COUNT_BUCKETS, bucketLabel } from '../team-count.js';
+import { teamCounts, COUNT_BUCKETS, bucketLabel, shownScore } from '../team-count.js';
 
 /* nav:'operator'. Load whichever book the signed-in role owns (see coach-home.js). */
 const loadMyBook = (force) => loadBook(force, bookKindFor(RT.authRole));
@@ -155,10 +155,12 @@ function weekSection() {
   const today = roles.todayISO();
   const reqsByAthlete = buildReqsByAthlete(scopedRoster, CD.extras);
   const brief = weeklyBrief({ rollup, roster: scopedRoster, todayISO: today, reqsByAthlete });
-  const watch = athletesToWatch({ rollup, roster: scopedRoster, todayISO: today });
+  // Each athlete's own today (roster-day.js): their unfinished day stays out of the trends.
+  const dayOf = {}; for (const r of scopedRoster) if (r.dayISO) dayOf[r.athleteId] = r.dayISO;
+  const watch = athletesToWatch({ rollup, roster: scopedRoster, todayISO: today, dayOf });
   const nowD = new Date();
   const missed = mostMissed({ rollup, reqsByAthlete, todayISO: today, nowMin: nowD.getHours() * 60 + nowD.getMinutes() }).slice(0, 3);
-  const vsMonth = weekVsMonth({ rollup, todayISO: today });
+  const vsMonth = weekVsMonth({ rollup, todayISO: today, dayOf });
   const scopedOutcomes = (data.outcomes || []).filter(o => o && scopedIds.has(o.athlete_id));
   const outcomes = interventionOutcomes({ outcomes: scopedOutcomes, roster: scopedRoster, todayISO: today });
 
@@ -253,8 +255,10 @@ export const coachInsights = {
     if (c.byStatus.below_standard) lines.push(`${c.byStatus.below_standard} below standard today.`);
     if (c.byStatus.due_soon) lines.push(`${c.byStatus.due_soon} due soon: a window closes within the hour.`);
     if (c.byStatus.needs_review) lines.push(`${c.byStatus.needs_review} need${c.byStatus.needs_review === 1 ? 's' : ''} review: a log is in, waiting on a score or your review.`);
-    const top = entries.filter(e => e.row.score != null).sort((x, y) => y.row.score - x.row.score)[0];
-    if (top) lines.push(`${top.row.name} leads the day at ${top.row.score}.`);
+    if (c.inProgress) lines.push(`${c.inProgress} in progress: under the bar with windows still open.`);
+    // The number each athlete's own Home shows (shownScore), never the raw stored one.
+    const top = entries.map(e => ({ name: e.row.name, score: shownScore(e) })).filter(x => x.score != null).sort((x, y) => y.score - x.score)[0];
+    if (top) lines.push(`${top.name} leads the day at ${top.score}.`);
     if (!lines.length) {
       const logged = entries.filter(e => e.row.loggedToday).length;
       lines.push(!entries.length ? `No ${CD.kind === 'practice' ? 'clients' : 'athletes'} on the roster yet.`

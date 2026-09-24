@@ -16,7 +16,7 @@ const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http:
 (globalThis as any).localStorage = dom.window.localStorage;
 
 /* eslint-disable @typescript-eslint/no-var-requires */
-const { DAY, loadDay, dayResetLocal } = require('../../proto/redesign-2026-07/js/day.js');
+const { DAY, loadDay, dayResetLocal, healStoredScore, clampedScore, setDayPlanStyle } = require('../../proto/redesign-2026-07/js/day.js');
 
 /** Supabase stub: serves `dayRow` for the today-select, [] for history, null for trust
  *  passes, and RECORDS every upsert (the healing push). */
@@ -98,6 +98,80 @@ test('a server row that is AHEAD fills local without a needless push', async () 
   expect(DAY.ciSubmitted).toBe(true);
   expect(DAY.ci.energy).toBe(7);
   expect(upserts).toHaveLength(0); // nothing local to heal — no write amplification
+});
+
+/* Coach score truth (2026-09-24): days.score is the coach's copy of the athlete's number.
+   loadDay itself never rewrites it; healStoredScore does, and state.js calls it only once every
+   score input is known to be loaded (_afterDayLoad). */
+const AHEAD_ROW = {
+  athlete_id: UID, meals: { breakfast: true, lunch: false, snack: false, dinner: true },
+  hydration_l: 2, quick_added: [false, false, false], current_weight: null,
+  checkin: { submitted: true, energy: 7, recovery: 6, sleep: 8, confidence: 9, soreness: 4, motivation: 8 },
+};
+test('loadDay alone never rewrites a stored score', async () => {
+  seedCache({});
+  const { sb, upserts } = makeSb({ ...AHEAD_ROW, date: todayISO(), score: 57 });
+  (dom.window as any).sb = sb;
+  await loadDay(UID);
+  expect(upserts).toHaveLength(0);
+});
+test('healStoredScore writes a stale stored score, once', async () => {
+  seedCache({});
+  const { sb, upserts } = makeSb({ ...AHEAD_ROW, date: todayISO(), score: 57 });
+  (dom.window as any).sb = sb;
+  await loadDay(UID);
+  expect(await healStoredScore(UID)).toBe(true);
+  expect(upserts).toHaveLength(1);
+  expect(upserts[0].score).toBe(clampedScore(DAY));
+  expect(upserts[0].score).not.toBe(57);
+  expect(await healStoredScore(UID)).toBe(false); // healed: a second call is quiet
+});
+test('healStoredScore leaves a matching score alone (no write amplification)', async () => {
+  seedCache({});
+  const probe = makeSb({ ...AHEAD_ROW, date: todayISO(), score: 57 });
+  (dom.window as any).sb = probe.sb;
+  await loadDay(UID);
+  const truth = clampedScore(DAY);
+  seedCache({});
+  const { sb, upserts } = makeSb({ ...AHEAD_ROW, date: todayISO(), score: truth });
+  (dom.window as any).sb = sb;
+  await loadDay(UID);
+  expect(await healStoredScore(UID)).toBe(false);
+  expect(upserts).toHaveLength(0);
+});
+
+/* Review C1: an Intuitive check-in asks digestion + cravings. The merge used to rebuild DAY.ci from
+   six named keys and the reset put ciConfig back to the defaults, so every reopen scored the
+   check-in 4 of 6 answered and wrote the lower number (67 -> 64), and two devices alternated. */
+test('reopening after an Intuitive check-in keeps every answer and writes nothing', async () => {
+  setDayPlanStyle('intuitive');
+  const answers = { submitted: true, energy: 7, recovery: 6, sleep: 8, confidence: 9, soreness: 4, motivation: 8, digestion: 6, cravings: 3 };
+  seedCache({ ciSubmitted: true, ci: answers });
+  const row = { ...AHEAD_ROW, date: todayISO(), checkin: answers };
+  const probe = makeSb({ ...row, score: 0 });
+  (dom.window as any).sb = probe.sb;
+  await loadDay(UID);
+  expect(DAY.ciConfig.digestion).toBe(true);
+  expect(DAY.ci.digestion).toBe(6);
+  expect(DAY.ci.cravings).toBe(3);
+  const truth = clampedScore(DAY);
+  for (let open = 0; open < 3; open++) {
+    seedCache({ ciSubmitted: true, ci: answers });
+    const { sb, upserts } = makeSb({ ...row, score: truth });
+    (dom.window as any).sb = sb;
+    await loadDay(UID);
+    expect(clampedScore(DAY)).toBe(truth);
+    expect(await healStoredScore(UID)).toBe(false);
+    expect(upserts).toHaveLength(0);
+  }
+  // A cold device (no cache) reads the same answers off the row and scores the same.
+  dom.window.localStorage.clear();
+  const cold = makeSb({ ...row, score: truth });
+  (dom.window as any).sb = cold.sb;
+  await loadDay(UID);
+  expect(clampedScore(DAY)).toBe(truth);
+  expect(cold.upserts).toHaveLength(0);
+  setDayPlanStyle(null);
 });
 
 test('no server row + local progress → healing push creates the row', async () => {

@@ -32,7 +32,7 @@ import { overlayOpen } from '../overlay-guard.js';
 import { wireTapback } from '../tapback.js';
 import { CD, loadBook, bookKindFor, bookId as currentBookId, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock, logBookIntervention, resolvePos, seenMealSet } from '../coach-data.js';
 import { STATUS_META, statusColor, statusLabel } from '../status.js';
-import { teamCounts } from '../team-count.js';
+import { teamCounts, shownScore } from '../team-count.js';
 import { openRosterFiltered } from './coach-roster.js';
 import { everyone, people, audienceIds, audienceLabel, planSends, namesSummary, audienceHtml, wireAudience } from '../audience.js';
 import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin, planStyleFromItems } from '../requirements.js';
@@ -1876,11 +1876,14 @@ export const coachInbox = {
           const list = entries.filter(e => e.status.key === key).map(e => e.row.name.split(' ')[0]);
           return `${esc(list.slice(0, 3).join(', '))}${list.length > 3 ? '…' : ''}`;
         };
-        const top = rows.filter(r => r.score != null && r.score >= ON_STANDARD).sort((a, b) => b.score - a.score)[0];
+        // The number each athlete's own Home shows (shownScore), never the raw stored one.
+        const top = entries.map(e => ({ name: e.row.name, score: shownScore(e) }))
+          .filter(r => r.score != null && r.score >= ON_STANDARD).sort((a, b) => b.score - a.score)[0];
         const lines = [];
         const bline = (color, html) => `<div class="l"><span class="dot" style="background:${color}"></span><span>${html}</span></div>`;
         if (c.overdue) lines.push(bline(statusColor({ key: 'overdue' }), `<b>${c.overdue} overdue</b>. ${names('overdue')}.`));
         if (c.noActivity) lines.push(bline(statusColor({ key: 'no_activity' }), `<b>${c.noActivity} no activity</b> yet today. ${names('no_activity')}.`));
+        if (c.inProgress) lines.push(bline(statusColor({ key: 'in_progress' }), `<b>${c.inProgress} in progress</b>: under the bar with windows still open.`));
         if (c.attention) lines.push(bline(statusColor({ key: 'below_standard' }), `<b>${c.attention} ${c.attention === 1 ? 'needs' : 'need'} attention</b>: below standard, due soon or waiting on review.`));
         if (top) lines.push(bline(scoreColor(top.score), `<b>${esc(top.name)}</b> leads the day at ${top.score}.`));
         briefing = lines.join('') || `<div class="l"><span>Quiet so far. Logs land here as they come in.</span></div>`;
@@ -2386,7 +2389,11 @@ function overviewSection(P, athleteId) {
   // ONE score artifact. The ring is the most legible thing the athlete's own Home has, and it
   // was the one thing this page dropped — while printing the same number three times (stat
   // tile, "Finished day", trend endpoint). Now the ring carries it, once.
-  const score = P.day && P.day.score != null ? P.day.score : null;
+  // The number THEIR Home shows right now (team-count.js shownScore): no digit before their first
+  // requirement on a live red day, and never a row from a day that has ended for them.
+  const e0 = (entriesFor({ kind: 'athlete', value: athleteId }) || [])[0];
+  const score = P.day && P.day.score != null
+    ? (e0 ? shownScore({ ...e0, row: { ...e0.row, score: P.day.score } }) : P.day.score) : null;
   // Dot and words from the one status vocabulary (statusColor / statusLabel): one word per state;
   // the score keeps its tier colour on the number (DESIGN.md 2026-09-23).
   const stLabel = st ? statusLabel(st, score) : '';
@@ -2802,7 +2809,9 @@ export const coachAthlete = {
     </div>`;
     // An on-standard athlete has nothing to nudge — the always-available detail nudge used to be
     // the one path where "Time to get your log in." could land on someone who logged everything.
-    const onStd = !!(P.row && P.row.score != null && P.row.score >= ON_STANDARD);
+    const e1 = (entriesFor({ kind: 'athlete', value: athleteId }) || [])[0];
+    const shown1 = e1 ? shownScore(e1) : null;
+    const onStd = shown1 != null && shown1 >= ON_STANDARD;
     // One nudge a day, held across devices and staff: the server's intervention rows are the
     // record, RT.coachNudged is only this device's fast path. This page used to have no daily
     // guard at all — a coach could ping the same athlete every two minutes from here.
@@ -3011,7 +3020,9 @@ export const coachAthlete = {
     // without this guard the receipt call would re-fire on each of those instead of once.
     if (VIEWED_FOR !== athleteId) {
       VIEWED_FOR = athleteId;
-      try { roles.markDayViewed(athleteId, roles.todayISO(), RT.userId, S.operatorIdentity.handle); } catch { /* best-effort */ }
+      // THEIR day (the one the roster matched), so the receipt lands on the day they are living.
+      const vr = CD.roster && (CD.roster.rows || []).find((r) => r.athleteId === athleteId);
+      try { roles.markDayViewed(athleteId, (vr && vr.dayISO) || roles.todayISO(), RT.userId, S.operatorIdentity.handle); } catch { /* best-effort */ }
     }
     // The hero ring draws once per athlete+score (keyed like Home's) — scoreRing renders wound
     // back and stays empty unless something calls the reveal.

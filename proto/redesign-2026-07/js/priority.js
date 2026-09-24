@@ -63,7 +63,9 @@ function reasons(row, status, nowMs) {
 export function buildPriorities({ nowMin, nowMs = /** @type {number | null} */ (null), entries, interventions }) {
   const acted = new Set((interventions || []).filter(i => i.reason_key).map(i => `${i.athlete_id}|${i.reason_key}`));
   const cards = [];
-  for (const { row, status } of (entries || [])) {
+  for (const { row, status, shown } of (entries || [])) {
+    // `shown`: the score the athlete's own Home shows (team-count.js shownScore), when passed.
+    const score = shown !== undefined ? shown : row.score;
     const tier = tierOf(row, status, nowMs);
     if (!tier) continue;
     const key = reasonKey(status);
@@ -71,9 +73,9 @@ export function buildPriorities({ nowMin, nowMs = /** @type {number | null} */ (
     const overdueN = (status.openItems || []).filter(i => i.state === 'overdue').length;
     cards.push({
       athleteId: row.athleteId, name: row.name, unit: row.unit || '',
-      tier, statusKey: status.key, reasons: reasons(row, status, nowMs), detail: status.detail, score: row.score,
+      tier, statusKey: status.key, reasons: reasons(row, status, nowMs), detail: status.detail, score,
       suggestedAction: suggestion(tier, status), reasonKey: key,
-      _sort: TIER_RANK[tier] * 1000 - overdueN * 10 - (row.score != null ? (100 - row.score) / 100 : 0.5),
+      _sort: TIER_RANK[tier] * 1000 - overdueN * 10 - (score != null ? (100 - score) / 100 : 0.5),
     });
   }
   cards.sort((a, b) => a._sort - b._sort);

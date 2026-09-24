@@ -22,14 +22,9 @@ const clone = (day) => JSON.parse(JSON.stringify(day));
    shapes HOW nutrition is computed via knobsFor), so this reads identically for every style. */
 const weightsFor = (day) => weightsForDay(day);
 
-export function dayScoreOf(day) {
-  const c = computeComponents(day);
-  const w = weightsFor(day);
-  return Math.max(0, Math.min(100, Math.round(
-    w.nutrition * c.nutrition + w.recovery * c.recoveryContribution + w.commitment * c.commitment + w.checkin * c.checkin
-    + (w.wakeup || 0) * (c.wakeup || 0),
-  )));
-}
+/* THE engine's own sum. A hand copy here dropped arrival and sleep, so on a day that carried them
+   the parts and "Max today" disagreed with the ring. */
+export function dayScoreOf(day) { return scoreFor(day); }
 
 /* ---------------- hypothetical days ---------------- */
 
@@ -304,7 +299,21 @@ export function explainCategories(day, { slots, denom, titles = {}, optional = [
        recovery fallback already answers to. c.wakeupAssigned is the same gate weightsForDay uses
        to pick the mix, so the card exists exactly when the points do. */
     ...(c.wakeupAssigned ? [wakeupCategory(day, w, c)] : []),
+    // Arrival and the Recovery Standard, by the same gate: a card exactly when the points exist.
+    ...(c.arrivalAssigned ? [nightCard('arrival', 'Arrival', 'Checked in on arrival', w.arrival, c.arrival)] : []),
+    ...(c.sleepAssigned ? [nightCard('sleep', 'Sleep', `Slept ${day.sleepHours} h`, w.sleep, c.sleep)] : []),
   ];
+}
+
+/** Arrival / sleep: settled by the server verdict or the night's reading; nothing re-earns it. */
+function nightCard(id, key, label, wt, sub) {
+  const possible = Math.round(wt * 100), earned = Math.round(wt * sub);
+  return {
+    id, key, accent: 'b', weightPct: possible, earned, possible, note: '',
+    remaining: 0, remainingKind: 'guaranteed', remainingNote: 'Settled for today.',
+    rows: [{ label, sub: '', value: `${earned} of ${possible} pts`, state: earned > 0 ? 'done' : 'open' }],
+    action: null,
+  };
 }
 
 /** The Morning card. Split out because it is the one category that is conditional. */

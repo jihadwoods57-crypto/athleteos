@@ -175,7 +175,11 @@ function linearSlope(points) {
   return (n * sumXY - sumX * sumY) / denom;
 }
 
-export function athletesToWatch({ rollup = [], roster = [], todayISO }) {
+/** `dayOf` (optional): athleteId -> that athlete's own today (roster-day.js). A day is finished
+ *  when it is before THEIR today; the coach's date is the fallback. */
+const finishedDay = (r, todayISO, dayOf) => r.day < ((dayOf && dayOf[r.athlete_id]) || todayISO);
+
+export function athletesToWatch({ rollup = [], roster = [], todayISO, dayOf = null }) {
   const { thisFrom, thisTo } = weekWindows(todayISO);
   const nameOf = (id) => { const r = roster.find(x => x && x.athleteId === id); return (r && r.name) || id; };
 
@@ -187,8 +191,10 @@ export function athletesToWatch({ rollup = [], roster = [], todayISO }) {
 
   const decliners = [];
   for (const athleteId of Object.keys(byAthlete)) {
+    // Finished days only: today's score is a day in progress, and as the last point of a slope it
+    // read every lunch-time athlete as "trending down" (coach score truth, 2026-09-24).
     const weekRows = byAthlete[athleteId]
-      .filter(r => inWindow(r.day, thisFrom, thisTo) && r.score != null && !Number.isNaN(Number(r.score)))
+      .filter(r => inWindow(r.day, thisFrom, thisTo) && finishedDay(r, todayISO, dayOf) && r.score != null && !Number.isNaN(Number(r.score)))
       .slice()
       .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
     if (weekRows.length < 3) continue; // >=3 scored days required
@@ -343,10 +349,12 @@ export function mostMissed({ rollup = [], reqsByAthlete = {}, todayISO, nowMin =
 
 // ---------------- weekVsMonth ----------------
 
-export function weekVsMonth({ rollup = [], todayISO }) {
+export function weekVsMonth({ rollup = [], todayISO, dayOf = null }) {
   const { thisFrom, thisTo, monthFrom } = weekWindows(todayISO);
-  const weekRows = rollup.filter(r => r.score != null && !Number.isNaN(Number(r.score)) && inWindow(r.day, thisFrom, thisTo));
-  const monthRows = rollup.filter(r => r.score != null && !Number.isNaN(Number(r.score)) && inWindow(r.day, monthFrom, thisTo));
+  // Finished days only, like the slope above: today is still in progress.
+  const done = (r) => r.score != null && !Number.isNaN(Number(r.score)) && finishedDay(r, todayISO, dayOf);
+  const weekRows = rollup.filter(r => done(r) && inWindow(r.day, thisFrom, thisTo));
+  const monthRows = rollup.filter(r => done(r) && inWindow(r.day, monthFrom, thisTo));
 
   if (!weekRows.length || !monthRows.length) return { weekAvg: null, monthAvg: null, text: '' };
 

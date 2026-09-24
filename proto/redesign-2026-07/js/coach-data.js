@@ -15,8 +15,6 @@
 import * as roles from './roles.js';
 import { CATALOG, resolveRequirementSet, catalogFromItems, planStyleFromItems } from './requirements.js';
 import { athleteStatus } from './status.js';
-import { ON_STANDARD } from './score-band.js';
-import { dateKey } from './fmt-date.js';
 import { effectiveRoomLabel } from './rooms.js';
 
 /** The plan style a TEAM STANDARD governs for one roster row, or null when none does (0142).
@@ -37,52 +35,6 @@ export function governingPlanStyle(row) {
    position, byte-identical to before. */
 export function resolvePos(row) {
   return effectiveRoomLabel(row.roomId, (CD.extras && CD.extras.rooms) || []) || row.position;
-}
-
-/* ---------- Trust Pass milestone (0196): who just earned a reward, from data already loaded ---
-   `row.scoreHistory` is what buildRosterRow already carries — up to 7 days back plus today, the
-   same window loadCoachRoster/loadTrainerBook fetch for the sparkline. No new query. */
-
-/** Consecutive on-standard (score >= 80) days ending at the most recent entry in scoreHistory.
- *  Counting BACKWARD from the newest row and stopping at the first gap or sub-80 score means the
- *  result is a LOWER BOUND on the athlete's real streak, never an inflated one: a streak that
- *  started before this 7-day window is real but invisible here, and this function only ever
- *  under-counts, so a milestone that fires is always true.
- *
- *  A day with no ROW at all (never logged) must break the chain exactly like a sub-80 score does
- *  — "absent days count as misses" is the same rule the streak screen states outright, and a
- *  version of this that just skipped a gap in the dates would count two Tuesdays a week apart as
- *  adjacent. So each older row is required to be exactly one calendar day before the one after
- *  it; anything else ends the count right there. */
-export function consecutiveOnStandard(scoreHistory) {
-  const rows = (scoreHistory || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1)); // newest first
-  let n = 0;
-  let expected = null;
-  for (const r of rows) {
-    if (!r || typeof r.score !== 'number' || r.score < ON_STANDARD) break;
-    if (expected !== null && r.date !== expected) break;
-    n++;
-    const d = new Date(r.date + 'T00:00:00');
-    d.setDate(d.getDate() - 1);
-    expected = dateKey(d);
-  }
-  return n;
-}
-
-/** Clients who just crossed the reward milestone and hold no active pass, ranked by streak length
- *  (the athlete closest to earning a moment gets it). `passes` is the map fetchRosterPasses
- *  already returns for the roster's own trust-pass section.
- *
- *  `minStreak` default is 5, NOT the 14 days floated at design time — the roster fetch carries at
- *  most ~8 days of scoreHistory (7 back + today), so a 14-day threshold could never fire on data
- *  this screen actually has. 5 is the largest number the current window can prove without lying.
- *  Widening this needs widening the roster's own date fetch (roles.js loadCoachRoster /
- *  loadTrainerBook), which is a real product decision, not a default to guess past. */
-export function passWorthy(rows, passesMap, minStreak = 5) {
-  return (rows || [])
-    .map((r) => ({ row: r, streak: consecutiveOnStandard(r.scoreHistory) }))
-    .filter((x) => x.streak >= minStreak && !(passesMap || {})[x.row.athleteId])
-    .sort((a, b) => b.streak - a.streak);
 }
 
 /* What an operator can actually DO with their book. Pure data, no imports.
@@ -164,10 +116,16 @@ let KIND = 'team';
    "Can't reach their profile" (found in the harness 2026-09-15: a module-graph change moved the
    race by a few milliseconds and it started losing). */
 let rosterInflight = null;
+/* When the book was read, and on which day. It used to be read ONCE per session: a WebView left
+   open overnight showed last night's scores the next morning as today's (2026-09-24). Fresh for
+   BOOK_TTL; a book from an earlier day is dropped outright, never shown while the new one loads. */
+let bookAt = 0, bookDay = '';
+const BOOK_TTL = 120000;
 export async function loadBook(force, kind) {
   const k = kind || KIND || 'team';
   if (rosterLoading) return rosterInflight;
-  if (ROSTER && ROSTER.kind === k && !force) return;
+  if (bookDay !== roles.todayISO()) ROSTER = null;
+  if (ROSTER && ROSTER.kind === k && !force && Date.now() - bookAt < BOOK_TTL) return;
   rosterLoading = true;
   let settle = null;
   rosterInflight = new Promise((res) => { settle = res; });
@@ -228,6 +186,7 @@ async function loadBookInner(force, k) {
     KIND = prevKind === k ? prevKind : k;
   } finally {
     rosterLoading = false; // always clear so a retry can re-run
+    bookAt = Date.now(); bookDay = roles.todayISO();
   }
   // The book just became ready (roster + extras) — or just FAILED. This deliberately runs on
   // failure too (we're past the catch), and screens rely on that: the offline/retry states
@@ -249,6 +208,17 @@ async function loadBookInner(force, k) {
   try { if (window.__act && window.__act.syncNotifications) window.__act.syncNotifications(); }
   catch { /* best-effort — a sync failure never blocks the roster render */ }
 }
+
+/* Back from the background is when a loaded book is likeliest stale (a WebView left open overnight
+   kept last night's rows). loadBook decides; a book from another day is dropped on the spot, so
+   repaint at once: loading, never yesterday's scores as today's. The arrival repaints the rest. */
+try {
+  window.addEventListener('onstd:foreground', () => {
+    if (!ROSTER) return;
+    loadBook(false, KIND);
+    if (!ROSTER) window.__render();
+  });
+} catch { /* non-DOM harness */ }
 
 /** The coach's book, by its original name and signature — every shipped coach screen still calls
     exactly this. Kept as a named export (not just an alias) so the coach path is impossible to
@@ -526,7 +496,7 @@ let PROFILE = null, profileLoadingId = null, profileGen = 0;
 export async function loadAthleteProfile(athleteId, force) {
   if (!athleteId) return;
   if (profileLoadingId === athleteId && !force) return;
-  if (PROFILE && PROFILE.athleteId === athleteId && !force) return;
+  if (PROFILE && PROFILE.athleteId === athleteId && !force && Date.now() - PROFILE.at < BOOK_TTL) return;
   const gen = ++profileGen; profileLoadingId = athleteId;
   try {
     // Load THIS operator's book, not always the coach one — a trainer calling loadCoachRoster
@@ -535,11 +505,13 @@ export async function loadAthleteProfile(athleteId, force) {
     const bookId = CD.roster && CD.roster.book[0] && CD.roster.book[0].id;
     const c = CD.caps;
     const since30 = roles.daysAgoISO(30);
+    // THEIR today (roster-day.js), not this device's: the day row the roster matched.
+    const r0 = (CD.roster.rows || []).find(r => r.athleteId === athleteId);
     // interventions/notes are team-owned tables until 0136. Passing a PRACTICE id into them would
     // read nothing anyway (RLS), but gating keeps the intent explicit and the shape honest: a
     // trainer's profile simply has no notes/interventions section rather than a permanently empty one.
     const [day, meals, passRaw, interventions, assignments, notes, basics, weights] = await Promise.all([
-      roles.fetchDay(athleteId, roles.todayISO()),
+      roles.fetchDay(athleteId, (r0 && r0.dayISO) || roles.todayISO()),
       roles.fetchRecentMeals(athleteId, since30),
       roles.fetchActivePass(athleteId),
       c.interventions ? roles.fetchAthleteInterventions(bookId, athleteId, since30, KIND) : [],
@@ -599,7 +571,7 @@ export async function loadAthleteProfile(athleteId, force) {
     };
     PROFILE = { athleteId, day, meals: meals || [], photos, pass,
       interventions: interventions || [], assignments: assignments || [], notes: notes || [],
-      failedSections, exceptions, row, status, basics, offline: false,
+      failedSections, exceptions, row, status, basics, offline: false, at: Date.now(),
       planStyle: set ? planStyleFromItems(set.items)?.style || null : null,
     };
     // Receipt moved to the screen's mount(), where a real viewer id (RT.userId/S.coachIdentity)
@@ -611,7 +583,7 @@ export async function loadAthleteProfile(athleteId, force) {
     try { console.error('[coach] loadAthleteProfile failed', e && e.message ? e.message : e); } catch { /* console */ }
     // Fuller offline shape so screens can't crash indexing into missing collections.
     if (gen === profileGen) PROFILE = {
-      athleteId, offline: true, meals: [], photos: {},
+      athleteId, offline: true, meals: [], photos: {}, at: Date.now(),
       interventions: [], assignments: [], notes: [], exceptions: [],
       failedSections: { interventions: true, assignments: true, notes: true },
     };

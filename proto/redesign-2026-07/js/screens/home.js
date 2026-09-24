@@ -864,11 +864,13 @@ function nextLabel(e) {
 }
 
 /* "▲ 8 vs yesterday" — trajectory against yesterday's REAL score. Renders nothing when
-   there is no yesterday row (never compares against a different day) or the scores tie.
+   there is no yesterday row (never compares against a different day) or the scores tie, or
+   while today is not SETTLED (a required window still open): a lunch-time score against a
+   finished yesterday is a drop that dinner erases. The coach's group pill keeps this rule.
    Down-days show honestly in muted amber; never a screaming red. */
 function deltaChip(score) {
   const y = S.scoreYesterday;
-  if (y == null || score === y) return '';
+  if (y == null || score === y || !S.dayDecided) return '';
   const up = score > y;
   // Signed. "↑ 82 vs yesterday" is a plausible SCORE, so on a big swing the delta could be read
   // as the number itself; "+82" cannot.
