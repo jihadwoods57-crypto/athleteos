@@ -196,40 +196,41 @@ export async function loadMine(force = false, dayISO = null) {
   } catch { RTC.mineError = true; return RTC.mine; }
 }
 
-/* The 14 days AHEAD, for the alarm. loadMine's window is yesterday..tomorrow, which is right for
-   Home and wrong for arming alarms: an athlete who did not open the app for two days had no alarm
-   on the third morning. Reads today..+14, merged with the Home rows by the caller; never touches
-   RTC.mine. */
+/* The 14 days AHEAD, for the alarm. loadMine's window is yesterday..tomorrow, wrong for arming:
+   an athlete who did not open the app for two days had no alarm on the third morning. Merged
+   with the Home rows by the caller; never touches RTC.mine. */
 const AHEAD_DAYS = 14; // the alarm horizon, roll call v3
 const AHEAD_FRESH_MS = 2 * 60_000; // covers plain re-renders; force (home.js armAhead) skips it
-const AHEAD = { rows: [], at: 0, day: null, ok: false, inflight: null };
+const AHEAD = { rows: [], at: 0, day: null, ok: false, uid: null, inflight: null, inflightUid: null };
 export async function loadMineAhead(force = false) {
   const day = todayISO();
-  if (AHEAD.inflight) return AHEAD.inflight; // a burst of renders shares one fetch
-  if (!force && AHEAD.day === day && Date.now() - AHEAD.at < AHEAD_FRESH_MS) return AHEAD.rows;
+  const uid = vcUid(); // keyed: A's load must never populate B's cache
+  if (AHEAD.inflight && AHEAD.inflightUid === uid) return AHEAD.inflight;
+  if (!force && AHEAD.uid === uid && AHEAD.day === day && Date.now() - AHEAD.at < AHEAD_FRESH_MS) return AHEAD.rows;
   const c = sb(); if (!c) { AHEAD.ok = false; return AHEAD.rows; }
   const from = day, to = shiftISO(day, AHEAD_DAYS);
+  AHEAD.inflightUid = uid;
   AHEAD.inflight = (async () => {
     try {
       try { await c.rpc('ensure_my_commitment_instances', { p_from: from, p_to: to }); } catch { /* best-effort */ }
       const { data, error } = await c.rpc('my_commitments', { p_from: from, p_to: to });
+      if (vcUid() !== uid) return AHEAD.rows; // the account changed mid-flight; discard the answer
       if (error) { AHEAD.ok = false; return AHEAD.rows; }
       AHEAD.rows = Array.isArray(data) ? data : [];
-      AHEAD.at = Date.now(); AHEAD.day = day; AHEAD.ok = true;
+      AHEAD.at = Date.now(); AHEAD.day = day; AHEAD.ok = true; AHEAD.uid = uid;
       return AHEAD.rows;
     } catch { AHEAD.ok = false; return AHEAD.rows; }
-    finally { AHEAD.inflight = null; }
+    finally { AHEAD.inflight = null; AHEAD.inflightUid = null; }
   })();
   return AHEAD.inflight;
 }
 
-/** The 14 days ahead as last loaded (the Home next-roll-call card, roll call v3). */
-export function aheadRows() { return AHEAD.rows; }
-/** True only when today's ahead load succeeded: only then may an alarm sync cancel alarms it did
- *  not arm itself (wake-alarms.js syncWakeAlarms `complete`). */
+export function aheadRows() { return AHEAD.rows; } // Home's next-roll-call card
+/** True only when today's load succeeded: only then may a sync cancel alarms it didn't arm
+ *  itself (wake-alarms.js `complete`). */
 export function aheadComplete() { return AHEAD.ok === true && AHEAD.day === todayISO(); }
-/** Test seam. */
-export function _resetAhead() { AHEAD.rows = []; AHEAD.at = 0; AHEAD.day = null; AHEAD.ok = false; AHEAD.inflight = null; }
+/** Wipe the ahead cache (state.js _wipeUserScopedState). Also a test seam. */
+export function _resetAhead() { AHEAD.rows = []; AHEAD.at = 0; AHEAD.day = null; AHEAD.ok = false; AHEAD.uid = null; AHEAD.inflight = null; AHEAD.inflightUid = null; }
 
 /** A longer history window for the Accountability screen. Does not touch the Home cache.
  *  null = FAILED (the fetcher contract): a dead network must never read as "Nothing to show

@@ -16,7 +16,7 @@ import assert from 'node:assert/strict';
 
 globalThis.window = { sb: null };
 
-const { loadMineAhead, _resetAhead } = await import('./commitment-data.js');
+const { loadMineAhead, _resetAhead, aheadRows, setVcUidProvider } = await import('./commitment-data.js');
 
 /** A fake Supabase client. Counts one "load" per `my_commitments` call — the actual data read;
  *  `ensure_my_commitment_instances` (the write) always rides alongside it, one-for-one. Returns a
@@ -103,5 +103,47 @@ test('past the freshness window, even a non-forced call reloads', async () => {
     assert.equal(counter.loads, 2, 'a stale-enough cache must not stand in forever without a force');
   } finally {
     Date.now = realNow;
+  }
+});
+
+test('roll call v3: a load started for one account never populates another account\'s cache', async () => {
+  _resetAhead();
+  const { client, counter } = fakeClient();
+  window.sb = client;
+  let uid = 'athlete-a';
+  setVcUidProvider(() => uid);
+  try {
+    await loadMineAhead(true);           // fresh load for A
+    assert.equal(counter.loads, 1);
+    uid = 'athlete-b';                    // a fast switch on the same device, no sign-out in between
+    await loadMineAhead(false);           // B must not be handed A's cache
+    assert.equal(counter.loads, 2, 'a different signed-in account is never a cache hit');
+  } finally {
+    setVcUidProvider(null);
+  }
+});
+
+test('roll call v3: an in-flight load\'s answer is discarded if the account changed before it landed', async () => {
+  _resetAhead();
+  let settleMyCommitments;
+  let uid = 'athlete-a';
+  setVcUidProvider(() => uid);
+  window.sb = {
+    rpc: async (fn) => {
+      if (fn === 'my_commitments') return new Promise((res) => { settleMyCommitments = res; });
+      return { data: null, error: null };
+    },
+  };
+  try {
+    const pending = loadMineAhead(true); // A's sign-out races this fetch
+    // Let the fetch actually reach the my_commitments call (past the ensure-instances await)
+    // before the account underneath it changes.
+    await new Promise((r) => setTimeout(r, 0));
+    uid = 'athlete-b'; // A signed out (or B signed in) while A's read was still in flight
+    settleMyCommitments({ data: [{ instance_id: 'a-only-row' }], error: null }); // A's late answer
+    await pending;
+    assert.deepEqual(aheadRows(), [], 'A\'s stale answer must never land now that B is signed in');
+  } finally {
+    setVcUidProvider(null);
   }
 });

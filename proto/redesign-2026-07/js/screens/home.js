@@ -362,7 +362,8 @@ function paintCommitments(root) {
    for the same reason: commitment-data.js never imports day.js, so the screen that owns the fetch
    is what publishes the result. daySetWakeup is a no-op when nothing changed, which matters
    because these rows are refetched on every foreground beat. */
-let armFirstOpen = true; // true only through Home's first mount this app open
+let armFirstOpen = true; // true through Home's first mount this app open
+window.addEventListener('onstd:account-wipe', () => { armFirstOpen = true; }); // state.js wipe
 
 /** Arm the mornings still ahead (v3): forced on open/resume/answer, else rides loadMineAhead's
  *  own cache + de-dupe (else EVERY __render() cost 2 extra RPCs, one a WRITE). */

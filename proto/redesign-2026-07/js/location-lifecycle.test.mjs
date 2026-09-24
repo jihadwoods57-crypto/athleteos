@@ -115,6 +115,20 @@ test('roll call v3: sign-out sweeps every wake alarm this device holds, feature-
   await assert.doesNotReject(act.signOut());
 });
 
+test('roll call v3: sign-out fires onstd:account-wipe, so home.js can re-arm its own module state', async () => {
+  const events = [];
+  const realDispatch = window.dispatchEvent;
+  window.dispatchEvent = (ev) => { events.push(ev && ev.type); return realDispatch(ev); };
+  RT.userId = 'u-1';
+  try {
+    await act.signOut();
+  } finally {
+    window.dispatchEvent = realDispatch;
+  }
+  assert.ok(events.includes('onstd:account-wipe'),
+    'home.js has no other way to hear that the account under it just changed');
+});
+
 test('deleting the account disarms', async () => {
   RT.userId = 'u-1';
   calls.length = 0;

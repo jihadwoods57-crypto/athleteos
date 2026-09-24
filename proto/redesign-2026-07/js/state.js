@@ -54,7 +54,7 @@ import { entriesFor, getScope, CD } from './coach-data.js';
 import { splitServerRows } from './notif-feed.js';
 import { jobKey, putJob, readQueue, removeJob, updateJob, due as dueJobs, backoffMs } from './meal-outbox.js';
 import * as SQ from './sync-queue.js';
-import { setVcUidProvider, noteLocationArm } from './commitment-data.js';
+import { setVcUidProvider, noteLocationArm, _resetAhead } from './commitment-data.js';
 import { CS as CS_DATA, loadMine as loadCsMine } from './connected-standard-data.js';
 import { factsFromCorrection, candidateFactsFromFoodChange, sameFact } from './memory.js';
 import { TOUR_IDS } from './tour-plan.js';
@@ -990,21 +990,16 @@ export function pushTokenState() {
    reload) so the bell's mount → fetch → repaint cycle can never loop. */
 let NOTIF_FETCH_AT = 0;
 
-/* Walk-in check-in's lifecycle (roll call rebuilt, 2026-09-23). The phone arms the OS geofences for
-   whatever roll call is inside its window, but only when ASKED (LOCATION_ARM); it keeps regions
-   across a sign-out unless told otherwise (LOCATION_DISARM). So the proto asks: arm on sign-in, on a
-   restored session at launch and on every return to the foreground; disarm on every way out of an
-   account. Each arm is one server read on the native side (my_armable_geofences), so the
-   foreground beat is throttled; sign-in forces. Talks to the bridge directly rather than through
-   js/location.js so that module stays out of the boot graph. A missing bridge (web, the harness,
-   an older binary) is a silent no-op, and the arm result is not read here: a `kept: true` answer
-   (a network blip that left the armed regions in place) is a success, and so is anything else the
-   phone decides; location.js armLocation() normalises it for a screen that wants to show it. */
+/* Walk-in check-in's lifecycle. Arms the OS geofences for a roll call in its window, only when
+   ASKED (LOCATION_ARM); keeps regions across sign-out unless told otherwise (LOCATION_DISARM).
+   Arms on sign-in, a restored launch session, and every foreground return (throttled; sign-in
+   forces); disarms on every way out. Talks to the bridge direct, not js/location.js, to stay out
+   of the boot graph. A missing bridge is a silent no-op; location.js normalises the arm result. */
 let LOC_ARM_AT = 0;
 const LOC_ARM_EVERY_MS = 60_000;
 export const LOC_DISARM_WAIT_MS = 2_000;   // sign-out never waits longer on the phone
 export const WAKE_SWEEP_WAIT_MS = 1_500;   // same, for the wake-alarm sweep (v3)
-// A native call that never answers must not hold sign-out hostage — races it, moves on either way.
+// A hung native call must not hold sign-out hostage — races it, moves on either way.
 async function raceNative(fn, ms) {
   let timer = null;
   try {
@@ -3374,6 +3369,8 @@ export const act = {
     NOTIF_FETCH_AT = 0; // next account's bell fetches its own feed immediately
     try { dayResetLocal(); } catch { /* never block a wipe */ }
     dropLaunch();   // Home's last-known picture (launch-cache.js) belongs to this account alone
+    _resetAhead();  // the 14-day-ahead cache also belongs to this account alone
+    try { window.dispatchEvent(new CustomEvent('onstd:account-wipe')); } catch { /* no-op */ } // tells home.js
     // A staged in-flight capture (photo + analysis) is user data now that it persists to
     // sessionStorage — clear it too so the next account on this device never inherits it.
     try { this.clearMeal(); } catch { /* never block a wipe */ }
