@@ -3,7 +3,6 @@ import { icon } from '../icons.js';
 import { esc, segBar } from '../components.js';
 import { weekBars } from '../week-bars.js';
 import { tierFor } from '../score-band.js';
-import { maybeShowTip } from '../tour.js';
 import { cutoverIndex } from '../score-cutover.js';
 import { ROLLCALL_OFF } from '../commitments.js';
 import { DAY } from '../day.js';
@@ -272,11 +271,12 @@ export default {
     // screen. Held back until the main tour has been seen, so a new athlete is never spotlighted
     // twice in a session, and dropped entirely on the early-days branch where there is no trend
     // to explain yet (its anchor doesn't render). Before the early return below.
-    maybeShowTip('tip:progress', {
+    // Lazy: the tour runs once per account, so it stays out of the boot graph (lint:boot).
+    import('../tour.js').then((T) => T.maybeShowTip('tip:progress', {
       anchor: 'trend',
       title: 'Your last seven days',
       body: 'One bar per day against the 80 standard. The pattern matters more than any single day.',
-    });
+    }), () => {});
     const btn = root.querySelector('#pg-share');
     if (!btn) return;
     btn.addEventListener('click', async () => {

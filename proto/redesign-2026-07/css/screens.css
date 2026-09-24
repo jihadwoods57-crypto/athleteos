@@ -1794,6 +1794,12 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* coach-seen receipt — proof a real person opened the day; injected only when true */
 .seen-receipt{display:flex;align-items:center;gap:var(--s2h);margin:var(--s3) 0 0;padding:var(--s2h) var(--s3h);border-radius:var(--r-card-sm);background:linear-gradient(100deg,var(--green-surface),transparent 80%),var(--surface-1);border:1px solid var(--green-border);animation:seen-in .45s var(--ease-out) backwards}
 @keyframes seen-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* A receipt that is NEWS after Home arrived (a coach replied while the app was closed) opens its
+   own height instead of appearing at full size: the cards under it slide down rather than jump
+   (cold launch, 2026-09-23). home.js settleRow decides; a repaint of a known row does neither. */
+.seen-receipt.grow{overflow:hidden;animation:rcpt-grow .32s var(--ease-out) backwards}
+@keyframes rcpt-grow{from{max-height:0;margin-top:0;padding-top:0;padding-bottom:0;opacity:0}to{max-height:88px;opacity:1}}
+@media (prefers-reduced-motion:reduce){.seen-receipt.grow{animation:none}}
 .seen-receipt .sic{display:flex;flex:none;color:var(--green-bright)}
 .seen-receipt .stx{font-size:var(--t-sm);font-weight:700;color:var(--text-2)}
 .seen-receipt .stx b{color:var(--green-bright)}

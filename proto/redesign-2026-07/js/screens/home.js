@@ -8,7 +8,7 @@ import { reveal, buzz } from '../motion.js';
 import { qualityAccent } from '../score-band.js';
 import { maybeShowLock } from '../lock-moment.js';
 import { DAY, MEAL_KEYS, daySetWakeup, daySetArrival } from '../day.js';
-import { fetchMyDayReceipts, fetchRecentMeals, signedMealPhotoUrl, daysAgoISO, todayISO, fetchMyReplyInputs } from '../roles.js';
+import { fetchMyDayReceipts, fetchRecentMeals, daysAgoISO, todayISO, fetchMyReplyInputs } from '../roles.js';
 import { unreadCoachReplies, replyRow } from '../coach-replies.js';
 import { wakeupReceipt, receiptHtml } from '../wakeup-handoff.js';
 import { myWakeupForDay, myArrivalForDay } from '../wakeup-morning.js';
@@ -17,14 +17,14 @@ import { initWakeFace, armWakeFace } from '../wake-face.js';
 import { WAKEUP_SHIFT } from '../plan-style.js';
 import { canClear, isCleared, clearReceipts } from '../receipts.js';
 import { WAKEUP_TYPE } from '../wakeup-morning.js';
-import { warmMealPhotos, todayMealPhotoPath } from '../photo-store.js';
+import { warmMealPhotos, todayMealPhotoPath, cachedMealPhoto, cachedMealThumb } from '../photo-store.js';
+import { launchCache, keepLaunch, launchOwner } from '../launch-cache.js';
 import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
 import { deriveCommitment, presenceOf, PRESENCE, tomorrowRollcall, wakeupPhase } from '../commitments.js';
 import { VC, loadMine, loadMineAhead, ackCommitment, todayISO as vcToday } from '../commitment-data.js';
 import { commitmentCard, mountCommitmentCard, commitmentOfflineCard, tomorrowCard } from './roll-call.js';
 import { standardsCard, mountStandardsCard, standardsOfflineCard } from './standards-card.js';
 import { CS, loadMine as loadStandards, todayISO as csToday } from '../connected-standard-data.js';
-import { maybeStartTour } from '../tour.js';
 import { pressTilt } from '../tilt.js';
 
 /* Verified Commitments on Home. Renders every commitment the athlete has today that is currently
@@ -138,10 +138,22 @@ function paintPresenceReceipt(root) {
 let REPLY = { uid: null, at: 0, inputs: null, loading: false };
 const REPLY_DAYS = 7;
 function unreadReplies() {
-  if (!REPLY.inputs || REPLY.uid !== RT.userId) return [];
+  if (!RT.userId) return [];
+  // Until this session's read lands, the list this device last derived (launch-cache.js), minus
+  // any thread opened since: the row is on the first frame instead of arriving and shoving Home down.
+  if (REPLY.uid !== RT.userId) { const k = launchCache(RT.userId).reply; REPLY = { uid: RT.userId, at: 0, inputs: null, kept: Array.isArray(k) ? k : [], loading: false }; }
+  if (!REPLY.inputs) return (REPLY.kept || []).filter((u) => !(Date.parse((RT.mealViewedAt || {})[u.mealId] || '') >= u.latestTs));
   return unreadCoachReplies({ ...REPLY.inputs, localViewedAt: RT.mealViewedAt });
 }
-function paintCoachReply(root) {
+/* The receipts under the ring move on ARRIVAL only. A repaint of a row already on screen is still
+   (Home repaints constantly, and each one used to replay the row's entrance); a row that is NEW
+   after arrival grows in, so what is below it slides down instead of jumping. */
+const SHOWN = {};
+function settleRow(el, slot, key, arriving) {
+  if (!arriving) { if (SHOWN[slot] === key) el.style.animation = 'none'; else el.classList.add('grow'); }
+  SHOWN[slot] = key;
+}
+function paintCoachReply(root, fetch = true, arriving = false) {
   const slot = root.querySelector('#reply-row');
   if (!slot || !RT.userId) return;
   const draw = () => {
@@ -168,6 +180,7 @@ function paintCoachReply(root) {
     tm.className = 'stm';
     tm.textContent = row.ts ? tsClock(new Date(row.ts).toISOString()) : '';
     btn.append(ic, tx, tm);
+    settleRow(btn, 'reply', `${row.mealId}:${row.ts}:${row.total}`, arriving);
     btn.addEventListener('click', () => {
       // Opened = read: stamp the thread locally (the row clears at once, offline included) and
       // on the server, then go. The hashchange hook below covers every other way in.
@@ -179,13 +192,16 @@ function paintCoachReply(root) {
   };
   draw();
   const fresh = REPLY.uid === RT.userId && REPLY.inputs && Date.now() - REPLY.at < 60000;
-  if (fresh || REPLY.loading) return;
+  if (!fetch || fresh || REPLY.loading) return;
   REPLY.loading = true;
   const since = new Date(Date.now() - REPLY_DAYS * 864e5).toISOString();
   fetchMyReplyInputs(RT.userId, since).then((inputs) => {
     REPLY.loading = false;
     if (inputs === null) return; // failed: last-known stands, never a cleared row
     REPLY = { uid: RT.userId, at: Date.now(), inputs, loading: false };
+    // What the next cold launch draws first. The coach's words stay out of it: the row never shows them.
+    keepLaunch('reply', unreadReplies().map((u) => ({ ...u, latestText: '' })), RT.userId);
+    arriving = false;
     draw();
   }).catch(() => { REPLY.loading = false; });
 }
@@ -473,8 +489,11 @@ function resCard(a) {
   const carries = /^meal-(view|thread|detail)\//.test(a.route || '')
     ? ` data-vt="plate" data-vt-id="${a.route.replace(/[^A-Za-z0-9:_.-]/g, '_')}"`
     : '';
-  const media = a.img && safeImg(a.img)
-    ? `<div class="res-media"${carries} style="background-image:url('${safeImg(a.img)}')"></div>`
+  /* The photo over its thumbnail (photo-thumb.js): the thumbnail paints on the first frame of a
+     cold launch, and the photo covers it the moment it has downloaded. Either alone is fine. */
+  const layers = [a.img, a.thumb].map(safeImg).filter(Boolean).map((u) => `url('${u}')`).join(',');
+  const media = layers
+    ? `<div class="res-media"${carries} style="background-image:${layers}"></div>`
     : `<div class="res-media icon"${carries} style="background:linear-gradient(150deg, ${c1}, ${c2});color:${fg}">${icon(a.icon || 'droplet', 30)}${a.noPhoto ? '<span class="res-nophoto">No photo submitted</span>' : ''}</div>`;
   const metrics = a.qualityLabel
     ? `<div class="res-m"><span class="k">Quality</span><span class="v ${a.vClass}">${a.value}<small>${a.unit}</small></span></div>
@@ -552,11 +571,14 @@ async function warmPastResults(uid) {
   }
   const rows = Array.isArray(fetched) ? fetched : [];
   const past = rows.filter((r) => r && r.day_date && String(r.day_date) < today);
-  await Promise.all(past.map(async (r) => {
-    if (r.photo_path) r._img = await signedMealPhotoUrl(r.photo_path).catch(() => null);
-  }));
+  // Photos through photo-store (one signing batch, decoded before the paint, kept for the next
+  // launch) instead of one signing call per row painted the instant it returned.
+  const fresh = await warmMealPhotos(past.map((r) => r.photo_path), true);
+  const same = PAST.uid === uid && JSON.stringify(PAST.rows) === JSON.stringify(past);
   PAST = { uid, rows: past, at: Date.now() };
-  if (/^#?(home)?$/.test(location.hash)) window.__render && window.__render();
+  keepLaunch('past', { date: today, rows: past }, uid);
+  // Unchanged rows (the common case: they were painted from the launch cache) repaint nothing.
+  if ((!same || fresh) && /^#?(home)?$/.test(location.hash)) window.__render && window.__render();
 }
 const tsClock = (ts) => {
   const d = new Date(ts);
@@ -584,6 +606,8 @@ const pastDayLabel = (isoStr) => {
    the push deep-links both already use it, and its mount falls back to fetchMealById() when the
    history cache is cold, so opening one straight from Home works on a fresh launch. */
 const pastResults = () => {
+  // A cold launch starts from the rails this device last showed today (at 0: the mount refetches).
+  if (PAST.uid !== RT.userId) { const k = launchCache(RT.userId).past; PAST = { uid: RT.userId, rows: k && k.date === todayISO() ? k.rows : null, at: 0 }; }
   const rows = (PAST.uid === RT.userId && PAST.rows) ? PAST.rows : [];
   if (!rows.length) return '';
   const byDay = new Map();
@@ -609,7 +633,7 @@ const pastResults = () => {
         qualityLabel: r.quality != null,
         vClass: r.quality != null ? qualityAccent(r.quality) : 'muted',
         impact: 0,
-        img: r._img || null,
+        img: cachedMealPhoto(r.photo_path), thumb: cachedMealThumb(r.photo_path),
         route: r.id ? `meal-view/${r.id}` : 'history',
       });
     }).join('');
@@ -868,6 +892,78 @@ window.addEventListener('hashchange', () => {
    never cached, so the next mount retries. */
 let SEEN = { uid: null, date: null, rows: null, at: 0 };
 
+/* Arrival: hero settles first, then each block ~45ms behind, done in about a third of a second.
+   Plays only when the athlete ARRIVES at Home (homeEntrance gate), from whichever paint gets there
+   first: the cold-launch prepaint or the mount. Reduced motion skips it. True when it played. */
+function arrive(root) {
+  const play = homeEntrance && !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const view = play && root.querySelector('#view');
+  if (view) Array.from(view.children).slice(0, 9).forEach((el, i) => {
+    el.style.animation = `home-in .38s var(--ease-out) ${i * 45}ms backwards`;
+  });
+  homeEntrance = false;
+  return play;
+}
+
+/* Coach-seen receipt (0043, athlete side): "something visibly came back" — the row shows ONLY when
+   a real linked human actually opened this day. Nothing is ever fabricated; no receipts → no row.
+   Painted from what is known (this session's read, else the launch cache), then read again when
+   `fetch` and stale. */
+function paintSeen(root, fetch, arriving) {
+  const seenRow = root.querySelector('#seen-row');
+  if (!seenRow || !RT.userId) return;
+  const seenDay = String(DAY.date);
+  if (SEEN.uid !== RT.userId || SEEN.date !== seenDay) {
+    const k = launchCache(RT.userId).seen;
+    SEEN = { uid: RT.userId, date: seenDay, rows: k && k.date === seenDay ? k.rows : null, at: 0 };
+  }
+  const injectReceipt = (rows) => {
+    // null = the read failed; no row, same as no receipts. Absence is the design here (a receipt
+    // is proof someone looked, so silence is honest).
+    if (!rows || !rows.length || !seenRow.isConnected) return;
+    // Already cleared today: stay gone. This runs on every mount and on every foreground beat, so
+    // without it the row would come straight back the next time Home repainted.
+    if (isCleared(RT.userId, seenDay, seenReceiptId(rows[0] && rows[0].seen_at))) {
+      seenRow.innerHTML = '';
+      RECEIPTS.seen = null;
+      paintClearReceipts(root);
+      return;
+    }
+    const fmt = (iso) => {
+      const d = new Date(iso);
+      let h = d.getHours() % 12; if (h === 0) h = 12;
+      return `${h}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'AM' : 'PM'}`;
+    };
+    const first = rows[0];
+    const who = (first.viewer_name || S.coach.name).trim() || S.coach.name;
+    const extra = rows.length > 1 ? ` + ${rows.length - 1} more` : '';
+    // Elevated 2026-07-16: a tinted card right under the score, not a whisper of a text row.
+    // The viewer's face where we know who it is (the linked coach), the eye where we don't.
+    const viewerUid = S.coach.id && (!first.viewer_name || first.viewer_name.trim() === String(S.coach.name || '').trim()) ? S.coach.id : '';
+    seenRow.innerHTML = `
+      <div class="seen-receipt">
+        <span class="sic${viewerUid ? ' sic-face' : ''}"${viewerUid ? ` data-avatar-uid="${esc(viewerUid)}"` : ''}>${viewerUid ? `<span data-avatar-fallback>${esc(initialsOf(who, 'C'))}</span>` : icon('eye', 15)}</span>
+        <span class="stx"><b>${esc(who)}</b> saw your day${esc(extra)}</span>
+        <span class="stm">${fmt(first.seen_at)}</span>
+      </div>`;
+    // screens.css gives .seen-receipt an unconditional seen-in entrance; settleRow applies the
+    // arrival-only law (a repaint recreates this node, and without it the card dipped and slid
+    // back in on every task tap).
+    if (seenRow.firstElementChild) settleRow(seenRow.firstElementChild, 'seen', `${rows.length}:${first.seen_at}`, arriving);
+    RECEIPTS.seen = seenReceiptId(first.seen_at);
+    paintClearReceipts(root);
+  };
+  if (SEEN.rows) injectReceipt(SEEN.rows);
+  if (!fetch || Date.now() - SEEN.at < 60000) return;
+  fetchMyDayReceipts(RT.userId, seenDay).then((rows) => {
+    // Only a real answer (rows, or a confirmed no-receipts []) is cached fresh; a FAILED read
+    // (null) leaves the cache cold so the next mount retries.
+    if (rows) { SEEN = { uid: RT.userId, date: seenDay, rows, at: Date.now() }; keepLaunch('seen', { date: seenDay, rows }, RT.userId); }
+    arriving = false;
+    injectReceipt(rows);
+  }).catch(() => { /* best-effort — the card simply doesn't render */ });
+}
+
 /* Daily Score hero — the score owns the screen. Ring keeps the signature green→teal→blue
    sweep (status lives in the tier pill, never in the ring color). Label, completion,
    ceiling, the two-part formula (Nutrition, Recovery — S.breakdown/explainCategories), and
@@ -1079,6 +1175,7 @@ function fairnessNote(activationMin) {
 export default {
   tab: 'home',
   render({ backdrop = false } = {}) {
+    launchOwner(RT.userId);   // before any card asks photo-store for a kept picture
     const e = S.exec;
 
     // First-day activation: the athlete's very first day reads "Not scored yet" — they can log
@@ -1228,7 +1325,22 @@ export default {
     ${recentResults()}
     <div style="height:20px"></div>`;
   },
+  /* The cold-launch paint (router.js boot: the cached day, before the network). No fetches and no
+     timers, only what makes the first frame the finished one: the arrival (ring draw + entrance),
+     and the receipts from what this device last knew. The mount after hydrate then repaints the
+     same picture without moving it: the ring's reveal key is already spent, the entrance too. */
+  prepaint(root) {
+    launchOwner(RT.userId);
+    reveal(root, { key: `day:${DAY.date}:${S.exec.score}`, haptic: null });
+    const arriving = arrive(root);
+    paintSeen(root, false, arriving);
+    paintCoachReply(root, false, arriving);
+  },
   mount(root) {
+    launchOwner(RT.userId);
+    // Entrance choreography (see arrive): only on ARRIVAL, never on a repaint. First, so every
+    // painter below knows whether its row is part of the arrival or news after it.
+    const arriving = arrive(root);
     wireEmailVerifyBanner(root);
     // The hero score, revealed once per value. This was an unconditional animateRing(root), so
     // every async paint that reaches Home — commitments landing, standards landing, the coach
@@ -1259,14 +1371,14 @@ export default {
     // Home is byte-identical to before.
     paintStandards(root);
     // "Your coach replied" (0229): same async seam, third receipt slot. Nothing unread, no row.
-    paintCoachReply(root);
+    paintCoachReply(root, true, arriving);
     // Coach Voice nudge: best-effort, fire-and-forget over today's deterministic exec state.
     maybeCoachNudge(S.exec);
     // Resolve today's stored meal photos (signed URLs) so Recent Results shows the real
     // plates after a reload — repaints once when the batch lands (spec §7.1).
     if (RT.userId) {
       warmMealPhotos(MEAL_KEYS.filter((k) => DAY.meals[k] && slotHasPhoto(k))
-        .map((k) => todayMealPhotoPath(RT.userId, String(DAY.date), k)));
+        .map((k) => todayMealPhotoPath(RT.userId, String(DAY.date), k)), true);
       // Past-days rails (up to 3 days of Recent Results) — fire-and-forget, repaints once.
       warmPastResults(RT.userId);
     }
@@ -1330,85 +1442,13 @@ export default {
     root.addEventListener('click', (ev) => {
       if (armed && !ev.target.closest('[data-spend]')) disarm();
     }, true);
-    // Entrance choreography: hero settles first, then each block ~45ms behind, done in
-    // about a third of a second. Plays only on ARRIVAL (homeEntrance gate) — the exec
-    // tick's in-place re-render never replays it. Reduced-motion skips entirely.
-    const reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-    // The seen-receipt below injects async, after homeEntrance is consumed — capture arrival
-    // now so its entrance plays under the same gate as home-in, never on a repaint.
-    const playSeenIn = homeEntrance && !reduceMotion;
-    if (homeEntrance && !reduceMotion) {
-      const view = root.querySelector('#view');
-      if (view) Array.from(view.children).slice(0, 9).forEach((el, i) => {
-        el.style.animation = `home-in .38s var(--ease-out) ${i * 45}ms backwards`;
-      });
-    }
-    homeEntrance = false;
     // WS6: persist collapse state per section so the 30s exec-tick re-render (and tomorrow's
     // fresh render) honors what the athlete left open. `toggle` only fires on user changes,
     // never on the initial `open` attribute — no save loop.
     root.querySelectorAll('details.xcollapse').forEach((d) => {
       d.addEventListener('toggle', () => act.setHomeSection(d.getAttribute('data-sec'), d.open));
     });
-    // Coach-seen receipt (0043, athlete side): "something visibly came back" — the row shows
-    // ONLY when a real linked human actually opened this day. Nothing is ever fabricated;
-    // no receipts → no row. Fetched per-mount (cheap indexed read), injected async.
-    const seenRow = root.querySelector('#seen-row');
-    if (seenRow && RT.userId) {
-      const seenDay = String(DAY.date);
-      const injectReceipt = (rows) => {
-        // null = the read failed; no row, same as no receipts. Absence is the design here (a
-        // receipt is proof someone looked, so silence is honest), but reading .length off null
-        // threw a TypeError that the catch below swallowed.
-        if (!rows || !rows.length || !seenRow.isConnected) return;
-        // Already cleared today: stay gone. This runs on every mount and on every foreground
-        // beat, so without it the row would come straight back the next time Home repainted.
-        if (isCleared(RT.userId, seenDay, seenReceiptId(rows[0] && rows[0].seen_at))) {
-          seenRow.innerHTML = '';
-          RECEIPTS.seen = null;
-          paintClearReceipts(root);
-          return;
-        }
-        const fmt = (iso) => {
-          const d = new Date(iso);
-          let h = d.getHours() % 12; if (h === 0) h = 12;
-          return `${h}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'AM' : 'PM'}`;
-        };
-        const first = rows[0];
-        const who = (first.viewer_name || S.coach.name).trim() || S.coach.name;
-        const extra = rows.length > 1 ? ` + ${rows.length - 1} more` : '';
-        // Elevated 2026-07-16: a tinted card right under the score, not a whisper of a
-        // text row — proof someone who matters opened the day is the core differentiator.
-        // The viewer's face where we know who it is (the linked coach), the eye where we don't.
-        const viewerUid = S.coach.id && (!first.viewer_name || first.viewer_name.trim() === String(S.coach.name || '').trim()) ? S.coach.id : '';
-        seenRow.innerHTML = `
-          <div class="seen-receipt">
-            <span class="sic${viewerUid ? ' sic-face' : ''}"${viewerUid ? ` data-avatar-uid="${esc(viewerUid)}"` : ''}>${viewerUid ? `<span data-avatar-fallback>${esc(initialsOf(who, 'C'))}</span>` : icon('eye', 15)}</span>
-            <span class="stx"><b>${esc(who)}</b> saw your day${esc(extra)}</span>
-            <span class="stm">${fmt(first.seen_at)}</span>
-          </div>`;
-        // screens.css gives .seen-receipt an unconditional seen-in entrance; the same
-        // arrival-only law as home-in above applies (a repaint recreates this node, and
-        // without this the card visibly dipped and slid back in on every task tap).
-        if (!playSeenIn) {
-          const card = seenRow.firstElementChild;
-          if (card) card.style.animation = 'none';
-        }
-        RECEIPTS.seen = seenReceiptId(first.seen_at);
-        paintClearReceipts(root);
-      };
-      const seenFresh = SEEN.uid === RT.userId && SEEN.date === seenDay && SEEN.rows && Date.now() - SEEN.at < 60000;
-      if (seenFresh) {
-        injectReceipt(SEEN.rows);
-      } else {
-        fetchMyDayReceipts(RT.userId, seenDay).then((rows) => {
-          // Only a real answer (rows, or a confirmed no-receipts []) is cached fresh; a
-          // FAILED read (null) leaves the cache cold so the next mount retries.
-          if (rows) SEEN = { uid: RT.userId, date: seenDay, rows, at: Date.now() };
-          injectReceipt(rows);
-        }).catch(() => { /* best-effort — the card simply doesn't render */ });
-      }
-    }
+    paintSeen(root, true, arriving);
     // Live loop: re-render when the derived state changes (minute ticks, state
     // transitions, day rollover). Cheap: derive → compare → maybe render. The router
     // clears window.__execTick on every route change.
@@ -1442,6 +1482,7 @@ export default {
     }, 30000);
     // The first-run tour. Safe on every repaint — it is guarded by a singleton, a pending flag,
     // and a seen flag written at first paint, so the exec tick above can never restart it.
-    maybeStartTour();
+    // Lazy, so the tour's module is not parsed on every launch (it already waits 600 ms to start).
+    import('../tour.js').then((T) => T.maybeStartTour(), () => {});
   },
 };

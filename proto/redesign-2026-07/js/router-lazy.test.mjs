@@ -102,8 +102,14 @@ test('the first frame is in index.html and bootShell() is idempotent over it', (
   assert.match(html, /<main class="view" id="view" aria-busy="true"/, 'the skeleton view is the main landmark');
   assert.match(html, /class="card sk-card"/, 'the skeleton rows must be the same primitive bootShell() paints');
   assert.match(router, /device\.querySelector\('\.screen\.booting'\)/, 'bootShell() must look for the inline skeleton before painting one');
-  assert.match(router, /primeDayFromCache\(RT\.userId\)\) render\(\{ prehydrate: true \}\)/, 'the cached day paints before hydrateDay()');
+  assert.match(router, /primeDayFromCache\(RT\.userId\)\) \{ syncRtFromDay\(\); render\(\{ prehydrate: true \}\)/, 'the cached day paints before hydrateDay(), with RT flags that describe it');
   assert.match(router, /if \(mod\.mount && !prehydrate\)/, 'the pre-hydrate paint must not run mount()');
+  // Cold launch (2026-09-23): the pre-hydrate paint runs the screen's paint-only hook, boot runs
+  // once (module scripts execute at readyState 'interactive', so the readyState check AND the
+  // DOMContentLoaded listener both used to call it), and the shell hears when a frame is up.
+  assert.match(router, /if \(prehydrate && mod\.prepaint\) mod\.prepaint\(device\)/, 'the cached paint gets its arrival and receipts');
+  assert.match(router, /if \(booted\) return;\s*booted = true;/, 'boot() runs once per launch');
+  assert.match(router, /postMessage\('\{"type":"PAINTED"\}'\)/, 'the native splash is released by the first real frame');
 });
 
 test('landmarks and tabs: <main class="view">, a labelled tablist, role=tab with aria-selected', () => {

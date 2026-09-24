@@ -1,5 +1,5 @@
 /* Hash router + chrome (status bar, tab bar). Screens register in js/screens/index.js */
-import { S, act, RT, routeForRole, memoTick } from './state.js';
+import { S, act, RT, routeForRole, memoTick, syncRtFromDay } from './state.js';
 import { CD } from './coach-data.js';
 import { primeDayFromCache } from './day.js';
 import { icon } from './icons.js';
@@ -1033,6 +1033,10 @@ function render(opts) {
     if (pane) paired.mod.mount(pane, { sub: null, S });
   }
   if (mod.mount && !prehydrate) mod.mount(device, { sub, S });
+  // The cold-launch paint's own hook: the parts of a mount that are only painting (Home's arrival
+  // and its receipts from the launch cache), so the mount after hydrate has nothing left to move.
+  if (prehydrate && mod.prepaint) mod.prepaint(device);
+  painted();
   // A sheet (transient route) takes focus on ARRIVAL: its title when aria-labelledby names one,
   // else the sheet itself. Without this a keyboard or screen-reader user opening the log sheet
   // stayed parked on the control behind the scrim, inside an aria-modal they could not perceive.
@@ -1237,7 +1241,26 @@ function bootShell() {
   }
 }
 
+/* The native splash stays up until the first real frame (src/proto/launchSplash.ts): this is that
+   frame's signal. Two rAFs so the pixels are on screen, not just in the DOM. Once per launch. */
+let paintedSent = false;
+function painted() {
+  if (paintedSent) return;
+  paintedSent = true;
+  // After the faces load (font-display:block paints text INVISIBLE until then), capped.
+  const fonts = document.fonts ? Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 600))]) : Promise.resolve();
+  fonts.then(() => requestAnimationFrame(() => requestAnimationFrame(() => {
+    try { if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('{"type":"PAINTED"}'); } catch { /* no shell */ }
+  })));
+}
+
+/* Once. A module script runs while readyState is already 'interactive', so the readyState check at
+   the bottom of this file called boot() AND the DOMContentLoaded listener called it again: every
+   launch read the session twice, ran the whole hydrate chain twice and painted Home twice. */
+let booted = false;
 async function boot() {
+  if (booted) return;
+  booted = true;
   initAnalytics(); // wire crash capture + visibility-flush (inert until a sink is configured)
   track(EVENTS.APP_OPEN, { role: RT.authRole || 'anon' });
   if (RT.userId && !AUTH_ROUTES.includes(parse().route)) bootShell();
@@ -1257,8 +1280,12 @@ async function boot() {
         // today, and only for a module already in memory. hydrateDay() then repaints in place.
         try {
           const { route: r0 } = parse();
-          if (!AUTH_ROUTES.includes(r0) && modOf(r0) && primeDayFromCache(RT.userId)) render({ prehydrate: true });
+          // syncRtFromDay: the day-derived RT flags (weight logged, day 0...) must describe the day
+          // being drawn, exactly as hydrateDay sets them after loadDay; stale ones added a card later.
+          if (!AUTH_ROUTES.includes(r0) && modOf(r0) && primeDayFromCache(RT.userId)) { syncRtFromDay(); render({ prehydrate: true }); }
         } catch { /* the skeleton stands until the day lands */ }
+        // Nothing cached for today: the skeleton IS the first frame, so let the splash go to it.
+        painted();
         await act.hydrateDay();
       }
     }
