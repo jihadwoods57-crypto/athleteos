@@ -6,7 +6,7 @@
  * harness seams, and pin the copy a coach reads:
  *   - a day ahead: "Scheduled", the schedule card with the time picker and Skip, no ring of zeros
  *   - a skipped day: "Skipped", Put it back, no message card
- *   - Home: the "Next roll call" card once today's has closed, with Change and a two-tap Skip
+ *   - Home: the "Next roll call" card once today's has closed, with Open and a two-tap Skip
  */
 import { JSDOM } from 'jsdom';
 
@@ -92,7 +92,7 @@ describe('the roll-call board, a day ahead', () => {
 });
 
 describe('Home: the next roll call', () => {
-  test('shows tomorrow once today is closed, with Change and a Skip that needs two taps', () => {
+  test('shows tomorrow once today is closed, with Open and a Skip that needs two taps', () => {
     const closedToday = occurrence({
       occurs_on: today, instance_id: 'inst-today',
       starts_at: '2020-01-01T10:00:00Z', respond_by_at: '2020-01-01T10:05:00Z', opens_at: '2020-01-01T10:00:00Z', closes_at: '2020-01-01T10:30:00Z',
@@ -101,16 +101,26 @@ describe('Home: the next roll call', () => {
     seedBoardForHarness([], today);
     seedScheduleForHarness({ commitmentId: 'c1', upcoming: [closedToday, next] });
     const html = commitmentBoardCard();
+    expect(html).not.toContain('alarms set');   // no armed count from the server: the push line
     expect(html).toContain('Next roll call · Tomorrow');
     expect(html).toContain('6:00 AM');
     expect(html).toContain('2 will get it');
     expect(html).toContain('Feet on the floor. Bus at 7.');
-    // Change opens the coach's week strip for this roll call (a553c146, "one way in per role"),
-    // where the day can be moved or skipped; the old in-place day editor (data-wk-day) is retired.
-    expect(html).toContain('data-go="rollcall-week/c1"');
+    // Open goes to the coach's one roll call screen (roll call v3), whose week strip moves or
+    // skips the day; the old in-place day editor (data-wk-day) is retired.
+    expect(html).toContain('data-go="rollcall/c1"');
+    expect(html).not.toContain('rollcall-week/');
     expect(html).not.toContain('data-wk-day=');
     expect(html).toContain('data-wk-skip=');
     expect(html).not.toContain('for sure');       // the first tap only arms it
+  });
+
+  test('roll call v3: the card counts the alarms set, from the server’s own count', () => {
+    seedBoardForHarness([], today);
+    seedScheduleForHarness({ commitmentId: 'c1', upcoming: [occurrence({ total: 6, armed: 5, reachable: 6 })] });
+    const html = commitmentBoardCard();
+    expect(html).toContain('6:00 AM · 5 of 6 alarms set');
+    expect(html).not.toContain('will get it');
   });
 
   test('says nothing when nothing is ahead', () => {

@@ -91,24 +91,60 @@ async function coachCall(body) {
   try {
     const { data, error } = await c.functions.invoke('roll-call-coach', { body });
     if (!error && data && data.ok) return { ok: true, reason: 'ok', data };
-    const status = error && error.context && error.context.status;
-    return { ok: false, reason: status === 429 ? 'rate_limited' : status === 403 ? 'not_authorized' : 'failed', data: null };
+    const ctx = error && error.context;
+    const status = ctx && ctx.status;
+    if (status === 429) return { ok: false, reason: 'rate_limited', data: null };
+    if (status === 403) {
+      // 403 is both "not staff" and the switch being off; the body says which.
+      let why = null;
+      try { why = typeof ctx.json === 'function' ? ((await ctx.json()) || {}).error : null; } catch { why = null; }
+      return { ok: false, reason: why === 'flag_off' ? 'flag_off' : 'not_authorized', data: null };
+    }
+    return { ok: false, reason: 'failed', data: null };
   } catch { return { ok: false, reason: 'failed', data: null }; }
 }
 
-/** Tell the athletes now (after Start or Save), instead of at the next cron minute. */
+/** Tell the athletes now (after Start or Save), instead of at the next cron minute. A press inside
+ *  the server's 60 s cooldown is `cooldown`: nothing sent now, the cron says it within the minute. */
 export async function notifyRollcall(commitmentId) {
   if (!commitmentId) return { sent: 0, reason: 'failed' };
   const r = await coachCall({ action: 'notify', commitment: commitmentId });
+  if (r.ok && r.data.cooldown) return { sent: 0, reason: 'cooldown' };
   return { sent: r.ok ? Number(r.data.pushed) || 0 : 0, reason: r.reason };
 }
 
-/** "Remind the N not set": the assignment push again, to everyone whose phone has not armed. */
+/* The "tell them now" that Start or Save fires on its way to the roll call screen, kept here so the
+   screen it lands on can say how it went (the setup screen is gone by the time it answers). */
+const TOLD = new Map();   // commitmentId -> { state: 'sending' | notifyRollcall's reason, sent, at, done }
+export function tellAthletesNow(commitmentId) {
+  if (!commitmentId) return Promise.resolve({ sent: 0, reason: 'failed' });
+  const done = notifyRollcall(commitmentId).then((r) => {
+    TOLD.set(commitmentId, { state: r.reason, sent: r.sent, at: Date.now(), done });
+    return r;
+  });
+  TOLD.set(commitmentId, { state: 'sending', sent: 0, at: Date.now(), done });
+  return done;
+}
+/** How the last tell went, for two minutes after it answered. null = nothing to say. */
+export function toldState(commitmentId, nowMs = Date.now()) {
+  const t = TOLD.get(commitmentId);
+  if (!t) return null;
+  if (t.state !== 'sending' && nowMs - t.at > 120000) return null;
+  return t;
+}
+/** Harness seam: the landing line in a given state. */
+export function seedToldForHarness(commitmentId, state, sent = 0) {
+  TOLD.set(commitmentId, { state, sent, at: Date.now(), done: new Promise(() => {}) });
+}
+
+/** "Remind the N not set": the assignment push again, to everyone whose phone has not armed.
+ *  `nobody` = everyone armed between the read and the tap (nothing sent, no cooldown spent). */
 export async function remindArm(instanceId) {
   if (!instanceId) return { sent: 0, reason: 'failed' };
   const r = await coachCall({ action: 'remind_arm', instance: instanceId });
   if (r.ok) ARMING.delete(instanceId);
+  if (r.ok && !(Number(r.data.targeted) > 0)) return { sent: 0, reason: 'nobody' };
   return { sent: r.ok ? Number(r.data.targeted) || 0 : 0, reason: r.reason };
 }
 
-export function _resetV3ForTests() { SEEN.clear(); PRIMER = undefined; PRIMER_UID = null; ARMING.clear(); }
+export function _resetV3ForTests() { SEEN.clear(); PRIMER = undefined; PRIMER_UID = null; ARMING.clear(); TOLD.clear(); }

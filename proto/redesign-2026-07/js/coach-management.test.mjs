@@ -108,7 +108,7 @@ test('the Requirements tab shows windows, targets and roll call with a door to c
   assert.match(block, /morning_roll_call/, 'the roll call card reads the board');
   // Roll call rebuilt (2026-09-23): the retired composer's routes became the week strip (a roll
   // call exists) and the setup (none yet).
-  assert.match(block, /rollcall-week\//);
+  assert.match(block, /data-go="rollcall\/\$\{/, 'v3: the roll call screen, by commitment id');
   assert.match(block, /data-go="rollcall-new"/);
 });
 

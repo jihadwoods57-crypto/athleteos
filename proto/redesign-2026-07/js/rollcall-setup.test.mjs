@@ -236,6 +236,9 @@ test('routes: rollcall-new, rollcall-week and rollcall-history are lazy, from on
   const src = readFileSync(join(JS, 'screens', 'rollcall-setup.js'), 'utf8');
   assert.doesNotMatch(src, /rollcall-(new|week|history)\/[^'"`]*\?/, 'path subs, never query strings');
   assert.match(src, /export default rollcallWeek/);
+  // Roll call v3: the week route hands over to the one roll call screen before it paints.
+  assert.match(src, /redirect\(\{ sub \} = \{\}\) \{ return sub \? `rollcall\/\$\{sub\}` : null; \}/);
+  assert.match(idx, /rollcall: lazy\(\(\) => import\('\.\/rollcall-hub\.js'\)\)/);
 });
 
 /* ---------------- fix round 1 ---------------- */

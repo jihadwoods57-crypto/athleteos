@@ -2641,13 +2641,10 @@ function requirementsSection(P, athleteId) {
     ${rc ? `
     <div class="lrow" role="listitem"><div class="lic">${icon('sun', 17)}</div>
       <div class="lm"><div class="lt">${esc(rc.title || 'Roll call')}</div><div class="ls">${rc.starts_min != null ? `${esc(fmtMin(Number(rc.starts_min)))} · ` : ''}${esc(rc.audience_label || 'Everyone')}</div></div></div>
-    ${/* Straight to the old composer is what created DUPLICATE roll calls: its draft started
-          blank unless editWakeup(rule) loaded one. The week strip (roll call rebuilt, 2026-09-23)
-          is addressed by the commitment id, so it can only ever open THIS roll call: move or
-          cancel one morning there, or Edit roll call for the standing time and message. */''}
-    <div class="lrow" data-go="rollcall-week/${esc(rc.commitment_id)}">
-      <div class="lic ca-lic-blue">${icon('edit', 17)}</div>
-      <div class="lm"><div class="lt">Change the roll call</div><div class="ls">Move or cancel a morning, or change the time</div></div>
+    ${/* By commitment id, never a blank draft (a blank draft saved DUPLICATE roll calls). */''}
+    <div class="lrow" data-go="rollcall/${esc(rc.commitment_id)}">
+      <div class="lic ca-lic-blue">${icon('sun', 17)}</div>
+      <div class="lm"><div class="lt">Open the roll call</div><div class="ls">Who will ring, the live board and results</div></div>
       ${icon('chevron', 17)}
     </div>` : `
     <div class="lrow" data-go="rollcall-new">

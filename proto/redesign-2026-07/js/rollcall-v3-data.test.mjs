@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  markRollcallSeen, primerState, setPrimer, loadArming, seedArmingForHarness, armingFor, remindArm, notifyRollcall, _resetV3ForTests,
+  markRollcallSeen, primerState, setPrimer, loadArming, seedArmingForHarness, armingFor, remindArm, notifyRollcall, tellAthletesNow, toldState, _resetV3ForTests,
 } from './rollcall-v3-data.js';
 
 function fakeSb(h) {
@@ -56,6 +56,29 @@ test('remind and notify map the coach function answers', async () => {
   assert.deepEqual(await notifyRollcall('c1'), { sent: 5, reason: 'ok' });
   withSb(fakeSb({ 'roll-call-coach': () => ({ data: null, error: { context: { status: 429 } } }) }));
   assert.deepEqual(await remindArm('i1'), { sent: 0, reason: 'rate_limited' });
+});
+
+test('the coach answers the screen says plainly: cooldown, nobody, switched off', async () => {
+  withSb(fakeSb({ 'roll-call-coach': (b) => (b.action === 'remind_arm'
+    ? { data: { ok: true, action: 'remind_arm', targeted: 0, pushed: 0 }, error: null }
+    : { data: { ok: true, action: 'notify', cooldown: true, groups: 0, pushed: 0 }, error: null }) }));
+  assert.deepEqual(await remindArm('i1'), { sent: 0, reason: 'nobody' });
+  assert.deepEqual(await notifyRollcall('c1'), { sent: 0, reason: 'cooldown' });
+  const body = (error) => ({ status: 403, json: async () => ({ ok: false, error }) });
+  withSb(fakeSb({ 'roll-call-coach': () => ({ data: null, error: { context: body('flag_off') } }) }));
+  assert.deepEqual(await remindArm('i1'), { sent: 0, reason: 'flag_off' });
+  withSb(fakeSb({ 'roll-call-coach': () => ({ data: null, error: { context: body('not_authorized') } }) }));
+  assert.deepEqual(await remindArm('i1'), { sent: 0, reason: 'not_authorized' });
+});
+
+test('the tell fired on the way out of setup is readable on the screen it lands on', async () => {
+  withSb(fakeSb({ 'roll-call-coach': () => ({ data: { ok: true, pushed: 4 }, error: null }) }));
+  assert.equal(toldState('c1'), null);
+  const p = tellAthletesNow('c1');
+  assert.equal(toldState('c1').state, 'sending');
+  await p;
+  assert.deepEqual([toldState('c1').state, toldState('c1').sent], ['ok', 4]);
+  assert.equal(toldState('c1', Date.now() + 121000), null, 'said for two minutes, then gone');
 });
 
 test('a seeded arming board never refetches; a failed read is null', async () => {

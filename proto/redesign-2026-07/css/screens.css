@@ -4275,6 +4275,41 @@ button.rw-cell:active { transform: scale(var(--press-btn)); }
 .ra-set { display: flex; align-items: center; gap: var(--s2); margin: 0; font-size: var(--t-base); font-weight: 800; color: var(--green-bright); }
 .ra-list { margin-top: var(--s2); }
 
+/* ================================================================ roll call v3: the coach's one
+   roll call screen (rhb-, js/screens/rollcall-hub.js). Counts are records, not scores: the rfig
+   record figure, tabular numbers (2026-09-23 amendment). Green only for "Alarm set", amber for a
+   step the coach can act on, neutral for "Hasn't been told" (the push is on its way, nobody's fault)
+   and Excused. The embedded board is the athlete-grammar board (read-only faces). */
+.rhb-week { margin-top: var(--s2); }
+.rhb-body { margin-top: var(--s5); }
+.rhb-hero { padding-top: 0; }
+.rhb-hero .rfig-k { margin: 0 0 var(--s1); font-variant-numeric: tabular-nums; }
+.rhb-hero .rfig-s.g { color: var(--green-bright); }
+.rhb-h { margin-top: var(--s5); }
+.rhb-list { list-style: none; margin: var(--s2) 0 0; padding: 0 var(--s4); }
+.rhb-row { display: flex; align-items: center; gap: var(--s3); min-height: 56px; border-top: 1px solid var(--hairline); }
+.rhb-row:first-child { border-top: 0; }
+.rhb-av { width: 36px; height: 36px; border-radius: var(--r-pill); background: var(--surface-3); color: var(--text-2); display: grid; place-items: center; font-size: var(--t-xs); font-weight: 800; flex: none; overflow: hidden; }
+.rhb-name { flex: 1; min-width: 0; font-size: var(--t-base); font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rhb-step { flex: none; font-size: var(--t-sm); font-weight: 700; color: var(--text-3); text-align: right; }
+.rhb-row[data-step="armed"] .rhb-step { color: var(--green-bright); }
+.rhb-row[data-step="no_push"] .rhb-step, .rhb-row[data-step="unseen"] .rhb-step, .rhb-row[data-step="seen"] .rhb-step { color: var(--amber-bright); }
+.rhb-row[data-step="excused"] .rhb-name, .rhb-row[data-step="excused"] .rhb-av { opacity: 0.55; }
+.btn.rhb-act { width: 100%; margin-top: var(--s4); gap: var(--s2); }
+.btn.rhb-act[disabled] { opacity: 1; color: var(--text-2); }
+.rhb-off { margin: var(--s3) var(--s1) 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.45; text-wrap: pretty; }
+.rhb-note { margin: var(--s2) var(--s1) 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.45; text-align: center; }
+.rhb-note:empty { display: none; }
+.rhb-note.is-error { color: var(--red-bright); }
+.rhb-board .rb { padding: 0; }
+.rhb-links { margin-top: var(--s4); }
+.rhb-next { margin: var(--s4) var(--s1) 0; font-size: var(--t-sm); font-weight: 700; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.rhb-acts { margin-top: var(--s2); }
+.rhb-told { display: flex; align-items: center; gap: var(--s2); margin: var(--s2) 0 0; padding: var(--s2h) var(--s4); border-radius: var(--r-card-sm); background: var(--surface-1); border: 1px solid var(--hairline); font-size: var(--t-sm); font-weight: 700; color: var(--text-2); line-height: 1.4; }
+.rhb-told svg { flex: none; color: var(--text-3); }
+.rhb-told.g svg { color: var(--green-bright); }
+.rhb-told.a svg { color: var(--amber-bright); }
+
 /* ================================================================ location: the ask card (lk-)
    and the location check-in screen (lc-). Final fix round, item 2 (2026-09-23): While Using is
    explained before the phone's prompt, Always is offered only after, Settings after a No. The
