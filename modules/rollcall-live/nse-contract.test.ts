@@ -6,6 +6,7 @@
 // swift-contract.test.ts guards the Live Activity.
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
+import { armPayload } from '../../supabase/functions/_shared/rollcall-notice';
 
 const NSE = join(__dirname, '..', '..', 'targets', 'NotificationService', 'NotificationService.swift');
 const swift = existsSync(NSE) ? readFileSync(NSE, 'utf8').replace(/\r\n/g, '\n') : '';
@@ -36,4 +37,10 @@ test('it reports an armed morning with the armed action and never claims success
 test('it arms through the same scheduler the app uses', () => {
   expect(swift).toContain('RollCallAlarmScheduler.scheduleAt(');
   expect(swift).toContain('RollCallAlarmScheduler.cancel(instanceId:');
+});
+
+test('the server writes exactly the keys the extension reads', () => {
+  const p = { ...armPayload({ kind: 'assigned', title: 'T', label: 'L', url: 'https://x', items: [{ i: 'i', at: 1, c: 'c' }], cancel: [], set: 's' }), diag: 1 };
+  expect(Object.keys(p).sort()).toEqual([...RC_KEYS].sort());
+  expect(Object.keys(p.arm[0]).sort()).toEqual([...ARM_ITEM_KEYS].sort());
 });
