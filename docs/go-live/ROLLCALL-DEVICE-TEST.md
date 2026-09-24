@@ -147,7 +147,7 @@ concrete check with an expected result; run through these once as part of the sa
 ## Walk-in with the app killed (final fix round, item 1)
 
 The binary declares NO `location` background mode (App Review 2.5.4, 2026-09-18). expo-location
-57.0.19 is patched (`patches/expo-location+57.0.19.patch`, applied by the `postinstall`) so that
+57.0.20 is patched (`patches/expo-location+57.0.20.patch`, renamed from the 57.0.19 one with identical hunks on 2026-09-24, applied by the `postinstall`) so that
 region monitoring arms without that mode: the upstream guard in `startGeofencingAsync` is gone,
 and `allowsBackgroundLocationUpdates` is set only when the mode exists (CoreLocation throws if it
 is set without it). Apple documents region monitoring as working without the mode, relaunching a
@@ -170,7 +170,7 @@ that no simulator or test can prove. Run it on the athlete iPhone before the bui
    Expected: nothing is recorded (the region's own window says it is out of time, so the phone
    sends nothing and drops that region), and the morning that closed stays exactly as it closed.
 5. **If step 1 crashed or step 3 never arrives:** check the EAS build log for
-   `patch-package ... expo-location@57.0.19 ✔`. EAS runs `npm install` on the builder, which runs
+   `patch-package ... expo-location@57.0.20 ✔`. EAS runs `npm install` on the builder, which runs
    the `postinstall` script (docs.expo.dev/build-reference/ios-builds: "Run npm install in the
    project root"); the log line proves the patch applied.
 
