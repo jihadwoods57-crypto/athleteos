@@ -13,6 +13,7 @@
  * rules and the code merge are unit tested rather than inferred from a screen.
  */
 import { WAKEUP_TYPE } from './wakeup-morning.js';
+import { ROLLCALL_OFF } from './commitments.js';
 
 /** Never arm more than this. A runaway row set must not fill a phone with alarms. */
 export const MAX_ALARMS = 14;
@@ -227,11 +228,12 @@ export async function syncWakeAlarms(rows, nowMs = Date.now(), opts = {}) {
   try {
     const n = window.OnStandardNative;
     if (!n || !n.wakeAlarms) return 0;
-    const alarms = alarmsFor(rows, nowMs);
+    // Switched off (commitments.js): the empty set, complete, cancels every alarm on the phone.
+    const alarms = ROLLCALL_OFF ? [] : alarmsFor(rows, nowMs);
     const mint = alarms.length ? await fetchAckCodes(window.sb, nowMs, alarms.map((a) => a.instanceId)) : null;
     // `complete`: the caller loaded every morning in the horizon, so the shell may cancel alarms it
     // did not arm itself (the push extension's). An older shell ignores the second argument.
-    return Number(await n.wakeAlarms.sync(withAckCodes(alarms, mint), { complete: opts.complete === true })) || 0;
+    return Number(await n.wakeAlarms.sync(withAckCodes(alarms, mint), { complete: ROLLCALL_OFF || opts.complete === true })) || 0;
   } catch {
     return 0; // no bridge, or the shell is older than this feature
   }

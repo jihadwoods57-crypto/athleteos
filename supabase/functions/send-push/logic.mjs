@@ -62,3 +62,14 @@ export function aggregateBulkResults(results) {
   }
   return { sent, inboxOnly, deduped, suppressed };
 }
+
+/** Roll call kinds an athlete's app reports to their coaches (to_coach mode). */
+export const ROLLCALL_KINDS = new Set(['rollcall_answered']);
+
+/** True when this to_coach report is about the roll call and the roll call is switched off
+ *  (feature_flags.verified_commitments.kill_switch, founder 2026-09-24). An answer to a push sent
+ *  before the switch is still recorded server-side; the coach is just not pushed about a feature
+ *  that no longer exists in their app. `flag` is the feature_flags row or null (no row = on). */
+export function rollcallReportSilenced(baseKind, flag) {
+  return ROLLCALL_KINDS.has(String(baseKind || '')) && !!(flag && flag.kill_switch === true);
+}

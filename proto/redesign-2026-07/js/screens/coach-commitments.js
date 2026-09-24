@@ -577,6 +577,8 @@ function wakeupBoard(inst, back) {
 export function paintBoard(root, slotId = '#vc-board-slot') {
   const slot = root.querySelector(slotId);
   if (!slot) return;
+  // Switched off (commitments.js): no roll call card on the coach's Home, and no board read.
+  if (ROLLCALL_OFF) { slot.innerHTML = ''; return; }
   const paint = () => { if (slot.isConnected) { slot.innerHTML = commitmentBoardCard(); wireNextCard(slot); } };
   paint();
   const id = bookId();

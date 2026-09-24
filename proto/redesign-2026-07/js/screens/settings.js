@@ -288,9 +288,9 @@ export function operatorPrivacyHtml(back) {
         ['Cannot see', 'Full meal photos and per-meal detail.'],
       ] },
     { ic: 'grid', t: 'Teammates', pill: 'Limited access',
-      s: 'Roll call answers; scores only by opt-in',
+      s: ROLLCALL_OFF ? 'Scores only by opt-in' : 'Roll call answers; scores only by opt-in',
       detail: [
-        ['Can see', ROLLCALL_BOARD_PRIVACY],
+        ...(ROLLCALL_OFF ? [] : [['Can see', ROLLCALL_BOARD_PRIVACY]]),
         ['Score', 'An athlete’s score number shows on the Squad board only if that athlete opts in.'],
         ['Cannot see', 'Meals, photos, weight, check-ins, or where anyone is.'],
       ] },
@@ -388,9 +388,12 @@ export const privacy = {
       const sharing = RT.shareSquadScore === true;
       rows.push({
         ic: 'grid', t: 'Teammates', pill: 'Limited access',
-        s: 'Your score only if you opt in. Your team sees roll call answers',
+        // Roll call switched off (commitments.js): no board, so no roll call answers to see.
+        s: ROLLCALL_OFF ? 'Your score only if you opt in' : 'Your score only if you opt in. Your team sees roll call answers',
         detail: [
-          ['Can see', sharing
+          ['Can see', ROLLCALL_OFF
+            ? (sharing ? 'Your name and daily score number on the Squad board.' : 'Your score only if you opt in on the Squad board; right now you haven’t.')
+            : sharing
             ? 'Your name and daily score number on the Squad board, and your roll call answers on the roll call board.'
             : 'Your roll call answers on the roll call board. Your score only if you opt in on the Squad board; right now you haven’t.'],
           ['Cannot see', 'Your meals, photos, weight, check-ins, and where you are. Never, shared or not.'],

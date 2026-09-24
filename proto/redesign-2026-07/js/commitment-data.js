@@ -13,6 +13,7 @@ function sb() { return window.sb; }
 
 import * as SQ from './sync-queue.js';
 import { dateKey } from './fmt-date.js';
+import { ROLLCALL_OFF } from './commitments.js';
 
 /* Who to queue offline work FOR — registered by state.js (the setDayTaskProvider pattern; this
    module must not import state.js, see header). Unregistered → no queueing, behavior as before. */
@@ -95,7 +96,7 @@ const RTC = {
 };
 
 export const VC = {
-  get mine() { return RTC.mine; },
+  get mine() { return ROLLCALL_OFF ? [] : RTC.mine; },
   get board() { return RTC.board; },
   get locations() { return RTC.locations; },
   get mineError() { return RTC.mineError; },
@@ -106,7 +107,7 @@ export const VC = {
   /** Today's rows only — what Home renders. */
   today(dayISO) {
     const d = dayISO || todayISO();
-    return RTC.mine.filter(r => r.occurs_on === d);
+    return VC.mine.filter(r => r.occurs_on === d);
   },
   /** One instance out of whichever cache holds it. */
   instance(instanceId) {
@@ -179,6 +180,7 @@ export function seedHistoryForHarness(commitmentId, history, days = 30) {
 /** The athlete's own commitments across a window (default: yesterday → tomorrow, so a late-night
  *  log and an early-morning card both resolve without a second fetch). Materializes first. */
 export async function loadMine(force = false, dayISO = null) {
+  if (ROLLCALL_OFF) return [];
   const day = dayISO || todayISO();
   if (!force && RTC.mineDay === day && Date.now() - RTC.mineAt < FRESH_MS) return RTC.mine;
   const c = sb();
@@ -203,6 +205,7 @@ const AHEAD_DAYS = 14; // the alarm horizon, roll call v3
 const AHEAD_FRESH_MS = 2 * 60_000; // covers plain re-renders; force (home.js armAhead) skips it
 const AHEAD = { rows: [], at: 0, day: null, ok: false, uid: null, inflight: null, inflightUid: null };
 export async function loadMineAhead(force = false) {
+  if (ROLLCALL_OFF) return [];
   const day = todayISO();
   const uid = vcUid(); // keyed: A's load must never populate B's cache
   if (AHEAD.inflight && AHEAD.inflightUid === uid) return AHEAD.inflight;

@@ -15,35 +15,15 @@
 import { fmtMin } from './requirements.js';
 import { weekdayDate } from './fmt-date.js';
 
-/* ================================================================================
-   THE MORNING ROLL CALL IS SWITCHED OFF (founder, 2026-09-02): "remove the morning
-   roll call completely for now from the app."
-
-   FOR NOW is the operative word. Nothing is deleted — not a migration, not a table,
-   not a row, not a screen. This is a switch, thrown in two places, and it comes back
-   by throwing both:
-
-     1. SERVER (the authority, and the half that matters): the `verified_commitments`
-        kill switch. Off, every read returns [], the write trigger refuses, the
-        materializer stops, and BOTH push rungs claim nothing (the 6:05 escalation
-        only started honouring it in 0217 — before that, switching off still buzzed
-        phones). So no card, no notification, no cron work, whatever the client does.
-            back on:  update feature_flags set kill_switch = false
-                        where name = 'verified_commitments';
-
-     2. CLIENT (this constant): with the server empty, every DATA-driven surface goes
-        quiet on its own — both Home cards, the board, Morning Readiness. What does
-        not is the static furniture: the create-menu entry, the composer, the manage
-        button, the Progress link. A coach tapping those would land in a live-looking
-        form that writes into a feature that no longer exists. So this constant hides
-        exactly that furniture and nothing else.
-            back on:  ROLLCALL_OFF = false, then rebuild proto.zip and ship an OTA.
-
-   Both halves are independent on purpose. The server one alone is enough to make the
-   product inert; this one alone would only hide the doors. Turning it back on wants
-   both, and the server first.
-   ================================================================================ */
-export const ROLLCALL_OFF = false;
+/* ROLL CALL SWITCHED OFF (founder, 2026-09-24), reversibly: nothing is deleted. Server half:
+   feature_flags.verified_commitments.kill_switch (0217, 0248). Client half: this constant. Back
+   on, server first: docs/go-live/WAKEUP-ROLLCALL.md, "SWITCHED OFF 2026-09-24". */
+export let ROLLCALL_OFF = true;
+export function rollcallOnForTests() { ROLLCALL_OFF = false; }   // the feature's own tests
+/* Routes the router sends Home while off (coach-wakeup.js, wakeup-morning.js redirect themselves). */
+export const ROLLCALL_ROUTES = new Set(['roll-call', 'rollcall', 'rollcall-board', 'rollcall-assigned',
+  'rollcall-new', 'rollcall-week', 'rollcall-history', 'wakeup-squad',
+  'location-consent', 'accountability', 'coach-commitments', 'coach-commit-edit', 'coach-commit-manage']);
 
 /* ================================================================================
    ONE WAY IN (roll call rebuilt, 2026-09-23). The rebuilt screens own the roll call: the live

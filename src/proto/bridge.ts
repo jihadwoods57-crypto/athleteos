@@ -29,7 +29,7 @@ import {
 } from '../lib/location';
 import { syncExecNotifications } from '../lib/notify/execSync';
 import { syncWakeAlarms, wakeAlarmState, cancelWakeAlarmFor } from '../lib/notify/wakeAlarms';
-import { drainLiveActivityTaps, settleLiveCard } from '../lib/notify/rollcall';
+import { drainLiveActivityTaps, settleLiveCard, endAllLiveCards } from '../lib/notify/rollcall';
 import { getPushToken, ensureNotifyPermission, notifyPermissionState } from '../lib/notify';
 import { getFlag } from '../store/flagsStore';
 import { requestMapPick } from '../lib/maps/pickRequest';
@@ -57,6 +57,9 @@ export type BridgeMessage =
   // The proto asks the shell for taps the alarm or the lock-screen card recorded outside the
   // WebView (the athlete answered on the alarm banner while the app was already open).
   | { type: 'ROLLCALL_DRAIN'; id: number }
+  // The roll call is switched off (proto commitments.js ROLLCALL_OFF, 2026-09-24): end every roll
+  // call Live Activity still on this phone. Resolves how many were ended.
+  | { type: 'ROLLCALL_END_ALL'; id: number }
   // The coach-assigned wake-up, as a REAL alarm (AlarmKit on iOS 26, setAlarmClock on Android).
   // The proto owns the roll-call rows, so it is what says which mornings are armed; the whole set
   // is sent every time and the native side reconciles, which makes a dropped message harmless.
@@ -316,6 +319,13 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
     case 'ROLLCALL_DRAIN':
       try {
         resolve(ref, msg.id, await drainLiveActivityTaps());
+      } catch (e) {
+        resolve(ref, msg.id, 0, String((e as Error)?.message ?? e));
+      }
+      return true;
+    case 'ROLLCALL_END_ALL':
+      try {
+        resolve(ref, msg.id, await endAllLiveCards());
       } catch (e) {
         resolve(ref, msg.id, 0, String((e as Error)?.message ?? e));
       }
@@ -614,7 +624,9 @@ export const BRIDGE_SHIM = `
     rollcall: {
       acked: function(instanceId){ post({ type: 'ROLLCALL_ACKED', instanceId: String(instanceId || '') }); },
       // Resolves to how many native taps landed on the server just now.
-      drain: function(){ return call('ROLLCALL_DRAIN', {}); }
+      drain: function(){ return call('ROLLCALL_DRAIN', {}); },
+      // The roll call switched off: end every card on this phone. Resolves how many.
+      endAll: function(){ return call('ROLLCALL_END_ALL', {}); }
     },
     openUrl: function(url){ post({ type: 'OPEN_URL', url: String(url || '') }); },
     push: { token: function(opts){ return call('PUSH_TOKEN', { ask: !!(opts && opts.ask) }); } },

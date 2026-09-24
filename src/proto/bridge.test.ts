@@ -14,7 +14,7 @@ jest.mock('expo-secure-store', () => ({
   AFTER_FIRST_UNLOCK: 0,
 }));
 jest.mock('../lib/notify/execSync', () => ({ syncExecNotifications: jest.fn(async () => undefined) }));
-jest.mock('../../modules/rollcall-live', () => ({ endLiveActivity: jest.fn(async () => undefined) }));
+jest.mock('../../modules/rollcall-live', () => ({ endLiveActivity: jest.fn(async () => undefined), activeInstanceIds: jest.fn(() => []) }));
 // Mock the native auth seams so the bridge is tested against a KNOWN seam state (unavailable),
 // deterministically, whether or not expo-apple-authentication / expo-local-authentication are
 // installed. The bridge's job is to route whatever the seam reports; the seams' own availability
@@ -64,7 +64,7 @@ jest.mock('../lib/voice/nativeSpeech', () => ({
 import { handleBridgeMessage, BRIDGE_SHIM } from './bridge';
 import { stopDictation, abortDictation, startDictation } from '../lib/voice/nativeSpeech';
 import { syncExecNotifications } from '../lib/notify/execSync';
-import { endLiveActivity } from '../../modules/rollcall-live';
+import { endLiveActivity, activeInstanceIds } from '../../modules/rollcall-live';
 
 function fakeRef() {
   const injected: string[] = [];
@@ -208,6 +208,31 @@ test('ROLLCALL_ACKED ends the lock-screen Live Activity for that instance', asyn
 test('the proto can reach it: the shim exposes rollcall.acked as a one-way post', () => {
   expect(BRIDGE_SHIM).toContain('rollcall:');
   expect(BRIDGE_SHIM).toContain("type: 'ROLLCALL_ACKED'");
+});
+
+/* The roll call switched off (founder 2026-09-24). The proto no longer knows any instance, so it
+   asks the shell to end whatever roll call card is still on the phone, once per launch. */
+test('ROLLCALL_END_ALL ends every roll call card the device reports and answers how many', async () => {
+  (activeInstanceIds as jest.Mock).mockReturnValueOnce(['rc-1', 'rc-2']);
+  (endLiveActivity as jest.Mock).mockClear();
+  const { injected, ref } = fakeRef();
+  const handled = await handleBridgeMessage(ref, { type: 'ROLLCALL_END_ALL', id: 41 } as never);
+  expect(handled).toBe(true);
+  expect(endLiveActivity).toHaveBeenCalledWith('rc-1');
+  expect(endLiveActivity).toHaveBeenCalledWith('rc-2');
+  expect(injected[0]).toContain('__onNativeResult(41, 2');
+});
+
+test('ROLLCALL_END_ALL with no card up ends nothing and still answers', async () => {
+  (endLiveActivity as jest.Mock).mockClear();
+  const { injected, ref } = fakeRef();
+  expect(await handleBridgeMessage(ref, { type: 'ROLLCALL_END_ALL', id: 42 } as never)).toBe(true);
+  expect(endLiveActivity).not.toHaveBeenCalled();
+  expect(injected[0]).toContain('__onNativeResult(42, 0');
+});
+
+test('the proto can reach it: the shim exposes rollcall.endAll as a call', () => {
+  expect(BRIDGE_SHIM).toContain("endAll: function(){ return call('ROLLCALL_END_ALL', {}); }");
 });
 
 

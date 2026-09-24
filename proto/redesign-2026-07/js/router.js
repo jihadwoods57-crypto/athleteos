@@ -12,6 +12,7 @@ import { initKeyboard } from './keyboard.js';
 import { withTransition, canTransition, transitioning, afterTransition } from './view-transition.js';
 import { hydrateAvatars } from './avatar.js';
 import { initGestures, gestureActive, afterGesture } from './gestures.js';
+import { ROLLCALL_OFF, ROLLCALL_ROUTES } from './commitments.js';
 import { pauseReveals, resumeReveals } from './motion.js';
 
 /* Under the native launch splash nothing should move: the entrance and the ring draw would play
@@ -663,6 +664,8 @@ function render(opts) {
   if (window.__screenCleanup) { try { window.__screenCleanup(); } catch { /* best-effort */ } window.__screenCleanup = null; }
   const { route, sub } = parse();
   const full = sub ? `${route}/${sub}` : route;
+  // Roll call switched off (commitments.js): any door to it (a push, a bell row, an old link) is Home.
+  if (ROLLCALL_OFF && ROLLCALL_ROUTES.has(route)) { location.replace('#' + routeForRole(RT.authRole || 'athlete')); return; }
   // A lazy module: ask for it and come back when it lands (awaitScreen re-enters render(), with
   // every consumable flag below still unconsumed, so the arrival reads exactly as this call would
   // have). The auth gate runs first so a signed-out hash never fetches an app screen. A failed

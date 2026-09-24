@@ -15,6 +15,12 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
+// The roll call is switched off (commitments.js, 2026-09-24). This file tests the roll call itself,
+// so it runs it switched ON, as it will be when it comes back; rollcall-off.test.mjs pins the off state.
+import { rollcallOnForTests } from './commitments.js';
+rollcallOnForTests();
+
+
 /* The screen graph touches the DOM at module eval; the same shim rollcall-board.test.mjs uses. */
 const el = () => ({
   style: { setProperty() {}, removeProperty() {} },
