@@ -17,8 +17,9 @@ import { WAKEUP_TYPE } from './wakeup-morning.js';
 /** Never arm more than this. A runaway row set must not fill a phone with alarms. */
 export const MAX_ALARMS = 14;
 
-/** How far ahead to arm. Beyond this the app will have synced again many times over. */
-export const HORIZON_DAYS = 7;
+/** How far ahead to arm (roll call v3): the server's window codes and the push extension use the
+ *  same 14 days. */
+export const HORIZON_DAYS = 14;
 
 /**
  * Which of the athlete's commitments deserve an alarm, in the shape the bridge wants.
@@ -219,13 +220,15 @@ export function withAckCodes(alarms, mint) {
  * app shell there is no bridge and this does nothing at all.
  * @returns {Promise<number>} how many are armed. 0 on a device that cannot set alarms.
  */
-export async function syncWakeAlarms(rows, nowMs = Date.now()) {
+export async function syncWakeAlarms(rows, nowMs = Date.now(), opts = {}) {
   try {
     const n = window.OnStandardNative;
     if (!n || !n.wakeAlarms) return 0;
     const alarms = alarmsFor(rows, nowMs);
     const mint = alarms.length ? await fetchAckCodes(window.sb, nowMs, alarms.map((a) => a.instanceId)) : null;
-    return Number(await n.wakeAlarms.sync(withAckCodes(alarms, mint))) || 0;
+    // `complete`: the caller loaded every morning in the horizon, so the shell may cancel alarms it
+    // did not arm itself (the push extension's). An older shell ignores the second argument.
+    return Number(await n.wakeAlarms.sync(withAckCodes(alarms, mint), { complete: opts.complete === true })) || 0;
   } catch {
     return 0; // no bridge, or the shell is older than this feature
   }

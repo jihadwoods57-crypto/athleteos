@@ -21,7 +21,7 @@ import { warmMealPhotos, todayMealPhotoPath, cachedMealPhoto, cachedMealThumb, p
 import { launchCache, keepLaunch, launchOwner, onLaunchDrop } from '../launch-cache.js';
 import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
 import { deriveCommitment, presenceOf, PRESENCE, tomorrowRollcall, wakeupPhase } from '../commitments.js';
-import { VC, loadMine, loadMineAhead, ackCommitment, todayISO as vcToday } from '../commitment-data.js';
+import { VC, loadMine, loadMineAhead, ackCommitment, todayISO as vcToday, aheadRows, aheadComplete } from '../commitment-data.js';
 import { commitmentCard, mountCommitmentCard, commitmentOfflineCard, tomorrowCard } from './roll-call.js';
 import { standardsCard, mountStandardsCard, standardsOfflineCard } from './standards-card.js';
 import { CS, loadMine as loadStandards, todayISO as csToday } from '../connected-standard-data.js';
@@ -387,7 +387,7 @@ function publishWakeup(rows) {
   // Home's own rows stop at tomorrow, and an athlete who did not open the app for two days used
   // to wake on the third morning with no alarm because nothing had ever read that morning's row.
   try {
-    loadMineAhead().then((ahead) => syncWakeAlarms([...(rows || []), ...(ahead || [])]), () => syncWakeAlarms(rows));
+    loadMineAhead().then((ahead) => syncWakeAlarms([...(rows || []), ...(ahead || [])], Date.now(), { complete: aheadComplete() }), () => syncWakeAlarms(rows));
   } catch (_) { /* never block the paint */ }
 }
 

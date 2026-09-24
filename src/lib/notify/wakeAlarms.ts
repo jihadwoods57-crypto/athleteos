@@ -40,6 +40,7 @@ export type WakeAlarmState = {
   supported: boolean;
   authorization: 'authorized' | 'denied' | 'notDetermined' | 'unsupported';
   armed: number;
+  ids: string[];
 };
 
 type LiveModule = typeof import('../../../modules/rollcall-live');
@@ -55,8 +56,23 @@ function live(): LiveModule | null {
 
 /** The last set the proto asked for, so a cancel can find alarms the device still holds. */
 let lastArmed: string[] = [];
-/** What the server has been told per instance, so a sync only speaks when something changed. */
-const reported = new Map<string, boolean>();
+/** What the server has been told per instance: `1@<ms>` armed for that instant, `0` not armed. Keyed
+ *  on the TIME too: a moved morning is re-armed at a new instant and the server (0247) cleared its
+ *  stale armed stamp, so it must hear it again. */
+const reported = new Map<string, string>();
+
+/** Instance ids (lowercase UUIDs) of the alarms this device holds, however they were armed. AlarmKit
+ *  ids ARE the instance UUID (RollCallAlarmScheduler.alarmID), so an alarm the push extension armed
+ *  while the app was closed is found and reconciled like one this process armed. */
+export function deviceAlarmIds(list: unknown): string[] {
+  const out = new Set<string>();
+  for (const a of Array.isArray(list) ? list : []) {
+    const raw = a && typeof a === 'object' ? (a as { id?: unknown }).id : null;
+    const id = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) out.add(id);
+  }
+  return [...out];
+}
 
 /** A request is only usable if it names an instance and a real time on the clock. */
 export function isUsable(a: WakeAlarmRequest | null | undefined): a is WakeAlarmRequest {
@@ -101,7 +117,7 @@ export function ackFor(a: WakeAlarmRequest): { ackCode: string; ackUrl: string }
  * hears one alarm and not an alarm plus a chime plus a Live Activity alert. Best-effort and
  * diffed: only instances whose state changed are reported.
  */
-async function reportArmed(armedIds: Set<string>, everSeen: Iterable<string>): Promise<void> {
+async function reportArmed(armedAt: Map<string, number>, everSeen: Iterable<string>): Promise<void> {
   let rpc: ((fn: string, args: Record<string, unknown>) => Promise<{ error: unknown }>) | null = null;
   try {
     const { supabase } = require('@/lib/supabase/client') as {
@@ -110,12 +126,12 @@ async function reportArmed(armedIds: Set<string>, everSeen: Iterable<string>): P
     rpc = supabase ? supabase.rpc.bind(supabase) : null;
   } catch { rpc = null; }
   if (!rpc) return;
-  for (const id of new Set([...armedIds, ...everSeen])) {
-    const armed = armedIds.has(id);
-    if (reported.get(id) === armed) continue;
+  for (const id of new Set([...armedAt.keys(), ...everSeen])) {
+    const key = armedAt.has(id) ? `1@${armedAt.get(id) || 0}` : '0';
+    if (reported.get(id) === key) continue;
     try {
-      const { error } = await rpc('set_wake_alarm_armed', { p_instance: id, p_armed: armed });
-      if (!error) reported.set(id, armed);
+      const { error } = await rpc('set_wake_alarm_armed', { p_instance: id, p_armed: armedAt.has(id) });
+      if (!error) reported.set(id, key);
     } catch { /* the next sync says it again */ }
   }
 }
@@ -126,7 +142,7 @@ async function reportArmed(armedIds: Set<string>, everSeen: Iterable<string>): P
  * @returns how many are actually armed. Zero is a legitimate answer on an unsupported device and
  *   is NOT an error — the caller uses `wakeAlarmState()` to tell "cannot" from "none to arm".
  */
-export async function syncWakeAlarms(alarms: WakeAlarmRequest[]): Promise<number> {
+export async function syncWakeAlarms(alarms: WakeAlarmRequest[], opts: { complete?: boolean } = {}): Promise<number> {
   const mod = live();
   if (!mod || !mod.isAlarmSupported()) {
     lastArmed = [];
@@ -141,18 +157,25 @@ export async function syncWakeAlarms(alarms: WakeAlarmRequest[]): Promise<number
   let authorized = false;
   try { authorized = mod.alarmAuthorizationState() === 'authorized'; } catch { authorized = false; }
   const wanted = authorized ? (Array.isArray(alarms) ? alarms : []).filter(isUsable) : [];
-  const wantedIds = new Set(wanted.map((a) => a.instanceId));
+  const wantedIds = new Set(wanted.map((a) => a.instanceId.toLowerCase()));
 
   // Cancel first. If arming later fails, the athlete is left with no alarm rather than a stale one
-  // firing for a morning their coach has already called off.
+  // firing for a morning their coach has already called off. `complete` (the proto loaded the whole
+  // 14 days) widens this to every alarm the DEVICE holds, including ones the push extension armed
+  // while the app was closed; a partial row set only ever cancels what this process armed.
   const previously = [...lastArmed];
-  for (const id of previously) {
-    if (!wantedIds.has(id)) {
+  let onDevice: string[] = [];
+  if (opts.complete === true) {
+    try { onDevice = deviceAlarmIds(mod.scheduledWakeAlarms()); } catch { onDevice = []; }
+  }
+  for (const id of new Set([...previously, ...onDevice])) {
+    if (!wantedIds.has(id.toLowerCase())) {
       try { mod.cancelWakeAlarm(id); } catch { /* best effort */ }
     }
   }
 
   const armed: string[] = [];
+  const armedAt = new Map<string, number>();
   for (const a of wanted) {
     try {
       const title = (a.title || 'Wake up').slice(0, 80);
@@ -176,12 +199,12 @@ export async function syncWakeAlarms(alarms: WakeAlarmRequest[]): Promise<number
       // An empty id means the device refused it (permission revoked, or no AlarmKit). Recording it
       // anyway would make the next sync think it needs cancelling, which is harmless but noisy;
       // not recording it keeps `lastArmed` an honest list of what is really set.
-      if (id) armed.push(a.instanceId);
+      if (id) { armed.push(a.instanceId); armedAt.set(a.instanceId, at || 0); }
     } catch { /* one bad morning must not cost the rest */ }
   }
 
   lastArmed = armed;
-  void reportArmed(new Set(armed), previously);
+  void reportArmed(armedAt, [...previously, ...onDevice]);
   return armed.length;
 }
 
@@ -198,17 +221,17 @@ export function cancelWakeAlarmFor(instanceId: string): void {
   if (!mod) return;
   try { mod.cancelWakeAlarm(id); } catch { /* best effort */ }
   lastArmed = lastArmed.filter((x) => x !== id);
-  void reportArmed(new Set(lastArmed), [id]);
+  void reportArmed(new Map(lastArmed.map((x) => [x, 0])), [id]);
 }
 
 /** What the app can honestly tell the athlete about alarms on this device. Asks the system
  *  question only when `ask` is true: the roll call's Continue primer (G-P2). */
 export async function wakeAlarmState(opts: { ask?: boolean } = {}): Promise<WakeAlarmState> {
   const mod = live();
-  if (!mod) return { supported: false, authorization: 'unsupported', armed: 0 };
+  if (!mod) return { supported: false, authorization: 'unsupported', armed: 0, ids: [] };
   let supported = false;
   try { supported = mod.isAlarmSupported(); } catch { supported = false; }
-  if (!supported) return { supported: false, authorization: 'unsupported', armed: 0 };
+  if (!supported) return { supported: false, authorization: 'unsupported', armed: 0, ids: [] };
 
   let authorization: WakeAlarmState['authorization'] = 'unsupported';
   try { authorization = mod.alarmAuthorizationState(); } catch { /* leave unsupported */ }
@@ -218,8 +241,13 @@ export async function wakeAlarmState(opts: { ask?: boolean } = {}): Promise<Wake
   }
 
   let armed = 0;
-  try { armed = mod.scheduledWakeAlarms().length; } catch { armed = 0; }
-  return { supported, authorization, armed };
+  let ids: string[] = [];
+  try {
+    const list = mod.scheduledWakeAlarms();
+    armed = list.length;
+    ids = deviceAlarmIds(list);
+  } catch { armed = 0; ids = []; }
+  return { supported, authorization, armed, ids };
 }
 
 /** Test seam: forget what this process believes is armed. */

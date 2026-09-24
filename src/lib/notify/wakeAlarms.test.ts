@@ -3,7 +3,7 @@
 // The property worth protecting is that a wake-up a coach DELETED stops ringing. Appending would
 // leave it armed on the athlete's phone with nothing in the app to turn it off, which is the worst
 // failure this feature has.
-import { syncWakeAlarms, wakeAlarmState, isUsable, cleanWeekdays, fixedAt, cancelWakeAlarmFor, _resetWakeAlarms } from './wakeAlarms';
+import { syncWakeAlarms, wakeAlarmState, isUsable, cleanWeekdays, fixedAt, cancelWakeAlarmFor, _resetWakeAlarms, deviceAlarmIds } from './wakeAlarms';
 
 type Scheduled = { instanceId: string; hour?: number; minute?: number; weekdays?: number[]; title: string; at?: number; ackCode?: string; ackUrl?: string };
 
@@ -12,6 +12,9 @@ const mockState = {
   authorization: 'authorized' as string,
   scheduled: [] as Scheduled[],
   cancelled: [] as string[],
+  /** Alarms the device holds that this process did not arm (e.g. the push extension, or another
+   *  process). AlarmKit reports them alongside this process's own, uppercase, as real UUIDs do. */
+  foreign: [] as string[],
   refuse: new Set<string>(),
   requested: 0,
   /** Whether the fake binary knows the dated call. */
@@ -54,8 +57,13 @@ jest.mock('../../../modules/rollcall-live', () => ({
   cancelWakeAlarm: (id: string) => {
     mockState.cancelled.push(id);
     mockState.scheduled = mockState.scheduled.filter((x) => x.instanceId !== id);
+    mockState.foreign = mockState.foreign.filter((x) => x.toLowerCase() !== id.toLowerCase());
   },
-  scheduledWakeAlarms: () => mockState.scheduled,
+  // AlarmKit answers with the alarm's UUID, uppercase; the push extension's alarms are in the same list.
+  scheduledWakeAlarms: () => [
+    ...mockState.scheduled.map((s) => ({ id: s.instanceId.toUpperCase(), state: 'scheduled' })),
+    ...mockState.foreign.map((id) => ({ id, state: 'scheduled' })),
+  ],
 }));
 
 const morning = (instanceId: string, hour = 5, minute = 45) => ({ instanceId, hour, minute, title: 'Wake up' });
@@ -65,6 +73,7 @@ beforeEach(() => {
   mockState.authorization = 'authorized';
   mockState.scheduled = [];
   mockState.cancelled = [];
+  mockState.foreign = [];
   mockState.refuse = new Set();
   mockState.requested = 0;
   mockState.dated = true;
@@ -240,7 +249,7 @@ describe('wakeAlarmState', () => {
 
   it('reports honestly on a device with no alarms at all', async () => {
     mockState.supported = false;
-    expect(await wakeAlarmState()).toEqual({ supported: false, authorization: 'unsupported', armed: 0 });
+    expect(await wakeAlarmState()).toEqual({ supported: false, authorization: 'unsupported', armed: 0, ids: [] });
   });
 });
 
@@ -291,5 +300,38 @@ describe('the window code rides with the alarm (Stop checks in with the app clos
       expect(s.ackCode).toBeUndefined();
       expect(s.ackUrl).toBeUndefined();
     }
+  });
+});
+
+const U1 = '11111111-2222-3333-4444-555555555555';
+const U2 = '66666666-7777-8888-9999-000000000000';
+const later = (h: number) => Date.now() + h * 3600000;
+
+describe('roll call v3: alarms the push armed while the app was closed', () => {
+  it('deviceAlarmIds lowercases UUIDs and ignores anything else', () => {
+    expect(deviceAlarmIds([{ id: U1.toUpperCase() }, { id: 'not-a-uuid' }, null, { id: U1 }])).toEqual([U1]);
+  });
+  it('a COMPLETE sync cancels a push-armed alarm the coach has since called off', async () => {
+    mockState.foreign = [U2.toUpperCase()];
+    await syncWakeAlarms([{ instanceId: U1, hour: 5, minute: 45, at: later(20) }], { complete: true });
+    expect(mockState.cancelled.map((x) => x.toLowerCase())).toContain(U2);
+    expect(mockState.scheduled.map((s) => s.instanceId)).toEqual([U1]);
+  });
+  it('a partial sync (the week ahead did not load) never cancels what it did not arm', async () => {
+    mockState.foreign = [U2.toUpperCase()];
+    await syncWakeAlarms([{ instanceId: U1, hour: 5, minute: 45, at: later(20) }]);
+    expect(mockState.cancelled.map((x) => x.toLowerCase())).not.toContain(U2);
+  });
+  it('re-arming a moved morning at a new time tells the server again', async () => {
+    await syncWakeAlarms([{ instanceId: U1, hour: 5, minute: 45, at: later(20) }]);
+    await new Promise((r) => setTimeout(r, 0));
+    await syncWakeAlarms([{ instanceId: U1, hour: 6, minute: 15, at: later(20.5) }]);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mockState.told.filter((t) => t.p_instance === U1 && t.p_armed)).toHaveLength(2);
+  });
+  it('the state names the mornings this phone holds', async () => {
+    mockState.foreign = [U2.toUpperCase()];
+    const st = await wakeAlarmState();
+    expect(st.ids).toContain(U2);
   });
 });
