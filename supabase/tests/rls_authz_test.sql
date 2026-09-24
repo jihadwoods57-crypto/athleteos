@@ -5316,6 +5316,150 @@ select _ok(_try($q$insert into apple_siwa_tokens (user_id, refresh_token) values
   '0246: no client can write one');
 select _superuser();
 
+-- ================================================================ 0247: roll call v3
+-- Each athlete's step (notified, seen, armed), the per-minute notice claim, the coach's reads.
+-- Reuses the 0138 cast: team T1, coach_1 (staff), coach_2 (stranger), athletes e1 / e2,
+-- commitment ccccdddd-...-c1. One instance three days out, owned by this section.
+select _superuser();
+select set_config('request.jwt.claim.sub', '', false);
+update public.feature_flags set kill_switch = false where name = 'verified_commitments';
+update commitments set active = true where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+select _ok((select type from commitments where id = 'ccccdddd-0000-0000-0000-0000000000c1') = 'morning_roll_call',
+  '0247: (fixture) the 0138 commitment is a wake-up');
+select _ok(not exists (select 1 from team_staff ts join commitments c on c.team_id = ts.team_id
+                        where c.id = 'ccccdddd-0000-0000-0000-0000000000c1' and ts.staff_id = '11111111-0000-0000-0000-000000000002'),
+  '0247: (fixture) coach_2 is not staff on the roll call''s team');
+insert into commitment_instances (commitment_id, occurs_on, starts_at, respond_by_at, status, skipped)
+values ('ccccdddd-0000-0000-0000-0000000000c1', current_date + 3, now() + interval '3 days', now() + interval '3 days 5 minutes', 'scheduled', false)
+on conflict (commitment_id, occurs_on) do update
+  set starts_at = excluded.starts_at, respond_by_at = excluded.respond_by_at, status = 'scheduled', skipped = false;
+create temp table _v3_i as
+  select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = current_date + 3;
+grant select on _v3_i to authenticated, anon, service_role;
+insert into commitment_responses (instance_id, athlete_id)
+  select (select id from _v3_i), a from unnest(array['eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2']::uuid[]) a
+  on conflict do nothing;
+update commitment_responses set status = 'pending', acknowledged_at = null, alarm_armed_at = null, notified_at = null,
+       notified_starts_at = null, notified_cancelled = null, notice_claimed_at = null, seen_at = null
+ where instance_id = (select id from _v3_i);
+update commitment_responses set status = 'excused'
+ where instance_id = (select id from _v3_i)
+   and athlete_id not in ('eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2');
+-- 0140 left e2 excused from current_date to +6 (athlete_exceptions); rollcall_upcoming below
+-- re-materializes and would excuse e2 on this morning again. This section wants e2 on it.
+delete from athlete_exceptions where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+-- No athlete has been told about this roll call before this section.
+update commitment_responses r set notified_at = null
+  from commitment_instances i where i.id = r.instance_id and i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1';
+
+-- ---- the service-only pieces ----
+create temp table _v3_calls (sql text);
+insert into _v3_calls values
+  ('select materialize_rollcalls_ahead(14)'),
+  ('select * from claim_rollcall_notices(null, 1)'),
+  ($q$select settle_rollcall_notices('[]'::jsonb, true)$q$),
+  ('select * from rollcall_remind_rows_svc(''ccccdddd-0000-0000-0000-0000000000c1''::uuid, array[''eeee0000-0000-0000-0000-0000000000e1''::uuid])'),
+  ('select * from rollcall_instance_windows_svc(array[(select id from _v3_i)])'),
+  ('select * from rollcall_notice_context_svc(array[''ccccdddd-0000-0000-0000-0000000000c1''::uuid])'),
+  ('select rollcall_commitment_coach_authorized(''ccccdddd-0000-0000-0000-0000000000c1''::uuid, ''11111111-0000-0000-0000-000000000001''::uuid)'),
+  ('select rollcall_arm_remind_claim((select id from _v3_i), ''11111111-0000-0000-0000-000000000001''::uuid, 10)'),
+  ('select set_wake_alarm_armed_svc((select id from _v3_i), ''eeee0000-0000-0000-0000-0000000000e1''::uuid, true)');
+grant select on _v3_calls to authenticated, anon;
+set role anon;
+select _ok((select bool_and(_try(sql) like 'denied(42501)%') from _v3_calls), '0247: anon can execute none of the service-only roll call v3 functions');
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok((select bool_and(_try(sql) like 'denied(42501)%') from _v3_calls), '0247: an athlete on the roll call can execute none of them');
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((select bool_and(_try(sql) like 'denied(42501)%') from _v3_calls), '0247: not even the owning coach can execute them');
+select _superuser();
+
+-- ---- the claim: assigned, once ----
+create temp table _v3_c1 as select * from claim_rollcall_notices('ccccdddd-0000-0000-0000-0000000000c1', 500);
+select _ok((select kind from _v3_c1 where instance_id = (select id from _v3_i) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 'assigned',
+  '0247: an athlete never told about a roll call is claimed as assigned');
+select _ok(not exists (select 1 from _v3_c1 where instance_id = (select id from _v3_i) and athlete_id not in ('eeee0000-0000-0000-0000-0000000000e1','eeee0000-0000-0000-0000-0000000000e2')),
+  '0247: an excused athlete is never claimed');
+select _ok(not exists (select 1 from claim_rollcall_notices('ccccdddd-0000-0000-0000-0000000000c1', 500) x where x.instance_id = (select id from _v3_i)),
+  '0247: a claimed row is not claimed again inside two minutes');
+select settle_rollcall_notices((select jsonb_agg(jsonb_build_object('response_id', response_id, 'starts_at', starts_at, 'off', off)) from _v3_c1), true);
+select _ok((select notified_at is not null and notice_claimed_at is null
+                   and notified_starts_at = (select starts_at from commitment_instances where id = (select id from _v3_i))
+              from commitment_responses where instance_id = (select id from _v3_i) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0247: settle stamps notified_at and the time the athlete was told');
+select _ok(not exists (select 1 from claim_rollcall_notices('ccccdddd-0000-0000-0000-0000000000c1', 500) x where x.instance_id = (select id from _v3_i)),
+  '0247: nothing is claimed once told and unchanged');
+
+-- ---- moved: the stale alarm is forgotten, the athlete is told ----
+update commitment_responses set alarm_armed_at = now()
+ where instance_id = (select id from _v3_i) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+update commitment_instances set starts_at = starts_at + interval '30 minutes' where id = (select id from _v3_i);
+select _ok((select alarm_armed_at from commitment_responses where instance_id = (select id from _v3_i) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') is null,
+  '0247: moving a morning forgets the alarm armed for its old time');
+create temp table _v3_c2 as select * from claim_rollcall_notices('ccccdddd-0000-0000-0000-0000000000c1', 500) x where x.instance_id = (select id from _v3_i);
+select _ok((select kind from _v3_c2 where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 'moved'
+       and (select was_starts_at from _v3_c2 where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1')
+           < (select starts_at from _v3_c2 where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0247: a moved morning is claimed as moved, with the time the athlete was last told');
+select settle_rollcall_notices((select jsonb_agg(jsonb_build_object('response_id', response_id, 'starts_at', starts_at, 'off', off)) from _v3_c2), true);
+
+-- ---- cancelled: told once, then quiet; put back reads as moved ----
+update commitment_instances set status = 'cancelled' where id = (select id from _v3_i);
+create temp table _v3_c3 as select * from claim_rollcall_notices('ccccdddd-0000-0000-0000-0000000000c1', 500) x where x.instance_id = (select id from _v3_i);
+select _ok((select kind = 'cancelled' and off from _v3_c3 where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0247: an athlete who was told hears the cancellation');
+select settle_rollcall_notices((select jsonb_agg(jsonb_build_object('response_id', response_id, 'starts_at', starts_at, 'off', off)) from _v3_c3), true);
+select _ok(not exists (select 1 from claim_rollcall_notices('ccccdddd-0000-0000-0000-0000000000c1', 500) x where x.instance_id = (select id from _v3_i)),
+  '0247: a cancellation is said once');
+update commitment_instances set status = 'scheduled' where id = (select id from _v3_i);
+create temp table _v3_c4 as select * from claim_rollcall_notices('ccccdddd-0000-0000-0000-0000000000c1', 500) x where x.instance_id = (select id from _v3_i);
+select _ok((select kind from _v3_c4 where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 'moved',
+  '0247: a cancelled morning put back is told as a change');
+select settle_rollcall_notices((select jsonb_agg(jsonb_build_object('response_id', response_id, 'starts_at', starts_at, 'off', off)) from _v3_c4), true);
+
+-- ---- seen: the athlete's own rows only ----
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(mark_rollcall_seen('ccccdddd-0000-0000-0000-0000000000c1') >= 1, '0247: an athlete stamps their own roll call seen');
+select _superuser();
+select _ok((select seen_at is not null from commitment_responses where instance_id = (select id from _v3_i) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1')
+       and (select seen_at is null from commitment_responses where instance_id = (select id from _v3_i) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'),
+  '0247: seen touches the caller''s rows and nobody else''s');
+
+-- ---- the coach's arming read ----
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok(_try($q$select rollcall_arming((select id from _v3_i))$q$) = 'ok', '0247: the owning coach reads who will ring');
+select _ok((select (r->>'seen_at') is not null and (r->>'notified_at') is not null
+              from jsonb_array_elements(rollcall_arming((select id from _v3_i))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0247: the read carries each athlete''s notified and seen steps');
+select _ok((select bool_and(x ? 'armed') from jsonb_array_elements(rollcall_upcoming('ccccdddd-0000-0000-0000-0000000000c1', 7)) x),
+  '0247: rollcall_upcoming counts the alarms set per morning');
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(_try($q$select rollcall_arming((select id from _v3_i))$q$) <> 'ok', '0247: an athlete cannot read the arming board');
+select _as('11111111-0000-0000-0000-000000000002');
+select _ok(_try($q$select rollcall_arming((select id from _v3_i))$q$) <> 'ok', '0247: a stranger coach cannot read it');
+select _superuser();
+
+-- ---- remind: authorized, the not-set only, rate limited ----
+select _ok(set_wake_alarm_armed_svc((select id from _v3_i), 'eeee0000-0000-0000-0000-0000000000e1', true),
+  '0247: the service marks a morning armed from a push report');
+select _ok((select (j->>'ok')::boolean and (j->'athlete_ids') ? 'eeee0000-0000-0000-0000-0000000000e2'
+                   and not ((j->'athlete_ids') ? 'eeee0000-0000-0000-0000-0000000000e1')
+              from (select rollcall_arm_remind_claim((select id from _v3_i), '11111111-0000-0000-0000-000000000001', 10) as j) x),
+  '0247: "Remind the N not set" targets only the athletes with no alarm');
+select _ok((rollcall_arm_remind_claim((select id from _v3_i), '11111111-0000-0000-0000-000000000001', 10)->>'reason') = 'rate_limited',
+  '0247: a second remind inside the cooldown is refused');
+select _ok((rollcall_arm_remind_claim((select id from _v3_i), '11111111-0000-0000-0000-000000000002', 10)->>'reason') = 'not_authorized',
+  '0247: a stranger coach cannot remind');
+
+-- ---- the alarm primer: once per account, own row only ----
+select _as('eeee0000-0000-0000-0000-0000000000e1');
+select _ok(set_alarm_primer('continue'), '0247: an athlete records their primer answer');
+select _ok((alarm_primer_state()->>'answer') = 'continue', '0247: and reads it back');
+select _ok(not set_alarm_primer('maybe'), '0247: only continue or not_now is recorded');
+select _as('eeee0000-0000-0000-0000-0000000000e2');
+select _ok((alarm_primer_state()->>'answer') is null, '0247: another athlete''s answer is not theirs');
+select _superuser();
+
 -- ================================================================ scoreboard
 select _superuser();
 do $$
