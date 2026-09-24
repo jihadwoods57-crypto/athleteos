@@ -17,6 +17,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+// The roll call is switched off (commitments.js, 2026-09-24). This file tests the roll call itself,
+// so it runs it switched ON, as it will be when it comes back; rollcall-off.test.mjs pins the off state.
+import { rollcallOnForTests } from './commitments.js';
+rollcallOnForTests();
+
+
 /* The screen graph touches the DOM at module eval; same shim as roll-call-resolve.test.mjs. */
 const el = () => ({
   style: { setProperty() {}, removeProperty() {} },

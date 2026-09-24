@@ -61,7 +61,8 @@ export default {
      empty state for a book with no wake-up today, and the loading state before the board
      answers. */
   redirect() {
-    if (ROLLCALL_OFF) return null;
+    // Switched off (commitments.js, 2026-09-24): the operator's Home, never this summary.
+    if (ROLLCALL_OFF) return RT.authRole === 'trainer' ? 'trainer' : 'coach-home';
     const inst = instanceOf();
     return inst ? boardRoute(inst.instance_id, 'missed') : null;
   },

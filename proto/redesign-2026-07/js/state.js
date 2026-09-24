@@ -48,7 +48,7 @@ export function serverPrefPatch(patch, prefs) {
   }
   return Object.keys(out).length ? out : null;
 }
-import { commitmentReminders } from './commitments.js';
+import { commitmentReminders, ROLLCALL_OFF } from './commitments.js';
 import { normalizeCoachPrefs, alertKeys, buildCoachSyncPlan } from './coach-notify-plan.js';
 import { entriesFor, getScope, CD } from './coach-data.js';
 import { splitServerRows } from './notif-feed.js';
@@ -3775,6 +3775,8 @@ export const act = {
   _armLocation(opts) {
     if (opts && opts.reset) { LOC_ARM_AT = 0; return; }
     if (!RT.userId) return;
+    // Roll call off: never arm; once a launch, clear the phone's alarms, regions and cards instead.
+    if (ROLLCALL_OFF) { void import('./rollcall-off-sweep.js').then((m) => m.sweepRollcallOff(), () => {}); return; }
     if (!(opts && opts.force) && Date.now() - LOC_ARM_AT < LOC_ARM_EVERY_MS) return;
     const L = nativeLocation();
     if (!L || typeof L.arm !== 'function') return;

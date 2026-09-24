@@ -19,6 +19,7 @@
  */
 import { icon } from './icons.js';
 import { alarmsFor } from './wake-alarms.js';
+import { ROLLCALL_OFF } from './commitments.js';
 
 let PERM = null;    // 'granted' | 'denied' | 'undetermined' | 'unsupported' | null (not asked yet)
 const LATER_KEY = 'os.notif.primerLater';
@@ -69,7 +70,7 @@ export function notifyPrimerHtml({ perm = PERM, context = 'rollcall', later = la
   if (later && context !== 'settings') return '';
   const t = context !== 'rollcall' ? 'Turn on reminders' : 'Get the roll call on your lock screen';
   const s = context !== 'rollcall'
-    ? 'OnStandard sends the reminders you choose here, your coach’s roll calls and messages from your team. Your phone asks next.'
+    ? `OnStandard sends the reminders you choose here${ROLLCALL_OFF ? '' : ', your coach’s roll calls'} and messages from your team. Your phone asks next.`
     : 'OnStandard can put your coach’s roll call on your lock screen, so one tap checks you in. Your phone asks next.';
   return `<section class="card pad np-card" role="region" aria-labelledby="np-t">
     <h3 class="np-t" id="np-t">${icon('bell', 16)} ${t}</h3>

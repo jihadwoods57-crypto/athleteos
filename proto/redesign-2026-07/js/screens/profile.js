@@ -1,4 +1,5 @@
 import { S, RT } from '../state.js';
+import { ROLLCALL_OFF } from '../commitments.js';
 import { avatarControlHtml, wireAvatarUpload } from '../avatar-upload.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg } from '../components.js';
@@ -129,7 +130,7 @@ export default {
         ${icon('chevron', 17, 'class="chev-dim"')}
       </div>
       ${row('connected-standards', 'bolt', 'Activity standards', 'Steps, distance and workouts · verified from your device')}
-      ${row('location-consent', 'target', 'Location check-in', 'How showing up at a place is confirmed')}
+      ${ROLLCALL_OFF ? '' : row('location-consent', 'target', 'Location check-in', 'How showing up at a place is confirmed')}
     </section>
 
     <h2 class="eyebrow">Your record</h2>

@@ -19,6 +19,12 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
 import { stripComments } from '../tools/strip-comments.mjs';
 
+// The roll call is switched off (commitments.js, 2026-09-24). This file tests the roll call itself,
+// so it runs it switched ON, as it will be when it comes back; rollcall-off.test.mjs pins the off state.
+import { rollcallOnForTests } from './commitments.js';
+rollcallOnForTests();
+
+
 const JS = dirname(fileURLToPath(import.meta.url));
 
 const files = [];

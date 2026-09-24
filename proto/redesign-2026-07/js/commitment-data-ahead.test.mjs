@@ -14,6 +14,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+// The roll call is switched off (commitments.js, 2026-09-24). This file tests the roll call itself,
+// so it runs it switched ON, as it will be when it comes back; rollcall-off.test.mjs pins the off state.
+import { rollcallOnForTests } from './commitments.js';
+rollcallOnForTests();
+
+
 globalThis.window = { sb: null };
 
 const { loadMineAhead, _resetAhead, aheadRows, setVcUidProvider } = await import('./commitment-data.js');

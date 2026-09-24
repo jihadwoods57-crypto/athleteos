@@ -6,7 +6,7 @@
 // verify_jwt stays ON (default) — only a signed-in, linked overseer can call this.
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { clientIpFrom } from '../_shared/client-ip.ts';
-import { sanitizeBulkPayload, aggregateBulkResults } from './logic.mjs';
+import { sanitizeBulkPayload, aggregateBulkResults, rollcallReportSilenced, ROLLCALL_KINDS } from './logic.mjs';
 // Expo answers a REFUSED batch with HTTP 200 and per-message error tickets. Every branch below
 // used to read `r.ok` and report the whole chunk as delivered, which is how an unconfigured APNs
 // key stayed invisible for months. sendExpoPushAndPrune reads the tickets and retires dead ones.
@@ -362,6 +362,12 @@ Deno.serve(async (req) => {
     // practice lane was missing here (it existed for the bulk-nudge branch), so a trainer or a
     // private nutritionist got nothing an athlete did (2026-09-15).
     const svc2 = createClient(SUPABASE_URL, SERVICE_ROLE);
+    // The roll call is switched off (verified_commitments kill switch, 2026-09-24): its answers
+    // are still recorded, but no coach is pushed or belled about a feature gone from their app.
+    if (ROLLCALL_KINDS.has(baseKind)) {
+      const { data: vcFlag } = await svc2.from('feature_flags').select('kill_switch').eq('name', 'verified_commitments').maybeSingle();
+      if (rollcallReportSilenced(baseKind, vcFlag)) return json({ ok: true, pushed: 0, skipped: 'rollcall_off' }, 200, cors);
+    }
     const { data: memberships } = await svc2.from('team_members')
       .select('team_id').eq('athlete_id', athleteId2).eq('status', 'active');
     const teamIds = (memberships ?? []).map((m: { team_id: string }) => m.team_id);

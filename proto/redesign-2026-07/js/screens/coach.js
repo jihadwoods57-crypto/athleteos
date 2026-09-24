@@ -50,6 +50,7 @@ import { reveal } from '../motion.js';
 import { initialsOf } from '../initials.js';
 import { SPORT_POSITIONS } from './profile.js';
 import { VC, loadBoard } from '../commitment-data.js';
+import { ROLLCALL_OFF } from '../commitments.js';
 import { hydrateAvatars } from '../avatar.js';
 import { ensureAiConsent, isConsentSkip, noteAiConsentRequired, aiOffForCoach } from '../ai-consent.js';
 
@@ -2640,7 +2641,7 @@ function requirementsSection(P, athleteId) {
     </div>
   </section>
 
-  <h2 class="eyebrow">Roll call</h2>
+  ${ROLLCALL_OFF ? '' : /* switched off (commitments.js): no roll call section */`<h2 class="eyebrow">Roll call</h2>
   <section class="card co-list ro" role="list">
     ${rc ? `
     <div class="lrow" role="listitem"><div class="lic">${icon('sun', 17)}</div>
@@ -2656,7 +2657,7 @@ function requirementsSection(P, athleteId) {
       <div class="lm"><div class="lt">Set a roll call</div><div class="ls">None scheduled for this ${CD.kind === 'practice' ? 'practice' : 'team'}</div></div>
       ${icon('chevron', 17)}
     </div>`}
-  </section>
+  </section>`}
 
   ${exceptions.length ? `
   <h2 class="eyebrow co-minor">Excused</h2>
