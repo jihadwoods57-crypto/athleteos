@@ -185,6 +185,43 @@ const rnSeed = (o = {}) => `const cd = await import('./js/commitment-data.js');
   window.OnStandardNative = Object.assign(window.OnStandardNative || {}, { push: { token: async () => null },
     notify: { sync() {}, permission: async () => 'granted' }, location: { settings() {} },
     wakeAlarms: { sync: async () => 0, state: async () => Object.assign({ supported: true }, st) } });`;
+/** Roll call v3, Task 10: the coach's one roll call screen. 'rc-rule' rings Mon to Fri at 6:00 AM;
+ *  fourteen days ahead from Thu 23 Jul on the frozen clock (Tue 28 cancelled, weekends off). Thursday's
+ *  morning is 'i-23' (opens 5:50, closes 6:30), the team board is rbSeed's under that id, and Friday's
+ *  'i-24' carries the arming list: every step the coach can see. `o.arming`: 'mixed' (every step),
+ *  'one' (one left to set), 'all' (every alarm set). `o.told` seeds the line Start leaves. */
+const rhbSeed = (o = {}) => `const cd = await import('./js/commitment-data.js');
+  const v3 = await import('./js/rollcall-v3-data.js');
+  const O = ${JSON.stringify(o)};
+  const rule = { id: 'rc-rule', type: 'morning_roll_call', title: 'Morning Roll Call', message: 'Up and at it. Lift at 7.',
+    audience_kind: 'team', audience_value: null, repeat_days: [1, 2, 3, 4, 5], starts_min: 360, respond_by_min: 365,
+    ends_min: 390, opens_min: 350, location_id: null, arrive_by_min: null, arrival_grace_min: 10,
+    escalation: { alarm: O.alarm !== false, breakthrough: true, notify_coach_on_miss: true }, active: true, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+  cd.seedCommitmentsForHarness([rule], []);
+  const iso = (dt) => dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+  const rows = [];
+  for (let d = 23; d < 37; d++) {
+    const day = new Date(2026, 6, d, 6, 0, 0);
+    if (day.getDay() === 0 || day.getDay() === 6) continue;
+    const at = (h, m) => new Date(2026, 6, d, h, m, 0).toISOString();
+    rows.push({ instance_id: 'i-' + d, commitment_id: 'rc-rule', occurs_on: iso(day), instance_status: d === 28 ? 'cancelled' : 'scheduled',
+      skipped: d === 28, starts_at: at(6, 0), respond_by_at: at(6, 5), opens_at: at(5, 50), closes_at: at(6, 30),
+      starts_min: 360, rule_starts_min: 360, starts_override_min: null, timezone: rule.timezone,
+      total: 8, reachable: 7, armed: d === 24 ? ({ mixed: 4, one: 7, all: 8 }[O.arming || 'mixed']) : d < 28 ? 3 : 0 });
+  }
+  cd.seedUpcomingForHarness('rc-rule', rows);
+  const A = (id, name, step) => ({ athlete_id: id, name, status: step === 'excused' ? 'excused' : 'pending',
+    notified_at: step === 'untold' || step === 'no_push' ? null : '2026-07-23T18:00:00Z',
+    seen_at: step === 'seen' || step === 'armed' ? '2026-07-23T19:00:00Z' : null,
+    alarm_armed_at: step === 'armed' ? '2026-07-23T19:01:00Z' : null, can_push: step !== 'no_push' });
+  const mixed = [A('r1', 'DeShawn Cole', 'armed'), A('r2', 'Andre Wells', 'armed'), A('seed-athlete', 'Marcus Reed', 'armed'),
+    A('r3', 'Jaylen Brooks', 'armed'), A('r10', 'Tommy Vargas', 'seen'), A('r11', 'Ray Gomez', 'unseen'),
+    A('r12', 'Eli Walker', 'no_push'), A('r5', 'Kofi Owusu', 'untold'), A('r6', 'Luis Soto', 'excused')];
+  const arm = O.arming === 'all' ? mixed.map((r) => (r.status === 'excused' ? r : A(r.athlete_id, r.name, 'armed')))
+    : O.arming === 'one' ? mixed.map((r) => (r.status === 'excused' || r.athlete_id === 'r10' ? r : A(r.athlete_id, r.name, 'armed')))
+    : mixed;
+  v3.seedArmingForHarness('i-24', { instance_id: 'i-24', commitment_id: 'rc-rule', alarm: O.alarm !== false, rows: arm });
+  if (O.told) v3.seedToldForHarness('rc-rule', O.told, 6);`;
 const ROOT = process.cwd();
 
 /* ---------------- args ---------------- */
@@ -196,7 +233,9 @@ const flag = (name, def) => {
 const has = (name) => argv.includes('--' + name);
 // --serve N: the port the proto server listens on (default 8799). A worktree runs its own server
 // on another port, so a capture renders THAT tree's proto rather than whichever checkout owns 8799.
-const BASE = `http://localhost:${Number(flag('serve', 8799)) || 8799}/index.html`;
+// --ipad renders the real iPad layout (rail, 720 column, split) instead of the desktop bezel at
+// 700px+ widths: js/layout.js honours ?layout=auto, as scripts/ipad-shots.mjs does.
+const BASE = `http://localhost:${Number(flag('serve', 8799)) || 8799}/index.html${argv.includes('--ipad') ? '?layout=auto' : ''}`;
 const THEMES = String(flag('themes', 'dark')).split(',').map((s) => s.trim()).filter(Boolean);
 const WIDTHS = String(flag('widths', '390')).split(',').map((s) => Number(s.trim())).filter(Boolean);
 const OUT_DIR = join(ROOT, 'qc', flag('out', 'transformation'));
@@ -314,6 +353,22 @@ const SHOTS = [
   { g: 'rollcall', name: 'rollcall-week-sheet', seed: 'coachIdentity', route: 'rollcall-week/rc-rule', at: [20, 10], book: 'team', pre: rsSeed(),
     act: `const d = document.querySelector('[data-rw-day="i-24"]'); if (d) d.click();`, actMs: 700 },
   { g: 'rollcall', name: 'rollcall-history', seed: 'coachIdentity', route: 'rollcall-history/rc-rule', at: [20, 10], book: 'team', pre: rsSeed() },
+  // Roll call v3, Task 10: the coach's one roll call screen, before / during / after, every step,
+  // one left (named), all set, the line Start leaves, a day's sheet from Cancel, and the Home card.
+  { g: 'rollcall', name: 'rhb-before', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [20, 10], book: 'team', pre: rhbSeed() },
+  { g: 'rollcall', name: 'rhb-before-one', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [20, 10], book: 'team', pre: rhbSeed({ arming: 'one' }) },
+  { g: 'rollcall', name: 'rhb-before-all', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [20, 10], book: 'team', pre: rhbSeed({ arming: 'all' }) },
+  { g: 'rollcall', name: 'rhb-landed', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [20, 10], book: 'team', pre: rhbSeed({ told: 'ok' }) },
+  { g: 'rollcall', name: 'rhb-live', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [6, 12], book: 'team',
+    pre: `{ ${rhbSeed()} } { ${rbSeed({ now: [6, 12], mode: 'wake' }).split("'rb-shot'").join("'i-23'")} }` },
+  { g: 'rollcall', name: 'rhb-after', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [6, 45], book: 'team',
+    pre: `{ ${rhbSeed()} } { ${rbSeed({ now: [6, 45], mode: 'wake' }).split("'rb-shot'").join("'i-23'")} }` },
+  { g: 'rollcall', name: 'rhb-cancel-sheet', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [20, 10], book: 'team', pre: rhbSeed(),
+    act: `const b = document.querySelector('[data-rhb-cancel]'); if (b) b.click(); await new Promise((r) => setTimeout(r, 400));`, actMs: 500 },
+  { g: 'rollcall', name: 'rhb-week-redirect', seed: 'coachIdentity', route: 'rollcall-week/rc-rule', at: [20, 10], book: 'team', pre: rhbSeed() },
+  { g: 'rollcall', name: 'rhb-home-card', seed: 'coachIdentity', route: 'coach-home', at: [20, 10], book: 'team',
+    // Today's board empty, so Home follows rc-rule (the stub's own 5 AM Club would win otherwise).
+    pre: rhbSeed() + ' cd.seedBoardForHarness([]);' },
   // Roll call v3 (Task 9): the next roll call on Home, with THIS phone's alarm status, and the
   // assignment screen the assignment push opens. Seeded after the page settles, then repainted.
   { g: 'rollcall', name: 'rn-home-set', seed: 'dayComplete', route: 'home', at: [20, 10], act: rnSeed({ alarm: 'set' }) + ' window.__render();', actMs: 1400 },

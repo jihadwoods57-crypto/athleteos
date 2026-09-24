@@ -70,6 +70,10 @@ const PAGES = [
   { hash: '#rollcall-new', seed: true, name: 'rollcall-new', rs: true },
   { hash: '#rollcall-week/rc-ipad', seed: true, name: 'rollcall-week', rs: true },
   { hash: '#rollcall-history/rc-ipad', seed: true, name: 'rollcall-history', rs: true },
+  // Roll call v3 (Task 10): the coach's one roll call screen, the evening before (every athlete's
+  // step) and live (the board read-only, Nudge the N not up), in the iPad column.
+  { hash: '#rollcall/rc-hub', seed: true, name: 'rollcall-hub-before', hub: 'before' },
+  { hash: '#rollcall/rc-hub', seed: true, name: 'rollcall-hub-live', hub: 'live', board: true },
 ];
 
 const SEED_COACH = `(async () => {
@@ -137,6 +141,29 @@ const SEED_RS = `(async () => {
     A('a3', 'Jalen Brooks', 16, 6, 0, -6, 1, 0), A('a1', 'Marcus Hill', 21, 1, 0, 3, 14, 3), A('a4', 'Tyrese Adams', 22, 0, 0, 0, 22, 16)] });
 })()`;
 
+// The roll call screen: tomorrow 6:00 AM with every step in its arming list ('before'), or a
+// morning open right now, 'rb-ipad', whose board SEED_BOARD seeds ('live').
+const SEED_HUB = (phase) => `(async () => {
+  const cd = await import('./js/commitment-data.js');
+  const v3 = await import('./js/rollcall-v3-data.js');
+  cd.seedCommitmentsForHarness([{ id: 'rc-hub', type: 'morning_roll_call', title: 'Morning Roll Call', audience_kind: 'team',
+    repeat_days: [0, 1, 2, 3, 4, 5, 6], starts_min: 360, respond_by_min: 365, ends_min: 390, escalation: { alarm: true }, active: true }], []);
+  const iso = (n) => { const d = new Date(Date.now() + n * 864e5); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const at = (n, m) => { const d = new Date(Date.now() + n * 864e5); d.setHours(0, m, 0, 0); return d.toISOString(); };
+  const T = (m) => new Date(Date.now() + m * 60000).toISOString();
+  const rows = [1, 2, 3, 4, 5, 6].map((n) => ({ instance_id: 'h' + n, occurs_on: iso(n), starts_at: at(n, 360), opens_at: at(n, 350), closes_at: at(n, 390),
+    starts_min: 360, rule_starts_min: 360, starts_override_min: null, skipped: false, instance_status: 'scheduled', total: 8, armed: n === 1 ? 4 : 0 }));
+  if ('${phase}' === 'live') rows.unshift({ instance_id: 'rb-ipad', occurs_on: iso(0), starts_at: T(-12), opens_at: T(-22), closes_at: T(18),
+    starts_min: 360, rule_starts_min: 360, starts_override_min: null, skipped: false, instance_status: 'scheduled', total: 12, armed: 9 });
+  cd.seedUpcomingForHarness('rc-hub', rows);
+  const A = (id, name, step) => ({ athlete_id: id, name, status: step === 'excused' ? 'excused' : 'pending',
+    notified_at: step === 'untold' || step === 'no_push' ? null : T(-120), seen_at: step === 'seen' || step === 'armed' ? T(-60) : null,
+    alarm_armed_at: step === 'armed' ? T(-59) : null, can_push: step !== 'no_push' });
+  v3.seedArmingForHarness('h1', { instance_id: 'h1', alarm: true, rows: [A('a1', 'Marcus Hill', 'armed'), A('a4', 'Tyrese Adams', 'armed'),
+    A('r1', 'DeShawn Cole', 'armed'), A('r2', 'Andre Wells', 'armed'), A('a2', 'Devin Carter', 'seen'), A('a3', 'Jalen Brooks', 'unseen'),
+    A('r12', 'Eli Walker', 'no_push'), A('r5', 'Kofi Owusu', 'untold'), A('r6', 'Luis Soto', 'excused')] });
+})()`;
+
 await mkdir(OUT, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 const rows = [];
@@ -158,9 +185,10 @@ for (const [width, height, label] of VIEWPORTS) {
       if (want && seeded !== want) { await page.evaluate(want === 'coach' ? SEED_COACH : SEED_ATHLETE); seeded = want; }
       if (pg.board) await page.evaluate(SEED_BOARD);
       if (pg.rs) await page.evaluate(SEED_RS);
+      if (pg.hub) await page.evaluate(SEED_HUB(pg.hub));
       // A coach reaches these from Home. The rail lights the ORIGIN tab (router: a non-root screen
       // inherits NAV.tab), so jumping here straight from the Inbox page would light Inbox.
-      if (pg.rs) { await page.evaluate(() => { location.hash = '#coach-home'; }); await page.waitForTimeout(500); }
+      if (pg.rs || pg.hub) { await page.evaluate(() => { location.hash = '#coach-home'; }); await page.waitForTimeout(500); }
       await page.evaluate((h) => { location.hash = h; }, pg.hash);
       await page.waitForTimeout(900);
       try { await page.evaluate(() => document.fonts.ready); } catch { /* fine */ }
