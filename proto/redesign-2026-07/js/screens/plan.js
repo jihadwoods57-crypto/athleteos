@@ -439,7 +439,7 @@ function askSection(area) {
     </div>`;
   return `
   <div class="pl-asks${linked ? ' two' : ''}">
-    ${tile(`plan-ask/${area}`, 'sparkle', 'Ask OnStandard')}
+    ${tile(`plan-ask/${area}`, 'search', 'Ask OnStandard')}
     ${linked ? tile('messages', 'message', `Ask your ${Who}`) : ''}
   </div>
   <div style="height:12px"></div>`;

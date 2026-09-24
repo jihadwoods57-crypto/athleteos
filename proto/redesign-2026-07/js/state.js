@@ -1039,7 +1039,7 @@ const ANALYSIS_TIMEOUT_MS = 45_000;
  */
 /** What an athlete is told when a read was skipped because AI reads are off (0243). A notice, not
  *  an error: the meal is logged either way. */
-export const AI_OFF_LINE = 'AI reads are off, so this meal has no numbers. It still counts as proof and for timing.';
+export const AI_OFF_LINE = 'Nia is off, so this meal has no numbers. It still counts as proof and for timing.';
 
 function invokeWithDeadline(name, body, ms = ANALYSIS_TIMEOUT_MS) {
   const sb = window.sb;
@@ -5404,7 +5404,7 @@ export const S = {
       name: cap(slot), due: dueLabel(slot), remaining: 'Take a photo to analyze',
       img: null, score: null, foods: [],
       macros: { protein: 0, carbs: 0, fat: 0, cals: 0 },
-      planMatch: { verdict: 'Not analyzed yet', detail: 'Capture your meal and the AI reads it: real macros from your photo, no guesses.', level: 'b' },
+      planMatch: { verdict: 'Not analyzed yet', detail: 'Capture your meal and Nia reads it: real macros from your photo, no guesses.', level: 'b' },
       ai: 'Take a photo of your meal and I’ll analyze it for real.',
       analysis: '', capturedAtMin: null,
       empty: true,

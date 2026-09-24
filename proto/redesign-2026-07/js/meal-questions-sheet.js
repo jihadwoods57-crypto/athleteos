@@ -139,7 +139,7 @@ export function openMealQuestions({ questions, photo, slot, onAnswer, onSkip } =
     busy = true;
     const go = el.querySelector('#mqs-go');
     const skip = el.querySelector('#mqs-skip');
-    if (go) { go.disabled = true; go.innerHTML = `${icon('sparkle', 18)} Reading your meal...`; }
+    if (go) { go.disabled = true; go.innerHTML = `${icon('sparkle', 18)} Nia is reading your meal…`; }
     if (skip) skip.disabled = true;
     try {
       const r = await handler(ans);

@@ -18,7 +18,7 @@ import { pastMealDetail } from './trust.js';
 import { layoutThread, visibleThread, MUTED_HIDDEN_NOTE, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor,
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
   isCorrectionReceipt, receiptCardHtml, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta, personText, workingLabel,
-  participantList,
+  participantList, participantSummary, AI_NAME, NIA_MARK, whoHtml, facesHtml, threadTitle,
 } from '../chat-view.js';
 import { wireChatTimes } from '../chat-times.js';
 import { focusComposer, scrollThreadToEnd } from '../keyboard.js';
@@ -674,8 +674,8 @@ export const coachPlan = {
       <h2 class="eyebrow">Program</h2>
       <section class="card" style="padding:6px 16px">
         <div class="lrow" data-go="coach-voice">
-          <div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div>
-          <div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">${RT.coachVoice ? 'Tuned to your voice. Never invents' : 'Set the tone the AI reinforces'}</div></div>
+          <div class="lic nia-av">${NIA_MARK}</div>
+          <div class="lm"><div class="lt">${AI_NAME} · OnStandard Nutritionist</div><div class="ls">${RT.coachVoice ? 'Tuned to your voice. Never invents' : `Set how ${AI_NAME} talks to your athletes`}</div></div>
           <span class="status-pill ${RT.coachVoice && RT.coachVoice.enabled !== false ? 'g' : 'muted'}">${RT.coachVoice && RT.coachVoice.enabled !== false ? 'On' : 'Off'}</span>
           ${icon('chevron', 17, 'style="color:var(--text-3);margin-left:8px"')}
         </div>
@@ -2350,8 +2350,8 @@ function aiSummaryCard(P, athleteId) {
     body = `<div class="mr-skel asum-skel" aria-label="Loading the read"><div class="mr-skel-line"></div><div class="mr-skel-line"></div><div class="mr-skel-line"></div><div class="mr-skel-line"></div></div>`;
   } else if (!row || !row.generated_at) {
     // 0243: an athlete who has not said yes to AI gets no read, and the coach is told why.
-    body = `<div class="asum-empty">${ASUM.error === 'ai_consent_required' ? `${esc(first)} has not turned on AI reads, so the AI Nutritionist does not write a read of them.`
-      : ASUM.error ? "Can't reach the AI Nutritionist right now." : `The AI Nutritionist has not written a read of ${esc(first)} yet.`}</div>`;
+    body = `<div class="asum-empty">${ASUM.error === 'ai_consent_required' ? `${esc(first)} has not turned on Nia, so she does not write a read of them.`
+      : ASUM.error ? "Can't reach Nia right now." : `Nia has not written a read of ${esc(first)} yet.`}</div>`;
   } else {
     body = `
       ${row.headline ? `<div class="asum-headline">${esc(row.headline)}</div>` : ''}
@@ -2360,9 +2360,9 @@ function aiSummaryCard(P, athleteId) {
   }
   const canRefresh = !busy && ASUM.id === athleteId && !ASUM.loading && !nextAt;
   return `
-  <section class="card asum" aria-label="AI Nutritionist read">
+  <section class="card asum" aria-label="Nia’s read">
     <div class="asum-head">
-      <div class="asum-who"><span class="asum-ic">${icon('sparkle', 15)}</span><span>AI Nutritionist</span></div>
+      <div class="asum-who"><span class="asum-ic nia-av">${NIA_MARK}</span><span>Nia’s read · AI</span></div>
       <div class="asum-when">${gen ? `Updated ${esc(gen === 'now' ? 'just now' : gen)}` : ''}</div>
     </div>
     ${body}
@@ -2717,7 +2717,7 @@ function foodMemSection(P, athleteId) {
   const placeName = (pid) => { const p = FMEM.places.find((x) => x.id === pid); return p ? p.name : null; };
   return `
   <h2 class="eyebrow">Their usual meals <span class="n">${items.length}</span></h2>
-  <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.5;margin:2px 2px 10px">Verify a meal you know is right. It gets a trusted badge on their Plan and future AI reads lean on it.</div>
+  <div style="font-size:12.5px;font-weight:600;color:var(--text-2);line-height:1.5;margin:2px 2px 10px">Verify a meal you know is right. It gets a trusted badge on their Plan and Nia leans on it in future reads.</div>
   <section class="card" style="padding:4px 16px">
     ${items.map((it) => {
       const pl = it.place_id ? placeName(it.place_id) : null;
@@ -2905,14 +2905,14 @@ export const coachAthlete = {
     const sref = root.querySelector('#asum-refresh');
     if (sref) sref.addEventListener('click', async () => {
       if (ASUM.busy || ASUM.id !== athleteIdM) return;
-      ASUM.busy = true; sref.disabled = true; sref.textContent = 'Writing…'; snote('The AI Nutritionist is writing a fresh read…');
+      ASUM.busy = true; sref.disabled = true; sref.textContent = 'Writing…'; snote('Nia is writing a fresh read…');
       const r = await roles.refreshAthleteSummary(athleteIdM);
       if (ASUM.id !== athleteIdM) return;
       ASUM.busy = false;
       if (r.row) ASUM.row = r.row;
       if (r.ok) { ASUM.note = ''; window.__render(); return; }
       if (r.error === 'throttled') { ASUM.note = ''; window.__render(); return; } // the card now prints "Refresh again …"
-      ASUM.note = r.error === 'offline' ? "Can't reach the AI Nutritionist right now." : "Couldn't write a fresh read. Try again in a minute.";
+      ASUM.note = r.error === 'offline' ? "Can't reach Nia right now." : "Couldn't write a fresh read. Try again in a minute.";
       window.__render();
     });
     root.querySelectorAll('[data-asum-cad]').forEach((b) => b.addEventListener('click', async () => {
@@ -3332,7 +3332,7 @@ export const coachMeal = {
           <button class="fx-chip" data-cm-portion="three-quarters"${dis}>Smaller than that</button>
         </div>
         <div id="cm-fix-note" class="est-note" role="status" aria-live="polite" style="margin-top:10px;min-height:16px">${esc(FIX_BUSY ? 'Saving the correction…' : FIX_NOTE || `Your correction becomes part of the record, logged under your name. The ${CD.noun}'s day score updates when they next open this meal.`)}</div>
-        <div class="rub-fine">Removing a line subtracts that item's own numbers; a portion mark re-estimates the whole plate. The AI's original read stays on record either way.</div>
+        <div class="rub-fine">Removing a line subtracts that item's own numbers; a portion mark re-estimates the whole plate. Nia’s original read stays on record either way.</div>
       </section>`;
       })() : ''}`;
     })() : '';
@@ -3343,21 +3343,19 @@ export const coachMeal = {
     ${read.breakdown}
     ${fixPanel}
     <section class="disc" id="meal-disc" aria-labelledby="disc-title">
-    <h2 class="sr-only" id="disc-title">Team discussion</h2>
+    <h2 class="sr-only" id="disc-title">${threadTitle(participantList(MC.participants || [], RT.userId), { hasCoach: true, noun: RT.authRole === 'trainer' ? 'trainer' : 'coach' })}</h2>
     <div class="disc-head">
       ${(() => {
-        // The same header row the athlete sees: the faces (real ones where they exist, hydrated
-        // by uid), the title, and everyone in the room. The athlete is named first: this is their
-        // thread, read by staff.
-        const rows = (MC.participants || []).filter((p) => p && p.id);
-        const faces = rows.slice(0, 3).map((p) => `<span class="fpav other" data-avatar-uid="${esc(p.id)}"><span data-avatar-fallback>${esc(initialsFor(p.name || '?'))}</span></span>`).join('')
-          + `<span class="fpav ai">${icon('sparkle', 13)}</span>`;
-        const names = rows.map((p) => p.name).filter(Boolean);
-        const line = [...names, 'AI Nutritionist'].join(', ');
+        // The same header row the athlete sees, from the same list (chat-view participantList):
+        // the athlete first (this is their thread, read by staff), then staff, then Nia.
+        const people = participantList(MC.participants || [], RT.userId);
+        const faces = facesHtml(people, esc);
+        const line = participantSummary(people);
+        const title = threadTitle(people, { hasCoach: true, noun: RT.authRole === 'trainer' ? 'trainer' : 'coach' });
         /* A BUTTON, as on the athlete's screen: it opens the members sheet, which is where Report
            and Mute live (Guideline 1.2). Until 2026-09-22 the operator side had the mute FILTER
            but no way to report or mute anyone — a coach harassed by an athlete had no door. */
-        return `<button type="button" class="facepile disc-fp" id="cm-members-slot" aria-label="Who can see this conversation"><span class="fp">${faces}</span><span class="names"><b>Team discussion</b>${line ? `<small>${esc(line)}</small>` : ''}</span></button>`;
+        return `<button type="button" class="facepile disc-fp" id="cm-members-slot" aria-label="Who can see this conversation"><span class="fp">${faces}</span><span class="names"><b>${title}</b>${line ? `<small>${esc(line)}</small>` : ''}</span></button>`;
       })()}
     </div>
     ${MC.comments && MC.comments.error ? `
@@ -3396,8 +3394,8 @@ export const coachMeal = {
       <div class="thread" id="cm-thread" role="log" aria-label="Meal review conversation">
         ${opening && !msgs.some(isAnalysisOpener) ? `
         <div class="msg ai last">
-          <div class="av">${icon('sparkle', 15)}</div>
-          <div class="stack"><div class="who">AI Nutritionist · what the ${CD.noun} was told</div>
+          <div class="av">${NIA_MARK}</div>
+          <div class="stack">${whoHtml(AI_NAME, true, esc, `What the ${esc(CD.noun)} was told`)}
           <div class="bubble">${esc(opening)}</div>${aiDisclaimer()}</div>
         </div>` : ''}
         ${layoutThread(msgs, { muted: RT.mutedUsers, fmtTime: msgClock, fmtDay: msgDay, fmtDayLabel: dayLabelOf }).map((item, _i, all) => {
@@ -3427,13 +3425,13 @@ export const coachMeal = {
           <div class="${msgRowClass({ mine, role: c.role, firstOfRun: item.firstOfRun, lastOfRun: item.lastOfRun, hasRx: bubbleRx.length > 0, photoOnly })}${fresh.has(String(c.id)) ? ' in' : ''}" data-cid="${esc(String(c.id || ''))}">
             ${/* Real faces where they exist (meal.js's own pattern): the monogram stays as the
                   fallback span, and hydrateAvatars upgrades it after paint. Never on 'ai'. */''}
-            ${!mine && item.lastOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
+            ${!mine && item.lastOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? NIA_MARK : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
             <div class="stack">
-              ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
+              ${item.firstOfRun && !mine ? whoHtml(who, c.role === 'ai', esc) : ''}
               ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : rq}
               ${/* The "Updated analysis" badge is gone (founder ruling: robotic; the athlete
                     thread already dropped it). The quote above still marks what changed. */''}
-              <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc)}${bubbleRx.length ? `<span class="rxo">${bubbleRx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+              <div class="bubble">${escalated ? `<span class="esc">${AI_NAME} flagged this for you</span>` : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc)}${bubbleRx.length ? `<span class="rxo">${bubbleRx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
               ${/* G-P8: the AI's first words on the coach's side carry the same "not medical advice"
                     line the athlete sees on the meal read and in nutrition chat. Once per thread. */''}
               ${c.role === 'ai' && !(opening && !msgs.some(isAnalysisOpener)) && all.find((it) => it.type !== 'time' && it.comment && it.comment.role === 'ai' && !isCorrectionReceipt(it.comment)) === item ? aiDisclaimer() : ''}
@@ -3485,7 +3483,7 @@ export const coachMeal = {
             ? drafts.map((d, i) => `<button class="qa" data-draft="${i}">${esc(STANCE_LABEL[d.stance] || cap(d.stance || 'Reply'))}</button>`).join('')
             // MANUAL by design and unchanged: each draft is a paid call, and the AI must never
             // post under the coach's name. It writes; the coach edits and sends, or does not.
-            : `<button class="qa" id="cm-draft">${icon('sparkle', 13)} Let AI draft a reply</button>`}
+            : `<button class="qa" id="cm-draft">${icon('sparkle', 13)} Draft a reply with ${AI_NAME}</button>`}
       </div>
       ${(DRAFTS.mealId === sub && DRAFTS.error && !drafts.length && !drafting)
         ? `<div class="tm-note">${DRAFTS.error === 'ai_consent_required' ? esc(aiOffForCoach(DRAFTS.who)).replace(' Your question was posted.', '') : 'Couldn’t draft right now. Write your own or try again.'}</div>` : ''}
@@ -3783,7 +3781,7 @@ export const coachMeal = {
       }
       // AI CONSENT (0243): the coach's question goes to Anthropic only after the coach said yes.
       if (!(await ensureAiConsent(RT.userId, { role: RT.authRole || 'coach' }))) {
-        note('AI is off for you, so the AI Nutritionist stays quiet. Your question was posted. Turn AI on in Privacy on your Profile.');
+        note(aiOffForCoach('you'));
         return;
       }
       aiBtn.disabled = true;
@@ -3805,7 +3803,7 @@ export const coachMeal = {
         if (data.addition && data.addition.id) await applyAdditionHere(data.addition);
         }
       } catch {
-        failMsg = "The AI couldn't answer right now. Your question was still posted to the thread.";
+        failMsg = "Nia couldn't answer right now. Your question was still posted to the thread.";
       }
       setAiWorking(sub, false);
       const btnNow = root.querySelector('#cm-ai');

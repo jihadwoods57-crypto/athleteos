@@ -47,7 +47,7 @@ const PAIN_LABEL = {
 
 /* Sample requirement templates for the req-build tour step. */
 const REQS = {
-  meals: { ic: 'utensils', t: 'Meal photos', s: 'Every meal · photo proof · AI does the first read' },
+  meals: { ic: 'utensils', t: 'Meal photos', s: 'Every meal · photo proof · Nia does the first read' },
   protein: { ic: 'bolt', t: 'Protein target', s: 'Daily gram target · checked automatically from their logs' },
   workout: { ic: 'bars', t: 'Workout log', s: 'Training days · one quick form after the session' },
   weighin: { ic: 'scale', t: 'Weekly weigh-in', s: 'Monday mornings · trend only, never a daily judgment' },
@@ -55,8 +55,8 @@ const REQS = {
 
 const AI_LABEL = {
   autopilot: 'on full autopilot: nudges and drafts daily, everything waits for your approval',
-  drafts: 'in drafts-only mode: the AI writes, nothing sends without you',
-  observe: 'in observe mode: you drive, the AI stays quiet until you invite it',
+  drafts: 'in drafts-only mode: Nia writes, nothing sends without you',
+  observe: 'in observe mode: you drive, Nia stays quiet until you invite her',
 };
 
 /* Small stacked row inside a phone card (icon + title + sub). */
@@ -110,7 +110,7 @@ const steps = [
       <div class="ob2-hero">
         <div class="h-eyebrow">OnStandard</div>
         <h1 class="h-title">Your standard, <span class="accent">in their pocket.</span></h1>
-        <div class="h-body">Every client carries your daily standard and one score you can read in five seconds. The AI handles the chasing; your name stays on the results.</div>
+        <div class="h-body">Every client carries your daily standard and one score you can read in five seconds. Nia handles the chasing; your name stays on the results.</div>
       </div>`,
   },
   {
@@ -240,12 +240,12 @@ const steps = [
   {
     id: 'meal-review', ch: 1, cta: 'Continue',
     title: () => 'Review a client meal in seconds.',
-    sub: () => 'The AI does the first read: foods, portions, macros. You approve or adjust, and your call is what the client sees.',
+    sub: () => 'Nia does the first read: foods, portions, macros. You approve or adjust, and your call is what the client sees.',
     body: () => `
       ${simChip('Sample client meal: simulated')}
       <img class="ob2-meal-photo" src="${esc(SAMPLE_MEAL.photo)}" alt="Sample client meal photo" />
       <div style="height:14px"></div>
-      ${phoneCard('AI first read: detected foods', `
+      ${phoneCard('Nia’s first read: detected foods', `
         <div class="ob2-foods">${(SAMPLE_MEAL.detectedRich || []).map((f) => `
           <div class="fr">
             <div class="fn">${esc(f.name)}</div>
@@ -265,7 +265,7 @@ const steps = [
   {
     id: 'summary', ch: 1, cta: 'Continue',
     title: () => 'Your Monday, drafted.',
-    sub: () => 'Every week the AI writes the summary and drafts your reply in four stances. Nothing sends without you.',
+    sub: () => 'Every week Nia writes the summary and drafts your reply in four stances. Nothing sends without you.',
     body: () => `
       ${simChip('Sample client week: simulated')}
       ${phoneCard('Weekly summary: Jordan', `
@@ -289,7 +289,7 @@ const steps = [
       return `
         ${simChip('Simulated preview: a sample client’s screen')}
         ${phoneCard('Jordan’s plan: set by you', `
-          ${boundRow('utensils', 'Three meals · photo proof', 'AI first read, your review')}
+          ${boundRow('utensils', 'Three meals · photo proof', 'Nia’s first read, your review')}
           ${boundRow('bolt', 'Protein target · 140g', 'Checked automatically from logs')}
           ${boundRow('scale', 'Weekly weigh-in · Monday', 'Trend only')}`)}
         <div style="height:12px"></div>
@@ -371,7 +371,7 @@ const steps = [
         ${phoneCard('The system we’re building for you', `
           ${boundRow('key', 'One client code', 'Clients connect themselves, no setup calls')}
           ${boundRow('bars', 'A daily queue', 'Sorted by who needs you, not who texted last')}
-          ${boundRow('sparkle', 'AI drafts you approve', 'The chasing is written for you; your name signs it')}`)}`;
+          ${boundRow('sparkle', 'Nia drafts, you approve', 'The chasing is written for you; your name signs it')}`)}`;
     },
   },
 
@@ -381,9 +381,9 @@ const steps = [
     title: () => 'How involved should OnStandard be?',
     sub: () => 'This sets your automation defaults. Change it anytime.',
     body: () => choiceGrid('aiInvolvement', [
-      { v: 'autopilot', t: 'Full autopilot', s: 'AI nudges and drafts daily: everything waits for your approval', ic: 'sparkle', tint: 'var(--purple-surface)', color: 'var(--purple-bright)' },
-      { v: 'drafts', t: 'Drafts only', s: 'AI writes, you decide what sends and when', ic: 'edit', tint: 'var(--purple-surface)', color: 'var(--purple-bright)' },
-      { v: 'observe', t: 'Observe first', s: 'You drive: the AI stays quiet until you invite it', ic: 'eye', tint: 'var(--purple-surface)', color: 'var(--purple-bright)' },
+      { v: 'autopilot', t: 'Full autopilot', s: 'Nia nudges and drafts daily: everything waits for your approval', ic: 'sparkle', tint: 'var(--purple-surface)', color: 'var(--purple-bright)' },
+      { v: 'drafts', t: 'Drafts only', s: 'Nia writes, you decide what sends and when', ic: 'edit', tint: 'var(--purple-surface)', color: 'var(--purple-bright)' },
+      { v: 'observe', t: 'Observe first', s: 'You drive: Nia stays quiet until you invite her', ic: 'eye', tint: 'var(--purple-surface)', color: 'var(--purple-bright)' },
     ]),
   },
   {
@@ -392,7 +392,7 @@ const steps = [
     sub: () => 'Your standard travels with every client: this is you signing it.',
     body: (o) => `
       ${mirrorCard('users', `Every client you invite starts on <b>your standard</b>${o.practiceName ? ` at <b>${esc(o.practiceName)}</b>` : ''}.`)}
-      ${mirrorCard('sparkle', `The AI runs <b>${esc(AI_LABEL[o.aiInvolvement] || AI_LABEL.drafts)}</b>.`)}
+      ${mirrorCard('sparkle', `Nia runs <b>${esc(AI_LABEL[o.aiInvolvement] || AI_LABEL.drafts)}</b>.`)}
       <div class="ob-foot ob-foot-push">
         ${o.committedAt ? commitContinue() : commitButton(false)}
       </div>`,

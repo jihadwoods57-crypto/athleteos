@@ -137,7 +137,7 @@ function lockedCard(payload, period) {
   ${baseStatsBlock(report)}
 
   <div style="height:16px"></div>
-  <h2 class="eyebrow">AI coach's read</h2>
+  <h2 class="eyebrow">Nia’s read of your month</h2>
   <section class="card pad mr-locked">
     <div class="mr-skel" aria-hidden="true">
       <div class="mr-skel-line" style="width:78%"></div>
@@ -195,7 +195,7 @@ function reportBody(report, period) {
 
   ${report.headline || report.narrative ? `
   <div style="height:16px"></div>
-  <h2 class="eyebrow">AI coach's read</h2>
+  <h2 class="eyebrow">Nia’s read of your month</h2>
   <section class="card pad">
     ${report.headline ? `<div style="font-size:16px;font-weight:800">${esc(report.headline)}</div>` : ''}
     ${report.narrative ? `<p style="font-size:13.5px;font-weight:600;color:var(--text-2);margin-top:8px;line-height:1.5">${esc(report.narrative)}</p>` : ''}
@@ -243,8 +243,8 @@ export default {
     return `${backHead('Monthly report', esc(monthLabel(period)), 'progress')}
     ${locked ? lockedCard(CACHE.payload, period) : report && !report.error ? reportBody(report, period) : isConsentSkip(report) ? `
       <section class="card pad aic-off mr-aioff" role="status">
-        <span>${aiMinorPending(RT.userId) ? `There is no written report this month. ${AI_MINOR_LINE}` : 'AI reads are off, so there is no written report this month.'} Your numbers are all still yours in Progress.</span>
-        ${aiMinorPending(RT.userId) ? '' : `<button type="button" class="btn ghost sm" id="mr-ai-on">${icon('sparkle', 15)} Turn on AI reads</button>`}
+        <span>${aiMinorPending(RT.userId) ? `There is no written report this month. ${AI_MINOR_LINE}` : 'Nia is off, so there is no written review this month.'} Your numbers are all still yours in Progress.</span>
+        ${aiMinorPending(RT.userId) ? '' : `<button type="button" class="btn ghost sm" id="mr-ai-on">${icon('sparkle', 15)} Turn on Nia</button>`}
       </section>` : `
       ${errorState({
         title: "Couldn't build your report",

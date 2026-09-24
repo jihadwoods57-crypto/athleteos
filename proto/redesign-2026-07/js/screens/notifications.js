@@ -132,7 +132,7 @@ export default {
       icon: 'checkCircle',
       title: "You're all caught up",
       body: `No accountability moments waiting. When something needs you, it lands here first: ${isOperator()
-        ? 'meals the AI flags for your eyes, join requests and roll-call escalations, and your weekly team digest.'
+        ? 'meals Nia flags for you, join requests and roll-call escalations, and your weekly team digest.'
         : 'meal and weigh-in nudges, requirements your coach adds, and streak reminders before midnight.'}`,
     })}` : ''}
 

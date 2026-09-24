@@ -238,13 +238,13 @@ function aiPrivacySection(role) {
   if (!RT.userId) return '';
   const v = aiConsentCached(RT.userId);
   const sub = aiMinorPending(RT.userId) ? AI_MINOR_LINE : role === 'athlete'
-    ? `Meal photos, meal messages and the facts the AI coaches from go to ${AI_PROVIDER} only while this is on. Never used to train AI.`
-    : `Your questions to the AI Nutritionist go to ${AI_PROVIDER} only while this is on. Never used to train AI.`;
+    ? `Meal photos, meal messages and the facts Nia coaches from go to ${AI_PROVIDER} only while this is on. Never used to train AI.`
+    : `Your questions to Nia go to ${AI_PROVIDER} only while this is on. Never used to train AI.`;
   return `<h2 class="eyebrow">AI</h2>
     <section class="card rows">
       <div class="lrow" id="pv-ai" role="button" tabindex="0">
         <div class="lic">${icon('sparkle', 17)}</div>
-        <div class="lm"><div class="lt">${role === 'athlete' ? 'AI meal reads' : 'AI Nutritionist'}</div><div class="ls">${esc(sub)}</div></div>
+        <div class="lm"><div class="lt">${role === 'athlete' ? 'Nia (AI meal reads)' : 'Nia (AI)'}</div><div class="ls">${esc(sub)}</div></div>
         ${aiPill(v)}
         ${icon('chevron', 15, 'class="chev-dim"')}
       </div>

@@ -140,7 +140,7 @@ const steps = [
     body: () => choiceGrid('trainerStatus', [
       { v: 'have', t: 'I have a trainer', s: 'Your score gives them your whole week', ic: 'users' },
       { v: 'had', t: 'I’ve had one before', s: 'Keep the structure without the invoice', ic: 'clock' },
-      { v: 'never', t: 'Never worked with one', s: 'The AI holds the line until you do', ic: 'user' },
+      { v: 'never', t: 'Never worked with one', s: 'Nia holds the line until you do', ic: 'user' },
     ]) },
 
   { id: 'sessions', ch: 0, cta: 'Continue',
@@ -205,14 +205,14 @@ const steps = [
           : 'Your score runs all seven days. Weekends count the same as Tuesdays.'),
         mirrorCard(o.trainerStatus === 'have' ? 'users' : 'sparkle', o.trainerStatus === 'have'
           ? 'You have a trainer. Your score hands them your whole week, not just your sessions.'
-          : 'No trainer connected yet. The AI nutritionist reads every meal and holds the line daily until you add one.'),
+          : 'No trainer connected yet. Nia, your AI nutritionist, reads every meal and holds the line daily until you add one.'),
       ].join('');
       return `${mirrors}
         <div style="height:12px"></div>
         ${phoneCard('The system', `<div class="comp-read">
-          ${row('camera', 'One photo per meal', 'AI reads foods, portions, and macros in seconds')}
+          ${row('camera', 'One photo per meal', 'Nia reads foods, portions, and macros in seconds')}
           ${row('bars', 'One Daily Score', `Nutrition ${liveWeightPct('nutrition')} · recovery ${liveWeightPct('checkin') + liveWeightPct('recovery')}`)}
-          ${row('eye', 'A witness', 'Your trainer (or the AI) sees the score, not a story')}
+          ${row('eye', 'A witness', 'Your trainer (or Nia) sees the score, not a story')}
         </div>`)}`;
     } },
 
@@ -281,7 +281,7 @@ const steps = [
     title: (o) => (o.trainerStatus === 'have' ? 'Connect your trainer.' : 'Have a trainer code?'),
     sub: (o) => (o.trainerStatus === 'have'
       ? 'Ask your trainer for your client code. It links your daily score to their board from day one.'
-      : 'If a trainer gave you a code, enter it here. No trainer? Skip. The AI holds the line, and you can connect one any time from Profile.'),
+      : 'If a trainer gave you a code, enter it here. No trainer? Skip. Nia holds the line, and you can connect one any time from Profile.'),
     body: (o) => `
       <input id="cl-code" class="ob-input" placeholder="Client code" aria-label="Client code" autocapitalize="characters" autocorrect="off" spellcheck="false" maxlength="12" value="${esc((o.join && o.join.kind === 'practice' && o.join.code) || '')}" />
       <div id="cl-code-note" class="ob2-scan-note" style="text-align:left;min-height:18px"></div>`,

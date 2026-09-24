@@ -3,7 +3,7 @@
  * WHY THIS EXISTS. The thread used to render every non-athlete bubble as the literal string
  * "Coach" with a hardcoded "M" avatar, and stamped a timestamp under every single message. That
  * was survivable when a thread was a two-party accountability note capped at a handful of
- * messages. It is not survivable now: the athlete, their coach, the AI nutritionist — and later a
+ * messages. It is not survivable now: the athlete, their coach, Nia (the AI nutritionist), and later a
  * trainer, a parent, a dietitian — are all in one running conversation, and a person deserves to
  * know who is talking to them.
  *
@@ -23,18 +23,37 @@ import { icon } from './icons.js';
 /** Messages closer together than this belong to the same moment — no clock between them. */
 export const GROUP_GAP_MS = 10 * 60 * 1000;
 
+/* WHO NIA IS (2026-09-24). The AI nutritionist has a name, and it is written HERE once: every
+   bubble, facepile, members row, typing line and header reads these, so the app cannot call her
+   two different things. "AI" stays in the subtitle on purpose: that is the disclosure. */
+export const AI_NAME = 'Nia';
+export const AI_TITLE = 'OnStandard Nutritionist';
+/** Nia's face: a quiet "N" on the AI blue surface (.nia-n), sized by its container. Not the
+ *  sparkle: that glyph means "ask the AI", and a participant gets a participant's mark. */
+export const NIA_MARK = '<span class="nia-n" aria-hidden="true">N</span>';
+
+/** The sender line for the first bubble of a run: a person's name, or Nia with her title (or a
+ *  caller's own subtitle, which still ends in "· AI"). `sub` must be plain, already-safe text. */
+export function whoHtml(name, isAi, esc, sub = AI_TITLE) {
+  return isAi
+    ? `<div class="who">${AI_NAME}<span class="who-sub">${sub} · AI</span></div>`
+    : `<div class="who">${esc(name)}</div>`;
+}
+
 /** How each kind of participant is introduced. `kind` comes from meal_thread_participants (0158),
  *  which returns real team_staff roles, plus the two client-side constants. */
 const KINDS = {
   athlete: { ic: 'user', noun: 'You', access: 'This is their own log' },
-  // 'sparkle', not 'bot': every facepile and thread bubble introduces the AI with the sparkle
-  // glyph, and the members sheet opens FROM the facepile — the same participant must not change
-  // faces mid-gesture.
-  ai: { ic: 'sparkle', noun: 'AI Nutritionist', access: 'Reads every meal and answers questions' },
+  // No icon on Nia's kind line: her mark is the avatar, and the sparkle means an action.
+  ai: { ic: '', noun: AI_TITLE, access: 'AI. Reads every meal and answers questions' },
   head_coach: { ic: 'clipboard', noun: 'Head coach', access: 'Sees this athlete’s meals and scores' },
   assistant_coach: { ic: 'clipboard', noun: 'Assistant coach', access: 'Sees this athlete’s meals and scores' },
+  position_coach: { ic: 'clipboard', noun: 'Position coach', access: 'Sees this athlete’s meals and scores' },
+  coordinator: { ic: 'clipboard', noun: 'Coordinator', access: 'Sees this athlete’s meals and scores' },
   s_and_c: { ic: 'dumbbell', noun: 'Strength coach', access: 'Sees this athlete’s meals and scores' },
   athletic_trainer: { ic: 'stethoscope', noun: 'Athletic trainer', access: 'Sees this athlete’s meals and scores' },
+  // A HUMAN on staff (0204), named for what they are so nobody mistakes them for Nia.
+  nutritionist: { ic: 'heart', noun: 'Team nutritionist', access: 'Sees this athlete’s meals and scores' },
   team_admin: { ic: 'fileText', noun: 'Team admin', access: 'Sees this athlete’s meals and scores' },
   readonly: { ic: 'eye', noun: 'Staff', access: 'Can read this thread' },
   trainer: { ic: 'biceps', noun: 'Trainer', access: 'Sees this athlete’s meals and scores' },
@@ -54,25 +73,56 @@ export function initialsFor(name) {
   return initialsOf(name, '?');
 }
 
+/* The order a person would introduce the room in: the athlete, their coaches, a human
+   nutritionist or dietitian, a parent, then Nia last. */
+const STAFF_KINDS = ['head_coach', 'assistant_coach', 'position_coach', 'coordinator', 'coach', 's_and_c', 'athletic_trainer', 'team_admin', 'readonly', 'nutritionist', 'dietitian'];
+const rankOf = (k) => (k === 'athlete' ? 0 : k === 'nutritionist' || k === 'dietitian' ? 2 : k === 'guardian' ? 3 : STAFF_KINDS.indexOf(k) !== -1 || k === 'trainer' ? 1 : 4);
+
 /**
  * The facepile list: who to show, in the order a person would introduce them.
- * The athlete is always first and always reads "You" — it is their thread. The AI is a constant,
- * not a profile row, so it is appended here rather than invented by the database.
+ * Your own row reads "You". Nia is a constant, not a profile row, so she is appended here rather
+ * than invented by the database.
  */
 export function participantList(rows, selfId) {
   const list = Array.isArray(rows) ? rows.filter(Boolean) : [];
-  const self = list.find((p) => p.id && selfId && p.id === selfId);
-  const others = list.filter((p) => !(p.id && selfId && p.id === selfId));
-  const out = [];
-  if (self) out.push({ ...self, name: 'You', kind: 'athlete', self: true });
-  for (const p of others) out.push({ ...p, kind: String(p.kind || '') });
-  out.push({ id: null, name: 'AI Nutritionist', kind: 'ai' });
+  const out = list.map((p) => (p.id && selfId && p.id === selfId
+    ? { ...p, name: 'You', kind: String(p.kind || 'athlete'), self: true }
+    : { ...p, kind: String(p.kind || '') }));
+  // Array.prototype.sort is stable, so people of one rank keep the database's order.
+  out.sort((a, b) => rankOf(a.kind) - rankOf(b.kind));
+  out.push({ id: null, name: AI_NAME, kind: 'ai' });
   return out;
 }
 
-/** The one-line header: "You, Coach Brown, AI Nutritionist". */
+/** The one-line header: "You, Coach Brown, Nia". */
 export function participantSummary(list) {
   return (list || []).map((p) => p.name).filter(Boolean).join(', ');
+}
+
+/** The overlapping faces of a participants header. Nia wears her mark; people wear their photo
+ *  (hydrated by uid) over an initials fallback. */
+export function facesHtml(people, esc, n = 4) {
+  return (people || []).slice(0, n).map((p) => (p.kind === 'ai'
+    ? `<span class="fpav ai">${NIA_MARK}</span>`
+    : `<span class="fpav ${p.self ? 'self' : 'other'}"${p.id ? ` data-avatar-uid="${esc(p.id)}"` : ''}><span data-avatar-fallback>${esc(initialsFor(p.name))}</span></span>`)).join('');
+}
+
+/** What a conversation is called, from who is in it (2026-09-24): "Team discussion" only when team
+ *  staff are in the room, "Discussion" with a personal trainer (or a parent), and "Chat with Nia"
+ *  when it is the athlete and her alone. `guess` ({hasCoach, noun}) covers the beat before the
+ *  participants land (or an RPC that failed), so a thread with a coach never reads as solo. */
+export function threadTitle(list, guess) {
+  const people = (list || []).filter((p) => p && p.kind !== 'ai' && p.kind !== 'athlete');
+  if (!people.length) {
+    if (!guess || !guess.hasCoach) return `Chat with ${AI_NAME}`;
+    return guess.noun === 'coach' ? 'Team discussion' : 'Discussion';
+  }
+  return people.some((p) => STAFF_KINDS.indexOf(p.kind) !== -1) ? 'Team discussion' : 'Discussion';
+}
+
+/** The athlete's message box: Nia alone, or a room that also holds their coach or trainer. */
+export function composerPrompt(hasHuman, noun) {
+  return hasHuman ? `Message your ${noun || 'coach'} or ask ${AI_NAME}…` : `Ask ${AI_NAME} about this meal…`;
 }
 
 /**
@@ -85,7 +135,7 @@ export function participantSummary(list) {
  */
 export function authorName(comment, participants, selfId, fallbackNoun) {
   if (!comment) return '';
-  if (comment.role === 'ai') return 'AI Nutritionist';
+  if (comment.role === 'ai') return AI_NAME;
   if (comment.author_id && selfId && comment.author_id === selfId) return 'You';
   const hit = (participants || []).find((p) => p.id && p.id === comment.author_id);
   if (hit && hit.name && !hit.self) return hit.name;
@@ -558,7 +608,7 @@ export function receiptCardHtml(comment, esc, { fresh = false } = {}) {
   const id = esc(String(comment.id || ''));
   return `
         <div class="msg ai last rcpt${fresh ? ' in' : ''}" data-cid="${id}" data-receipt="${id}">
-          <div class="av">${icon('sparkle', 15)}</div>
+          <div class="av">${NIA_MARK}</div>
           <div class="corr-card in landed" role="status">
             <div class="corr-head">${icon('check', 14)}<span>Updated</span></div>
             ${note ? `<div class="corr-note">${esc(note)}</div>` : ''}
@@ -579,8 +629,8 @@ export function typingRowHtml(esc, { label = '' } = {}) {
   const say = String(label || '').slice(0, 40);
   return `
         <div class="msg ai last typing live-row" id="ai-typing">
-          <div class="av">${icon('sparkle', 15)}</div>
-          <div class="stack"><div class="who">AI Nutritionist is ${say ? esc(say.toLowerCase()) : 'typing'}<span class="sr-only">, a reply is on its way</span></div>
+          <div class="av">${NIA_MARK}</div>
+          <div class="stack"><div class="who">${AI_NAME} is ${say ? esc(say.toLowerCase()) : 'typing'}<span class="sr-only">, a reply is on its way</span></div>
           <div class="bubble tdots${say ? ' tlabel' : ''}"><span></span><span></span><span></span>${say ? `<em>${esc(say)}…</em>` : ''}</div></div>
         </div>`;
 }

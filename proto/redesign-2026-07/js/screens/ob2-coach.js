@@ -346,11 +346,11 @@ const steps = [
   {
     id: 'thread', ch: 1, cta: 'Continue',
     title: () => 'One thread per meal.',
-    sub: () => 'The AI does the first read on every plate. You step in only where it counts.',
+    sub: () => 'Nia, the AI nutritionist, does the first read on every plate. You step in only where it counts.',
     body: () => `${simChip('Simulated thread')}
       ${chatSim([
         { who: 'trainer', init: 'A', name: 'Andre', sim: true, text: 'Post-practice dinner.' },
-        { who: 'ai', name: 'OnStandard AI', sim: true, text: 'Grilled chicken, rice, broccoli: solid plate. Protein on target; carbs a little light for tomorrow’s lift.' },
+        { who: 'ai', name: 'Nia · OnStandard Nutritionist', sim: true, text: 'Grilled chicken, rice, broccoli: solid plate. Protein on target; carbs a little light for tomorrow’s lift.' },
         { who: 'me', name: 'You', init: 'C', sim: true, text: 'Good plate. Add a carb at breakfast before the lift.' },
       ])}`,
   },
@@ -384,7 +384,7 @@ const steps = [
       <div style="height:8px"></div>
       ${phoneCard('What you get', `
         <div class="ob2-bound"><div class="bi yes">${icon('check', 15)}</div><div><div class="bt">A daily standard with proof</div><div class="bs">Photos, check-ins, the scale · per room or team-wide</div></div></div>
-        <div class="ob2-bound"><div class="bi yes">${icon('check', 15)}</div><div><div class="bt">AI first-read on every meal</div><div class="bs">You step into threads only where it matters</div></div></div>
+        <div class="ob2-bound"><div class="bi yes">${icon('check', 15)}</div><div><div class="bt">Nia’s first read on every meal</div><div class="bs">You step into threads only where it matters</div></div></div>
         <div class="ob2-bound"><div class="bi yes">${icon('check', 15)}</div><div><div class="bt">Staff see their rooms</div><div class="bs">You see everything, alerts on your rules</div></div></div>`)}`;
     },
   },

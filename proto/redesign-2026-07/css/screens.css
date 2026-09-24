@@ -481,10 +481,6 @@
   background: var(--surface-2); border: 1px solid var(--hairline); font-size: var(--t-base); font-weight: 700;
 }
 .foodchip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green-bright); }
-.ai-note { display: flex; gap:var(--s3); padding:var(--s4) var(--s4); border-radius: var(--r-card); background: linear-gradient(120deg, rgba(var(--blue-rgb), 0.10), rgba(var(--teal-rgb), 0.05)); border: 1px solid var(--blue-border); }
-.ai-note .av { width: 34px; height: 34px; border-radius: var(--r-chip); background: linear-gradient(150deg, var(--blue), var(--blue-deep)); display:grid; place-items:center; color:var(--ink-on-accent); flex:none; }
-.ai-note .who { font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--blue-bright); }
-.ai-note p { font-size: var(--t-base); font-weight: 600; line-height: 1.5; margin-top:var(--s1); color: var(--text); }
 
 /* ----- The Clarifying Moment (Honest Vision)
    docs/superpowers/specs/2026-07-15-honest-vision-clarifying-moment-design.md
@@ -625,7 +621,21 @@
 /* The face sits beside the last bubble of the run, bottom-aligned, as Messages places it. */
 .msg .av { width: 28px; height: 28px; border-radius: 50%; flex: none; display: grid; place-items: center; font-size: var(--t-xs); font-weight: 800; align-self: flex-end; margin-bottom: 2px; }
 .msg.coach .av { background: var(--surface-3); color: var(--text); border: 1px solid var(--hairline); }
-.msg.ai .av { background: linear-gradient(150deg, var(--blue), var(--blue-deep)); color: var(--ink-on-accent); }
+/* NIA'S MARK (2026-09-24): a quiet "N" on the AI blue surface, flat, in every place she has a
+   face (bubble, facepile, members sheet, receipts, typing, onboarding). The tint is laid over an
+   opaque surface so an overlapping facepile never shows the face beneath through her. */
+.msg.ai .av, .facepile .fpav.ai, .memsheet .ms-av.ai, .nia-av, .lrow .lic.nia-av, .trust .ic.nia-av {
+  background: linear-gradient(var(--blue-surface), var(--blue-surface)), var(--surface-2);
+  color: var(--blue-bright); box-shadow: inset 0 0 0 1px var(--blue-border);
+}
+.nia-n { font-weight: 800; line-height: 1; letter-spacing: 0; }
+.lrow .lic.nia-av .nia-n, .trust .ic.nia-av .nia-n { font-size: var(--t-base); }
+.ma-av, .asum .asum-ic.nia-av { width: 20px; height: 20px; border-radius: 50%; display: inline-grid; place-items: center; font-size: var(--t-micro); flex: none; }
+.ma-who .who-sub { margin-left: var(--s1h); font-size: var(--t-xs); font-weight: 500; color: var(--text-3); }
+.trust.nia-card { background: var(--blue-surface); border-color: var(--blue-border); }
+.msg.ai .av .nia-n { font-size: var(--t-sm); }
+.msg.ai .who { color: var(--text-2); font-weight: 600; }
+.msg .who .who-sub { margin-left: var(--s1h); font-size: var(--t-xs); font-weight: 500; color: var(--text-3); }
 /* ---- Bubbles (design upgrade 2026-08-06) ----
    Nothing added; chrome removed. Every bubble used to carry a visible border on top of its fill,
    which is what made a conversation read as a stack of boxes. Fills alone now carry the identity:
@@ -704,7 +714,6 @@
 .facepile .fpav + .fpav { margin-left:-9px; }
 .facepile .fpav.self { background: linear-gradient(150deg, var(--blue), var(--blue-deep)); }
 .facepile .fpav.other { background: var(--surface-3); color: var(--text); }
-.facepile .fpav.ai { background: linear-gradient(150deg, var(--blue), var(--blue-deep)); }
 .facepile .names { flex: 1; min-width: 0; font-size: var(--t-sm); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* overflow+ellipsis of its own: as a block child it sits outside the parent .names' inline
    content, so the parent's text-overflow never reaches it — long participant lists ("You,
@@ -983,7 +992,7 @@
   width: 34px; height: 34px; border-radius: 50%; flex: none; display: grid; place-items: center;
   font-size: var(--t-sm); font-weight: 800; color: #fff;
 }
-.memsheet .ms-av.self, .memsheet .ms-av.ai { background: linear-gradient(150deg, var(--blue), var(--blue-deep)); color: var(--ink-on-accent); }
+.memsheet .ms-av.self { background: linear-gradient(150deg, var(--blue), var(--blue-deep)); color: var(--ink-on-accent); }
 .memsheet .ms-av.other { background: linear-gradient(150deg, var(--amber), var(--amber-deep)); color: var(--ink-on-accent); }
 .memsheet .ms-txt { display: flex; flex-direction: column; min-width: 0; }
 .memsheet .ms-name { font-size: var(--t-base); font-weight: 800; }
@@ -1141,18 +1150,17 @@ body.kb-open .cm-after:has(> :not([hidden])) { padding-bottom: var(--s4); }
 .composer .attach:hover { color: var(--text); background: var(--surface-3, var(--surface-2)); }
 .composer .attach.on { color: var(--blue-bright); border-color: var(--blue-border, var(--hairline)); background: var(--blue-surface); }
 .composer .attach:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
-/* Ask-the-AI sparkle (coach meal thread): the same quiet-sibling treatment as attach, tinted the
-   AI's purple so it reads as "this goes to the AI Nutritionist", not a second send. Opt-in via
-   composer({aiId}). */
+/* Ask Nia (coach meal thread): the same quiet-sibling treatment as attach, in Nia's blue so it
+   reads as "this goes to Nia", not a second send. Opt-in via composer({aiId}). */
 .composer .ai-ask {
-  width: 30px; height: 30px; border-radius: 50%; background: rgba(var(--purple-rgb), 0.12);
-  display:grid; place-items:center; color: var(--purple-bright); cursor:pointer; flex:none;
-  border: 1px solid rgba(var(--purple-rgb), 0.35); padding:0; margin:0; font-family: var(--font);
+  width: 30px; height: 30px; border-radius: 50%; background: var(--blue-surface);
+  display:grid; place-items:center; color: var(--blue-bright); cursor:pointer; flex:none;
+  border: 1px solid var(--blue-border); padding:0; margin:0; font-family: var(--font);
   -webkit-appearance: none; appearance: none; transition: color var(--dur-1) var(--ease-out), background var(--dur-1) var(--ease-out);
 }
-.composer .ai-ask:hover { background: rgba(var(--purple-rgb), 0.2); }
+.composer .ai-ask:hover { background: rgba(var(--blue-rgb), 0.22); }
 .composer .ai-ask:disabled { opacity: 0.55; cursor: default; }
-.composer .ai-ask:focus-visible { outline: 2px solid var(--purple-bright); outline-offset: 2px; }
+.composer .ai-ask:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
 /* `.composer input` above sets flex:1 — the hidden file input is an <input> too, so pin it out of
    the layout explicitly rather than relying on the UA stylesheet's [hidden] winning. */
 .composer input[type="file"] { display: none !important; }
@@ -2264,12 +2272,10 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* honest estimate / no-targets note under the breakdown */
 .est-note{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s2);line-height:1.45}
 .est-note .link{color:var(--blue-bright);font-weight:700;cursor:pointer}
-.ai-note{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s2);line-height:1.45}
-.chat-dock .ai-note{margin:0 0 var(--s1h);text-align:center}
-/* In the dock the disclaimer is one quiet line of fine print, not the AI-analysis card: .ai-note
-   is also the name of that blue gradient card (above, ~line 482), and the dock inherited its
-   fill, border and padding, so the composer carried a card inside the glass (audit 2026-09-22). */
-.chat-dock .ai-note{display:block;padding:0;background:none;border:0;border-radius:0}
+/* The disclaimer: one quiet line of fine print. It was .ai-note, which was ALSO the name of a
+   retired blue gradient card, so outside the dock it rendered as that card (renamed 2026-09-24). */
+.ai-disc{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s2);line-height:1.45}
+.chat-dock .ai-disc{margin:0 0 var(--s1h);text-align:center}
 /* "Wrong meal?" — the slot/delete correction row (impeccable critique 2026-09-16). It sits at the
    bottom of the already-collapsed breakdown, separated by a hairline rather than made into a card:
    nesting a card inside the breakdown card is the nested-card shape DESIGN.md bans, and this is a

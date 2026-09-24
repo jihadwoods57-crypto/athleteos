@@ -317,15 +317,15 @@ export function answerAsk(question, ctx) {
      lives: a human who knows them, or the meal thread where a model actually reads plates. */
   const chips = [];
   if (c.hasCoach) chips.push({ label: `Ask your ${c.coachNoun}`, go: 'messages' });
-  chips.push({ label: 'Nutrition chat', go: 'nutrition-chat' });
+  chips.push({ label: 'Chat with Nia', go: 'nutrition-chat' });
   return {
     kind: 'unknown',
     title: "That one's outside what I can answer",
     lines: [
       'I answer from your plan: your requirements, your targets, today\'s progress, and what OnStandard has learned about how you eat. I won\'t guess at anything else.',
       c.hasCoach
-        ? `Your ${c.coachNoun} can answer this one, or ask it on a meal where the AI Nutritionist is reading the plate.`
-        : 'Ask it on a meal and the AI Nutritionist will answer with the plate in front of it.',
+        ? `Your ${c.coachNoun} can answer this one, or ask Nia on a meal, where she can see the plate.`
+        : 'Ask Nia on a meal and she will answer with the plate in front of her.',
     ],
     chips,
   };

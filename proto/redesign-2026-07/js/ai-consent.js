@@ -59,7 +59,7 @@ export function aiMinorPending(uid) {
 }
 
 /** The plain line for a person the AI is not reading. */
-export const AI_MINOR_LINE = 'AI reads start once a parent or guardian approves your account.';
+export const AI_MINOR_LINE = 'Nia starts once a parent or guardian approves your account.';
 
 /** A server reply said the AI was skipped for lack of consent. Forget a stale yes on this device,
  *  so the next AI moment asks instead of silently failing. */
@@ -76,8 +76,8 @@ export function isConsentSkip(data) {
  *  has not said yes (nothing about their meal may go), 'you' when the coach has not. */
 export function aiOffForCoach(who) {
   return who === 'athlete'
-    ? 'This athlete has not turned on AI reads, so the AI can’t look at their meal. Your question was posted.'
-    : 'AI is off for you, so the AI Nutritionist stays quiet. Your question was posted. Turn AI on in Privacy on your Profile.';
+    ? 'This athlete has not turned on Nia, so she can’t look at their meal. Your question was posted.'
+    : 'Nia is off for you, so she stays quiet. Your question was posted. Turn on Nia in Privacy on your Profile.';
 }
 
 async function writeServer(value) {

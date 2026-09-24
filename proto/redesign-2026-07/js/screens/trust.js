@@ -12,7 +12,7 @@ import { threadMessages, reactionGroups, REACTION_EMOJI, normalizeDetected } fro
 import { wireTapback } from '../tapback.js';
 import { mealReadHtml, wireReadControls } from './meal.js';
 import { layoutThread, MUTED_HIDDEN_NOTE, authorName, initialsFor, isAnalysisUpdate, isEscalated, quotedFor,
-  dayLabelOf, participantList, participantSummary, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
+  dayLabelOf, participantList, participantSummary, AI_NAME, NIA_MARK, whoHtml, facesHtml, threadTitle, composerPrompt, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
   isCorrectionReceipt, receiptCardHtml, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta, personText,
   visibleThread, workingLabel,
 } from '../chat-view.js';
@@ -407,13 +407,13 @@ function mountThread(root, mealId, meal) {
       // `last` carries the tail).
       return `
         <div class="${msgRowClass({ mine, role: c.role, firstOfRun: item.firstOfRun, lastOfRun: item.lastOfRun, hasRx: rx.length > 0, photoOnly })}${fresh.has(String(c.id)) ? ' in' : ''}" data-cid="${esc(String(c.id || ''))}">
-          ${!mine && item.lastOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
+          ${!mine && item.lastOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? NIA_MARK : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
           <div class="stack">
-            ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
+            ${item.firstOfRun && !mine ? whoHtml(who, c.role === 'ai', esc) : ''}
             ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : rq}
             ${/* No "Updated analysis" badge on correction replies (founder: robotic; the live
                   thread already dropped it) — the quote stem above says what it answers. */''}
-            <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+            <div class="bubble">${escalated ? `<span class="esc">${AI_NAME} sent this to your ${esc(S.coach.noun)}</span>` : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
             ${deliveredHtml({ mine, isLast: c === lastMsg })}
           </div>
           ${msgTimeHtml(c, mvClock, esc)}
@@ -452,11 +452,14 @@ function mountThread(root, mealId, meal) {
     const people = participantList(participants, RT.userId);
     if (people.length === membersPainted) return;
     membersPainted = people.length;
-    // The same one-row header the meal page's Team discussion wears: faces, title, who is in it.
+    // The same one-row header the meal page's discussion wears: faces, title, who is in it.
+    const title = threadTitle(people, S.coach);
+    const h2 = root.querySelector('#disc-title');
+    if (h2) h2.textContent = title;
     membersSlot.innerHTML = `
       <button class="facepile disc-fp" id="mv-members" aria-label="Who can see this conversation">
-        <span class="fp">${people.slice(0, 4).map((p) => `<span class="fpav ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}"${p.kind !== 'ai' && p.id ? ` data-avatar-uid="${esc(p.id)}"` : ''}>${p.kind === 'ai' ? icon('sparkle', 13) : `<span data-avatar-fallback>${esc(initialsFor(p.name))}</span>`}</span>`).join('')}</span>
-        <span class="names"><b>Team discussion</b><small>${esc(participantSummary(people))}</small></span>
+        <span class="fp">${facesHtml(people, esc)}</span>
+        <span class="names"><b>${title}</b><small>${esc(participantSummary(people))}</small></span>
       </button>`;
     const btn = membersSlot.querySelector('#mv-members');
     if (btn) btn.addEventListener('click', () => openMembersSheet(participantList(participants, RT.userId)));
@@ -563,7 +566,7 @@ function mountThread(root, mealId, meal) {
     if (!turn.decision.shouldRespond) return;
     // AI CONSENT (0243): ask the first time; after a Not now the AI stays quiet, said plainly.
     if (!(await ensureAiConsent(RT.userId, { role: 'athlete' }))) {
-      if (note) note.textContent = aiMinorPending(RT.userId) ? `Your message is posted. ${AI_MINOR_LINE}` : 'AI replies are off, so the AI Nutritionist stays quiet. Your message is posted.';
+      if (note) note.textContent = aiMinorPending(RT.userId) ? `Your message is posted. ${AI_MINOR_LINE}` : 'Nia is off, so she stays quiet. Your message is posted.';
       return;
     }
     // The AI at work, shown in the thread for as long as it is (chat-live.js hook).
@@ -689,16 +692,16 @@ export const mealView = {
     const { photoBlock, breakdown } = mealReadHtml(M, { exec: null, past: true, dayTotals: pastDayTotalsThrough(m) });
     const discussion = `
     <section class="disc" id="meal-disc" aria-labelledby="disc-title">
-    <h2 class="sr-only" id="disc-title">Team discussion</h2>
+    <h2 class="sr-only" id="disc-title">${threadTitle([], S.coach)}</h2>
     <div class="disc-head">
-      <div id="mv-members-slot" style="flex:1;min-width:0"><div class="disc-fp"><span class="names"><b>Team discussion</b></span></div></div>
+      <div id="mv-members-slot" style="flex:1;min-width:0"><div class="disc-fp"><span class="names"><b>${threadTitle([], S.coach)}</b></span></div></div>
       <button type="button" class="disc-open" id="open-full-chat" aria-label="Open the full conversation at this meal">Open ${icon('chevron', 14)}</button>
     </div>
     <div class="thread" id="mv-thread" role="log" aria-label="Meal conversation">
       <div class="msg-status">Loading…</div>
     </div>
     <div class="chat-dock disc-dock dock-end">
-    ${composer({ inputId: 'mv-msg', sendId: 'mv-send', placeholder: 'Ask about this meal…', sendLabel: 'Send', attachId: 'mv-attach', atEnd: true })}
+    ${composer({ inputId: 'mv-msg', sendId: 'mv-send', placeholder: composerPrompt(S.coach.hasCoach, S.coach.noun), sendLabel: 'Send', attachId: 'mv-attach', atEnd: true })}
     <div class="composer-attach-pending" id="mv-attach-pending" hidden></div>
     <div id="mv-note" class="cmp-note"></div>
     </div>

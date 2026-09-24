@@ -157,7 +157,7 @@ export function mealDemoSteps({ route, voice = 'coach', computeScore }) {
             <div class="dc-tag">Recommended</div>
             <div class="dc-ic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('camera', 20)}</div>
             <div><div class="dc-t">Analyze my meal</div>
-            <div class="dc-s">Snap your next meal or pick a photo. Real AI analysis (foods, portions, macros) in seconds, by our AI provider, Anthropic. We ask first.</div></div>
+            <div class="dc-s">Snap your next meal or pick a photo. Nia, our AI nutritionist, reads the foods, portions and macros in seconds, powered by Anthropic. We ask first.</div></div>
           </div>
           <div class="ob2-demo-card" id="demo-sample" role="button" aria-label="Try a sample meal">
             <div class="dc-ic" style="background:var(--green-surface);color:var(--green-bright)">${icon('utensils', 20)}</div>
@@ -201,7 +201,7 @@ export function mealDemoSteps({ route, voice = 'coach', computeScore }) {
       body: () => `
         <div class="analyzing">
           <div class="scanbox"><div class="img" style="background-image:url('${DEMO.photoDataUrl || ''}')"></div><div class="scanline"></div></div>
-          <div class="phase" id="scan-phase">Reading the plate<span class="dots"></span></div>
+          <div class="phase" id="scan-phase">Nia is reading the plate<span class="dots"></span></div>
           <div class="phase-sub" id="scan-sub">Detecting foods and estimating portions</div>
           <div id="scan-err" style="margin-top:18px"></div>
         </div>`,
@@ -262,7 +262,7 @@ export function mealDemoSteps({ route, voice = 'coach', computeScore }) {
     {
       id: 'demo-chat', ch: 1, cta: 'That’s the loop', green: true,
       title: () => 'This is not a food scanner',
-      sub: () => `Every meal opens a shared thread: you, the AI nutritionist, and your ${HUMAN.role}. Nobody has to chase anybody.`,
+      sub: () => `Every meal opens a shared thread: you, Nia (your AI nutritionist), and your ${HUMAN.role}. Nobody has to chase anybody.`,
       body: (o) => {
         const r = DEMO.result || SAMPLE_MEAL;
         /* Demo bubble is SHORT — the plate's own one-line note (aligned with the coach reply
@@ -280,7 +280,7 @@ export function mealDemoSteps({ route, voice = 'coach', computeScore }) {
           ${simChip(`Simulated preview: ${HUMAN.name} stands in for your real ${HUMAN.role}`)}
           ${chatSim([
             { who: 'me', name: 'You', text: `Logged: ${r.name}` },
-            { who: 'ai', name: 'OnStandard AI · Nutritionist', text: ai },
+            { who: 'ai', name: 'Nia · OnStandard Nutritionist', text: ai },
             { who: voice === 'trainer' ? 'trainer' : 'coach', name: HUMAN.name, init: HUMAN.init, sim: true, text: simulatedHumanLine(r, o.goal, voice) },
           ])}`;
       },
@@ -326,14 +326,14 @@ async function runLiveAnalysis(root, ctx) {
      is an explicit ask, so an earlier Not now is asked again rather than silently refused. */
   // I6: a 13-17 athlete's photo does not leave the phone before a parent approves.
   if (RT.ob && RT.ob.dobMinor) {
-    fail('Nothing was sent. AI reads start once a parent or guardian approves your account. The sample meal shows the same experience.', 'Waiting on a parent');
+    fail('Nothing was sent. Nia starts once a parent or guardian approves your account. The sample meal shows the same experience.', 'Waiting on a parent');
     return;
   }
   DEMO.busy = true;
   const consented = await ensureAiConsent(RT.userId || null, { role: 'athlete', ask: true });
   if (!consented) {
     DEMO.busy = false;
-    fail('Nothing was sent. The sample meal shows the same experience without your photo.', 'No AI read, as you asked');
+    fail('Nothing was sent. The sample meal shows the same experience without your photo.', 'Nia is off, as you asked');
     return;
   }
   try {

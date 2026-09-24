@@ -12,7 +12,7 @@
  * athlete opened it from, mid-scroll and mid-conversation.
  */
 
-import { participantMeta, initialsFor } from './chat-view.js';
+import { participantMeta, initialsFor, NIA_MARK } from './chat-view.js';
 import { esc } from './components.js';
 import { icon } from './icons.js';
 import { hydrateAvatars } from './avatar.js';
@@ -75,7 +75,9 @@ export function openMembersSheet(members, ctx = {}) {
     const meta = participantMeta(p.kind);
     // "You" is the athlete's own row: naming their role back at them is noise, so it says what
     // it is. Everyone else gets the plain-English sentence about what they can see.
-    const sub = p.self ? 'This is your log' : meta.access;
+    // A coach opening the sheet sees themself as "You" too, with their own role, not "Athlete".
+    const ownLog = p.self && p.kind === 'athlete';
+    const sub = ownLog ? 'This is your log' : meta.access;
     /* Report and Block live on the person, not the bubble (App Store Guideline 1.2: user-generated
        content needs a way to report it and to block who posted it). The bubbles carry no message
        id and this sheet already knows exactly who is in the conversation, so this is the honest
@@ -91,10 +93,10 @@ export function openMembersSheet(members, ctx = {}) {
         </span>` : '';
     return `
       <div class="ms-row" data-ms-uid="${esc(p.id || '')}">
-        <span class="ms-av ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}"${p.kind !== 'ai' && p.id ? ` data-avatar-uid="${esc(p.id)}"` : ''}>${p.kind === 'ai' ? icon(meta.ic, 16) : `<span data-avatar-fallback>${esc(initialsFor(p.name))}</span>`}</span>
+        <span class="ms-av ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}"${p.kind !== 'ai' && p.id ? ` data-avatar-uid="${esc(p.id)}"` : ''}>${p.kind === 'ai' ? NIA_MARK : `<span data-avatar-fallback>${esc(initialsFor(p.name))}</span>`}</span>
         <span class="ms-txt">
           <span class="ms-name">${esc(p.name)}</span>
-          <span class="ms-kind">${icon(meta.ic, 12, 'style="vertical-align:-2px;margin-right:1px"')} ${esc(p.self ? 'Athlete' : meta.noun)} · ${esc(muted ? 'Blocked. You won’t see or hear from them' : sub)}</span>
+          <span class="ms-kind">${meta.ic ? icon(meta.ic, 12, 'style="vertical-align:-2px;margin-right:1px"') : ''} ${esc(ownLog ? 'Athlete' : meta.noun)} · ${esc(muted ? 'Blocked. You won’t see or hear from them' : sub)}</span>
         </span>${acts}
       </div>`;
   }).join('');
