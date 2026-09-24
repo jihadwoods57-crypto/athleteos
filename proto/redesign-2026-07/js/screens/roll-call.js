@@ -15,7 +15,7 @@ import { track, EVENTS } from '../analytics.js';
 import { backHead, esc, skeletonRows } from '../components.js';
 import { fmtMin } from '../requirements.js';
 import { deriveCommitment, TYPE_LABEL, fmtAt, offsetFor, VERDICT, wakeupPhase, deadlineOf, closesAtOf, opensAtOf, graceMinOf, sourceOf, SOURCE, athleteRollcallRoute, boardRoute } from '../commitments.js';
-import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal, subscribeMine, todayISO, nativeCaps } from '../commitment-data.js';
+import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal, subscribeMine, todayISO, nativeCaps, aheadRows } from '../commitment-data.js';
 import { pushTokenState, RT, S, act } from '../state.js';
 import { wakeAlarmState, syncWakeAlarms } from '../wake-alarms.js';
 
@@ -439,7 +439,7 @@ async function paintAlarmLine(root, row) {
     if (go) go.addEventListener('click', async () => {
       go.disabled = true; go.textContent = 'Asking…';
       await wakeAlarmState({ ask: true });
-      try { await syncWakeAlarms(VC.rows || [row]); } catch { /* the next Home load arms it */ }
+      try { await syncWakeAlarms([...(VC.rows || [row]), ...(aheadRows() || [])]); } catch { /* the next Home load arms it */ }
       void paintAlarmLine(root, row);
     });
     return;
@@ -754,7 +754,7 @@ export default {
           after: async () => {
             await act.registerPushToken({ ask: true });   // already answered, so this only mints the token
             RT._lastPlan = null; act.syncNotifications();
-            try { await syncWakeAlarms(VC.rows || []); } catch { /* Home arms it next */ }
+            try { await syncWakeAlarms([...(VC.rows || []), ...(aheadRows() || [])]); } catch { /* Home arms it next */ }
             if (root.isConnected) window.__render && window.__render();
           },
         });

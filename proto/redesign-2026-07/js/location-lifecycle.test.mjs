@@ -100,6 +100,21 @@ test('sign-out disarms', async () => {
   assert.ok(!calls.includes('arm'));
 });
 
+test('roll call v3: sign-out sweeps every wake alarm this device holds, feature-detected', async () => {
+  const wakeCalls = [];
+  window.OnStandardNative.wakeAlarms = {
+    sync: (alarms, opts) => { wakeCalls.push([alarms, opts]); return Promise.resolve(0); },
+  };
+  RT.userId = 'u-1';
+  await act.signOut();
+  assert.deepEqual(wakeCalls, [[[], { complete: true }]],
+    'an empty set with complete:true sweeps every alarm the device holds, not just this process\'s own');
+  delete window.OnStandardNative.wakeAlarms;
+  // An older shell with no wakeAlarms bridge at all must not throw or block sign-out.
+  RT.userId = 'u-1';
+  await assert.doesNotReject(act.signOut());
+});
+
 test('deleting the account disarms', async () => {
   RT.userId = 'u-1';
   calls.length = 0;

@@ -61,15 +61,44 @@ let lastArmed: string[] = [];
  *  stale armed stamp, so it must hear it again. */
 const reported = new Map<string, string>();
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** One entry off `scheduledWakeAlarms()`, however native shaped it: iOS answers `{ id, state }`
+ *  (AlarmKit's own UUID, which for a UUID instance id IS the instance id); Android answers
+ *  `{ instanceId, at }` with no `id` and no `state` at all. */
+function rawAlarmId(a: unknown): string {
+  if (!a || typeof a !== 'object') return '';
+  const o = a as { id?: unknown; instanceId?: unknown };
+  const raw = typeof o.id === 'string' ? o.id : typeof o.instanceId === 'string' ? o.instanceId : '';
+  const id = raw.trim().toLowerCase();
+  return UUID_RE.test(id) ? id : '';
+}
+
 /** Instance ids (lowercase UUIDs) of the alarms this device holds, however they were armed. AlarmKit
  *  ids ARE the instance UUID (RollCallAlarmScheduler.alarmID), so an alarm the push extension armed
  *  while the app was closed is found and reconciled like one this process armed. */
 export function deviceAlarmIds(list: unknown): string[] {
   const out = new Set<string>();
   for (const a of Array.isArray(list) ? list : []) {
-    const raw = a && typeof a === 'object' ? (a as { id?: unknown }).id : null;
-    const id = typeof raw === 'string' ? raw.trim().toLowerCase() : '';
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id)) out.add(id);
+    const id = rawAlarmId(a);
+    if (id) out.add(id);
+  }
+  return [...out];
+}
+
+/** Like `deviceAlarmIds`, but never includes one currently ALERTING (mid-ring): a full-sweep
+ *  cancel must not silence a phone that is ringing right now for a morning still legitimately
+ *  open. Android reports no state at all, so nothing is excluded there — the sweep only ever
+ *  skips a ring it can actually see. */
+export function cancelableDeviceAlarmIds(list: unknown): string[] {
+  const out = new Set<string>();
+  for (const a of Array.isArray(list) ? list : []) {
+    const id = rawAlarmId(a);
+    if (!id) continue;
+    const state = a && typeof a === 'object' && typeof (a as { state?: unknown }).state === 'string'
+      ? ((a as { state: string }).state).toLowerCase() : '';
+    if (state === 'alerting') continue;
+    out.add(id);
   }
   return [...out];
 }
@@ -136,13 +165,28 @@ async function reportArmed(armedAt: Map<string, number>, everSeen: Iterable<stri
   }
 }
 
+/** Serializes `syncWakeAlarms`: a simple in-flight promise chain, not a lock. Two calls can land
+ *  close together (a foreground beat and a Continue tap, or two foreground beats), and each reads
+ *  `lastArmed` to decide what to cancel — running them concurrently lets the second start from a
+ *  `lastArmed` the first hasn't finished updating yet, so it can cancel an alarm the first just
+ *  armed a moment ago. Chaining onto the SAME promise (success or failure) makes every call wait
+ *  for the previous one's cancel-then-arm to finish before it reads shared state. */
+let syncTail: Promise<number> = Promise.resolve(0);
+
+export function syncWakeAlarms(alarms: WakeAlarmRequest[], opts: { complete?: boolean } = {}): Promise<number> {
+  const run = () => syncWakeAlarmsOnce(alarms, opts);
+  const next = syncTail.then(run, run);
+  syncTail = next;
+  return next;
+}
+
 /**
  * Arm exactly this set of mornings, and nothing else.
  *
  * @returns how many are actually armed. Zero is a legitimate answer on an unsupported device and
  *   is NOT an error — the caller uses `wakeAlarmState()` to tell "cannot" from "none to arm".
  */
-export async function syncWakeAlarms(alarms: WakeAlarmRequest[], opts: { complete?: boolean } = {}): Promise<number> {
+async function syncWakeAlarmsOnce(alarms: WakeAlarmRequest[], opts: { complete?: boolean } = {}): Promise<number> {
   const mod = live();
   if (!mod || !mod.isAlarmSupported()) {
     lastArmed = [];
@@ -166,7 +210,7 @@ export async function syncWakeAlarms(alarms: WakeAlarmRequest[], opts: { complet
   const previously = [...lastArmed];
   let onDevice: string[] = [];
   if (opts.complete === true) {
-    try { onDevice = deviceAlarmIds(mod.scheduledWakeAlarms()); } catch { onDevice = []; }
+    try { onDevice = cancelableDeviceAlarmIds(mod.scheduledWakeAlarms()); } catch { onDevice = []; }
   }
   for (const id of new Set([...previously, ...onDevice])) {
     if (!wantedIds.has(id.toLowerCase())) {
@@ -221,7 +265,9 @@ export function cancelWakeAlarmFor(instanceId: string): void {
   if (!mod) return;
   try { mod.cancelWakeAlarm(id); } catch { /* best effort */ }
   lastArmed = lastArmed.filter((x) => x !== id);
-  void reportArmed(new Map(lastArmed.map((x) => [x, 0])), [id]);
+  // Only THIS instance changed state; the rest of `lastArmed` is untouched and must not be told
+  // again (it would resend `p_armed:true` with a fabricated instant of 0 for every other morning).
+  void reportArmed(new Map(), [id]);
 }
 
 /** What the app can honestly tell the athlete about alarms on this device. Asks the system
@@ -254,4 +300,5 @@ export async function wakeAlarmState(opts: { ask?: boolean } = {}): Promise<Wake
 export function _resetWakeAlarms(): void {
   lastArmed = [];
   reported.clear();
+  syncTail = Promise.resolve(0);
 }

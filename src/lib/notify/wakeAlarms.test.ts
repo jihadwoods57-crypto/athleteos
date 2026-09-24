@@ -3,7 +3,7 @@
 // The property worth protecting is that a wake-up a coach DELETED stops ringing. Appending would
 // leave it armed on the athlete's phone with nothing in the app to turn it off, which is the worst
 // failure this feature has.
-import { syncWakeAlarms, wakeAlarmState, isUsable, cleanWeekdays, fixedAt, cancelWakeAlarmFor, _resetWakeAlarms, deviceAlarmIds } from './wakeAlarms';
+import { syncWakeAlarms, wakeAlarmState, isUsable, cleanWeekdays, fixedAt, cancelWakeAlarmFor, _resetWakeAlarms, deviceAlarmIds, cancelableDeviceAlarmIds } from './wakeAlarms';
 
 type Scheduled = { instanceId: string; hour?: number; minute?: number; weekdays?: number[]; title: string; at?: number; ackCode?: string; ackUrl?: string };
 
@@ -15,6 +15,8 @@ const mockState = {
   /** Alarms the device holds that this process did not arm (e.g. the push extension, or another
    *  process). AlarmKit reports them alongside this process's own, uppercase, as real UUIDs do. */
   foreign: [] as string[],
+  /** A `foreign` id's AlarmKit state, when it isn't the default 'scheduled' (e.g. 'alerting'). */
+  foreignState: new Map<string, string>(),
   refuse: new Set<string>(),
   requested: 0,
   /** Whether the fake binary knows the dated call. */
@@ -62,7 +64,7 @@ jest.mock('../../../modules/rollcall-live', () => ({
   // AlarmKit answers with the alarm's UUID, uppercase; the push extension's alarms are in the same list.
   scheduledWakeAlarms: () => [
     ...mockState.scheduled.map((s) => ({ id: s.instanceId.toUpperCase(), state: 'scheduled' })),
-    ...mockState.foreign.map((id) => ({ id, state: 'scheduled' })),
+    ...mockState.foreign.map((id) => ({ id, state: mockState.foreignState.get(id) || 'scheduled' })),
   ],
 }));
 
@@ -74,6 +76,7 @@ beforeEach(() => {
   mockState.scheduled = [];
   mockState.cancelled = [];
   mockState.foreign = [];
+  mockState.foreignState = new Map();
   mockState.refuse = new Set();
   mockState.requested = 0;
   mockState.dated = true;
@@ -333,5 +336,39 @@ describe('roll call v3: alarms the push armed while the app was closed', () => {
     mockState.foreign = [U2.toUpperCase()];
     const st = await wakeAlarmState();
     expect(st.ids).toContain(U2);
+  });
+
+  it('deviceAlarmIds also accepts Android\'s shape: instanceId, with no id and no state at all', () => {
+    expect(deviceAlarmIds([{ instanceId: U1 }, { instanceId: 'not-a-uuid' }, { at: 123 }])).toEqual([U1]);
+  });
+
+  it('a COMPLETE sync never sweeps an alarm currently ALERTING: it might be mid-ring right now', async () => {
+    mockState.foreign = [U2.toUpperCase()];
+    mockState.foreignState.set(U2.toUpperCase(), 'alerting');
+    await syncWakeAlarms([{ instanceId: U1, hour: 5, minute: 45, at: later(20) }], { complete: true });
+    expect(mockState.cancelled.map((x) => x.toLowerCase())).not.toContain(U2);
+    expect(cancelableDeviceAlarmIds([{ id: U2, state: 'alerting' }])).toEqual([]);
+    expect(cancelableDeviceAlarmIds([{ id: U2, state: 'scheduled' }])).toEqual([U2]);
+  });
+
+  it('cancelWakeAlarmFor tells the server about the cancelled instance only, not every remaining alarm', async () => {
+    // Dated alarms (a real `at`), so a resend for U2 would carry a WRONG instant (0) rather than
+    // matching what was already reported — the bug this guards against.
+    await syncWakeAlarms([{ instanceId: U1, hour: 5, minute: 45, at: later(20) }, { instanceId: U2, hour: 6, minute: 0, at: later(21) }]);
+    await new Promise((r) => setTimeout(r, 0));
+    mockState.told = [];
+    cancelWakeAlarmFor(U1);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(mockState.told).toEqual([{ p_instance: U1, p_armed: false }]);
+  });
+
+  it('overlapping syncs are serialized, so the second never reconciles from a stale view of what the first just armed', async () => {
+    const pA = syncWakeAlarms([morning('p')]);
+    const pB = syncWakeAlarms([morning('q')]);
+    await Promise.all([pA, pB]);
+    // Unserialized, B's cancel loop runs before A's arm loop updates `lastArmed`, sees nothing to
+    // cancel, and both p and q end up armed — exactly the "re-arms what another just cancelled"
+    // (here, fails to cancel what the other just armed) failure mode.
+    expect(mockState.scheduled.map((s) => s.instanceId).sort()).toEqual(['q']);
   });
 });

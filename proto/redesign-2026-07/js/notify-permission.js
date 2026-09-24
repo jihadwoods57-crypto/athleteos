@@ -116,7 +116,12 @@ export async function reachAfter(rows) {
   const { act, RT } = await import('./state.js');
   await act.registerPushToken({ ask: true });
   RT._lastPlan = null; act.syncNotifications();
-  try { const { syncWakeAlarms } = await import('./wake-alarms.js'); await syncWakeAlarms(rows || []); } catch { /* the next Home load arms it */ }
+  try {
+    const [{ syncWakeAlarms }, { aheadRows }] = await Promise.all([import('./wake-alarms.js'), import('./commitment-data.js')]);
+    // Merge the cached ahead rows (roll call v3): a bare `rows` omits mornings 2-14 days out that a
+    // full app-open sync already armed, and the RECONCILE contract would sweep them off a narrower set.
+    await syncWakeAlarms([...(rows || []), ...(aheadRows() || [])]);
+  } catch { /* the next Home load arms it */ }
 }
 
 /**

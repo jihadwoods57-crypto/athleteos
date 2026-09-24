@@ -73,6 +73,16 @@ test('one alarm per instance, nearest morning first', () => {
   assert.deepEqual(alarmsFor(rows, NOW).map((a) => a.instanceId), ['soon', 'mid', 'late']);
 });
 
+test('roll call v3: the FIRST row for an instance decides, so a fresh answer beats a stale cached one', () => {
+  // Callers merge fresh rows (today's own read, or a just-forced ahead read) before the cached
+  // ahead read, which can be up to 14 days stale. The fresh row must win even though it comes
+  // first in array order and would otherwise be shadowed by a later duplicate.
+  const acked = [row({ status: 'acknowledged' }), row({ verdict: null, status: 'pending' })];
+  assert.deepEqual(alarmsFor(acked, NOW), [], 'a fresh acknowledged row beats a stale pending one');
+  const cancelled = [row({ instance_status: 'cancelled' }), row({ verdict: null, status: 'pending' })];
+  assert.deepEqual(alarmsFor(cancelled, NOW), [], 'a fresh cancelled row beats a stale pending one');
+});
+
 test('a runaway row set cannot fill a phone with alarms', () => {
   const many = Array.from({ length: 60 }, (_, i) =>
     row({ instance_id: `i${i}`, starts_at: inHours(1 + i * 0.1) }));

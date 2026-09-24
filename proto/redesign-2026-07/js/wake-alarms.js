@@ -48,12 +48,16 @@ export function alarmsFor(rows, nowMs = Date.now()) {
 
   for (const r of rows) {
     if (!r || r.type !== WAKEUP_TYPE) continue;
+    const id = r.instance_id == null ? '' : String(r.instance_id);
+    // The FIRST row decides — seen before any other check, so a fresh row (callers merge fresh
+    // before stale) always beats a stale duplicate for the same instance.
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+
     if (r.alarm === false) continue; // the coach turned the alarm off for this wake-up
     // A day the coach skipped or a rule they deleted (0215 sets the instance cancelled). The
     // verdict check below does not see it, so without this an alarm rang for a called-off morning.
     if (r.instance_status === 'cancelled' || r.skipped === true) continue;
-    const id = r.instance_id == null ? '' : String(r.instance_id);
-    if (!id || seen.has(id)) continue;
 
     // A verdict means the clock has already had its say. `pending` is the only state a morning
     // still ahead of us can legitimately be in.
@@ -78,7 +82,6 @@ export function alarmsFor(rows, nowMs = Date.now()) {
       buttonLabel: alarmButtonLabel(r),
       at,
     });
-    seen.add(id);
   }
 
   out.sort((a, b) => a.at - b.at);
@@ -113,8 +116,8 @@ export function alarmTitle(row) {
  * The alarm is armed days ahead and rings with OnStandard closed, so the code that lets its Stop
  * button check in by itself has to be on the phone BEFORE the morning. roll-call-ack's mint
  * ({ action: 'codes' }, the athlete's own session) returns one WINDOW code per wake-up over the
- * next 7 days; each is valid only from 15 minutes before that morning opens to 10 minutes after it
- * closes, for this athlete and that instance alone.
+ * next HORIZON_DAYS (14, v3); each is valid only from 15 minutes before that morning opens to 10
+ * minutes after it closes, for this athlete and that instance alone.
  *
  * A missing code costs nothing but the shortcut: the alarm still arms, and its button records the
  * tap for the app to drain on the next open, which is what it always did. */

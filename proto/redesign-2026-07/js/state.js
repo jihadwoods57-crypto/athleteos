@@ -3754,6 +3754,12 @@ export const act = {
     // task would keep firing arrivals against a session that no longer exists (or, worse,
     // attribute crossings under whoever signs in next on this phone).
     await this._disarmLocation();
+    // Same reasoning for a real alarm (v3): it keeps ringing across sign-out too. `complete: true`
+    // sweeps the whole device, not just this process's own; called direct so nothing new boots.
+    try {
+      const N = window.OnStandardNative;
+      if (N && N.wakeAlarms && typeof N.wakeAlarms.sync === 'function') await N.wakeAlarms.sync([], { complete: true });
+    } catch { /* best-effort */ }
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
     try { localStorage.removeItem('os.sso.new'); } catch { /* R2-I1: the bounce note ends with the session */ }
     this._wipeUserScopedState({ keepPendingOb: true });

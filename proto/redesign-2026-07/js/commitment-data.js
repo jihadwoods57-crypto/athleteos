@@ -196,11 +196,11 @@ export async function loadMine(force = false, dayISO = null) {
   } catch { RTC.mineError = true; return RTC.mine; }
 }
 
-/* The week AHEAD, for the alarm. loadMine's window is yesterday..tomorrow, which is right for Home
-   and wrong for arming alarms: an athlete who did not open the app for two days had no alarm on
-   the third morning, because nothing had ever read that morning's row. This materializes and
-   reads today..+7 once every half hour (the horizon wake-alarms.js arms to), merged with the Home
-   rows by the caller. Never touches RTC.mine, so Home's own cache stays the truth for the day. */
+/* The 14 days AHEAD, for the alarm. loadMine's window is yesterday..tomorrow, which is right for
+   Home and wrong for arming alarms: an athlete who did not open the app for two days had no alarm
+   on the third morning. Reads today..+14, merged with the Home rows by the caller; never touches
+   RTC.mine. Arming always passes `force` (not AHEAD_FRESH_MS): a moved/cancelled morning 2-14
+   days out must be caught before the next arm decision. */
 const AHEAD_DAYS = 14; // the alarm horizon, roll call v3
 const AHEAD_FRESH_MS = 30 * 60_000;
 const AHEAD = { rows: [], at: 0, day: null, ok: false };

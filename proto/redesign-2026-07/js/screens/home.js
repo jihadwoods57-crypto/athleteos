@@ -21,7 +21,7 @@ import { warmMealPhotos, todayMealPhotoPath, cachedMealPhoto, cachedMealThumb, p
 import { launchCache, keepLaunch, launchOwner, onLaunchDrop } from '../launch-cache.js';
 import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
 import { deriveCommitment, presenceOf, PRESENCE, tomorrowRollcall, wakeupPhase } from '../commitments.js';
-import { VC, loadMine, loadMineAhead, ackCommitment, todayISO as vcToday, aheadRows, aheadComplete } from '../commitment-data.js';
+import { VC, loadMine, loadMineAhead, ackCommitment, todayISO as vcToday, aheadComplete } from '../commitment-data.js';
 import { commitmentCard, mountCommitmentCard, commitmentOfflineCard, tomorrowCard } from './roll-call.js';
 import { standardsCard, mountStandardsCard, standardsOfflineCard } from './standards-card.js';
 import { CS, loadMine as loadStandards, todayISO as csToday } from '../connected-standard-data.js';
@@ -361,6 +361,15 @@ function paintCommitments(root) {
    for the same reason: commitment-data.js never imports day.js, so the screen that owns the fetch
    is what publishes the result. daySetWakeup is a no-op when nothing changed, which matters
    because these rows are refetched on every foreground beat. */
+/* Arm the mornings still ahead (v3): every foreground beat, and again after an answer. Forces a
+   fresh loadMineAhead read (not its 30-min cache) so a morning 2-14 days out a coach just moved or
+   cancelled is caught before the next arm decision. */
+function armAhead(rows) {
+  try {
+    loadMineAhead(true).then((ahead) => syncWakeAlarms([...(rows || []), ...(ahead || [])], Date.now(), { complete: aheadComplete() }), () => syncWakeAlarms(rows));
+  } catch (_) { /* never block the paint */ }
+}
+
 function publishWakeup(rows) {
   try { daySetWakeup(myWakeupForDay(rows, DAY.date), RT.userId || null); } catch (_) { /* never block the paint */ }
   // The place check's twin (0242 s7): the server's arrival_verdict for today's assigned arrival,
@@ -377,18 +386,11 @@ function publishWakeup(rows) {
       drain: () => { const N = window.OnStandardNative; return N && N.rollcall && N.rollcall.drain ? N.rollcall.drain() : 0; },
       points: () => Math.round(WAKEUP_SHIFT * 100),
       buzz,
-      onAnswered: () => { loadMine(true).then((r) => { RT.vcRows = r; daySetWakeup(myWakeupForDay(r, DAY.date), RT.userId || null); daySetArrival(myArrivalForDay(r, DAY.date), RT.userId || null); if (window.__render) window.__render(); }); },
+      onAnswered: () => { loadMine(true).then((r) => { RT.vcRows = r; daySetWakeup(myWakeupForDay(r, DAY.date), RT.userId || null); daySetArrival(myArrivalForDay(r, DAY.date), RT.userId || null); armAhead(r); if (window.__render) window.__render(); }); },
     });
     armWakeFace(rows);
   } catch (_) { /* never block the paint */ }
-  // And arm the mornings still ahead as real alarms. The native side reconciles the whole set, so
-  // calling this on every foreground beat is correct rather than wasteful, and outside the app
-  // shell there is no bridge and it does nothing. The week ahead rides along (loadMineAhead):
-  // Home's own rows stop at tomorrow, and an athlete who did not open the app for two days used
-  // to wake on the third morning with no alarm because nothing had ever read that morning's row.
-  try {
-    loadMineAhead().then((ahead) => syncWakeAlarms([...(rows || []), ...(ahead || [])], Date.now(), { complete: aheadComplete() }), () => syncWakeAlarms(rows));
-  } catch (_) { /* never block the paint */ }
+  armAhead(rows);
 }
 
 /* Connected Standards on Home (0155). Same shape as the commitments slot above: paint instantly
