@@ -49,6 +49,9 @@ const AT = String(flag('at', '13:10')).split(':').map(Number);
 // `--cold-at H:M` and `--next-day`: reopen at another time, or the next morning (no cached day).
 const COLD_AT = String(flag('cold-at', flag('at', '13:10'))).split(':').map(Number);
 const NEXT_DAY = argv.includes('--next-day');
+// `--native`: a stand-in for the native shell's window.ReactNativeWebView, so the splash hold
+// (html.splash-held, paused reveals) runs and the time the proto posts PAINTED is recorded.
+const NATIVE = argv.includes('--native');
 const DEBUG_PORT = Number(flag('port', 9371));
 const SHOTS = Number(flag('shots', 0));
 const STRIP_AT = String(flag('strip', '300,700,1100,1500,2000,3000,5000,6500')).split(',').map(Number);
@@ -192,11 +195,17 @@ async function coldLaunch(storage) {
     const page = await b.newPage({ width: W, height: H });
     // Restore the last session's storage before ANY proto code runs (first document only).
     await seedOnNewDocument(page, `(() => { if (location.protocol !== 'http:' || sessionStorage.getItem('__restored')) return;
-      const S = ${JSON.stringify(storage)}; for (const k in S) localStorage.setItem(k, S[k]); sessionStorage.setItem('__restored', '1'); })();`);
+      const S = ${JSON.stringify(storage)}; for (const k in S) localStorage.setItem(k, S[k]);
+      // The Keychain session as the browser adapter keeps it (js/secure-storage.js falls back to
+      // localStorage), so the stored-session read finds this athlete, as on a phone.
+      localStorage.setItem('sb-stub-auth-token', JSON.stringify({ access_token: 'seed', user: { id: 'seed-athlete' } }));
+      sessionStorage.setItem('__restored', '1'); })();`);
     await seedOnNewDocument(page, movingClock(COLD_AT[0], COLD_AT[1], NEXT_DAY ? 24 : 23));
     await seedOnNewDocument(page, sbStubSource({ todayISO: NEXT_DAY ? '2026-07-24' : '2026-07-23', athletes: ROSTER_ATHLETES, sessionUserId: 'seed-athlete' }));
     await seedOnNewDocument(page, latencySource({ min: LAT_MIN, max: LAT_MAX, session: SESSION_MS }));
     await seedOnNewDocument(page, recorderSource);
+    if (NATIVE) await seedOnNewDocument(page, `window.ReactNativeWebView = { postMessage(m) {
+      if (String(m).indexOf('PAINTED') >= 0) window.__T.ev.push({ t: Math.round(performance.now()), k: 'PAINTED' }); } };`);
     // Meal photos travel like a download; every other request is the local proto (file:// on a phone).
     await page.send('Fetch.enable', { patterns: [{ urlPattern: '*.jpg*', requestStage: 'Request' }] });
     b.on((msg) => {
@@ -256,7 +265,12 @@ function summarize(T) {
     if (a.view !== c.view) jumps.push({ t: c.t, what: 'view rebuilt', silent: true });
   }
   const cls = T.shifts.reduce((s, x) => s + x.v, 0);
+  const paintedEv = (T.ev || []).find((e) => e.k === 'PAINTED');
+  // The first frame the ring had started drawing (0 < drawn < 1), and when the entrance first ran.
+  const ringStart = st.find((s) => s.drawn != null && s.drawn > 0 && s.drawn < 1);
   return {
+    paintedAt: paintedEv ? paintedEv.t : null,
+    ringDrawStartAt: ringStart ? ringStart.t : null,
     fcp: (T.paints.find((p) => p.k === 'first-contentful-paint') || {}).t ?? null,
     skeletonAt: firstSkeleton ? firstSkeleton.t : null,
     firstHomeAt: firstHome ? firstHome.t : null,

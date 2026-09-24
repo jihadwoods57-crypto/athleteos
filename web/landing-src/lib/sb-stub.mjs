@@ -600,6 +600,9 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
       getPublicUrl: (p) => ({ data: { publicUrl: '/assets/__absent__/' + String(p) } }),
     }) },
     auth: {
+      // Where supabase-js keeps the session; the cold-launch harness stores SESSION here so the
+      // proto's stored-session read (js/supabase.js __storedSessionUid) has something to find.
+      storageKey: 'sb-stub-auth-token',
       getSession: () => Promise.resolve({ data: { session: SESSION }, error: null }),
       getUser: () => Promise.resolve({ data: { user: SESSION.user }, error: null }),
       onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }),
