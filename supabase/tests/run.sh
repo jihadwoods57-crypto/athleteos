@@ -66,6 +66,10 @@ SUITES=(
   # 0196 Trust Pass rewards. An operator can move an athlete's score without the athlete logging,
   # so the grant/spend walls are pinned here rather than trusted to review.
   "trust-pass (0196)|pass_test.sql"
+  # 0217 + 0248 the roll call kill switch: every push / Live Activity / alarm-code / notice / read
+  # path answers nothing while verified_commitments is killed, an athlete's tap is still recorded,
+  # and releasing the switch brings each 0248 path back.
+  "roll call off (0217, 0248)|rollcall_off_test.sql"
 )
 
 echo "==> SQL suites against: ${DB%%\?*}"

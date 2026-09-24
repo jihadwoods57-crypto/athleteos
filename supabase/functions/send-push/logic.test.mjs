@@ -69,3 +69,21 @@ test('aggregate mirrors the roster summary vocabulary', () => {
   ]);
   assert.deepEqual(agg, { sent: 2, inboxOnly: 1, deduped: 1, suppressed: 1 });
 });
+
+// ---- roll call switched off (2026-09-24)
+import { rollcallReportSilenced } from './logic.mjs';
+
+test('a roll call answer is not pushed to coaches while the roll call is switched off', () => {
+  assert.equal(rollcallReportSilenced('rollcall_answered', { kill_switch: true }), true);
+});
+
+test('a roll call answer is pushed as before when the switch is released or the row is absent', () => {
+  assert.equal(rollcallReportSilenced('rollcall_answered', { kill_switch: false }), false);
+  assert.equal(rollcallReportSilenced('rollcall_answered', null), false);
+});
+
+test('the switch never silences any other report', () => {
+  for (const k of ['meal_logged', 'athlete_message', 'checkin_logged', 'meal_review', '', null]) {
+    assert.equal(rollcallReportSilenced(k, { kill_switch: true }), false, String(k));
+  }
+});
