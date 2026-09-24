@@ -100,6 +100,35 @@ test('a server row that is AHEAD fills local without a needless push', async () 
   expect(upserts).toHaveLength(0); // nothing local to heal — no write amplification
 });
 
+/* Coach score truth (2026-09-24): days.score is the coach's copy of the athlete's number. A row
+   whose stored score this device no longer computes (a standard, style or formula change since it
+   was written) is healed on load, or the coach reads a number the athlete's Home no longer shows. */
+const AHEAD_ROW = {
+  athlete_id: UID, meals: { breakfast: true, lunch: false, snack: false, dinner: true },
+  hydration_l: 2, quick_added: [false, false, false], current_weight: null,
+  checkin: { submitted: true, energy: 7, recovery: 6, sleep: 8, confidence: 9, soreness: 4, motivation: 8 },
+};
+test('a stored score the device no longer computes is healed on load', async () => {
+  seedCache({});
+  const { sb, upserts } = makeSb({ ...AHEAD_ROW, date: todayISO(), score: 57 });
+  (dom.window as any).sb = sb;
+  await loadDay(UID);
+  expect(upserts).toHaveLength(1);
+  expect(upserts[0].score).not.toBe(57);
+});
+test('a stored score that matches is left alone (no write amplification)', async () => {
+  seedCache({});
+  const probe = makeSb({ ...AHEAD_ROW, date: todayISO(), score: 57 });
+  (dom.window as any).sb = probe.sb;
+  await loadDay(UID);
+  const truth = probe.upserts[0].score;
+  seedCache({});
+  const { sb, upserts } = makeSb({ ...AHEAD_ROW, date: todayISO(), score: truth });
+  (dom.window as any).sb = sb;
+  await loadDay(UID);
+  expect(upserts).toHaveLength(0);
+});
+
 test('no server row + local progress → healing push creates the row', async () => {
   seedCache({ meals: { breakfast: true, lunch: false, snack: false, dinner: false } });
   const { sb, upserts } = makeSb(null);

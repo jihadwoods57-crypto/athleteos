@@ -1038,7 +1038,9 @@ export async function loadDay(userId) {
     // (offline logs, a push that never flushed before the app was killed), push the merged
     // day back up NOW — otherwise it would sit local-only until the next tap, and the coach
     // would read "not logged" for a day that was honestly logged.
-    if (localAhead) await pushDay(userId, true);
+    // Also when the stored score is not the one this device now computes (a standard, style or
+    // formula change since it was written): days.score is the coach's copy of this number.
+    if (localAhead || (data && typeof data.score === 'number' && data.score !== clampedScore(DAY))) await pushDay(userId, true);
   } catch (e) { console.warn('[day] loadDay failed', e && e.message); }
   finally { touch(); }
 }
