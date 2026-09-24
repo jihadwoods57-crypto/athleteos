@@ -151,33 +151,3 @@ export function athleteStatus({ nowMin, nowMs = /** @type {number | null} */ (nu
   if (row.loggedToday) return mk('on_standard', 'On standard today');
   return mk('no_activity', 'Nothing logged yet today');
 }
-
-/** Aggregate pulse over VISIBLE (scope-filtered) rows. dateISO = today, for the delta. */
-export function teamPulse(rows, statuses, dateISO) {
-  const scored = rows.filter(r => r.score != null);
-  const avg = scored.length ? Math.round(scored.reduce((a, r) => a + r.score, 0) / scored.length) : null;
-  let ySum = 0, yN = 0;
-  for (const r of rows) {
-    const h = (r.scoreHistory || []).filter(x => x.date < dateISO && x.score != null);
-    if (h.length) { ySum += h[h.length - 1].score; yN++; }
-  }
-  const yAvg = yN ? Math.round(ySum / yN) : null;
-  let done = 0, total = 0;
-  for (const r of rows) for (const t of (r.tasks || [])) { total++; if (t && t.done) done++; }
-  const count = (k) => rows.filter(r => statuses[r.athleteId] && statuses[r.athleteId].key === k).length;
-  return {
-    avg,
-    deltaVsYesterday: (avg != null && yAvg != null) ? avg - yAvg : null,
-    onStandard: count('on_standard'),
-    dueSoon: count('due_soon'),
-    overdue: count('overdue') + count('no_activity'),
-    completionPct: total ? Math.round((done / total) * 100) : null,
-    // The counts behind that ratio. A percentage alone cannot be read honestly here: an athlete
-    // with no requirements at all contributes to NEITHER side, so a roster with one unactivated
-    // athlete and three finished ones reads "100% done today" directly above "1 overdue".
-    // The coach surface prints "N of M requirements in" instead, which cannot contradict the
-    // standing bar because it is counting a different, named thing.
-    tasksDone: done,
-    tasksTotal: total,
-  };
-}

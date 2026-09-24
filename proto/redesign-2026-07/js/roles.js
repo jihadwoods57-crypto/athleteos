@@ -2149,36 +2149,6 @@ function athleteIdsOf(perBook) {
   return ids;
 }
 
-/** PURE projection shared by both books: members + day rows + recent meals + timezones → sorted UI
-    rows. No fetches, so each loader keeps its own parallelism. A coach's team book and a trainer's
-    practice book differ only in which RPC produced `perBook` — every downstream engine (status,
-    priority, inbox) then reads the same row shape. */
-function projectRows(perBook, days, recentMeals, tzByAthlete) {
-  const today = todayISO();
-  const dayByAthlete = {}, histByAthlete = {}, lastMealBy = {};
-  for (const d of (days || [])) {
-    if (d.date === today) dayByAthlete[d.athlete_id] = d;
-    (histByAthlete[d.athlete_id] = histByAthlete[d.athlete_id] || []).push({ date: d.date, score: d.score });
-  }
-  for (const h of Object.values(histByAthlete)) h.sort((a, b) => a.date < b.date ? -1 : 1);
-  for (const m of (recentMeals || [])) {
-    if (!lastMealBy[m.athlete_id] || m.logged_at > lastMealBy[m.athlete_id]) lastMealBy[m.athlete_id] = m.logged_at;
-  }
-  const seen = new Set(); const rows = [];
-  for (const members of perBook) {
-    for (const m of members) {
-      if (seen.has(m.athlete_id)) continue; seen.add(m.athlete_id);
-      rows.push(buildRosterRow(m, dayByAthlete[m.athlete_id], {
-        scoreHistory: histByAthlete[m.athlete_id] || [],
-        lastMealAt: lastMealBy[m.athlete_id] || null,
-        timezone: (tzByAthlete || {})[m.athlete_id] || null,
-      }));
-    }
-  }
-  rows.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
-  return rows;
-}
-
 /** Full coach roster: teams → members (RPC) → merged with today's linked day rows.
  *  The roster resolves FIRST, then days/meals/timezones read in parallel scoped to those
  *  athlete ids — not because it changes the roster's own cost, but because fetchLinkedDaysSince
@@ -2206,6 +2176,8 @@ export async function loadCoachRoster() {
   // days === null means the day read FAILED — projecting it would flag every athlete
   // "No logs today" (red) and feed the nudge queue a roster of fabricated delinquents.
   if (days === null) throw new Error('roster-fetch-failed');
+  // Lazy: the projection (each athlete's own today, roster-day.js) is coach-only code.
+  const { projectRows } = await import('./roster-day.js');
   return { teams, rows: projectRows(perTeam, days, recentMeals, tzByAthlete) };
 }
 
@@ -2227,6 +2199,7 @@ export async function loadTrainerBook() {
     fetchProfileTimezones(athleteIds),
   ]);
   if (days === null) throw new Error('book-fetch-failed');
+  const { projectRows } = await import('./roster-day.js');
   return { practices, rows: projectRows(perPractice, days, recentMeals, tzByAthlete) };
 }
 

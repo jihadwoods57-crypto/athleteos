@@ -32,7 +32,7 @@ import { overlayOpen } from '../overlay-guard.js';
 import { wireTapback } from '../tapback.js';
 import { CD, loadBook, bookKindFor, bookId as currentBookId, loadCoachRoster, loadActivity, loadAthleteProfile, entriesFor, localClock, logBookIntervention, resolvePos, seenMealSet } from '../coach-data.js';
 import { STATUS_META, statusColor, statusLabel } from '../status.js';
-import { teamCounts } from '../team-count.js';
+import { teamCounts, shownScore } from '../team-count.js';
 import { openRosterFiltered } from './coach-roster.js';
 import { everyone, people, audienceIds, audienceLabel, planSends, namesSummary, audienceHtml, wireAudience } from '../audience.js';
 import { CATALOG, PROOF, resolveRequirementSet, catalogFromItems, freqLabel, stdFromItems, fmtMin, planStyleFromItems } from '../requirements.js';
@@ -2385,7 +2385,11 @@ function overviewSection(P, athleteId) {
   // ONE score artifact. The ring is the most legible thing the athlete's own Home has, and it
   // was the one thing this page dropped — while printing the same number three times (stat
   // tile, "Finished day", trend endpoint). Now the ring carries it, once.
-  const score = P.day && P.day.score != null ? P.day.score : null;
+  // The number THEIR Home shows right now (team-count.js shownScore): no digit before their first
+  // requirement on a live red day, and never a row from a day that has ended for them.
+  const e0 = (entriesFor({ kind: 'athlete', value: athleteId }) || [])[0];
+  const score = P.day && P.day.score != null
+    ? (e0 ? shownScore({ ...e0, row: { ...e0.row, score: P.day.score } }) : P.day.score) : null;
   // Dot and words from the one status vocabulary (statusColor / statusLabel): one word per state;
   // the score keeps its tier colour on the number (DESIGN.md 2026-09-23).
   const stLabel = st ? statusLabel(st, score) : '';
@@ -3010,7 +3014,9 @@ export const coachAthlete = {
     // without this guard the receipt call would re-fire on each of those instead of once.
     if (VIEWED_FOR !== athleteId) {
       VIEWED_FOR = athleteId;
-      try { roles.markDayViewed(athleteId, roles.todayISO(), RT.userId, S.operatorIdentity.handle); } catch { /* best-effort */ }
+      // THEIR day (the one the roster matched), so the receipt lands on the day they are living.
+      const vr = CD.roster && (CD.roster.rows || []).find((r) => r.athleteId === athleteId);
+      try { roles.markDayViewed(athleteId, (vr && vr.dayISO) || roles.todayISO(), RT.userId, S.operatorIdentity.handle); } catch { /* best-effort */ }
     }
     // The hero ring draws once per athlete+score (keyed like Home's) — scoreRing renders wound
     // back and stays empty unless something calls the reveal.

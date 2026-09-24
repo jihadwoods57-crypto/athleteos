@@ -6,7 +6,8 @@
    deliberately position-less (practice_roster hardcodes position: null) and set-less (requirement
    sets are team-owned until 0136), because that is the exact shape the trainer renders today. */
 import assert from 'node:assert';
-import { athleteStatus, teamPulse, runsOn, STATUS_META } from './status.js';
+import { athleteStatus, runsOn, STATUS_META } from './status.js';
+import { groupPulse } from './team-count.js';
 import { buildPriorities, reasonKey } from './priority.js';
 import { nudgePreset } from './nudge-presets.js';
 import { resolveRequirementSet, catalogFromItems, CATALOG } from './requirements.js';
@@ -119,32 +120,29 @@ assert.strictEqual(resolveRequirementSet([], 'a1', null), null, 'position-less (
   assert.strictEqual(resolveRequirementSet(sets, 'a2', null).scope_kind, 'team', 'null position skips the room tier');
 }
 
-/* ---------------- teamPulse: works on a practice book too ---------------- */
+/* ---------------- groupPulse: works on a practice book too ---------------- */
 {
-  const rows = [
-    { athleteId: 'a1', score: 90, tasks: [{ done: true }, { done: true }], scoreHistory: [{ date: '2026-07-23', score: 80 }] },
-    { athleteId: 'a2', score: 70, tasks: [{ done: true }, { done: false }], scoreHistory: [{ date: '2026-07-23', score: 60 }] },
-  ];
-  const statuses = { a1: { key: 'on_standard' }, a2: { key: 'below_standard' } };
-  const p = teamPulse(rows, statuses, '2026-07-24');
+  // Settled days (nothing required still open), so the like-for-like delta is allowed.
+  const e = (athleteId, score, yesterdayScore, key) => ({
+    row: { athleteId, score, yesterdayScore, tasks: [] }, status: { key }, reqs: [], nowMin: 1300, nowDow: 4,
+  });
+  const p = groupPulse([e('a1', 90, 80, 'on_standard'), e('a2', 70, 60, 'below_standard')]);
   assert.strictEqual(p.avg, 80);
-  assert.strictEqual(p.deltaVsYesterday, 10);
-  assert.strictEqual(p.onStandard, 1);
-  assert.strictEqual(p.completionPct, 75);
+  assert.strictEqual(p.yesterday, 70);
+  assert.strictEqual(p.delta, 10);
+  assert.strictEqual(p.scored, 2);
 }
 {
-  // A practice book has no scoreHistory (loadTrainerBook fetched 1 day) -> delta must be null,
-  // never 0. This is the surface Slice A fixes by widening the fetch to 7 days.
-  const rows = [{ athleteId: 'a1', score: 90, tasks: [], scoreHistory: [] }];
-  const p = teamPulse(rows, { a1: { key: 'on_standard' } }, '2026-07-24');
+  // A practice client with no day before today: delta and yesterday are unknown, never 0.
+  const p = groupPulse([{ row: { athleteId: 'a1', score: 90, yesterdayScore: null, tasks: [] }, status: { key: 'on_standard' }, reqs: [], nowMin: 1300 }]);
   assert.strictEqual(p.avg, 90);
-  assert.strictEqual(p.deltaVsYesterday, null, 'no history must read as unknown, not flat');
-  assert.strictEqual(p.completionPct, null, 'no tasks must read as unknown, not 0%');
+  assert.strictEqual(p.delta, null, 'no yesterday must read as unknown, not flat');
+  assert.strictEqual(p.yesterday, null);
 }
 {
-  const p = teamPulse([], {}, '2026-07-24');
+  const p = groupPulse([]);
   assert.strictEqual(p.avg, null);
-  assert.strictEqual(p.overdue, 0);
+  assert.strictEqual(p.delta, null);
 }
 
 /* ---------------- buildPriorities: ranking + mark-handled ---------------- */
