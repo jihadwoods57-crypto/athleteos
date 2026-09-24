@@ -29,14 +29,16 @@ import ActivityKit
 ///
 /// So the layout is the closest honest thing the API permits, and it is arguably better:
 ///
-///   - the SECONDARY button is fully ours, and it reads "Attack the day" in the app's blue with a
-///     sunrise glyph;
-///   - `stopIntent` attaches OUR intent to Apple's own primary button, so an athlete who hits the
-///     obvious system button is recorded as up just the same.
+///   - the SECONDARY button is fully ours: the coach's words ("I'm Up" by default) on a white
+///     label with a sunrise glyph, filled with the app's blue;
+///   - `stopIntent` attaches OUR intent to Apple's own primary button (a slide on iOS 26.1).
 ///
-/// That last part is the load-bearing one. Without it the big system button would dismiss the
-/// alarm and record nothing, and the athlete would be marked missed for using the button the
-/// system made most prominent.
+/// THE ALARM IS THE CHECK-IN (roll call v3, 2026-09-24). Both buttons run the SAME intent,
+/// `RollCallAttackDayIntent` (RollCallCheckInIntent.swift): it checks the athlete in with the
+/// window code AND opens OnStandard on that morning's team board. Apple still owns Stop's look and
+/// label; what we own is what it does. Without an intent there, the most prominent control on the
+/// screen would dismiss the alarm and record nothing, and the athlete would be marked missed for
+/// using the button the system made most prominent. There is no snooze (see `.custom` below).
 ///
 /// NO COUNTDOWN PRESENTATION, DELIBERATELY. Apple: "AlarmKit expects a widget extension if an app
 /// supports a countdown presentation. Otherwise, the system may unexpectedly dismiss alarms and
@@ -173,7 +175,8 @@ public enum RollCallAlarmScheduler {
   ///
   /// - Parameter atMs: epoch milliseconds, the same number the proto sorts alarms by.
   /// - Parameters ackCode/ackUrl: the morning's window code and where to post it. With both, Stop
-  ///   and the alarm's own button check in by themselves, with OnStandard closed.
+  ///   and the alarm's own button post the check-in themselves, before OnStandard has finished
+  ///   opening; without them the app's drain posts it.
   public static func scheduleAt(
     instanceId: String,
     atMs: Double,
@@ -240,11 +243,11 @@ public enum RollCallAlarmScheduler {
     let configuration = AlarmManager.AlarmConfiguration(
       schedule: schedule,
       attributes: attributes,
-      // Apple's own primary button, carrying our intent. This is what stops the most obvious
-      // button on the screen from dismissing the alarm and recording nothing. With the window
-      // code it also POSTS the check-in, so Stop alone answers the roll call with the app closed.
-      stopIntent: RollCallCheckInIntent(instanceId: instanceId, ackCode: ackCode, ackUrl: ackUrl),
-      // The coach's words: checks in the same way AND opens the app on the team board.
+      // THE ALARM IS THE CHECK-IN (roll call v3). Apple's own Stop carries the same intent as our
+      // button: it checks in with the window code AND opens OnStandard on the team board. Without an
+      // intent here the most prominent control on the screen would dismiss the alarm and record
+      // nothing.
+      stopIntent: RollCallAttackDayIntent(instanceId: instanceId, ackCode: ackCode, ackUrl: ackUrl),
       secondaryIntent: RollCallAttackDayIntent(instanceId: instanceId, ackCode: ackCode, ackUrl: ackUrl),
       // The system alarm tone. The founder was explicit that this is a normal alarm and not a
       // voice, so nothing custom is named here.
@@ -305,57 +308,4 @@ public enum RollCallAlarmScheduler {
   }
 }
 
-#endif
-
-#if canImport(AppIntents)
-/// The alarm's own button (the coach's words, "I'm Up" by default).
-///
-/// It does exactly what the Live Activity's check-in button does - writes the tap into the App
-/// Group for the JS queue to drain, and posts it with the window code when the alarm carries one -
-/// and then opens the app. The tap is marked `board`, so after draining it the app lands on that
-/// morning's team board (#rollcall-board/<instanceId>): the athlete just got up, and the first
-/// thing worth seeing is who else did.
-///
-/// TARGET MEMBERSHIP: the app target, same as RollCallCheckInIntent. Apple runs a
-/// `LiveActivityIntent` in the app's process.
-@available(iOS 17.0, *)
-public struct RollCallAttackDayIntent: LiveActivityIntent {
-  public static var title: LocalizedStringResource = "I’m Up"
-  public static var description = IntentDescription("Answer your coach's wake-up and start the day.")
-
-  /// Unlike the Live Activity's check-in button, this one DOES open OnStandard. It is the morning's
-  /// deliberate button: the athlete chose it over the system's dismiss.
-  public static var openAppWhenRun: Bool = true
-
-  @Parameter(title: "Instance")
-  public var instanceId: String
-
-  /// The window code, or nil when the alarm was armed without one.
-  @Parameter(title: "Code")
-  public var ackCode: String?
-
-  /// Where to post it. Nil alongside `ackCode`.
-  @Parameter(title: "Endpoint")
-  public var ackUrl: String?
-
-  public init() {
-    self.instanceId = ""
-    self.ackCode = nil
-    self.ackUrl = nil
-  }
-
-  public init(instanceId: String, ackCode: String? = nil, ackUrl: String? = nil) {
-    self.instanceId = instanceId
-    self.ackCode = ackCode
-    self.ackUrl = ackUrl
-  }
-
-  public func perform() async throws -> some IntentResult {
-    let at = Date()
-    // Fallback first (and the board marker the app routes on), then the post itself.
-    RollCallPendingStore.record(instanceId: instanceId, at: at, board: true)
-    await RollCallAckPoster.post(code: ackCode, url: ackUrl, at: at)
-    return .result()
-  }
-}
 #endif

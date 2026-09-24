@@ -3,16 +3,22 @@ import Foundation
 #if canImport(AppIntents)
 import AppIntents
 
-/// OnStandard — the button inside the Live Activity.
+/// OnStandard — the roll call's check-in intents.
+///
+/// SINCE ROLL CALL v3 (2026-09-24) the Live Activity's button and both alarm buttons run
+/// `RollCallAttackDayIntent` at the bottom of this block (checks in AND opens the team board).
+/// `RollCallCheckInIntent` right below is the pre-v3 button (checks in, opens nothing); it is KEPT
+/// because alarms armed and cards started by older builds name it, and the app must still run it.
+/// Everything below about how a tap is recorded applies to both.
 ///
 /// TARGET MEMBERSHIP: BOTH the app and the widget extension. Two different requirements that are
 /// easy to conflate:
 ///   - Apple requires it in the APP target, because that is the process the system runs
 ///     `perform()` in: "the system runs the app intent in the app's process. Make sure to add your
 ///     custom app intent to your app target."
-///   - The EXTENSION needs the type at COMPILE time, because RollCallWidget.swift constructs it to
+///   - The EXTENSION needs the type at COMPILE time, because RollCallWidget.swift constructs one to
 ///     hand to `Button(intent:)`. Leave it out and the extension does not build ("Cannot find
-///     'RollCallCheckInIntent' in scope").
+///     'RollCallAttackDayIntent' in scope").
 /// Compiling it into both does not change where it runs: the `LiveActivityIntent` conformance is
 /// what routes execution to the app process, not which target holds the source.
 ///
@@ -72,6 +78,60 @@ public struct RollCallCheckInIntent: LiveActivityIntent {
     return .result()
   }
 }
+
+/// The alarm's buttons and the Live Activity's I'm Up (roll call v3, 2026-09-24).
+///
+/// THE ALARM IS THE CHECK-IN. Apple's own Stop (a slide on iOS 26.1) and our one custom button both
+/// run this: it records the tap in the App Group first (the drain's fallback, nothing the network
+/// does can lose it), posts `{ code, tapped_at }` to roll-call-ack when the alarm carries the
+/// morning's window code, and OPENS OnStandard. The tap is marked `board`, so after draining it the
+/// app lands on that morning's team board (#rollcall-board/<instanceId>, "You're up · 2nd"): the
+/// athlete just got up, and the first thing worth seeing is who else did. No snooze exists.
+///
+/// It lives in THIS file, not RollCallAlarm.swift, because the widget extension (the Live Activity
+/// button) and the Notification Service Extension (alarms armed from a push) both compile this file;
+/// the copies are byte-for-byte and `npm run lint:mirror` checks them. Apple runs a
+/// `LiveActivityIntent` in the APP's process whichever target constructed it.
+///
+/// RollCallCheckInIntent above stays: alarms armed by builds before v3 name it as their stop intent.
+@available(iOS 17.0, *)
+public struct RollCallAttackDayIntent: LiveActivityIntent {
+  public static var title: LocalizedStringResource = "I’m Up"
+  public static var description = IntentDescription("Answer your coach's wake-up and see the team board.")
+
+  public static var openAppWhenRun: Bool = true
+
+  @Parameter(title: "Instance")
+  public var instanceId: String
+
+  /// The window code, or nil when the alarm was armed without one.
+  @Parameter(title: "Code")
+  public var ackCode: String?
+
+  /// Where to post it. Nil alongside `ackCode`.
+  @Parameter(title: "Endpoint")
+  public var ackUrl: String?
+
+  public init() {
+    self.instanceId = ""
+    self.ackCode = nil
+    self.ackUrl = nil
+  }
+
+  public init(instanceId: String, ackCode: String? = nil, ackUrl: String? = nil) {
+    self.instanceId = instanceId
+    self.ackCode = ackCode
+    self.ackUrl = ackUrl
+  }
+
+  public func perform() async throws -> some IntentResult {
+    let at = Date()
+    // Fallback first (and the board marker the app routes on), then the post itself.
+    RollCallPendingStore.record(instanceId: instanceId, at: at, board: true)
+    await RollCallAckPoster.post(code: ackCode, url: ackUrl, at: at)
+    return .result()
+  }
+}
 #endif
 
 /// Posts one tap to roll-call-ack with the window code, from whichever intent was pressed (the
@@ -122,9 +182,10 @@ public enum RollCallPendingStore {
   /// Append one tap. Deliberately additive and tiny: this runs inside `perform()`, which Apple
   /// gives no documented time budget, so it does no I/O beyond one defaults write.
   ///
-  /// `board` marks a tap from the alarm's own button, which opens OnStandard: the app lands on
-  /// that morning's team board (#rollcall-board/<instanceId>) after draining it. Stop and the
-  /// card's button leave it false and open nothing.
+  /// `board` marks a tap from `RollCallAttackDayIntent` (both alarm buttons and the card's I'm Up
+  /// since roll call v3), which opens OnStandard: the app lands on that morning's team board
+  /// (#rollcall-board/<instanceId>) after draining it. Only `RollCallCheckInIntent`, left for
+  /// alarms and cards from older builds, leaves it false and opens nothing.
   public static func record(instanceId: String, at date: Date, board: Bool = false) {
     guard !instanceId.isEmpty, let defaults = UserDefaults(suiteName: suiteName) else { return }
     var pending = defaults.array(forKey: key) as? [[String: Any]] ?? []

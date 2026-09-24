@@ -34,3 +34,35 @@ test('every attribute the server starts a card with is a stored property in Swif
     expect(swift).toMatch(new RegExp(`public var ${k}: String\\??\\n`));
   }
 });
+
+const read = (f: string) => readFileSync(join(__dirname, 'ios', f), 'utf8').replace(/\r\n/g, '\n');
+
+describe('roll call v3: the alarm IS the check-in', () => {
+  const alarm = read('RollCallAlarm.swift');
+  const intents = read('RollCallCheckInIntent.swift');
+  const widget = read('RollCallWidget.swift');
+
+  test('both alarm buttons run the board intent', () => {
+    expect(alarm).toMatch(/stopIntent: RollCallAttackDayIntent\(/);
+    expect(alarm).toMatch(/secondaryIntent: RollCallAttackDayIntent\(/);
+  });
+  test('the board intent checks in, marks the tap for the board, and opens the app', () => {
+    const body = intents.slice(intents.indexOf('public struct RollCallAttackDayIntent'));
+    expect(body).toMatch(/openAppWhenRun: Bool = true/);
+    expect(body).toMatch(/RollCallPendingStore\.record\(instanceId: instanceId, at: at, board: true\)/);
+    expect(body).toMatch(/RollCallAckPoster\.post\(code: ackCode, url: ackUrl, at: at\)/);
+  });
+  test('the Live Activity button does the same', () => {
+    expect(widget).toMatch(/Button\(intent: RollCallAttackDayIntent\(/);
+  });
+  test('the old intent type stays, for alarms armed by older builds', () => {
+    expect(intents).toMatch(/public struct RollCallCheckInIntent: LiveActivityIntent/);
+  });
+  test('no snooze: the second button is custom, never countdown', () => {
+    expect(alarm).toMatch(/secondaryButtonBehavior: \.custom/);
+    expect(alarm).not.toMatch(/secondaryButtonBehavior: \.countdown/);
+  });
+  test('the board intent is defined once, in the shared file', () => {
+    expect(alarm).not.toMatch(/struct RollCallAttackDayIntent/);
+  });
+});

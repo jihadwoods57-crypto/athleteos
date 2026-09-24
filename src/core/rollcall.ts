@@ -144,9 +144,10 @@ export function dropCoachAction(
   return q.filter((x) => !(x.code === code && x.action === action));
 }
 
-/** A tap waiting in the native pending store. `board` is set by the alarm's own button (the
- *  coach's words, RollCallAttackDayIntent), which opens OnStandard; Stop and the lock-screen card
- *  check in without opening anything and leave it unset. */
+/** A tap waiting in the native pending store. `board` is set by RollCallAttackDayIntent, which
+ *  opens OnStandard: since roll call v3 that is both alarm buttons (Stop included) and the
+ *  lock-screen card's I'm Up. Only the pre-v3 RollCallCheckInIntent, still run for alarms and cards
+ *  from older builds, checks in without opening anything and leaves it unset. */
 export type PendingBoardTap = { instanceId: string; at: number; board?: boolean };
 
 /** The id shape a route may carry. A commitment instance id is a UUID; anything else that could

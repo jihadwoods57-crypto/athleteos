@@ -143,10 +143,10 @@ struct RollCallLockScreenView: View {
     }
   }
 
-  /// One dominant action. It is NOT the primary way to answer: on a locked device Apple makes
-  /// buttons inactive until the person authenticates, so the notification's action button is what
-  /// works at 6 AM on a nightstand. This one is for the phone already in a hand, where Face ID has
-  /// cleared the lock with a glance.
+  /// One dominant action. Checks in AND opens the team board, the same as both alarm buttons (roll
+  /// call v3). On a locked phone Apple keeps Live Activity buttons inactive until the person
+  /// authenticates, so this is for the phone already in a hand; the alarm is what answers from a
+  /// nightstand.
   ///
   /// iOS 17 gates BOTH halves of this: `Button(intent:)` and `LiveActivityIntent` itself. The card
   /// as a whole still runs on 16.2, so the availability check is here rather than on the view —
@@ -156,8 +156,8 @@ struct RollCallLockScreenView: View {
   @ViewBuilder
   private var checkInButton: some View {
     if #available(iOS 17.0, *) {
-      // The window code rides with the button, so the tap posts itself with OnStandard closed.
-      Button(intent: RollCallCheckInIntent(
+      // The window code rides with the button, so the tap posts itself as OnStandard opens.
+      Button(intent: RollCallAttackDayIntent(
         instanceId: context.attributes.instanceId,
         ackCode: context.attributes.ackCode,
         ackUrl: context.attributes.ackUrl
