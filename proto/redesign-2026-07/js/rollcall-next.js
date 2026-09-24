@@ -8,6 +8,7 @@
 import { icon } from './icons.js';
 import { fmtMin } from './requirements.js';
 import { weightsForAssigned } from './plan-style.js';
+import { ROLLCALL_OFF } from './commitments.js';
 
 /* Its own escape, not components.js's: components.js imports state.js, which this module (and its
    node:test suite) must not load. Same five characters. */
@@ -154,7 +155,8 @@ export async function fixAlarm(kind, { host = null, rows = [], after = null } = 
 export async function mountNextCard(host, { rows = [], hideIds = new Set(), nowMs = Date.now() } = {}) {
   if (!host) return;
   const old = host.querySelector('.rn-slot');
-  const row = nextWakeup(rows, nowMs);
+  // Switched off (commitments.js): no next roll call, whatever a cache still holds.
+  const row = ROLLCALL_OFF ? null : nextWakeup(rows, nowMs);
   if (!row || hideIds.has(String(row.instance_id))) { if (old) old.remove(); return; }
   let state = null;
   try { const W = await import('./wake-alarms.js'); state = await W.wakeAlarmState(); } catch { state = null; }

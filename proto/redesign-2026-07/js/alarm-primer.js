@@ -20,6 +20,7 @@ import { icon } from './icons.js';
 import { overlayOpen } from './overlay-guard.js';
 import { alarmPermission, notifyPermission, notifyPrimerLater, mountRollcallPrimer } from './notify-permission.js';
 import { primerState, setPrimer } from './rollcall-v3-data.js';
+import { ROLLCALL_OFF } from './commitments.js';
 
 export const AP_TITLE = 'Let your coach set your wake-up alarm';
 export const AP_BODY = 'OnStandard sets a real alarm on this phone for each roll call your coach assigns. It rings through silent mode, and one tap checks you in. Your phone asks next.';
@@ -68,6 +69,8 @@ async function armNow() {
 
 /** Draw the primer into `host` when it should show. Resolves true when it was drawn. */
 export async function mountAlarmPrimer(host, { onTeam = false, force = false, after = null } = {}) {
+  // Switched off (commitments.js): nothing to ring for, so never ask for alarms.
+  if (ROLLCALL_OFF) return false;
   if (!host || host.querySelector('.np-card') || overlayOpen()) return false;
   const state = await alarmState(false);
   if (!state || !state.supported || state.authorization !== 'notDetermined') return false;
@@ -103,7 +106,7 @@ export async function mountAlarmPrimer(host, { onTeam = false, force = false, af
 /** Home's primer slot: the alarm question first (athletes on a team), else the notification
  *  primer for an assigned roll call. Never both. */
 export async function mountPrimers(slot, rows, onTeam) {
-  if (overlayOpen()) return;
+  if (ROLLCALL_OFF || overlayOpen()) return;
   const shown = await mountAlarmPrimer(slot, { onTeam });
   if (!shown) await mountRollcallPrimer(slot, rows);
 }

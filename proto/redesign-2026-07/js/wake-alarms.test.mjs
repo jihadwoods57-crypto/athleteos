@@ -11,6 +11,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { alarmsFor, alarmTitle, alarmButtonLabel, MAX_ALARMS, HORIZON_DAYS, DEFAULT_BUTTON, withAckCodes, fetchAckCodes, _resetAckCodes, ACK_CODES_TTL_MS, syncWakeAlarms } from './wake-alarms.js';
 
+// The roll call is switched off (commitments.js, 2026-09-24). This file tests the roll call itself,
+// so it runs it switched ON, as it will be when it comes back; rollcall-off.test.mjs pins the off state.
+import { rollcallOnForTests } from './commitments.js';
+rollcallOnForTests();
+
+
 const NOW = Date.parse('2026-09-11T12:00:00Z');
 const inHours = (h) => new Date(NOW + h * 3600000).toISOString();
 const row = (over = {}) => ({

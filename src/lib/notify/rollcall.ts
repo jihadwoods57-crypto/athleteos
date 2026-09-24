@@ -373,6 +373,24 @@ export async function settleLiveCard(instanceId: string, attempt = 0): Promise<R
   return outcome;
 }
 
+/**
+ * The roll call is switched off (proto commitments.js ROLLCALL_OFF, founder 2026-09-24): end every
+ * roll call Live Activity still on this device, whatever instance it was for. The proto cannot name
+ * them (the server no longer returns any roll call), so the native side is asked which are up.
+ * Resolves how many were asked to end. Never throws; web and a build without the module end none.
+ */
+export async function endAllLiveCards(): Promise<number> {
+  if (Platform.OS === 'web') return 0;
+  try {
+    const live = require('../../../modules/rollcall-live') as typeof import('../../../modules/rollcall-live');
+    const ids = typeof live.activeInstanceIds === 'function' ? live.activeInstanceIds() : [];
+    for (const id of ids) await live.endLiveActivity(String(id));
+    return ids.length;
+  } catch {
+    return 0;
+  }
+}
+
 /** The team-board route the last drained taps asked for, or null. Clears on read. */
 export function takeBoardRoute(): string | null {
   const r = boardRoute;
