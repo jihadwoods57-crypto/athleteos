@@ -190,13 +190,13 @@ test('the prompts forbid the four failures the founder saw', () => {
 
 test('the server gate reaches the same verdict for the 12:44 message (photo from body.photoPath)', () => {
   const thread = [
-    { id: 'r1', senderId: null, senderName: 'AI Nutritionist', senderRole: 'ai', text: 'Solid lunch...' },
+    { id: 'r1', senderId: null, senderName: 'Nia', senderRole: 'ai', text: 'Solid lunch...' },
     { id: 'r2', senderId: ATH, senderName: 'Jihad', senderRole: 'athlete', text: "I'm also drinking this" },
   ];
   const body = {
     question: "I'm also drinking this", photoPath: SHAKE,
     speaker: { id: null, senderId: ATH, senderName: 'Jihad', senderRole: 'athlete', text: "I'm also drinking this" },
-    participants: [{ id: ATH, name: 'Jihad Woods', role: 'athlete' }, { id: COACH, name: 'Marcus Brooks', role: 'coach' }, { id: null, name: 'AI Nutritionist', role: 'ai' }],
+    participants: [{ id: ATH, name: 'Jihad Woods', role: 'athlete' }, { id: COACH, name: 'Marcus Brooks', role: 'coach' }, { id: null, name: 'Nia', role: 'ai' }],
   };
   const v = gateVerdict(body, { thread }, {});
   assert.equal(v.shouldRespond, true, v.reason);

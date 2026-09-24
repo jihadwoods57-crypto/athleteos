@@ -33,7 +33,7 @@ test('a thread row carries the speaker’s real name and role, not just "coach"'
 
 test('the AI is named and carries no sender id', () => {
   const d = describeMessage(row({ role: 'ai', text: 'Lunch scored 72.' }), {});
-  assert.equal(d.senderName, 'AI Nutritionist');
+  assert.equal(d.senderName, 'Nia');
   assert.equal(d.senderRole, 'ai');
   assert.equal(d.senderId, null);
 });

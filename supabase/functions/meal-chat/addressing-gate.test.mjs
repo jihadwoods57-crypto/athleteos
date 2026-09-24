@@ -12,7 +12,7 @@ const msg = (o) => ({
   senderRole: o.senderRole, text: o.text,
 });
 const COACH = msg({ id: 'c1', senderId: 'u-hc', senderName: 'Alex Grinch', senderRole: 'coach', text: 'Good job' });
-const AI = msg({ id: 'c2', senderRole: 'ai', senderName: 'AI Nutritionist', text: 'You have 35g of protein remaining.' });
+const AI = msg({ id: 'c2', senderRole: 'ai', senderName: 'Nia', text: 'You have 35g of protein remaining.' });
 const ATHLETE = { id: null, senderId: 'u-ath', senderName: 'Jihad Woods', senderRole: 'athlete' };
 
 const body = (question, thread, extra) => ({
@@ -68,7 +68,7 @@ test('the roster the client sends is preferred, and the thread is the floor', ()
   // A coach who has NOT spoken yet is unknown to the transcript but known to the client roster,
   // so "thanks Dana" still resolves to a person.
   const withRoster = gateVerdict(
-    body('thanks Dana', null, { participants: [{ id: 'u-tr', name: 'Dana Reyes', role: 'trainer' }, { id: null, name: 'AI Nutritionist', role: 'ai' }] }),
+    body('thanks Dana', null, { participants: [{ id: 'u-tr', name: 'Dana Reyes', role: 'trainer' }, { id: null, name: 'Nia', role: 'ai' }] }),
     ctx([AI]),
     {},
   );

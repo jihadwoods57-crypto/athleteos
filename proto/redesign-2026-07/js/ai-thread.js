@@ -70,7 +70,7 @@ export function describeMessage(comment, opts) {
 function speakerName(comment, opts) {
   const c = comment || {};
   const o = opts || {};
-  if (c.role === 'ai') return o.aiName || 'AI Nutritionist';
+  if (c.role === 'ai') return o.aiName || 'Nia';
   const hit = (o.participants || []).find((p) => p && p.id && p.id === c.author_id);
   if (hit && hit.name) return hit.name;
   if (c.role === 'athlete') return o.athleteName || 'Athlete';
@@ -137,7 +137,7 @@ export function aiParticipants(participants, opts) {
   const list = (Array.isArray(participants) ? participants : [])
     .filter((p) => p && p.id)
     .map((p) => ({ id: p.id, name: p.name || null, role: p.kind === 'ai' ? 'ai' : String(p.role || p.kind || 'coach') }));
-  if (!list.some((p) => p.role === 'ai')) list.push({ id: null, name: o.aiName || 'AI Nutritionist', role: 'ai' });
+  if (!list.some((p) => p.role === 'ai')) list.push({ id: null, name: o.aiName || 'Nia', role: 'ai' });
   return list;
 }
 
