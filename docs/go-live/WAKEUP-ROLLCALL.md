@@ -326,7 +326,9 @@ Three gaps a real morning exposes once days can be moved or skipped.
   re-derives authorization from the coach, refuses an occurrence that already started, holds a
   10-minute cooldown per occurrence, writes the bell rows, returns the roster and the day's facts.
   Edge: `roll-call-coach` action `'schedule'` (in-app path only; the lock-screen coach code cannot
-  use it). Copy: `scheduleNoticeBody` in `roll-call-coach/logic.ts`, jest-pinned.
+  use it). Roll call v3 (0247): the push itself now goes through the notice claim
+  (`claim_rollcall_notices`), so it and the every-minute cron never both send; its copy is
+  `noticeCopy` in `_shared/rollcall-notice.ts`, jest-pinned (`scheduleNoticeBody` is gone).
 - The schedule card says **Athletes were told 8:14 PM**, or **Athletes have not been told** /
   **told 8:14 PM, before this change** with a **Tell athletes** button, so the board never claims
   a notice that did not go out.

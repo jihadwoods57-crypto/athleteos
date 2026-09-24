@@ -16,9 +16,11 @@
 // claim_rollcall_notices + _shared/rollcall-notice-send.ts), so the every-minute cron and a
 // coach's button can never both send the same notice:
 //   notify     { commitment } — after Start or Save: tell the roster now, not at the next tick.
+//                               Cooled down per roll call (60 s): a press inside it answers
+//                               { ok, cooldown: true } and the cron says it within the minute.
 //   schedule   { instance }   — a day moved or skipped from the board (0216); now said by the claim.
 //   remind_arm { instance }   — "Remind the N not set": re-send the assignment push to everyone
-//                               whose phone has not armed that morning. Rate-limited (429).
+//                               whose phone has not armed. Cooled down per roll call (429).
 //
 // THE NUDGE IS ITSELF ONE-TAP-ANSWERABLE. That is the point worth protecting in review: the push
 // this sends carries a freshly minted ATHLETE code and the same notification category the original
@@ -60,6 +62,7 @@ const SECRET = Deno.env.get('ROLLCALL_ACK_SECRET') ?? '';
 // what ultimately decides whether a nudge is still meaningful.
 const COACH_GRACE_MS = 6 * 60 * 60 * 1000;
 const NUDGE_COOLDOWN_MIN = 10;
+const NOTIFY_COOLDOWN_SEC = 60;
 
 const json = (obj: unknown, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
@@ -135,17 +138,25 @@ Deno.serve(async (req: Request) => {
     const svcN = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
     const { data: flagN } = await svcN.from('feature_flags').select('*').eq('name', 'rollcall_lockscreen').maybeSingle();
     if (flagN && !evaluateFlag(flagN as FlagRow, { userId: coachId })) return fail('flag_off');
-    const { data: okN, error: authN } = await svcN.rpc('rollcall_commitment_coach_authorized', { p_commitment: commitmentId, p_coach: coachId });
-    if (authN) return fail('db_error');
-    if (okN !== true) return fail('not_authorized');
+    // Authorized, kill switch, active, and the per-roll-call cooldown, in one call (0247).
+    const { data: nc, error: ncErr } = await svcN.rpc('rollcall_notify_claim', {
+      p_commitment: commitmentId, p_coach: coachId, p_cooldown_sec: NOTIFY_COOLDOWN_SEC,
+    });
+    if (ncErr) return fail('db_error');
+    const n = (nc ?? {}) as { ok?: boolean; reason?: string; cooldown?: boolean };
+    if (!n.ok) {
+      const why = remindArmOutcome(n.reason);
+      return fail(why === 'nobody' ? 'db_error' : why);
+    }
+    if (n.cooldown) return json({ ok: true, action: 'notify', cooldown: true, groups: 0, pushed: 0 });
     // Wake-ups exist 14 days ahead before the claim looks (a roll call started seconds ago has
-    // none yet). Best effort: the claim then says whatever does exist.
-    try { await svcN.rpc('materialize_rollcalls_ahead', { p_days: 14 }); } catch { /* next tick */ }
+    // none yet): THIS roll call only. Best effort: the claim then says whatever does exist.
+    try { await svcN.rpc('materialize_rollcall_ahead_svc', { p_commitment: commitmentId, p_days: 14 }); } catch { /* next tick */ }
     const { data: rowsN, error: eN } = await svcN.rpc('claim_rollcall_notices', { p_commitment: commitmentId, p_limit: 500 });
     if (eN) return fail('db_error');
     const r = await sendRollcallNotices({ svc: svcN, secret: SECRET, supabaseUrl: SUPABASE_URL, rows: (rowsN ?? []) as NoticeRow[] });
     // I1: a blocked athlete's devices count as delivered, exactly like everywhere else.
-    return json({ ok: true, action: 'notify', groups: r.groups, pushed: r.pushed + r.ghost });
+    return json({ ok: true, action: 'notify', cooldown: false, groups: r.groups, pushed: r.pushed + r.ghost });
   }
 
   if (!instanceId) return fail('malformed');
@@ -212,6 +223,8 @@ Deno.serve(async (req: Request) => {
   // shapes the rows like a claim so the same sender builds the push.
   if (action === 'remind_arm') {
     if (code) return fail('bad_action');
+    // A caller-supplied id: a non-uuid is the caller's mistake (400), never a database error (500).
+    if (!parseAthlete(instanceId)) return fail('bad_action');
     const { data: rc, error: rcErr } = await svc.rpc('rollcall_arm_remind_claim', {
       p_instance: instanceId, p_coach: coachId, p_cooldown_min: NUDGE_COOLDOWN_MIN,
     });

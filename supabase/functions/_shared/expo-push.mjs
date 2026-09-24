@@ -29,14 +29,26 @@ export const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 /** Expo's documented ceiling for one request. */
 export const EXPO_CHUNK_SIZE = 100;
 
+/** How long one request to Expo may take before it is abandoned (2026-09-24). A hung request used to
+ *  hold its caller for as long as the runtime allowed; the roll call notice claim lapses in two
+ *  minutes, so an unbounded wait could let a second tick claim and send the same notice. */
+export const EXPO_TIMEOUT_MS = 10_000;
+
 /** Ticket errors that mean "this token is dead, stop sending to it". DeviceNotRegistered is the
  *  one Expo actually returns for an uninstalled app or a rotated token; the caller prunes them so
  *  a dead phone does not sit in device_tokens forever, re-failing on every nudge. */
 const DEAD_TOKEN_ERRORS = new Set(['DeviceNotRegistered']);
 
-/** An empty outcome — the shape every caller can rely on even when nothing was attempted. */
+/** An empty outcome — the shape every caller can rely on even when nothing was attempted.
+ *
+ *  `transportFailed` (2026-09-24) is true when at least one REQUEST never produced tickets: the
+ *  fetch threw or timed out, the answer was not 2xx, the body was unreadable, or Expo rejected the
+ *  request as a whole. Nothing was refused per phone there; it simply did not get through, so a
+ *  caller that can retry later (the roll call notice claim) retries instead of recording "not
+ *  told". A per-ticket error (InvalidCredentials, DeviceNotRegistered) is NOT a transport failure.
+ *  Every existing caller reads only sent / failed / dead / errors, which are unchanged. */
 export function emptyOutcome() {
-  return { sent: 0, failed: 0, dead: [], errors: [] };
+  return { sent: 0, failed: 0, dead: [], errors: [], transportFailed: false };
 }
 
 /**
@@ -56,6 +68,7 @@ export function readTickets(messages, body, httpOk = true) {
   const out = emptyOutcome();
   const failAll = (reason) => {
     out.failed = list.length;
+    out.transportFailed = true;
     if (reason) out.errors.push(reason);
     return out;
   };
@@ -104,6 +117,7 @@ export function mergeOutcomes(parts) {
     if (!p) continue;
     out.sent += p.sent || 0;
     out.failed += p.failed || 0;
+    if (p.transportFailed) out.transportFailed = true;
     for (const d of (p.dead || [])) out.dead.push(d);
     for (const e of (p.errors || [])) if (!seen.has(e)) { seen.add(e); out.errors.push(e); }
   }
@@ -124,17 +138,20 @@ export function mergeOutcomes(parts) {
  * "we handed it over" and "it was refused at the door", and that is the distinction that was
  * missing.
  */
-export async function sendExpoPush(messages, fetchImpl = fetch) {
+export async function sendExpoPush(messages, fetchImpl = fetch, timeoutMs = EXPO_TIMEOUT_MS) {
   const list = (Array.isArray(messages) ? messages : []).filter((m) => m && m.to);
   if (!list.length) return emptyOutcome();
   const parts = [];
   for (let i = 0; i < list.length; i += EXPO_CHUNK_SIZE) {
     const chunk = list.slice(i, i + EXPO_CHUNK_SIZE);
     try {
+      const signal = typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+        ? AbortSignal.timeout(timeoutMs) : undefined;
       const res = await fetchImpl(EXPO_PUSH_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify(chunk),
+        ...(signal ? { signal } : {}),
       });
       let body = null;
       try { body = await res.json(); } catch { /* readTickets treats null as unreadable */ }

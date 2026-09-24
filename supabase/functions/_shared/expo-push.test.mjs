@@ -93,3 +93,36 @@ test('nothing to send is not a failure', async () => {
   assert.deepEqual(await sendExpoPush([], async () => { throw new Error('never called'); }), emptyOutcome());
   assert.deepEqual(await sendExpoPush([{ title: 'no token' }], async () => { throw new Error('never called'); }), emptyOutcome());
 });
+
+// ---- 2026-09-24: transportFailed, and a timeout on every request ----
+test('transportFailed: a request that never produced tickets, and only that', () => {
+  assert.equal(readTickets([{ to: 'a' }], null, false).transportFailed, true, 'non-2xx');
+  assert.equal(readTickets([{ to: 'a' }], null, true).transportFailed, true, 'unreadable body');
+  assert.equal(readTickets([{ to: 'a' }], { errors: [{ code: 'PUSH_TOO_MANY_EXPERIENCE_IDS' }] }).transportFailed, true, 'request-level rejection');
+  assert.equal(readTickets([{ to: 'a' }], { data: [{ status: 'error', details: { error: 'InvalidCredentials' } }] }).transportFailed, false,
+    'a per-ticket refusal is not a transport failure');
+  assert.equal(readTickets([{ to: 'a' }], { data: [{ status: 'error', details: { error: 'DeviceNotRegistered' } }] }).transportFailed, false);
+  assert.equal(readTickets([{ to: 'a' }], { data: [{ status: 'ok', id: '1' }] }).transportFailed, false);
+});
+
+test('transportFailed survives the merge, and a thrown fetch sets it', async () => {
+  assert.equal(mergeOutcomes([emptyOutcome(), { ...emptyOutcome(), transportFailed: true }]).transportFailed, true);
+  assert.equal(mergeOutcomes([emptyOutcome(), emptyOutcome()]).transportFailed, false);
+  const out = await sendExpoPush([{ to: 'a' }], async () => { throw new Error('network down'); });
+  assert.equal(out.transportFailed, true);
+  assert.equal(out.sent, 0);
+});
+
+test('every request carries an abort signal, and a request past the timeout is abandoned', async () => {
+  let sawSignal = false;
+  const hang = (_url, init) => new Promise((_resolve, reject) => {
+    sawSignal = !!init.signal;
+    init.signal.addEventListener('abort', () => reject(init.signal.reason));
+  });
+  const t0 = Date.now();
+  const out = await sendExpoPush([{ to: 'a' }], hang, 50);
+  assert.ok(sawSignal, 'the fetch is given a signal');
+  assert.ok(Date.now() - t0 < 5_000, 'the hung request is abandoned at the timeout');
+  assert.equal(out.transportFailed, true);
+  assert.equal(out.sent, 0);
+});

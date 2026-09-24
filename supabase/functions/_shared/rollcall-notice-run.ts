@@ -15,8 +15,16 @@
 //   - Blocked (0244, I1): the athlete who blocked the coach gets no push in that coach's name, and
 //     is answered EXACTLY like a delivered one (sent: true, counted as ghost pushes), so the coach
 //     cannot tell they were blocked.
-//   - A group this run cannot finish (over the per-run cap, no roll call context) is RELEASED for
-//     the next tick. A settle that itself fails is swallowed: the claim lapses in two minutes.
+//   - A group this run cannot finish (over the per-run cap, no roll call context, past the time
+//     budget) is RELEASED for the next tick. A settle that itself fails is swallowed: the claim
+//     lapses in two minutes.
+//   - TRANSPORT vs TICKET (Task 4 review, ruling a). A request that never produced tickets (fetch
+//     threw or timed out, non-2xx, unreadable body, request-level rejection: sendExpoPush's
+//     `transportFailed`) is RELEASED so the next tick retries it. A per-ticket refusal
+//     (InvalidCredentials, DeviceNotRegistered) is an answer and settles as not told.
+//   - THE TIME BUDGET. A run stops starting new groups after RUN_BUDGET_MS and releases the rest,
+//     well inside the claim's two-minute lapse, so a slow run can never still be sending a notice
+//     another tick has re-claimed. Each Expo request is itself bounded (EXPO_TIMEOUT_MS).
 import {
   groupNotices, noticeCopy, armPayload, alarmTitleOf, alarmLabelOf, settleRowsOf, NOTICE_ROUTE,
   type NoticeRow, type NoticeContext, type NoticeGroup, type ArmItem, type ArmPayload, type SettleRow,
@@ -25,9 +33,11 @@ import {
 /** One athlete is one Expo request (settling needs to know THEIR delivery). Beyond this many per
  *  run, groups are released and go out on the next tick, a minute later. */
 export const MAX_GROUPS_PER_RUN = 150;
+/** Stop starting groups after this long; the claim lapses at 120 s. */
+export const RUN_BUDGET_MS = 60_000;
 
 export type NoticeToken = { token: string; platform: string | null };
-export type NoticeSendOutcome = { sent: number; failed: number; dead: string[] };
+export type NoticeSendOutcome = { sent: number; failed: number; dead: string[]; transportFailed?: boolean };
 export type NoticeWindow = { opensMs: number; closesMs: number };
 
 export type NoticeDeps = {
@@ -47,6 +57,9 @@ export type NoticeDeps = {
   /** The roll-call-ack URL the extension posts its armed report to; '' disables the schedule. */
   ackUrl: string;
   channelId: string;
+  /** The clock and the budget; defaults Date.now and RUN_BUDGET_MS. Injected for tests. */
+  now?: () => number;
+  budgetMs?: number;
 };
 
 export type NoticeRunResult = {
@@ -63,6 +76,14 @@ export const hasSomethingToSay = (g: NoticeGroup) => g.arm.length > 0 || g.cance
 
 /** Delivered = at least one `ok` ticket. Nothing else counts. */
 export const delivered = (o: NoticeSendOutcome | null | undefined) => !!o && o.sent > 0;
+
+/** What to do with a group's rows after its send: told, settled untold (a per-ticket answer), or
+ *  released for the next tick (the request never got through, or the send threw). */
+export function sendVerdict(o: NoticeSendOutcome | null | undefined): 'told' | 'untold' | 'release' {
+  if (delivered(o)) return 'told';
+  if (!o || o.transportFailed) return 'release';
+  return 'untold';
+}
 
 /** The push for one athlete's group, one message per device. `rc` (the schedule) rides only when
  *  given, and mutableContent only with it and only on iOS (what wakes the Service Extension). */
@@ -89,6 +110,10 @@ export async function runRollcallNotices(rowsIn: NoticeRow[], d: NoticeDeps): Pr
   const out: NoticeRunResult = { groups: 0, pushed: 0, ghost: 0, told: 0, settled: 0, released: 0 };
   const rows = Array.isArray(rowsIn) ? rowsIn : [];
   if (!rows.length) return out;
+  const now = d.now ?? Date.now;
+  const started = now();
+  const budget = d.budgetMs ?? RUN_BUDGET_MS;
+  const overBudget = () => now() - started > budget;
 
   const settle = async (list: NoticeRow[], sentIds: Iterable<string> = []) => {
     if (!list.length) return;
@@ -148,8 +173,13 @@ export async function runRollcallNotices(rowsIn: NoticeRow[], d: NoticeDeps): Pr
   }).flatMap((g) => g.arm.map((r) => r.instance_id)))];
   const win = armIds.length ? await d.windows(armIds) : new Map<string, NoticeWindow>();
 
-  for (const g of speaking) {
+  for (let k = 0; k < speaking.length; k++) {
+    const g = speaking[k];
     const said = [...g.arm, ...g.cancel];
+    if (overBudget()) {
+      await release(speaking.slice(k).flatMap((x) => [...x.arm, ...x.cancel]));
+      break;
+    }
     const ctx = ctxOf.get(g.commitmentId);
     if (!ctx) { await release(said); continue; }
     const tokens = tokensOf.get(g.athleteId) ?? [];
@@ -183,7 +213,9 @@ export async function runRollcallNotices(rowsIn: NoticeRow[], d: NoticeDeps): Pr
     let res: NoticeSendOutcome | null = null;
     try { res = await d.send(noticeMessages(g, copy, tokens, rc, d.channelId)); } catch { res = null; }
     out.pushed += res ? res.sent : 0;
-    await settle(said, delivered(res) ? said.map((r) => r.response_id) : []);
+    const verdict = sendVerdict(res);
+    if (verdict === 'release') await release(said);
+    else await settle(said, verdict === 'told' ? said.map((r) => r.response_id) : []);
   }
   return out;
 }

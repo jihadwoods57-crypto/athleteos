@@ -48,7 +48,7 @@ export function httpStatusForCoach(reason: CoachFailure): number {
   }
 }
 
-/** What rollcall_arm_remind_claim's refusal means to the coach (0247). "nobody_to_remind" is not a
+/** What rollcall_arm_remind_claim's (and rollcall_notify_claim's) refusal means to the coach (0247). "nobody_to_remind" is not a
  *  failure (everyone armed between the board read and the tap; the cooldown was not spent), and
  *  "disabled" is the verified_commitments kill switch, which the coach reads as the feature being
  *  off. Anything unknown is a server fault, never silently a success. */
@@ -78,33 +78,4 @@ export function nudgeBody(deadlineMs: number | null, nowMs: number): string {
     return 'Your coach is still waiting. Answer now.';
   }
   return 'Your coach is waiting on you. One tap answers it.';
-}
-
-/** The body of a schedule-change push (0216), in the coach's name. "tomorrow" when it is, the
- *  weekday otherwise, never a bare date: an athlete reads this at 9 PM deciding what alarm to
- *  set. The claim supplies the day's EFFECTIVE minute in the team's zone. */
-export function scheduleNoticeBody(a: {
-  title: string; skipped: boolean; startsMin: number | null; occursOn: string; todayISO: string;
-}): string {
-  const title = (a.title || '').trim() || 'Roll call';
-  const day = dayWord(a.occursOn, a.todayISO);
-  if (a.skipped) return `No ${title} ${day}.`;
-  const at = a.startsMin == null ? '' : ` at ${fmt12(a.startsMin)}`;
-  return `${title} is${at} ${day}.`;
-}
-
-const DOW = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-function dayWord(occursOn: string, todayISO: string): string {
-  const t = Date.parse(`${todayISO}T12:00:00Z`);
-  const o = Date.parse(`${occursOn}T12:00:00Z`);
-  if (!Number.isFinite(t) || !Number.isFinite(o)) return `on ${occursOn}`;
-  const diff = Math.round((o - t) / 86400000);
-  if (diff === 0) return 'today';
-  if (diff === 1) return 'tomorrow';
-  return `on ${DOW[new Date(o).getUTCDay()]}`;
-}
-function fmt12(min: number): string {
-  const m = Math.max(0, Math.min(1439, Math.round(min)));
-  const h = Math.floor(m / 60); const mm = String(m % 60).padStart(2, '0');
-  return `${h % 12 === 0 ? 12 : h % 12}:${mm} ${h < 12 ? 'AM' : 'PM'}`;
 }

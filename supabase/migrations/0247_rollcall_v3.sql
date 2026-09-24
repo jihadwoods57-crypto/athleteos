@@ -24,6 +24,11 @@
 --    time, and the coach does not see "Alarm set" for it.
 -- 4. The server materializes wake-ups 14 days ahead (the arming horizon), the alarm primer is
 --    recorded once per account, and rollcall_upcoming counts the alarms set.
+-- 5. (Task 4 review) A REMIND NEVER CLOBBERS A PENDING NOTICE: a remind row settles only
+--    notified_at, so a move said by nobody yet still goes out. An athlete never actually told about
+--    the roll call hears "assigned" for whatever needs saying. The coach's "notify" and "remind" are
+--    cooled down per ROLL CALL. "Can push" (the coach's "Notifications off") also honours the
+--    athlete's own master switch, profiles.notifications_opt_out.
 -- Every change is additive; no existing column changes shape.
 
 -- ================================================================ 1. columns
@@ -40,8 +45,13 @@ comment on column commitment_responses.notice_settled_at is 'When claim_rollcall
 comment on column commitment_responses.notice_claimed_at is 'In-flight claim by claim_rollcall_notices; cleared by settle (0247).';
 comment on column commitment_responses.seen_at is 'When the athlete opened the app or the assignment card for this roll call (0247).';
 
-alter table commitment_instances add column if not exists arm_reminded_at timestamptz;
-comment on column commitment_instances.arm_reminded_at is 'Cooldown for the coach''s "Remind the N not set" (0247).';
+-- The remind cooldown is per roll call (Task 4 review), not per morning: an earlier draft of this
+-- file put it on commitment_instances. Dropped so a re-run converges.
+alter table commitment_instances drop column if exists arm_reminded_at;
+alter table commitments add column if not exists arm_reminded_at timestamptz;
+comment on column commitments.arm_reminded_at is 'Cooldown for the coach''s "Remind the N not set" (0247), per roll call.';
+alter table commitments add column if not exists notify_claimed_at timestamptz;
+comment on column commitments.notify_claimed_at is 'Cooldown for the coach''s in-app "notify" after Start or Save (0247), per roll call.';
 
 alter table profiles add column if not exists alarm_primer_at timestamptz;
 alter table profiles add column if not exists alarm_primer_answer text;
@@ -79,6 +89,19 @@ begin
     n := n + materialize_commitment(c.id, v_today, v_today + v_days);
   end loop;
   return n;
+end $$;
+
+-- ONE roll call, for the coach's "notify" (Task 4 review): a Start or Save must not walk every
+-- active roll call on the platform the way the cron's materialize_rollcalls_ahead does.
+create or replace function materialize_rollcall_ahead_svc(p_commitment uuid, p_days int default 14) returns integer
+language plpgsql security definer set search_path = public as $$
+declare c commitments; v_today date;
+begin
+  if exists (select 1 from feature_flags where name = 'verified_commitments' and kill_switch) then return 0; end if;
+  select * into c from commitments where id = p_commitment and active and type = 'morning_roll_call';
+  if not found then return 0; end if;
+  v_today := (now() at time zone c.timezone)::date;
+  return materialize_commitment(c.id, v_today, v_today + least(greatest(coalesce(p_days, 14), 1), 14));
 end $$;
 
 -- ================================================================ 4. the notice claim
@@ -124,18 +147,26 @@ begin
           case when b.ncan then null
                when b.nat is not null or b.arm is not null then 'cancelled'   -- was really told
                else 'silent' end
-        when b.sat is null and not exists (
+        -- Needs saying, and no push about this roll call ever actually reached them (an earlier
+        -- one was refused, or they had no phone then): it is still news to them, so "assigned".
+        when b.k0 is not null and not exists (
                select 1 from commitment_responses r2
                  join commitment_instances i2 on i2.id = r2.instance_id
                 where i2.commitment_id = b.cid and r2.athlete_id = b.aid and r2.notified_at is not null)
-          then 'assigned'                                        -- never actually told about it
-        when b.sat is null and b.sset is not null then 'moved'   -- a morning the coach set by hand
-        when b.sat is null then 'new'
-        when b.nst is distinct from b.st then 'moved'
-        when b.ncan then 'moved'                                 -- cancelled, then put back
-        else null
+          then 'assigned'
+        else b.k0
       end as k
-    from base b
+    from (
+      select b0.*,
+        case
+          when b0.sat is null and b0.sset is not null then 'moved'   -- a morning the coach set by hand
+          when b0.sat is null then 'new'
+          when b0.nst is distinct from b0.st then 'moved'
+          when b0.ncan then 'moved'                                  -- cancelled, then put back
+          else null
+        end as k0
+      from base b0
+    ) b
   ), due as (
     select k.* from kinded k
      where k.k is not null
@@ -158,18 +189,28 @@ begin
     from due d join claimed cl on cl.id = d.rid;
 end $$;
 
--- p_rows = [{ response_id, starts_at, off, claimed_at, sent }].
+-- p_rows = [{ response_id, starts_at, off, claimed_at, sent, remind }].
 --   p_notified true : settle. The claim's bookkeeping is written for every row; notified_at only
 --                     where sent is true (a push really went out). sent defaults to false.
 --   p_notified false: release the claim for the next tick.
 -- Either way a row is touched only while its claim is still the caller's: claimed_at must match
 -- notice_claimed_at to the millisecond (a JS Date round trip keeps milliseconds). A remind row has
 -- no claim; its claimed_at is null and matches only a row with no claim in flight.
+-- REMIND ROWS (remind: true, Task 4 review) settle ONLY notified_at, and only when sent, whatever
+-- the claim is doing: a remind re-says the next morning, it does not say a pending move or
+-- cancellation, so it must never write the bookkeeping that would mark those as said.
 create or replace function settle_rollcall_notices(p_rows jsonb, p_notified boolean) returns integer
 language plpgsql security definer set search_path = public as $$
-declare n integer;
+declare n integer; m integer;
 begin
   if p_notified then
+    update commitment_responses r
+       set notified_at = now()
+      from jsonb_array_elements(coalesce(p_rows, '[]'::jsonb)) x
+     where r.id = (x->>'response_id')::uuid
+       and coalesce((x->>'remind')::boolean, false)
+       and coalesce((x->>'sent')::boolean, false);
+    get diagnostics m = row_count;
     update commitment_responses r
        set notice_settled_at = now(),
            notified_at = case when coalesce((x->>'sent')::boolean, false) then now() else r.notified_at end,
@@ -178,8 +219,11 @@ begin
            notice_claimed_at = null
       from jsonb_array_elements(coalesce(p_rows, '[]'::jsonb)) x
      where r.id = (x->>'response_id')::uuid
+       and not coalesce((x->>'remind')::boolean, false)
        and date_trunc('milliseconds', r.notice_claimed_at)
            is not distinct from date_trunc('milliseconds', (x->>'claimed_at')::timestamptz);
+    get diagnostics n = row_count;
+    return n + m;
   else
     update commitment_responses r set notice_claimed_at = null
       from jsonb_array_elements(coalesce(p_rows, '[]'::jsonb)) x
@@ -281,14 +325,42 @@ begin
   if cardinality(v_targets) = 0 then
     return jsonb_build_object('ok', false, 'reason', 'nobody_to_remind');
   end if;
-  update commitment_instances set arm_reminded_at = now()
-   where id = p_instance
+  -- Per ROLL CALL (Task 4 review): one remind covers every unarmed morning of it (the remind rows
+  -- are the whole horizon), so a second press on another morning would re-buzz the same phones.
+  update commitments set arm_reminded_at = now()
+   where id = i.commitment_id
      and (arm_reminded_at is null or arm_reminded_at < now() - make_interval(mins => greatest(1, p_cooldown_min)))
   returning true into v_claimed;
   if not coalesce(v_claimed, false) then
     return jsonb_build_object('ok', false, 'reason', 'rate_limited');
   end if;
   return jsonb_build_object('ok', true, 'commitment_id', i.commitment_id, 'athlete_ids', to_jsonb(v_targets));
+end $$;
+
+-- The coach's in-app "notify" after Start or Save (Task 4 review): authorized, the kill switch,
+-- and a per-roll-call cooldown. A press inside the cooldown is a success with nothing to do
+-- ({ ok, cooldown }): the claim it would have run is the cron's next tick, under a minute away.
+create or replace function rollcall_notify_claim(p_commitment uuid, p_coach uuid, p_cooldown_sec int default 60)
+returns jsonb language plpgsql security definer set search_path = public as $$
+declare v_claimed boolean := false;
+begin
+  if not rollcall_commitment_coach_authorized(p_commitment, p_coach) then
+    return jsonb_build_object('ok', false, 'reason', 'not_authorized');
+  end if;
+  if exists (select 1 from feature_flags where name = 'verified_commitments' and kill_switch) then
+    return jsonb_build_object('ok', false, 'reason', 'disabled');
+  end if;
+  if not exists (select 1 from commitments where id = p_commitment and active and type = 'morning_roll_call') then
+    return jsonb_build_object('ok', false, 'reason', 'no_instance');
+  end if;
+  update commitments set notify_claimed_at = now()
+   where id = p_commitment
+     and (notify_claimed_at is null or notify_claimed_at < now() - make_interval(secs => greatest(1, p_cooldown_sec)))
+  returning true into v_claimed;
+  if not coalesce(v_claimed, false) then
+    return jsonb_build_object('ok', true, 'cooldown', true);
+  end if;
+  return jsonb_build_object('ok', true, 'cooldown', false);
 end $$;
 
 -- The push extension's report (roll-call-ack { action: 'armed' }): the athlete and the instance
@@ -337,6 +409,16 @@ language sql stable security definer set search_path = public as $$
 $$;
 
 -- ================================================================ 7. the coach's arming board
+-- "Can push" = a device AND the athlete's own master switch on (Task 4 review). The 0216 body read
+-- only device_tokens, so an athlete who switched notifications off read as reachable and the coach
+-- saw "Hasn't opened it" instead of "Notifications off". The senders skip them the same way.
+create or replace function _rc_can_push(p_user uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from device_tokens where user_id = p_user)
+     and not coalesce((select p.notifications_opt_out from profiles p where p.id = p_user), false);
+$$;
+revoke all on function _rc_can_push(uuid) from public, anon, authenticated;
+
 create or replace function rollcall_arming(p_instance uuid) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare i commitment_instances; c commitments;
@@ -435,7 +517,8 @@ do $$ declare f text; begin
   end loop;
 end $$;
 do $$ declare f text; begin
-  foreach f in array array['materialize_rollcalls_ahead(int)', 'claim_rollcall_notices(uuid,int)',
+  foreach f in array array['materialize_rollcalls_ahead(int)', 'materialize_rollcall_ahead_svc(uuid,int)',
+                           'rollcall_notify_claim(uuid,uuid,int)', 'claim_rollcall_notices(uuid,int)',
                            'settle_rollcall_notices(jsonb,boolean)', 'rollcall_remind_rows_svc(uuid,uuid[])',
                            'rollcall_instance_windows_svc(uuid[])', 'rollcall_notice_context_svc(uuid[])',
                            'rollcall_commitment_coach_authorized(uuid,uuid)', 'rollcall_arm_remind_claim(uuid,uuid,int)',

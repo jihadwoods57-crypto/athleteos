@@ -185,7 +185,9 @@ export function armPayload(o: { kind: string; title: string; label: string; url:
   return p;
 }
 
-export type SettleRow = { response_id: string; starts_at: string; off: boolean; claimed_at: string | null; sent: boolean };
+export type SettleRow = {
+  response_id: string; starts_at: string; off: boolean; claimed_at: string | null; sent: boolean; remind: boolean;
+};
 
 /**
  * Builds settle_rollcall_notices' p_rows. claimed_at rides back UNCHANGED from the claimed row
@@ -193,6 +195,9 @@ export type SettleRow = { response_id: string; starts_at: string; off: boolean; 
  * `sent` is true only for a row named in `sentIds` — a push that was actually delivered for it —
  * and false otherwise, so a row with no delivered push settles without stamping notified_at
  * (settled is not told).
+ * `remind` (Task 4 review) marks a row from rollcall_remind_rows_svc: settle then stamps only
+ * notified_at (when sent) and never the claim's bookkeeping, so a remind cannot swallow a pending
+ * move or cancellation the claim has yet to say.
  */
 export function settleRowsOf(rows: NoticeRow[], sentIds?: Iterable<string>): SettleRow[] {
   const sent = new Set(sentIds || []);
@@ -202,6 +207,7 @@ export function settleRowsOf(rows: NoticeRow[], sentIds?: Iterable<string>): Set
     off: !!r.off,
     claimed_at: r.claimed_at ?? null,
     sent: sent.has(r.response_id),
+    remind: r.kind === 'remind',
   }));
 }
 

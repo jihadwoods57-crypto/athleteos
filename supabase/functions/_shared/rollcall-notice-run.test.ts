@@ -1,5 +1,5 @@
 // supabase/functions/_shared/rollcall-notice-run.test.ts
-import { runRollcallNotices, MAX_GROUPS_PER_RUN, type NoticeDeps, type NoticeSendOutcome } from './rollcall-notice-run';
+import { runRollcallNotices, sendVerdict, MAX_GROUPS_PER_RUN, RUN_BUDGET_MS, type NoticeDeps, type NoticeSendOutcome } from './rollcall-notice-run';
 import type { NoticeRow, NoticeContext, SettleRow } from './rollcall-notice';
 
 const CLAIM = '2026-09-24T20:00:00.123Z';
@@ -64,12 +64,54 @@ describe('runRollcallNotices', () => {
     expect(r.pushed).toBe(0);
   });
 
-  it('a send that throws settles not told, never counted', async () => {
+  it('a send that throws is released for the next tick, never counted', async () => {
     const a = row();
     const { d, settles } = deps({ send: async () => { throw new Error('network'); } });
     const r = await runRollcallNotices([a], d);
-    expect(untold(settles)).toEqual([a.response_id]);
+    expect(released(settles)).toEqual([a.response_id]);
+    expect(untold(settles)).toEqual([]);
     expect(r.pushed).toBe(0);
+  });
+
+  it('ruling (a): a transport failure (no tickets at all) is released; a ticket refusal settles untold', async () => {
+    const a = row();
+    const t = deps({ outcome: { sent: 0, failed: 1, dead: [], transportFailed: true } });
+    await runRollcallNotices([a], t.d);
+    expect(released(t.settles)).toEqual([a.response_id]);
+    expect(told(t.settles)).toEqual([]);
+    const b = row();
+    const u = deps({ outcome: { sent: 0, failed: 1, dead: ['ExponentPushToken[a1]'], transportFailed: false } });
+    await runRollcallNotices([b], u.d);
+    expect(untold(u.settles)).toEqual([b.response_id]);
+    expect(released(u.settles)).toEqual([]);
+  });
+
+  it('sendVerdict: delivered beats everything, then transport, then the ticket answer', () => {
+    expect(sendVerdict({ sent: 1, failed: 1, dead: [], transportFailed: true })).toBe('told');
+    expect(sendVerdict({ sent: 0, failed: 1, dead: [], transportFailed: true })).toBe('release');
+    expect(sendVerdict({ sent: 0, failed: 1, dead: [] })).toBe('untold');
+    expect(sendVerdict(null)).toBe('release');
+  });
+
+  it('the time budget: groups not reached before it runs out are released, not sent and not settled', async () => {
+    let clock = 0;
+    const rows = ['p1', 'p2', 'p3'].map((id) => row({ athlete_id: id }));
+    const { d, settles, sent } = deps({
+      tokenMap: { p1: ['t1'], p2: ['t2'], p3: ['t3'] },
+      now: () => clock,
+      budgetMs: 1_000,
+      // each send takes 600 ms of the budget
+      send: async (m) => { clock += 600; sent.push(m); return { sent: m.length, failed: 0, dead: [] }; },
+    });
+    const r = await runRollcallNotices(rows, d);
+    expect(sent).toHaveLength(2);
+    expect(told(settles).sort()).toEqual([rows[0].response_id, rows[1].response_id].sort());
+    expect(released(settles)).toEqual([rows[2].response_id]);
+    expect(r.released).toBe(1);
+  });
+
+  it('the default budget sits well inside the two-minute claim lapse', () => {
+    expect(RUN_BUDGET_MS).toBeLessThanOrEqual(60_000);
   });
 
   it('a silent-only group never reaches the copy or Expo; it is settled, not told', async () => {

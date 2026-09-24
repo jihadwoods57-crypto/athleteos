@@ -5356,6 +5356,8 @@ update commitment_responses r set notified_at = null
 create temp table _v3_calls (sql text);
 insert into _v3_calls values
   ('select materialize_rollcalls_ahead(14)'),
+  ('select materialize_rollcall_ahead_svc(''ccccdddd-0000-0000-0000-0000000000c1''::uuid, 14)'),
+  ('select rollcall_notify_claim(''ccccdddd-0000-0000-0000-0000000000c1''::uuid, ''11111111-0000-0000-0000-000000000001''::uuid, 60)'),
   ('select * from claim_rollcall_notices(null, 1)'),
   ($q$select settle_rollcall_notices('[]'::jsonb, true)$q$),
   ('select * from rollcall_remind_rows_svc(''ccccdddd-0000-0000-0000-0000000000c1''::uuid, array[''eeee0000-0000-0000-0000-0000000000e1''::uuid])'),
@@ -5461,7 +5463,7 @@ select _ok(set_wake_alarm_armed_svc((select id from _v3_i), 'eeee0000-0000-0000-
   '0247: the service marks a morning armed from a push report');
 select set_wake_alarm_armed_svc((select id from _v3_i), 'eeee0000-0000-0000-0000-0000000000e2', true);
 select _ok((rollcall_arm_remind_claim((select id from _v3_i), '11111111-0000-0000-0000-000000000001', 10)->>'reason') = 'nobody_to_remind'
-       and (select arm_reminded_at is null from commitment_instances where id = (select id from _v3_i)),
+       and (select arm_reminded_at is null from commitments where id = 'ccccdddd-0000-0000-0000-0000000000c1'),
   '0247: with every alarm set there is nobody to remind, and the cooldown is not spent');
 select set_wake_alarm_armed_svc((select id from _v3_i), 'eeee0000-0000-0000-0000-0000000000e2', false);
 select _ok((select (j->>'ok')::boolean and (j->'athlete_ids') ? 'eeee0000-0000-0000-0000-0000000000e2'
@@ -5474,20 +5476,120 @@ select _ok((rollcall_arm_remind_claim((select id from _v3_i), '11111111-0000-000
   '0247: a stranger coach cannot remind');
 select _ok(exists (select 1 from rollcall_remind_rows_svc('ccccdddd-0000-0000-0000-0000000000c1', array['eeee0000-0000-0000-0000-0000000000e2']::uuid[])),
   '0247: (control) the remind rows name e2''s unarmed mornings');
-update commitment_instances set arm_reminded_at = null where id = (select id from _v3_i);
+update commitments set arm_reminded_at = null where id = 'ccccdddd-0000-0000-0000-0000000000c1';
 update commitments set active = false where id = 'ccccdddd-0000-0000-0000-0000000000c1';
 select _ok((rollcall_arm_remind_claim((select id from _v3_i), '11111111-0000-0000-0000-000000000001', 10)->>'reason') = 'no_instance'
        and not exists (select 1 from rollcall_remind_rows_svc('ccccdddd-0000-0000-0000-0000000000c1', array['eeee0000-0000-0000-0000-0000000000e2']::uuid[]))
-       and (select arm_reminded_at is null from commitment_instances where id = (select id from _v3_i)),
+       and (select arm_reminded_at is null from commitments where id = 'ccccdddd-0000-0000-0000-0000000000c1'),
   '0247: a paused roll call reminds nobody and spends no cooldown');
 update commitments set active = true where id = 'ccccdddd-0000-0000-0000-0000000000c1';
 update public.feature_flags set kill_switch = true where name = 'verified_commitments';
 select _ok((rollcall_arm_remind_claim((select id from _v3_i), '11111111-0000-0000-0000-000000000001', 10)->>'reason') = 'disabled'
        and not exists (select 1 from rollcall_remind_rows_svc('ccccdddd-0000-0000-0000-0000000000c1', array['eeee0000-0000-0000-0000-0000000000e2']::uuid[]))
        and not exists (select 1 from claim_rollcall_notices('ccccdddd-0000-0000-0000-0000000000c1', 500))
-       and (select arm_reminded_at is null from commitment_instances where id = (select id from _v3_i)),
+       and (select arm_reminded_at is null from commitments where id = 'ccccdddd-0000-0000-0000-0000000000c1'),
   '0247: with the kill switch thrown nothing is claimed or reminded');
 update public.feature_flags set kill_switch = false where name = 'verified_commitments';
+
+-- ---- Task 4 review: a remind never clobbers a pending notice ----
+-- Start from nothing pending: whatever the claim holds for this roll call is settled (told for e1).
+select settle_rollcall_notices((select jsonb_agg(jsonb_build_object('response_id', response_id, 'starts_at', starts_at, 'off', off, 'claimed_at', claimed_at, 'sent', athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'))
+                                  from claim_rollcall_notices('ccccdddd-0000-0000-0000-0000000000c1', 500)), true);
+select _ok(not exists (select 1 from claim_rollcall_notices('ccccdddd-0000-0000-0000-0000000000c1', 500) x where x.instance_id = (select id from _v3_i)),
+  '0247 T4: (fixture) nothing pending on the section''s morning');
+create temp table _v3_before as
+  select athlete_id, notified_starts_at, notice_settled_at, notified_at from commitment_responses where instance_id = (select id from _v3_i);
+-- The suite is one transaction (now() does not move), so e1's told stamp on this morning is cleared
+-- first: the remind must be what puts it back.
+update commitment_responses set notified_at = null
+ where instance_id = (select id from _v3_i) and athlete_id = 'eeee0000-0000-0000-0000-0000000000e1';
+-- The coach moves the morning, then presses Remind before the cron runs.
+update commitment_instances set starts_at = starts_at + interval '10 minutes' where id = (select id from _v3_i);
+create temp table _v3_rr as
+  select * from rollcall_remind_rows_svc('ccccdddd-0000-0000-0000-0000000000c1', array['eeee0000-0000-0000-0000-0000000000e1']::uuid[]) x
+   where x.instance_id = (select id from _v3_i);
+select _ok((select count(*) from _v3_rr) = 1 and (select kind from _v3_rr) = 'remind' and (select claimed_at from _v3_rr) is null,
+  '0247 T4: (fixture) the moved morning is in e1''s remind rows, with no claim');
+select _ok(settle_rollcall_notices((select jsonb_agg(jsonb_build_object('response_id', response_id, 'starts_at', starts_at, 'off', off, 'claimed_at', claimed_at, 'sent', true, 'remind', true)) from _v3_rr), true) = 1,
+  '0247 T4: a delivered remind settles its row');
+select _ok((select r.notified_starts_at = b.notified_starts_at and r.notice_settled_at = b.notice_settled_at
+                   and r.notified_at is not null and r.notice_claimed_at is null
+              from commitment_responses r join _v3_before b on b.athlete_id = r.athlete_id
+             where r.instance_id = (select id from _v3_i) and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0247 T4: a remind stamps notified_at only; the claim''s bookkeeping (told time, settled) is untouched');
+select _ok(settle_rollcall_notices((select jsonb_agg(jsonb_build_object('response_id', response_id, 'starts_at', starts_at, 'off', off, 'claimed_at', claimed_at, 'sent', false, 'remind', true)) from _v3_rr), true) = 0,
+  '0247 T4: an undelivered remind touches nothing');
+create temp table _v3_c5 as select * from claim_rollcall_notices('ccccdddd-0000-0000-0000-0000000000c1', 500) x where x.instance_id = (select id from _v3_i);
+select _ok((select kind from _v3_c5 where athlete_id = 'eeee0000-0000-0000-0000-0000000000e1') = 'moved',
+  '0247 T4: move, then Remind before the cron: the "moved" notice still goes out');
+-- Ruling (b): e2 was never actually told about this roll call (every push to them was refused).
+select _ok(not exists (select 1 from commitment_responses r join commitment_instances i on i.id = r.instance_id
+                        where i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e2'
+                          and r.notified_at is not null),
+  '0247 T4: (fixture) e2 has never been told about this roll call');
+select _ok((select kind from _v3_c5 where athlete_id = 'eeee0000-0000-0000-0000-0000000000e2') = 'assigned',
+  '0247 T4: a change for an athlete never actually told is said as "assigned", not "moved"');
+select settle_rollcall_notices((select jsonb_agg(jsonb_build_object('response_id', response_id, 'starts_at', starts_at, 'off', off, 'claimed_at', claimed_at, 'sent', false)) from _v3_c5), true);
+
+-- ---- Task 4 review: the coach's notify, one roll call at a time ----
+select _ok((rollcall_notify_claim('ccccdddd-0000-0000-0000-0000000000c1', '11111111-0000-0000-0000-000000000001', 60)->>'cooldown') = 'false',
+  '0247 T4: the owning coach''s notify runs');
+select _ok((select (j->>'ok')::boolean and (j->>'cooldown')::boolean
+              from (select rollcall_notify_claim('ccccdddd-0000-0000-0000-0000000000c1', '11111111-0000-0000-0000-000000000001', 60) j) x),
+  '0247 T4: a second notify inside the cooldown is ok with cooldown, nothing re-run');
+select _ok((rollcall_notify_claim('ccccdddd-0000-0000-0000-0000000000c1', '11111111-0000-0000-0000-000000000002', 60)->>'reason') = 'not_authorized',
+  '0247 T4: a stranger coach cannot notify');
+update commitments set notify_claimed_at = null where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+update public.feature_flags set kill_switch = true where name = 'verified_commitments';
+select _ok((rollcall_notify_claim('ccccdddd-0000-0000-0000-0000000000c1', '11111111-0000-0000-0000-000000000001', 60)->>'reason') = 'disabled'
+       and materialize_rollcall_ahead_svc('ccccdddd-0000-0000-0000-0000000000c1', 14) = 0
+       and (select notify_claimed_at is null from commitments where id = 'ccccdddd-0000-0000-0000-0000000000c1'),
+  '0247 T4: with the kill switch thrown notify refuses and materializes nothing');
+update public.feature_flags set kill_switch = false where name = 'verified_commitments';
+update commitments set active = false where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+select _ok((rollcall_notify_claim('ccccdddd-0000-0000-0000-0000000000c1', '11111111-0000-0000-0000-000000000001', 60)->>'reason') = 'no_instance'
+       and materialize_rollcall_ahead_svc('ccccdddd-0000-0000-0000-0000000000c1', 14) = 0,
+  '0247 T4: a paused roll call is neither notified nor materialized');
+update commitments set active = true where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+-- Earlier sections edit c1; pin the fixture: every day, open-ended.
+update commitments set repeat_days = array[0,1,2,3,4,5,6], ends_on = null, starts_on = least(starts_on, current_date)
+ where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+create temp table _v3_d5 as
+  select (now() at time zone c.timezone)::date + 5 as d from commitments c where c.id = 'ccccdddd-0000-0000-0000-0000000000c1';
+delete from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = (select d from _v3_d5);
+select _ok(materialize_rollcall_ahead_svc('ccccdddd-0000-0000-0000-0000000000c1', 14) >= 1,
+  '0247 T4: notify''s materialize creates the missing morning');
+select _ok(exists (select 1 from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = (select d from _v3_d5)),
+  '0247 T4: notify''s materialize fills this roll call''s next 14 days');
+
+-- ---- Task 4 review: remind is cooled down per roll call, not per morning ----
+update commitments set arm_reminded_at = null where id = 'ccccdddd-0000-0000-0000-0000000000c1';
+update commitment_responses r set alarm_armed_at = null, status = 'pending', acknowledged_at = null
+  from commitment_instances i
+ where i.id = r.instance_id and i.commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and i.occurs_on = (select d from _v3_d5)
+   and r.athlete_id = 'eeee0000-0000-0000-0000-0000000000e2';
+select _ok((rollcall_arm_remind_claim((select id from _v3_i), '11111111-0000-0000-0000-000000000001', 10)->>'ok') = 'true',
+  '0247 T4: (fixture) a remind on one morning');
+select _ok((rollcall_arm_remind_claim((select id from commitment_instances where commitment_id = 'ccccdddd-0000-0000-0000-0000000000c1' and occurs_on = (select d from _v3_d5)),
+                                      '11111111-0000-0000-0000-000000000001', 10)->>'reason') = 'rate_limited',
+  '0247 T4: a remind on ANOTHER morning of the same roll call inside the cooldown is refused');
+
+-- ---- Task 4 review: "Notifications off" includes the athlete's own master switch ----
+insert into device_tokens (user_id, token, platform) values ('eeee0000-0000-0000-0000-0000000000e1', 'ExponentPushToken[v3-e1]', 'ios')
+  on conflict do nothing;
+update profiles set notifications_opt_out = false where id = 'eeee0000-0000-0000-0000-0000000000e1';
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((select (r->>'can_push')::boolean from jsonb_array_elements(rollcall_arming((select id from _v3_i))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0247 T4: (control) an athlete with a phone and notifications on can be pushed');
+select _superuser();
+update profiles set notifications_opt_out = true where id = 'eeee0000-0000-0000-0000-0000000000e1';
+select _as('11111111-0000-0000-0000-000000000001');
+select _ok((select not (r->>'can_push')::boolean from jsonb_array_elements(rollcall_arming((select id from _v3_i))->'rows') r
+             where r->>'athlete_id' = 'eeee0000-0000-0000-0000-0000000000e1'),
+  '0247 T4: an athlete who switched notifications off reads "Notifications off" to the coach');
+select _superuser();
+update profiles set notifications_opt_out = false where id = 'eeee0000-0000-0000-0000-0000000000e1';
 
 -- ---- the alarm primer: once per account, own row only ----
 select _as('eeee0000-0000-0000-0000-0000000000e1');

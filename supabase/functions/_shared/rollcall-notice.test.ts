@@ -150,7 +150,7 @@ describe('small pieces', () => {
 describe('settleRowsOf', () => {
   it('carries claimed_at back unchanged and defaults sent to false', () => {
     expect(settleRowsOf([row()])).toEqual([
-      { response_id: 'r1', starts_at: '2026-09-28T08:45:00Z', off: false, claimed_at: '2026-09-24T12:00:00.123Z', sent: false },
+      { response_id: 'r1', starts_at: '2026-09-28T08:45:00Z', off: false, claimed_at: '2026-09-24T12:00:00.123Z', sent: false, remind: false },
     ]);
   });
   it('marks sent: true only for a row whose push actually went out', () => {
@@ -160,11 +160,15 @@ describe('settleRowsOf', () => {
     ];
     const out = settleRowsOf(rows, ['r1']);
     expect(out).toEqual([
-      { response_id: 'r1', starts_at: '2026-09-28T08:45:00Z', off: false, claimed_at: '2026-09-24T12:00:00.100Z', sent: true },
-      { response_id: 'r2', starts_at: '2026-09-28T08:45:00Z', off: true, claimed_at: '2026-09-24T12:00:00.200Z', sent: false },
+      { response_id: 'r1', starts_at: '2026-09-28T08:45:00Z', off: false, claimed_at: '2026-09-24T12:00:00.100Z', sent: true, remind: false },
+      { response_id: 'r2', starts_at: '2026-09-28T08:45:00Z', off: true, claimed_at: '2026-09-24T12:00:00.200Z', sent: false, remind: false },
     ]);
   });
   it('a remind row carries a null claimed_at through untouched', () => {
     expect(settleRowsOf([row({ kind: 'remind', claimed_at: null })])[0].claimed_at).toBeNull();
+  });
+  it('marks remind rows, and only them, so settle never writes the claim\'s bookkeeping for them', () => {
+    expect(settleRowsOf([row({ kind: 'remind', claimed_at: null })], ['r1'])[0]).toMatchObject({ remind: true, sent: true });
+    expect(settleRowsOf([row({ kind: 'moved' })])[0].remind).toBe(false);
   });
 });
