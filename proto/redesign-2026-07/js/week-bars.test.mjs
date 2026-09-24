@@ -18,7 +18,7 @@ globalThis.document = Object.assign(el(), { createElement: el, getElementById: (
 globalThis.localStorage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v), removeItem: (k) => store.delete(k) };
 globalThis.sessionStorage = globalThis.localStorage;
 globalThis.location = globalThis.window.location;
-const { calendarWeek, daysBetween, weekBars } = await import('./week-bars.js');
+const { calendarWeek, daysBetween, weekBars, dayBars } = await import('./week-bars.js');
 
 test('calendarWeek: seven calendar days ending today, oldest first, gaps kept as null', () => {
   const w = calendarWeek([{ day: '2026-07-22', score: 71 }, { day: '2026-07-17', score: 52 }], '2026-07-23');
@@ -50,4 +50,29 @@ test('weekBars: a gap day is an empty track, never a bar; the default keeps Prog
   assert.equal((plain.match(/class="bar"/g) || []).length, 2);
   assert.match(plain, /class="wb-cutover"/);
   assert.match(plain, /The standard is 80\. Scoring changed\./);
+});
+
+test('dayBars: a number over every scored bar, a mark on a miss, Today labelled, all spoken', () => {
+  const days = [
+    { key: '2026-07-17', label: 'F', score: null, state: 'before' },
+    { key: '2026-07-18', label: 'S', score: 92, state: 'scored' },
+    { key: '2026-07-19', label: 'S', score: null, state: 'missed' },
+    { key: '2026-07-20', label: 'M', score: 52, state: 'scored' },
+    { key: '2026-07-21', label: 'T', score: 84, state: 'scored' },
+    { key: '2026-07-22', label: 'W', score: 71, state: 'scored' },
+    { key: '2026-07-23', label: 'T', score: 40, state: 'today' },
+  ];
+  const html = dayBars(days);
+  assert.match(html, /aria-label="Last 7 days: Fri before you started, Sat 92, Sun no log, Mon 52, Tue 84, Wed 71, today 40 so far\. The standard is 80\."/);
+  assert.equal((html.match(/class="bar"/g) || []).length, 5, 'no bar on a day before the start or a miss');
+  assert.match(html, /class="wb wb-missed"[^>]*>\s*<span class="wb-n">/);
+  assert.match(html, /<span class="wb-n tier-ink g">92<\/span>/);
+  assert.match(html, /<span class="wb-n tier-ink b">84<\/span>/);
+  assert.match(html, /<span class="wb-n tier-ink a">71<\/span>/);
+  assert.match(html, /<span class="wb-n">52<\/span>/, 'below 60 stays neutral on the athlete own history');
+  assert.match(html, /<span class="d">Today<\/span>/);
+  assert.doesNotMatch(html, /wb-cutover/);
+  assert.match(dayBars(days, { cutIdx: 2, cutLabel: 'Scoring changed' }), /The standard is 80\. Scoring changed\./);
+  const open = dayBars([{ key: '2026-07-23', label: 'T', score: null, state: 'today' }]);
+  assert.match(open, /today not scored yet/);
 });

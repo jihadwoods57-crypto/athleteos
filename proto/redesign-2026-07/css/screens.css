@@ -1330,9 +1330,6 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .tier-ink.a { color: var(--amber-bright); }
 .tier-ink.r { color: var(--red-bright); }
 .tier-ink.none { color: var(--text-3); }
-.pg-base-h { margin: 0 0 var(--s2h); }
-.pg-base-act { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--hairline-soft); }
-.pg-base-act .pg-sub { margin-top: 0; }
 /* The one actionable sentence, as the FOOTER of the card holding the trend that produced it.
    It used to be a standalone green-gradient box under its own eyebrow, which put a third green
    on a screen that already has green day bars and a green week delta, and made the sentence a
@@ -1910,15 +1907,6 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 /* Streak-at-risk ribbon — sibling of .xstrip, own tap target (44px+), reuses the amber/blue
    pair the rest of the app already uses for urgency vs. mild-reminder framing. */
 /* Streak ribbon: removed from Home (founder call 2026-07-16) but Progress still renders it. */
-.streak-ribbon{display:flex;align-items:center;gap:var(--s3);min-height:44px;background:var(--surface-1);border: 1px solid transparent;border-radius:var(--r-card-sm);padding:var(--s2h) var(--s3);margin:var(--s3) 0 var(--s2h);cursor:pointer; box-shadow: var(--sh-card);}
-.streak-ribbon .sr-ic{width:36px;height:36px;border-radius:var(--r-chip);display:grid;place-items:center;flex:0 0 auto}
-.streak-ribbon .sr-body{flex:1;min-width:0}
-.streak-ribbon .sr-t{font-size:var(--t-base);font-weight:800;letter-spacing:-.01em}
-.streak-ribbon .sr-s{font-size:var(--t-xs);color:var(--text-2);font-weight:600;line-height:1.4;margin-top:1px}
-.streak-ribbon.strong{background:linear-gradient(150deg,rgba(var(--amber-rgb), 0.14),rgba(var(--amber-rgb), 0.04) 60%),var(--surface-1);border-color:var(--amber-border)}
-.streak-ribbon.strong .sr-ic{background:var(--amber-surface);color:var(--amber-bright)}
-.streak-ribbon.mild{background:var(--surface-2);border-color:var(--hairline-soft)}
-.streak-ribbon.mild .sr-ic{background:var(--blue-surface);color:var(--blue-bright)}
 /* Trust Pass shield + quick popup (replaces the full-width trust card on Home —
    Home stays score + next action). Popup anchors to the header. */
 .apphead{position:relative}
@@ -2038,7 +2026,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   background-image:linear-gradient(180deg,rgba(255,255,255,0.018),rgba(255,255,255,0) 42%);
   box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),var(--sh-card);
 }
-.xnow,.xrow-item,.streak-ribbon,.seen-receipt{box-shadow:inset 0 1px 0 rgba(255,255,255,0.05)}
+.xnow,.xrow-item,.seen-receipt{box-shadow:inset 0 1px 0 rgba(255,255,255,0.05)}
 .xnow{box-shadow:inset 0 1px 0 rgba(255,255,255,0.06),var(--sh-card)}
 .xrow-item{box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),var(--sh-card)}  /* match sibling content-card elevation */
 /* retina hairlines: inner dividers drop to half-pixel on 2x+ screens */
@@ -2571,8 +2559,6 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .cmt-done{display:flex;align-items:flex-start;gap:var(--s2);font-size:var(--t-sm);font-weight:700;color:var(--green-bright);padding-top:var(--s1h);line-height:1.4}
 
 /* ----- Progress v2 (spec §8): baseline, unlock meter, category trends ----- */
-.unlock-row{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s3h)}
-.unlock-k{font-size:var(--t-sm);font-weight:800;color:var(--text-2);white-space:nowrap;font-variant-numeric:tabular-nums}
 .base-stats{display:flex;gap:var(--s2h);margin-top:var(--s3h)}
 /* Sizes and edge from .stat (app.css, 2026-09-05); phase 2 puts the markup on .stat itself. */
 
@@ -2676,7 +2662,7 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    .coach-stat, mixed an icon tile into a numeral grid, and left a visible hole in its fixed
    3-column grid whenever consistency was still null. Three numerals, always three columns;
    .dim marks a value that hasn't earned a number yet (an em-dash placeholder, on scale). ----- */
-.pg-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2h);margin-top:var(--s3h)}
+.pg-stats{margin-top:var(--s5)}
 
 /* ----- Progress: the screen's own small parts, named instead of inlined.
    Each of these was a repeated `style="font-size:var(--t-sm);font-weight:600;color:…"` blob
@@ -2684,13 +2670,38 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
    three different sizes on one screen. One rule each, so they cannot drift again. ----- */
 .pg-sub{font-size:var(--t-sm);font-weight:600;color:var(--text-2);margin-top:var(--s1);line-height:1.45}
 .pg-note{font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s2);line-height:1.45}
-.pg-flush{margin-top:0}
-.pg-share-row{margin-top:var(--s3h)}
+/* The card's headline is a sentence ("On standard 5 of 7 days"), not a hero number: the week is
+   a record, and the day bars under it carry the scores (2026-09-23 cleanup). */
+.pg-head{font-size:var(--t-lg);font-weight:800;letter-spacing:var(--title-tight);color:var(--text);line-height:1.3}
+.pg-k{font-size:var(--t-sm);font-weight:700;color:var(--text-2)}
+/* Progress's own seven days (week-bars.js dayBars): a score over every bar, so colour needs no
+   legend; a missed day's mark is the one red; a day before the start is faded; Today is blue,
+   the "this is now" selection colour. */
+.pg-days{height:150px;margin-top:var(--s3)}
+.pg-days .wb{gap:var(--s1h)}
+.wb-n{height:14px;display:grid;place-items:center;font-size:var(--t-xs);font-weight:800;color:var(--text-2);font-variant-numeric:tabular-nums;letter-spacing:var(--num-tight)}
+.wb-missed .wb-n{color:var(--red-bright)}
+.wb-before{opacity:.45}
+.wb-today .d{color:var(--blue-bright);font-weight:800}
+/* The weekly-average line and the weight line: blue, the neutral progress ink; the numbers on
+   the weekly line wear their tier (SVG text takes the colour through currentColor). */
+.pg-weeks{margin-top:var(--s3)}
+.pg-plot{position:relative;height:84px;margin-top:var(--s2)}
+.pg-plot svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.pg-plot.pg-wline{height:56px;margin-top:var(--s3)}
+.pg-std{stroke:var(--text-3);stroke-opacity:.55;stroke-width:1;stroke-dasharray:3 4;vector-effect:non-scaling-stroke}
+.pg-path{fill:none;stroke:var(--blue-bright);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.pg-dot,.pg-v,.pg-stdk{position:absolute;left:var(--x);top:var(--y)}
+.pg-dot{width:8px;height:8px;transform:translate(-50%,-50%);border-radius:50%;background:var(--blue-bright)}
+.pg-v{transform:translate(-50%,-50%);font-size:var(--t-xs);font-weight:800;color:var(--text-2);font-variant-numeric:tabular-nums}
+.pg-stdk{transform:translateY(-50%);font-size:var(--t-micro);font-weight:700;color:var(--text-3)}
+.pg-axis{display:flex;justify-content:space-between;font-size:var(--t-xs);font-weight:600;color:var(--text-3);margin-top:var(--s1)}
+.pg-wfoot{display:flex;align-items:center;gap:var(--s3);margin-top:var(--s3)}
+.pg-wfoot .pg-wbtn,.pg-wfoot .pg-note{margin-top:0}
 .pg-tail{height:var(--s3)}
 /* The records list: `.lrow` brings its own vertical air, so the card only insets the sides. */
 .pg-rows{padding:var(--s1h) var(--s4)}
 .pg-wrow{display:flex;justify-content:space-between;align-items:baseline;gap:var(--s3)}
-.pg-wempty{font-size:var(--t-md);font-weight:800}
 .pg-wbtn{margin-top:var(--s3);width:auto;padding:0 var(--s4h)}
 /* A measured quantity, not a score: the unit rides at label weight beside the numeral so the
    number still reads as the figure. `.md` is the weight card's smaller hero.
@@ -2849,18 +2860,6 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 }
 .ps-pref b{color:var(--text);font-weight:800}
 
-/* Progress: the style bands + change markers on the score timeline, so a trend break reads as
-   "the plan changed here", never as an unexplained drop. */
-.ps-band{display:flex;align-items:center;gap:var(--s1h);flex-wrap:wrap;margin-top:var(--s2)}
-.ps-band .seg{
-  display:inline-flex;align-items:center;gap:var(--s1h);padding:var(--s1) var(--s2h);border-radius:var(--r-pill);
-  background:var(--surface-2);border:1px solid var(--hairline);
-  font-size:var(--t-xs);font-weight:700;color:var(--text-2);white-space:nowrap;
-}
-.ps-band .seg i{width:7px;height:7px;border-radius:50%;background:var(--cyan);display:inline-block}
-.ps-band .seg.s-structured i{background:var(--blue-bright)}
-.ps-band .seg.s-guided i{background:var(--cyan)}
-.ps-band .seg.s-intuitive i{background:var(--green-bright)}
 
 /* ================= Connected Standards (0155) =================
    TYPE. Everything here sits on the nine-step scale in tokens.css — no ad-hoc px sizes, because

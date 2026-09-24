@@ -11,6 +11,7 @@ import { CATALOG, SNACK_BONUS, runsToday, derive, deriveAssigned, assignedFromRo
 import { resolvePlanStyle, SIGNAL_KEYS, CHECKIN_SIGNAL_KEYS, styleLabel, styleSourceLabel } from './plan-style.js';
 import { TOS_VERSION } from './ob-helpers.js';
 import { tierFor, ON_STANDARD, qualityAccent, MEAL_QUALITY_GOOD } from './score-band.js';
+import { progressRead } from './progress-week.js';
 import { initialsOf } from './initials.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor, dayFromHistoryRow,
@@ -20,7 +21,7 @@ import {
   dayUnlogMeal, dayMoveMeal,
   insertMeal, MEAL_KEYS, minutesNow, mealScored,
   setDayStandard, slotDeadline, slotGrace, slotLateCredit, slotOpen, setDayGoalConfig,
-  setDayPlanStyle, weightsForDay, DAY_SELECT_COLS, PROFILE_WEIGHTS, dayRev, CI_INVERSE,
+  setDayPlanStyle, weightsForDay, DAY_SELECT_COLS, PROFILE_WEIGHTS, dayRev, HISTORY_DAYS, CI_INVERSE,
 } from './day.js';
 import { MONTHS_SHORT, DAYS_SHORT, DAYS_LONG } from './fmt-date.js';
 import { creditsLeft } from './pass.js';
@@ -5514,33 +5515,27 @@ export const S = {
   get progress() {
     const hist = (DAY.scoreHistory || []).map(h => ({ date: h.date, score: h.score || 0 }));
     const series = [...hist, { date: DAY.date, score: this.score }];
-    const avg = (arr) => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : null;
-    const last7 = series.slice(-7);
-    const weekScores = last7.map(d => d.score);
-    const weekAvg = avg(weekScores);
-    const prev7 = series.slice(-14, -7).map(d => d.score);
-    const prevAvg = avg(prev7);
-    const weekDelta = (weekAvg != null && prevAvg != null) ? `${weekAvg - prevAvg >= 0 ? '+' : ''}${weekAvg - prevAvg}` : null;
-    const last30 = series.slice(-30);
-    const monthConsistency = last30.length >= 5 ? Math.round(last30.filter(d => d.score >= ON_STANDARD).length / last30.length * 100) : null;
-    let best = 0, run = 0;
-    for (const d of series) { if (d.score >= ON_STANDARD) { run++; best = Math.max(best, run); } else run = 0; }
-    // Best score ever recorded (incl. today) — the day-one baseline stat (spec §8.2).
+    // The week, the average, the count and the best run are read off the CALENDAR now
+    // (js/progress-week.js, 2026-09-23): the last seven ROWS skipped every day with no log, and
+    // today's open score sat in the average. Progress and the week share card read these.
+    const read = progressRead({
+      rows: DAY.scoreHistory || [], todayKey: DAY.date,
+      todayScore: RT.day0 || this.notYetScored ? null : this.score,
+      startKey: activationDateOnly(), windowDays: HISTORY_DAYS,
+    });
+    // Best score ever recorded (incl. today) and days with a real logged row: the verified
+    // profile and the early-days copy read these.
     const bestScore = Math.max(...series.map(d => d.score));
-    // Days with a real logged row (today counts once anything is logged).
     const daysLogged = hist.length + (RT.day0 ? 0 : 1);
     return {
       hasHistory: hist.length > 0,
       daysLogged, bestScore,
-      // Exact trend-unlock rule (spec §8.3): 3 logged days unlock the first weekly trend.
-      unlockNeed: 3, unlockHave: Math.min(3, daysLogged),
-      weekScores, weekAvg, weekDelta,
-      onDays: `${weekScores.filter(s => s >= ON_STANDARD).length} of ${weekScores.length}`,
-      weekDayLabels: last7.map(d => 'SMTWTFS'[new Date(d.date + 'T00:00:00').getDay()]),
-      // Raw ISO dates alongside weekScores/weekDayLabels — Progress uses this to place the
-      // scoring-cutover divider on the real day it falls on, never a bar-index guess.
-      weekDates: last7.map(d => d.date),
-      monthConsistency, bestStreak: best,
+      read,
+      weekAvg: read.avg,
+      weekDelta: read.delta == null ? null : `${read.delta >= 0 ? '+' : ''}${read.delta}`,
+      onDays: `${read.on} of ${read.days}`,
+      weekDates: read.week.map(d => d.key),
+      monthConsistency: read.rate30, bestStreak: read.bestRun,
     };
   },
 
@@ -5605,10 +5600,8 @@ export const S = {
       const weakest = trends.slice().sort((a, b) => a.now - b.now)[0];
       if (weakest && weakest.now < 70) return `${weakest.key} is your biggest opportunity. It's averaging ${weakest.now}%. Small daily wins there move your score fastest.`;
     }
-    const p = this.progress;
-    if (p.hasHistory && p.weekAvg != null && p.weekAvg < ON_STANDARD) {
-      return `Your weekly average is ${p.weekAvg}. Hitting 80 today starts closing the gap to OnStandard.`;
-    }
+    // The week-average branch went 2026-09-23: Progress prints the average in its headline, so
+    // the insight only ever restated it (and named the 90+ tier as the goal of an 80 standard).
     return null;
   },
 

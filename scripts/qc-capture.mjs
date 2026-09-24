@@ -191,6 +191,34 @@ const clockAt = (h, m) => `(() => { const FAKE = new Date(2026,6,23,${h},${m},0)
   D.now = () => FAKE; D.parse = R.parse; D.UTC = R.UTC; D.prototype = R.prototype;
   Object.setPrototypeOf(D, R); globalThis.Date = D; })();`;
 
+/* Every first-visit tip and tour reads as already seen in a capture. Tips became lazy
+ * (tour.js is imported by the screen's mount, 2026-09), and a seed account has no server
+ * birthday, so maybeShowTip's "wait for the main tour" gate never held one back: "Your last
+ * seven days" sat over every Progress shot. A Proxy answers "seen" for ANY id, so a tip added
+ * later cannot cover a shot either. Harness only: the app's own seen logic is untouched. A shot
+ * that means to capture a tour or tip sets `tour: true` and gets the product's real state. */
+const TIPS_SEEN = `(async () => { const st = await import('/js/state.js');
+  const own = {}; const at = '2026-01-01T00:00:00.000Z';
+  st.RT.tourSeen = new Proxy(own, { get: (o, k) => (typeof k === 'string' && k !== 'toJSON' ? (o[k] || at) : o[k]), has: () => true });
+  return 1; })()`;
+
+/* Progress states (2026-09-23 cleanup). Each rewrites DAY.scoreHistory through the page's own
+ * modules after a day seed: `days` is [back, score|null, weight?] with back = days before today;
+ * a missing back is a day with no row at all (nothing logged), which is what a real miss looks
+ * like on the server. Evidence only: every average and count on the screen is still computed
+ * by state.js. */
+const pgHist = (days, extra = '') => `const { DAY } = await import('./js/day.js'); const { RT } = await import('./js/state.js');
+  const iso = (back) => { const d = new Date(DAY.date + 'T12:00:00'); d.setDate(d.getDate() - back);
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+  DAY.scoreHistory = ${JSON.stringify(days)}.map(([b, s, w]) => ({ date: iso(b), score: s, weight: w == null ? null : w }));
+  ${extra}`;
+/** Five weeks of a mixed athlete: good weeks, two days with no log, a 52 and a 71 this week. */
+const MIXED = [
+  ...Array.from({ length: 28 }, (_, i) => [35 - i, [88, 91, 84, 79, 93, 86, 90][i % 7]]).filter(([b]) => b !== 20 && b !== 13),
+  [6, 92], [5, 71], [3, 52], [2, 88],
+];
+const WEIGHED = MIXED.map(([b, s], i) => [b, s, b % 4 === 0 ? +(191.5 - (35 - b) * 0.12).toFixed(1) : null]);
+
 const setTheme = (t) => `(async () => { const st = await import('/js/state.js');
   st.RT.theme = '${t}'; st.applyTheme(); window.__render(); return 1; })()`;
 
@@ -279,6 +307,21 @@ const SHOTS = [
   { g: 'athlete', name: 'score-breakdown', seed: 'dayComplete', route: 'score-breakdown', at: [21, 52] },
   { g: 'athlete', name: 'plan', seed: 'dayComplete', route: 'plan', at: [21, 56] },
   { g: 'athlete', name: 'progress', seed: 'dayComplete', route: 'progress', at: [21, 55] },
+  // Progress across the states an athlete really meets (2026-09-23 cleanup): the first day, two
+  // days in, a mixed week with no-log days, no weight logged, a weigh-in trend, no coach, and a
+  // trainer's client (whose page leads with the body).
+  { g: 'athlete', name: 'progress-first-day', seed: 'dayFirst', route: 'progress', at: [15, 20] },
+  { g: 'athlete', name: 'progress-early', seed: 'dayMorning', route: 'progress', at: [9, 30],
+    pre: pgHist([[2, 84], [1, 91]], `RT.activationDate = iso(2); DAY.currentWeight = null;`) },
+  { g: 'athlete', name: 'progress-mixed', seed: 'dayMorning', route: 'progress', at: [9, 30], pre: pgHist(MIXED) },
+  { g: 'athlete', name: 'progress-no-weight', seed: 'dayComplete', route: 'progress', at: [21, 55],
+    pre: pgHist(MIXED, `DAY.currentWeight = null;`) },
+  { g: 'athlete', name: 'progress-weight-trend', seed: 'dayComplete', route: 'progress', at: [21, 55],
+    pre: pgHist(WEIGHED, `RT.profile.seasonGoal = { target: 185, start: 192 };`) },
+  { g: 'athlete', name: 'progress-no-coach', seed: 'dayComplete', route: 'progress', at: [21, 55],
+    pre: `const { RT } = await import('./js/state.js'); RT.myCoach = null;` },
+  { g: 'athlete', name: 'progress-client', seed: 'dayComplete', route: 'progress', at: [21, 55],
+    pre: pgHist(WEIGHED, `RT.myCoach = null; RT.myTrainer = { name: 'Dana Ruiz', practiceName: 'Ruiz Performance' }; RT.profile.seasonGoal = { target: 185, start: 192 };`) },
   { g: 'athlete', name: 'profile', seed: 'dayComplete', route: 'profile', at: [21, 57] },
   { g: 'athlete', name: 'notifications', seed: 'dayMidday', route: 'notifications', at: [13, 15] },
 
@@ -773,6 +816,7 @@ try {
           await withTimeout((async () => {
             await goto(page, BASE, { settleMs: 1100 });
             if (!s.preAuth) await evalJs(page, `(async () => { ${SEEDS[s.seed]} return 1; })()`);
+            if (!s.tour) await evalJs(page, TIPS_SEEN);
             // `pre` runs after the seed and before navigation: device state a seed does not own.
             if (s.pre) await evalJs(page, `(async () => { ${s.pre} return 1; })()`);
             await evalJs(page, setTheme(theme));
