@@ -21,7 +21,7 @@ import { installForegroundNotificationHandler } from '../lib/notify/foreground';
 import { registerGeofenceTask } from '../lib/location';
 import { PlacePicker } from '../lib/maps/placePicker';
 import { setMapPresenter, type PickInitial, type Place } from '../lib/maps/pickRequest';
-import { releaseSplash, releaseSplashAfter } from './launchSplash';
+import { releaseSplash } from './launchSplash';
 
 // A notification that arrives while the app is OPEN is shown only if a handler says so, and this
 // app had none — so every push and reminder that landed while someone was looking at the screen
@@ -141,9 +141,8 @@ export function ProtoApp() {
 
   React.useEffect(() => { void tryUnlock(); }, [tryUnlock]);
 
-  // The splash (held in app/_layout.tsx) goes when the proto posts PAINTED, and on every path that
-  // will never paint the proto: the lock screen, a load error, and a ceiling (launchSplash.ts).
-  React.useEffect(() => releaseSplashAfter(), []);
+  // The splash (held in app/_layout.tsx, whose hold also starts the ceiling) goes when the proto
+  // posts PAINTED, and on every path that will never paint the proto: the lock screen, an error.
   React.useEffect(() => { if (locked || err) releaseSplash(); }, [locked, err]);
 
   React.useEffect(() => {

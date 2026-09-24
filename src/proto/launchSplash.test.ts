@@ -15,21 +15,29 @@ beforeEach(() => {
 });
 
 test('holding asks for a fade and prevents the auto-hide, once', () => {
+  jest.useFakeTimers();
   holdSplash();
   holdSplash();
   expect(calls).toEqual(['options:{"duration":200,"fade":true}', 'prevent']);
 });
 
 test('release hides once however many paths ask', () => {
-  holdSplash();
   releaseSplash();
   releaseSplash();
   expect(calls.filter((c) => c === 'hide')).toHaveLength(1);
 });
 
+test('holding alone arms the ceiling: a proto that never posts PAINTED cannot keep it up', () => {
+  jest.useFakeTimers();
+  holdSplash();              // and nothing else: no ProtoApp, no PAINTED, fonts never loaded
+  jest.advanceTimersByTime(SPLASH_MAX_MS - 1);
+  expect(calls).not.toContain('hide');
+  jest.advanceTimersByTime(1);
+  expect(calls.filter((c) => c === 'hide')).toHaveLength(1);
+});
+
 test('the ceiling releases a splash nobody released', () => {
   jest.useFakeTimers();
-  holdSplash();
   releaseSplashAfter();
   jest.advanceTimersByTime(SPLASH_MAX_MS - 1);
   expect(calls).not.toContain('hide');
@@ -39,7 +47,6 @@ test('the ceiling releases a splash nobody released', () => {
 
 test('a PAINTED before the ceiling wins, and the ceiling then does nothing', () => {
   jest.useFakeTimers();
-  holdSplash();
   const cancel = releaseSplashAfter(1000);
   releaseSplash();            // the proto's first frame
   cancel();
