@@ -133,13 +133,6 @@ function wakeupHomeCard(inst) {
     : phase === 'late'
       ? (out ? `<span class="status-pill r">${out} still out</span>` : '<span class="status-pill g">All in</span>')
       : (out ? `<span class="status-pill muted">${out} pending</span>` : '<span class="status-pill g">All in</span>');
-  /* WHERE THE CARD GOES CHANGES WHEN THE WINDOW SHUTS (founder audit 2026-09-14).
-     Until now this always opened the LIVE board, in every phase. screens/wakeup-morning.js was
-     built for exactly the closed phase — its own header says "the surface this feature is built
-     around is the summary when the window SHUTS, not the live widget … this is the thing they
-     actually open at breakfast" — and it shipped with release 1, registered, styled and tested,
-     with nothing anywhere in the app navigating to it. A coach could not open it. The live board
-     stays one tap from that summary, so nothing became harder to reach. */
   /* ONE WAY IN (roll call rebuilt, 2026-09-23): the team board, in every phase. It is live while
      the window runs and is the morning's summary once it shuts (first up, the Missed group with a
      nudge on every face), the job wakeup-morning.js did; that route now hands over to it too. */
@@ -261,14 +254,19 @@ function nextRollcallCard() {
   const st = scheduleState(next);
   const label = dayLabel(next.occurs_on, today);
   const armed = SKIP_ARMED === next.instance_id;
+  // v3: "5 of 6 alarms set" (0247) when it rings; inlined, this module is on the boot graph.
+  const rule = (VC.commitments || []).find((r) => r && r.id === NEXT.commitmentId);
+  const rings = !(rule && rule.escalation && rule.escalation.alarm === false);
+  const reach = !Number(next.total) ? ''
+    : rings && typeof next.armed === 'number' ? ` · ${next.armed} of ${next.total} alarms set`
+    : next.reachable != null && Number(next.reachable) < Number(next.total) ? ` · ${next.reachable} of ${next.total} can get the push` : ` · ${next.total} will get it`;
   return `
     <section class="card pad vc-board wk-homecard wk-nextcard">
       <h2 class="eyebrow wk-cardh">Next roll call · ${esc(label)}</h2>
-      <div class="wk-ctx">${st.kind === 'skipped' ? 'Skipped' : `${esc(fmtMin(Number(next.starts_min)))}${st.kind === 'moved' ? ' · moved for this day' : ''}`}${Number(next.total) ? (next.reachable != null && Number(next.reachable) < Number(next.total) ? ` · ${next.reachable} of ${next.total} can get the push` : ` · ${next.total} will get it`) : ''}</div>
+      <div class="wk-ctx">${st.kind === 'skipped' ? 'Skipped' : `${esc(fmtMin(Number(next.starts_min)))}${st.kind === 'moved' ? ' · moved for this day' : ''}${esc(reach)}`}</div>
       ${next.message && st.kind !== 'skipped' ? `<div class="wk-nextmsg">“${esc(String(next.message).slice(0, 160))}${String(next.message).length > 160 ? '…' : ''}”</div>` : ''}
       <div class="wk-nextacts">
-        ${/* The week strip owns moving and cancelling one morning now (roll call rebuilt). */''}
-        <button class="chip on" data-go="rollcall-week/${esc(NEXT.commitmentId)}">${st.kind === 'skipped' ? 'Open' : 'Change'}</button>
+        <button class="chip on" data-go="rollcall/${esc(NEXT.commitmentId)}">Open</button>
         ${canSchedule() ? (st.kind === 'skipped'
           ? `<button class="chip" data-wk-unskip="${esc(next.instance_id)}">Put it back</button>`
           : `<button class="chip ${armed ? 'on' : ''}" data-wk-skip="${esc(next.instance_id)}">${armed ? `Skip ${esc(label.toLowerCase())}, for sure` : 'Skip'}</button>`) : ''}
@@ -586,8 +584,8 @@ export function paintBoard(root, slotId = '#vc-board-slot') {
   if (id) loadBoard(id, CD.kind).then(paint).then(ensureNext).then(paint);
 }
 
-/** The Home "next roll call" card's controls (0215): skip it in two taps. Change is a plain
- *  data-go into the week strip (roll call rebuilt). Lives here, not in the board mount, because
+/** The Home "next roll call" card's controls (0215): skip it in two taps. Open is a plain
+ *  data-go into the roll call screen (v3). Lives here, not in the board mount, because
  *  the card is painted into Home's slot. */
 function wireNextCard(slot) {
   const rearm = () => { slot.innerHTML = commitmentBoardCard(); wireNextCard(slot); };

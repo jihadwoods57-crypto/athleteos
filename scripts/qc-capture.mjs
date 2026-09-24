@@ -32,7 +32,7 @@ const rcSeed = (startedMinAgo) => `const cd = await import('./js/commitment-data
   const now = Date.now(); const min = 60000; const off = ${startedMinAgo};
   const iso = (m) => new Date(now + (off + m) * min).toISOString();
   const day = new Date(now - new Date().getTimezoneOffset() * min).toISOString().slice(0, 10);
-  const row = { instance_id: 'rc-shot', type: 'morning_roll_call', title: 'Wake-Up Roll Call',
+  const row = { instance_id: 'rc-shot', commitment_id: 'rc-rule', type: 'morning_roll_call', title: 'Wake-Up Roll Call',
     message: 'Up and at it. Lift at 7, be early.', action_label: 'I’m Up', coach_name: 'Coach Reed', alarm: true,
     starts_min: 360, respond_by_min: 365, opens_min: 360, ends_min: 390,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, occurs_on: day,
@@ -107,7 +107,7 @@ const rbSeed = (o) => `const cd = await import('./js/commitment-data.js');
     rows };
   cd.seedTeamBoardForHarness('rb-shot', board);
   const me = rows.find((r) => r.athlete_id === 'seed-athlete');
-  cd.seedMineForHarness([{ instance_id: 'rb-shot', type: arrival ? 'practice' : 'morning_roll_call', title: board.title,
+  cd.seedMineForHarness([{ instance_id: 'rb-shot', commitment_id: 'rb-rule', type: arrival ? 'practice' : 'morning_roll_call', title: board.title,
     message: 'Up and at it. Lift at 7, be early. Protein at breakfast.', action_label: 'I’m Up', coach_name: 'Coach Brooks',
     occurs_on: '2026-07-23', starts_at: board.starts_at, respond_by_at: board.respond_by_at, closes_at: board.closes_at,
     opens_at: arrival ? null : T(5, 50), timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -166,6 +166,63 @@ const rsSeed = (o = {}) => `const cd = await import('./js/commitment-data.js');
     A('r2', 'Andre Wells', 21, 1, 0, 3, 14, 3), A('r1', 'DeShawn Cole', 22, 0, 0, 0, 22, 16),
   ] });
   if (O.draft) { const rs = await import('./js/screens/rollcall-setup.js'); rs.seedSetupForHarness(O.draft); }`;
+/** Roll call v3, Task 9: the athlete's next roll call (Home) and the assignment screen. Four
+ *  mornings ahead on the frozen clock (Thu 23 Jul 8:10 PM: Fri 24, Mon 27, Wed 29, Fri 31, 4:45 AM)
+ *  for commitment 'rc-v3', and the phone's alarm state. `o.alarm`: 'set' (this phone holds Friday's
+ *  alarm), 'sync' (allowed, not armed), 'ask' (never asked), 'denied', or 'none' (no rows at all). */
+const rnSeed = (o = {}) => `const cd = await import('./js/commitment-data.js');
+  const O = ${JSON.stringify(o)};
+  const T = (d, h, m) => new Date(2026, 6, d, h, m, 0).toISOString();
+  const row = (d) => ({ instance_id: 'rn-' + d, commitment_id: 'rc-v3', type: 'morning_roll_call', title: 'Morning Roll Call',
+    message: 'Up and at it. Lift at 7, be early.', action_label: 'I’m Up', coach_name: 'Coach Brooks', alarm: true,
+    occurs_on: '2026-07-' + d, starts_at: T(d, 4, 45), respond_by_at: T(d, 4, 50), closes_at: T(d, 5, 15),
+    starts_min: 285, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    status: 'pending', verdict: 'pending', acknowledged_at: null, instance_status: 'scheduled' });
+  cd.seedMineForHarness(O.alarm === 'none' ? [] : [24, 27, 29, 31].map(row), '2026-07-23');
+  const st = { set: { authorization: 'authorized', armed: 1, ids: ['rn-24'] }, sync: { authorization: 'authorized', armed: 0, ids: [] },
+    ask: { authorization: 'notDetermined', armed: 0, ids: [] }, denied: { authorization: 'denied', armed: 0, ids: [] } }[O.alarm] || { authorization: 'authorized', armed: 0, ids: [] };
+  window.__AP_STATE = { at: '2026-07-20T12:00:00Z', answer: 'not_now' };
+  window.OnStandardNative = Object.assign(window.OnStandardNative || {}, { push: { token: async () => null },
+    notify: { sync() {}, permission: async () => 'granted' }, location: { settings() {} },
+    wakeAlarms: { sync: async () => 0, state: async () => Object.assign({ supported: true }, st) } });`;
+/** Roll call v3, Task 10: the coach's one roll call screen. 'rc-rule' rings Mon to Fri at 6:00 AM;
+ *  fourteen days ahead from Thu 23 Jul on the frozen clock (Tue 28 cancelled, weekends off). Thursday's
+ *  morning is 'i-23' (opens 5:50, closes 6:30), the team board is rbSeed's under that id, and Friday's
+ *  'i-24' carries the arming list: every step the coach can see. `o.arming`: 'mixed' (every step),
+ *  'one' (one left to set), 'all' (every alarm set). `o.told` seeds the line Start leaves. */
+const rhbSeed = (o = {}) => `const cd = await import('./js/commitment-data.js');
+  const v3 = await import('./js/rollcall-v3-data.js');
+  const O = ${JSON.stringify(o)};
+  const rule = { id: 'rc-rule', type: 'morning_roll_call', title: 'Morning Roll Call', message: 'Up and at it. Lift at 7.',
+    audience_kind: 'team', audience_value: null, repeat_days: [1, 2, 3, 4, 5], starts_min: 360, respond_by_min: 365,
+    ends_min: 390, opens_min: 350, location_id: null, arrive_by_min: null, arrival_grace_min: 10,
+    escalation: { alarm: O.alarm !== false, breakthrough: true, notify_coach_on_miss: true }, active: true, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+  cd.seedCommitmentsForHarness([rule], []);
+  const iso = (dt) => dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
+  const rows = [];
+  for (let d = 23; d < 37; d++) {
+    const day = new Date(2026, 6, d, 6, 0, 0);
+    if (day.getDay() === 0 || day.getDay() === 6) continue;
+    const at = (h, m) => new Date(2026, 6, d, h, m, 0).toISOString();
+    rows.push({ instance_id: 'i-' + d, commitment_id: 'rc-rule', occurs_on: iso(day), instance_status: d === 28 ? 'cancelled' : 'scheduled',
+      skipped: d === 28, starts_at: at(6, 0), respond_by_at: at(6, 5), opens_at: at(5, 50), closes_at: at(6, 30),
+      starts_min: 360, rule_starts_min: 360, starts_override_min: null, timezone: rule.timezone,
+      total: 8, reachable: 7, armed: d === 24 ? ({ mixed: 4, one: 7, all: 8 }[O.arming || 'mixed']) : d < 28 ? 3 : 0 });
+  }
+  cd.seedUpcomingForHarness('rc-rule', rows);
+  const A = (id, name, step) => ({ athlete_id: id, name, status: step === 'excused' ? 'excused' : 'pending',
+    notified_at: step === 'untold' || step === 'no_push' ? null : '2026-07-23T18:00:00Z',
+    seen_at: step === 'seen' || step === 'armed' ? '2026-07-23T19:00:00Z' : null,
+    alarm_armed_at: step === 'armed' ? '2026-07-23T19:01:00Z' : null, can_push: step !== 'no_push' });
+  const mixed = [A('r1', 'DeShawn Cole', 'armed'), A('r2', 'Andre Wells', 'armed'), A('seed-athlete', 'Marcus Reed', 'armed'),
+    A('r3', 'Jaylen Brooks', 'armed'), A('r10', 'Tommy Vargas', 'seen'), A('r11', 'Ray Gomez', 'unseen'),
+    A('r12', 'Eli Walker', 'no_push'), A('r5', 'Kofi Owusu', 'untold'), A('r6', 'Luis Soto', 'excused')];
+  const arm = O.arming === 'all' ? mixed.map((r) => (r.status === 'excused' ? r : A(r.athlete_id, r.name, 'armed')))
+    : O.arming === 'one' ? mixed.map((r) => (r.status === 'excused' || r.athlete_id === 'r10' ? r : A(r.athlete_id, r.name, 'armed')))
+    : mixed;
+  v3.seedArmingForHarness('i-24', { instance_id: 'i-24', commitment_id: 'rc-rule', alarm: O.alarm !== false, rows: arm });
+  v3.seedArmingForHarness('i-23', { instance_id: 'i-23', commitment_id: 'rc-rule', alarm: O.alarm !== false, rows: arm });
+  if (O.told) v3.seedToldForHarness('rc-rule', O.told, 6);`;
 const ROOT = process.cwd();
 
 /* ---------------- args ---------------- */
@@ -177,7 +234,9 @@ const flag = (name, def) => {
 const has = (name) => argv.includes('--' + name);
 // --serve N: the port the proto server listens on (default 8799). A worktree runs its own server
 // on another port, so a capture renders THAT tree's proto rather than whichever checkout owns 8799.
-const BASE = `http://localhost:${Number(flag('serve', 8799)) || 8799}/index.html`;
+// --ipad renders the real iPad layout (rail, 720 column, split) instead of the desktop bezel at
+// 700px+ widths: js/layout.js honours ?layout=auto, as scripts/ipad-shots.mjs does.
+const BASE = `http://localhost:${Number(flag('serve', 8799)) || 8799}/index.html${argv.includes('--ipad') ? '?layout=auto' : ''}`;
 const THEMES = String(flag('themes', 'dark')).split(',').map((s) => s.trim()).filter(Boolean);
 const WIDTHS = String(flag('widths', '390')).split(',').map((s) => Number(s.trim())).filter(Boolean);
 const OUT_DIR = join(ROOT, 'qc', flag('out', 'transformation'));
@@ -295,6 +354,32 @@ const SHOTS = [
   { g: 'rollcall', name: 'rollcall-week-sheet', seed: 'coachIdentity', route: 'rollcall-week/rc-rule', at: [20, 10], book: 'team', pre: rsSeed(),
     act: `const d = document.querySelector('[data-rw-day="i-24"]'); if (d) d.click();`, actMs: 700 },
   { g: 'rollcall', name: 'rollcall-history', seed: 'coachIdentity', route: 'rollcall-history/rc-rule', at: [20, 10], book: 'team', pre: rsSeed() },
+  // Roll call v3, Task 10: the coach's one roll call screen, before / during / after, every step,
+  // one left (named), all set, the line Start leaves, a day's sheet from Cancel, and the Home card.
+  { g: 'rollcall', name: 'rhb-before', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [20, 10], book: 'team', pre: rhbSeed() },
+  // 4:10 AM: Thursday's window opens at 5:50, so not opened and not set turn amber (the last two hours).
+  { g: 'rollcall', name: 'rhb-before-soon', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [4, 10], book: 'team', pre: rhbSeed() },
+  { g: 'rollcall', name: 'rhb-before-one', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [20, 10], book: 'team', pre: rhbSeed({ arming: 'one' }) },
+  { g: 'rollcall', name: 'rhb-before-all', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [20, 10], book: 'team', pre: rhbSeed({ arming: 'all' }) },
+  { g: 'rollcall', name: 'rhb-landed', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [20, 10], book: 'team', pre: rhbSeed({ told: 'ok' }) },
+  { g: 'rollcall', name: 'rhb-live', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [6, 12], book: 'team',
+    pre: `{ ${rhbSeed()} } { ${rbSeed({ now: [6, 12], mode: 'wake' }).split("'rb-shot'").join("'i-23'")} }` },
+  { g: 'rollcall', name: 'rhb-after', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [6, 45], book: 'team',
+    pre: `{ ${rhbSeed()} } { ${rbSeed({ now: [6, 45], mode: 'wake' }).split("'rb-shot'").join("'i-23'")} }` },
+  { g: 'rollcall', name: 'rhb-cancel-sheet', seed: 'coachIdentity', route: 'rollcall/rc-rule', at: [20, 10], book: 'team', pre: rhbSeed(),
+    act: `const b = document.querySelector('[data-rhb-cancel]'); if (b) b.click(); await new Promise((r) => setTimeout(r, 400));`, actMs: 500 },
+  { g: 'rollcall', name: 'rhb-week-redirect', seed: 'coachIdentity', route: 'rollcall-week/rc-rule', at: [20, 10], book: 'team', pre: rhbSeed() },
+  { g: 'rollcall', name: 'rhb-home-card', seed: 'coachIdentity', route: 'coach-home', at: [20, 10], book: 'team',
+    // Today's board empty, so Home follows rc-rule (the stub's own 5 AM Club would win otherwise).
+    pre: rhbSeed() + ' cd.seedBoardForHarness([]);' },
+  // Roll call v3 (Task 9): the next roll call on Home, with THIS phone's alarm status, and the
+  // assignment screen the assignment push opens. Seeded after the page settles, then repainted.
+  { g: 'rollcall', name: 'rn-home-set', seed: 'dayComplete', route: 'home', at: [20, 10], act: rnSeed({ alarm: 'set' }) + ' window.__render();', actMs: 1400 },
+  { g: 'rollcall', name: 'rn-home-unset', seed: 'dayComplete', route: 'home', at: [20, 10], act: rnSeed({ alarm: 'sync' }) + ' window.__render();', actMs: 1400 },
+  { g: 'rollcall', name: 'rn-home-open-day', seed: 'dayMidday', route: 'home', at: [20, 10], act: rnSeed({ alarm: 'ask' }) + ' window.__render();', actMs: 1400 },
+  { g: 'rollcall', name: 'rn-home-none', seed: 'dayComplete', route: 'home', at: [20, 10], act: rnSeed({ alarm: 'none' }) + ' window.__render();', actMs: 1400 },
+  { g: 'rollcall', name: 'ra-assigned-set', seed: 'dayComplete', route: 'rollcall-assigned/rc-v3', at: [20, 10], pre: rnSeed({ alarm: 'set' }) },
+  { g: 'rollcall', name: 'ra-assigned-unset', seed: 'dayComplete', route: 'rollcall-assigned/rc-v3', at: [20, 10], pre: rnSeed({ alarm: 'denied' }) },
   // The "Day N locked." stamp: a body-level overlay, so it is captured by rendering Home with the
   // lock unacknowledged. Every other athlete seed marks it seen, or it would appear over whichever
   // screen rendered first and make the contact sheet nondeterministic.
@@ -555,11 +640,23 @@ const SHOTS = [
   { g: 'review-b', name: 'b-loc-ask-notnow', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [15, 26],
     pre: newBuild('undetermined') + `localStorage.setItem('os.loc.wiuNotNow', '1');` + rbSeed({ now: [15, 26], mode: 'arrival', me: 'open' }) },
   { g: 'review-b', name: 'b-loc-ask-always', seed: 'dayMorning', route: 'rollcall-board/rb-shot', at: [15, 26], pre: newBuild('when_in_use') + rbSeed({ now: [15, 26], mode: 'arrival', me: 'open' }) },
+  // Alarms already answered: Home's slot falls back to the notification primer.
   { g: 'review-b', name: 'b-home-primer', seed: 'dayMorning', route: 'home', at: [5, 40],
+    pre: `window.OnStandardNative = Object.assign(window.OnStandardNative || {}, { push: { token: async () => null },
+      notify: { sync() {}, permission: async () => 'undetermined' },
+      wakeAlarms: { sync: async () => 0, state: async () => ({ supported: true, authorization: 'authorized', armed: 1 }) } });`,
+    act: rcSeed(20) + ` window.__render();`, actMs: 1500 },
+  // Roll call v3 (Task 8): the once-per-account alarm primer, at the next open (Home) for an
+  // athlete already on a team, and right after joining one (Connect).
+  { g: 'review-b', name: 'b-home-alarm-primer', seed: 'dayMorning', route: 'home', at: [5, 40],
     pre: `window.OnStandardNative = Object.assign(window.OnStandardNative || {}, { push: { token: async () => null },
       notify: { sync() {}, permission: async () => 'undetermined' },
       wakeAlarms: { sync: async () => 0, state: async () => ({ supported: true, authorization: 'notDetermined', armed: 0 }) } });`,
     act: rcSeed(20) + ` window.__render();`, actMs: 1500 },
+  { g: 'review-b', name: 'b-connect-alarm-primer', seed: 'dayMorning', route: 'connect', at: [19, 10],
+    pre: `window.OnStandardNative = Object.assign(window.OnStandardNative || {}, { push: { token: async () => null },
+      notify: { sync() {}, permission: async () => 'undetermined' },
+      wakeAlarms: { sync: async () => 0, state: async () => ({ supported: true, authorization: 'notDetermined', armed: 0 }) } });` },
   { g: 'review-b', name: 'b-roll-call-primer', seed: 'dayMorning', route: 'roll-call/rc-shot', at: [6, 2],
     pre: `window.OnStandardNative = Object.assign(window.OnStandardNative || {}, { push: { token: async () => null },
       notify: { sync() {}, permission: async () => 'undetermined' },

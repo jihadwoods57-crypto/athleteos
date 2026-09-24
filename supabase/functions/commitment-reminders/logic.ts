@@ -39,6 +39,9 @@ export type ReminderRow = {
   closes_at?: string | null;
   fires_at?: string | null;     // deadline - offset: when this rung was scheduled to fire
   timezone?: string | null;
+  /** The coach's "ring as an alarm" setting (commitments.escalation->>'alarm', default true). Not in
+   *  the claim RPC's return (a deploy-ordering hazard to change); index.ts reads it and sets it. */
+  alarm?: boolean | null;
 };
 
 import { copy, type PushCopy } from '../_shared/rollcall-copy.ts';
@@ -208,4 +211,37 @@ export function splitStartGroups(
  *  the proto before it paints. */
 export function reminderRoute(type: string | null | undefined, instanceId: string): string {
   return type === 'morning_roll_call' ? `rollcall-board/${instanceId}` : `roll-call/${instanceId}`;
+}
+
+/** The bundled alarm sound (assets/sounds/rollcall_alarm.caf, registered by the expo-notifications
+ *  plugin in app.json). A binary without it plays the default sound for this name. */
+export const BACKUP_SOUND = 'rollcall_alarm.caf';
+
+/** The coach's alarm setting from commitments.escalation: only an explicit false turns it off
+ *  (absent/unset reads as true, like my_commitments and rollcall_notice_context_svc). */
+export function coachAlarmOf(escalation: unknown): boolean {
+  if (!escalation || typeof escalation !== 'object') return true;
+  const a = (escalation as { alarm?: unknown }).alarm;
+  return !(a === false || a === 'false');
+}
+
+/** How the START-TIME push of a wake-up is delivered (roll call v3, the backup alert).
+ *
+ *  Armed (the phone reported an AlarmKit alarm for this morning): the alarm is the sound, so the push
+ *  is silent and the Live Activity alone is enough (0239).
+ *  Not armed: nothing else will wake this athlete. The notification goes out even where the card is
+ *  up, time-sensitive (breaks through a Focus that allows it; the silent switch still wins, and no
+ *  Critical Alert is asked for, per the founder), with the 28-second alarm sound. The card's own
+ *  alert goes quiet so the phone makes one noise, not two.
+ *  Coach turned the alarm off (row.alarm === false; final review I2 ruling): no alarm tone, ever.
+ *  The start push is the normal notification with the default sound, exactly as v2 sent it.
+ *  Everything else (follow-up rungs, other commitment types) is unchanged. */
+export function openingDelivery(row: ReminderRow, armed: boolean): {
+  sound: string | null; interruptionLevel: 'active' | 'time-sensitive'; suppressWithCard: boolean; cardQuiet: boolean;
+} {
+  if (row.type !== 'morning_roll_call' || !isInitialPush(row) || row.alarm === false) {
+    return { sound: 'default', interruptionLevel: 'active', suppressWithCard: true, cardQuiet: false };
+  }
+  if (armed) return { sound: null, interruptionLevel: 'active', suppressWithCard: true, cardQuiet: true };
+  return { sound: BACKUP_SOUND, interruptionLevel: 'time-sensitive', suppressWithCard: false, cardQuiet: true };
 }

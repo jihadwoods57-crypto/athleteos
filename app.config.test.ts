@@ -169,3 +169,37 @@ describe('app.json — iOS App Store compliance', () => {
     }
   });
 });
+
+// Roll call v3 backup alert (2026-09-24). The start push for an athlete with no armed alarm names
+// BACKUP_SOUND and is time-sensitive (supabase/functions/commitment-reminders openingDelivery).
+// Both halves live in the BINARY, so a slip here only shows up on a phone at 6 AM.
+describe('app.json: the roll call backup alert', () => {
+  const fs = require('node:fs') as typeof import('node:fs');
+  const path = require('node:path') as typeof import('node:path');
+  const plugin = (appJson.expo.plugins as any[]).find((p) => Array.isArray(p) && p[0] === 'expo-notifications');
+
+  it('asks for the time-sensitive entitlement on the app, and adds no background mode for it', () => {
+    expect(ios.entitlements['com.apple.developer.usernotifications.time-sensitive']).toBe(true);
+    expect(plugin?.[1]?.enableBackgroundRemoteNotifications).toBeUndefined();
+    // No mode: aps-environment stays what the implicit plugin always gave (see the plugin comment).
+    expect(plugin?.[1]?.mode).toBeUndefined();
+  });
+
+  it('bundles the sound the server names, as a valid CAF iOS will play (30 s or less)', () => {
+    const { BACKUP_SOUND } = require('./supabase/functions/commitment-reminders/logic');
+    const sounds: string[] = plugin?.[1]?.sounds ?? [];
+    expect(sounds.map((s) => path.basename(s))).toContain(BACKUP_SOUND);
+    const file = fs.readFileSync(path.join(__dirname, 'assets/sounds', BACKUP_SOUND));
+    expect(file.toString('ascii', 0, 4)).toBe('caff');
+    expect(file.toString('ascii', 8, 12)).toBe('desc');
+    const rate = file.readDoubleBE(20);
+    expect(file.toString('ascii', 28, 32)).toBe('lpcm');
+    const bytesPerFrame = file.readUInt32BE(36);
+    expect(file.toString('ascii', 52, 56)).toBe('data');
+    const dataBytes = Number(file.readBigInt64BE(56)) - 4;
+    const seconds = dataBytes / bytesPerFrame / rate;
+    // Longer than 30 s and iOS plays the DEFAULT sound instead.
+    expect(seconds).toBeGreaterThanOrEqual(20);
+    expect(seconds).toBeLessThanOrEqual(30);
+  });
+});

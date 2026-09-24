@@ -83,8 +83,14 @@ export function teamCountUpdates(
   return out;
 }
 
-/** How far ahead the phone holds window codes. */
-export const WINDOW_CODE_DAYS = 7;
+/** How far ahead the phone holds window codes: the alarm horizon, roll call v3 (the server
+ *  materializes wake-ups 14 days ahead, 0247, and the phone arms that far). */
+export const WINDOW_CODE_DAYS = 14;
+
+/** The push extension's report says armed unless it explicitly says `armed: false`. */
+export function armedFlagOf(raw: unknown): boolean {
+  return !(raw && typeof raw === 'object' && (raw as { armed?: unknown }).armed === false);
+}
 
 /** The windows to mint codes for: not yet closed, opening within WINDOW_CODE_DAYS. */
 export function mintableWindows(

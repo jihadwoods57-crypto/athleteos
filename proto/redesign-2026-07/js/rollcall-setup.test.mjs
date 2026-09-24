@@ -236,6 +236,9 @@ test('routes: rollcall-new, rollcall-week and rollcall-history are lazy, from on
   const src = readFileSync(join(JS, 'screens', 'rollcall-setup.js'), 'utf8');
   assert.doesNotMatch(src, /rollcall-(new|week|history)\/[^'"`]*\?/, 'path subs, never query strings');
   assert.match(src, /export default rollcallWeek/);
+  // Roll call v3: the week route hands over to the one roll call screen before it paints.
+  assert.match(src, /redirect\(\{ sub \} = \{\}\) \{ return sub \? `rollcall\/\$\{sub\}` : null; \}/);
+  assert.match(idx, /rollcall: lazy\(\(\) => import\('\.\/rollcall-hub\.js'\)\)/);
 });
 
 /* ---------------- fix round 1 ---------------- */
@@ -310,4 +313,68 @@ test('the week runs on the roll call’s clock, and today cannot move to a time 
   assert.match(moveProblem({ today: true }, 21 * 60, 'America/New_York', t), /already passed today/);
   assert.equal(moveProblem({ today: true }, 23 * 60, 'America/New_York', t), null);
   assert.equal(moveProblem({ today: false }, 60, 'America/New_York', t), null, 'another day can move anywhere');
+});
+
+/* ---------------- roll call v3 review: the day sheet reaches every morning Move can name ---------------- */
+
+test('the day sheet opens any morning in the 14-day horizon, and Move never names one past it', async () => {
+  const { weekDays, SHEET_DAYS } = await import('./screens/rollcall-setup.js');
+  const { movable } = await import('./rollcall-hub-model.js');
+  const now = Date.parse('2026-09-24T12:00:00Z');
+  const row = { instance_id: 'far', occurs_on: '2026-10-06', starts_at: '2026-10-06T10:00:00Z', instance_status: 'scheduled', skipped: false, starts_min: 360 };
+  const days = weekDays([row], '2026-09-24', now, SHEET_DAYS);
+  assert.equal(days.length, 14);
+  assert.equal(weekDays([row], '2026-09-24', now).length, 7, 'the strip is still a week');
+  const last = days[days.length - 1].iso;
+  assert.equal(movable([row], now, last).instance_id, 'far');
+  assert.ok(days.some((x) => x.row && x.row.instance_id === movable([row], now, last).instance_id), 'what Move names, the sheet opens');
+  assert.equal(movable([{ ...row, occurs_on: '2026-10-09', starts_at: '2026-10-09T10:00:00Z' }], now, last), null);
+  const src = readFileSync(join(JS, 'screens', 'rollcall-setup.js'), 'utf8');
+  assert.match(src, /weekDays\(rows, todayIn\(tz\), Date\.now\(\), SHEET_DAYS\)/, 'the sheet looks as far as Move does');
+});
+
+test('a 7-day read of the week never serves or shrinks the 14-day roll call screen', async () => {
+  const cd = await import('./commitment-data.js');
+  const calls = [];
+  window.sb = { rpc: async (n, a) => { calls.push(a.p_days); return { data: Array.from({ length: a.p_days }, (_, i) => ({ instance_id: 'u' + i })), error: null }; } };
+  assert.equal((await cd.loadUpcoming('c-days', 7)).length, 7);
+  assert.equal((await cd.loadUpcoming('c-days', 14)).length, 14, 'a fresh 7-day cache does not answer a 14-day read');
+  assert.equal((await cd.loadUpcoming('c-days', 7, true)).length, 14, 'a forced 7-day read keeps the 14 days');
+  assert.deepEqual(calls, [7, 14, 14]);
+  assert.equal((await cd.loadUpcoming('c-days', 7)).length, 14, 'and a fresh 14-day cache serves the week');
+  assert.equal(calls.length, 3);
+  delete window.sb;
+});
+
+test('review: only a live wake-up is told on Save; arrival-only and paused are not', () => {
+  const src = readFileSync(join(JS, 'screens', 'rollcall-setup.js'), 'utf8');
+  assert.match(src, /if \(payload\.type === 'morning_roll_call' && payload\.active !== false\) void tellAthletesNow\(id\);/);
+});
+
+test('review: the landing line states the real count, read off the arming list', async () => {
+  const cd = await import('./commitment-data.js');
+  const v3 = await import('./rollcall-v3-data.js');
+  const hub = (await import('./screens/rollcall-hub.js')).default;
+  const now = Date.now();
+  const at = (h) => new Date(now + h * 3600000).toISOString();
+  cd.seedCommitmentsForHarness([{ id: 'rc-t', type: 'morning_roll_call', title: 'Morning Roll Call', repeat_days: [1, 2, 3, 4, 5], starts_min: 360, escalation: { alarm: true }, active: true }], []);
+  cd.seedUpcomingForHarness('rc-t', [{ instance_id: 'n1', occurs_on: '2099-01-01', starts_at: at(10), opens_at: at(9.8), closes_at: at(10.5), starts_min: 360, instance_status: 'scheduled', skipped: false }]);
+  const A = (id, told, o = {}) => ({ athlete_id: id, name: id, status: 'pending', notified_at: told ? at(-1) : null, can_push: true, ...o });
+  v3.seedArmingForHarness('n1', { alarm: true, rows: [A('Ann', true), A('Bo', true), A('Cy', false), A('Di', true, { status: 'excused' })] });
+  v3.seedToldForHarness('rc-t', 'ok', 5);
+  const html = hub.render({ sub: 'rc-t' });
+  assert.match(html, /Told 2 athletes\./, 'the told stamps, not the devices pushed, and never the excused');
+  assert.doesNotMatch(html, /just told/);
+  assert.match(html, /Hasn’t been told/, 'the one not told still says so, beside an honest count');
+  v3.seedToldForHarness('rc-t', 'no_instance');
+  assert.doesNotMatch(hub.render({ sub: 'rc-t' }), /rhb-told/, 'a 404 says nothing');
+  // Ten hours out: not opened is a fact (neutral), not a warning.
+  assert.doesNotMatch(html, /rhb-list soon/);
+});
+
+test('review: every repaint of the roll call screen waits for an open day sheet', () => {
+  const src = readFileSync(join(JS, 'screens', 'rollcall-hub.js'), 'utf8');
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert.equal((code.match(/window\.__render\(\)/g) || []).length, 2, 'only the deferred repaint and the bare-route fallback call __render');
+  assert.match(code, /repaintWhenFree\(document, \(\) => \{ if \(here\(sub\) && window\.__render\) window\.__render\(\); \}, window\.MutationObserver\)/);
 });

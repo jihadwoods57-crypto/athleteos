@@ -60,7 +60,7 @@ export type BridgeMessage =
   // The coach-assigned wake-up, as a REAL alarm (AlarmKit on iOS 26, setAlarmClock on Android).
   // The proto owns the roll-call rows, so it is what says which mornings are armed; the whole set
   // is sent every time and the native side reconciles, which makes a dropped message harmless.
-  | { type: 'WAKE_ALARMS'; id: number; alarms?: import('../lib/notify/wakeAlarms').WakeAlarmRequest[] }
+  | { type: 'WAKE_ALARMS'; id: number; alarms?: import('../lib/notify/wakeAlarms').WakeAlarmRequest[]; complete?: boolean }
   | { type: 'WAKE_ALARM_STATE'; id: number; ask?: boolean }
   // The native star prompt. REQUEST returns whether a prompt was actually asked for — never
   // whether anyone rated, which no platform reports. See the handler for why the flag is checked
@@ -214,7 +214,7 @@ export async function handleBridgeMessage(ref: Ref, msg: BridgeMessage): Promise
       // Fire-and-reconcile: resolves with how many are actually armed, which is what the Profile
       // row needs to say "3 mornings set" rather than guessing.
       try {
-        resolve(ref, msg.id, await syncWakeAlarms(msg.alarms ?? []));
+        resolve(ref, msg.id, await syncWakeAlarms(msg.alarms ?? [], { complete: msg.complete === true }));
       } catch (e) {
         resolve(ref, msg.id, null, String((e as Error)?.message ?? e));
       }
@@ -586,7 +586,7 @@ export const BRIDGE_SHIM = `
     // The coach's wake-up alarm. The argument is the WHOLE set that should be armed; anything the
     // device has that is not in the list is cancelled, so one call is always enough.
     wakeAlarms: {
-      sync: function(alarms){ return call('WAKE_ALARMS', { alarms: alarms || [] }); },
+      sync: function(alarms, opts){ return call('WAKE_ALARMS', { alarms: alarms || [], complete: !!(opts && opts.complete) }); },
       state: function(opts){ return call('WAKE_ALARM_STATE', { ask: !!(opts && opts.ask) }); }
     },
     secureStore: {

@@ -90,7 +90,7 @@ export async function signRollCallCode(
 }
 
 /** Mint a WINDOW code (2026-09-23): the credential the native Live Activity and alarm hold so a
- *  lock-screen tap can post the check-in itself with the app closed. It is minted up to 7 days
+ *  lock-screen tap can post the check-in itself with the app closed. It is minted up to 14 days
  *  ahead, so it cannot carry a "fresh" mint time; instead it is bound to one athlete, one instance
  *  and that instance's own window (open to close), and it is only valid inside it. Kind stays
  *  'athlete': it authorizes exactly what a one-shot athlete code does, for a longer but fixed span.
@@ -114,9 +114,11 @@ export async function signCoachCode(
 
 /** Verify a code AND assert its kind. `expectKind` defaults to 'athlete' so the pre-existing ack
  *  call site keeps its exact meaning; the coach endpoint must pass 'coach' explicitly.
- *  A window code ignores `graceMs`: its bounds are its own window (WINDOW_EARLY_MS / WINDOW_LATE_MS). */
+ *  A window code ignores `graceMs`: its bounds are its own window (WINDOW_EARLY_MS / WINDOW_LATE_MS).
+ *  `opts.allowEarly` lifts only the early bound, for the armed report (roll-call-ack 'armed'). */
 export async function verifyRollCallCode(
   secret: string, code: string, nowMs: number, graceMs: number, expectKind: CodeKind = 'athlete',
+  opts: { allowEarly?: boolean } = {},
 ): Promise<{ ok: true; claims: RollCallClaims } | { ok: false; reason: VerifyFailure }> {
   const dot = code.indexOf('.');
   if (dot <= 0 || dot === code.length - 1) return { ok: false, reason: 'malformed' };
@@ -140,7 +142,9 @@ export async function verifyRollCallCode(
   if (claims.kind !== expectKind) return { ok: false, reason: 'bad_kind' };
   if (claims.window) {
     if (!Number.isFinite(claims.iatMs)) return { ok: false, reason: 'malformed' };
-    if (nowMs < claims.iatMs - WINDOW_EARLY_MS) return { ok: false, reason: 'not_yet' };
+    // allowEarly: the push extension REPORTS an alarm it armed days before the window (roll call
+    // v3). It can only ever mark this athlete's own morning armed; the check-in path never passes it.
+    if (!opts.allowEarly && nowMs < claims.iatMs - WINDOW_EARLY_MS) return { ok: false, reason: 'not_yet' };
     if (nowMs > claims.deadlineMs + WINDOW_LATE_MS) return { ok: false, reason: 'expired' };
     return { ok: true, claims };
   }

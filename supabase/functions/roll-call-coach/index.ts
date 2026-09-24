@@ -12,6 +12,16 @@
 //   seen  — mark this instance's escalation read. Clears it from the coach's feed. Nothing else.
 //   nudge — re-push ONLY the athletes still not up, each with a fresh "I'm Up" button of their own.
 //
+// Roll call v3 (2026-09-24) adds three in-app actions, all through the ONE notice claim (0247
+// claim_rollcall_notices + _shared/rollcall-notice-send.ts), so the every-minute cron and a
+// coach's button can never both send the same notice:
+//   notify     { commitment } — after Start or Save: tell the roster now, not at the next tick.
+//                               Cooled down per roll call (60 s): a press inside it answers
+//                               { ok, cooldown: true } and the cron says it within the minute.
+//   schedule   { instance }   — a day moved or skipped from the board (0216); now said by the claim.
+//   remind_arm { instance }   — "Remind the N not set": re-send the assignment push to everyone
+//                               whose phone has not armed. Cooled down per roll call (429).
+//
 // THE NUDGE IS ITSELF ONE-TAP-ANSWERABLE. That is the point worth protecting in review: the push
 // this sends carries a freshly minted ATHLETE code and the same notification category the original
 // reminder used, so the athlete answers it from their own lock screen. A nudge that merely said
@@ -32,11 +42,13 @@ import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { verifyRollCallCode, signRollCallCode } from '../_shared/rollcall-code.ts';
 import { rollCallCategoryId, ROLLCALL_CHANNEL } from '../_shared/rollcall-category.ts';
 import { evaluateFlag, type FlagRow } from '../_shared/feature-flags.ts';
-import { parseAction, parseAthlete, httpStatusForCoach, nudgeBody, scheduleNoticeBody, type CoachFailure } from './logic.ts';
+import { parseAction, parseAthlete, httpStatusForCoach, nudgeBody, remindArmOutcome, type CoachFailure } from './logic.ts';
 // Expo answers a refused batch with HTTP 200 + per-message error tickets, so `r.ok` counted
 // refusals as deliveries. sendExpoPush reads the tickets; see _shared/expo-push.mjs.
 import { sendExpoPush } from '../_shared/expo-push.mjs';
 import { blockersOf, withoutBlockers, deviceCounts, sumDevices, logBlocked } from '../_shared/blocks.mjs';
+import { sendRollcallNotices } from '../_shared/rollcall-notice-send.ts';
+import type { NoticeRow } from '../_shared/rollcall-notice.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
@@ -50,6 +62,7 @@ const SECRET = Deno.env.get('ROLLCALL_ACK_SECRET') ?? '';
 // what ultimately decides whether a nudge is still meaningful.
 const COACH_GRACE_MS = 6 * 60 * 60 * 1000;
 const NUDGE_COOLDOWN_MIN = 10;
+const NOTIFY_COOLDOWN_SEC = 60;
 
 const json = (obj: unknown, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json' } });
@@ -82,7 +95,7 @@ Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return json({ ok: false, error: 'method not allowed' }, 405);
   if (!SUPABASE_URL || !SERVICE_ROLE) return json({ ok: false, error: 'not configured' }, 500);
 
-  let body: { code?: unknown; instance?: unknown; action?: unknown; athlete?: unknown } = {};
+  let body: { code?: unknown; instance?: unknown; action?: unknown; athlete?: unknown; commitment?: unknown } = {};
   try { body = (await req.json()) as typeof body; } catch { /* empty */ }
 
   const action = parseAction(body.action);
@@ -113,6 +126,39 @@ Deno.serve(async (req: Request) => {
     instanceId = typeof body.instance === 'string' ? body.instance : '';
     athleteId = parseAthlete(body.athlete);
   }
+
+  // ---------------------------------------------------------------- v3: tell them now (in-app)
+  // After Start or Save on the coach's roll call screen: run the notice claim for THIS roll call
+  // now instead of at the next cron tick, so the screen shows who was notified at once. Same claim,
+  // same sender, same stamps as the cron, so the two can never both send.
+  if (action === 'notify') {
+    if (code) return fail('bad_action');
+    const commitmentId = parseAthlete(body.commitment);   // a uuid parser; the name is historical
+    if (!commitmentId) return fail('malformed');
+    const svcN = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
+    const { data: flagN } = await svcN.from('feature_flags').select('*').eq('name', 'rollcall_lockscreen').maybeSingle();
+    if (flagN && !evaluateFlag(flagN as FlagRow, { userId: coachId })) return fail('flag_off');
+    // Authorized, kill switch, active, and the per-roll-call cooldown, in one call (0247).
+    const { data: nc, error: ncErr } = await svcN.rpc('rollcall_notify_claim', {
+      p_commitment: commitmentId, p_coach: coachId, p_cooldown_sec: NOTIFY_COOLDOWN_SEC,
+    });
+    if (ncErr) return fail('db_error');
+    const n = (nc ?? {}) as { ok?: boolean; reason?: string; cooldown?: boolean };
+    if (!n.ok) {
+      const why = remindArmOutcome(n.reason);
+      return fail(why === 'nobody' ? 'db_error' : why);
+    }
+    if (n.cooldown) return json({ ok: true, action: 'notify', cooldown: true, groups: 0, pushed: 0 });
+    // Wake-ups exist 14 days ahead before the claim looks (a roll call started seconds ago has
+    // none yet): THIS roll call only. Best effort: the claim then says whatever does exist.
+    try { await svcN.rpc('materialize_rollcall_ahead_svc', { p_commitment: commitmentId, p_days: 14 }); } catch { /* next tick */ }
+    const { data: rowsN, error: eN } = await svcN.rpc('claim_rollcall_notices', { p_commitment: commitmentId, p_limit: 500 });
+    if (eN) return fail('db_error');
+    const r = await sendRollcallNotices({ svc: svcN, secret: SECRET, supabaseUrl: SUPABASE_URL, rows: (rowsN ?? []) as NoticeRow[] });
+    // I1: a blocked athlete's devices count as delivered, exactly like everywhere else.
+    return json({ ok: true, action: 'notify', cooldown: false, groups: r.groups, pushed: r.pushed + r.ghost });
+  }
+
   if (!instanceId) return fail('malformed');
 
   const svc = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false } });
@@ -156,30 +202,46 @@ Deno.serve(async (req: Request) => {
     const sGhostIds = whoAll.filter((id) => sBlocked.has(String(id)));
     logBlocked('roll-call-coach:schedule', sGhostIds.length);
     const sGhost = sumDevices(await deviceCounts(svc, sGhostIds), sGhostIds);
-    if (!who.length) return json({ ok: true, action: 'schedule', targeted: whoAll.length, pushed: sGhost });
-    const { data: stoks } = await svc
-      .from('device_tokens').select('token,user_id').in('user_id', who);
-    const bodyText = scheduleNoticeBody({
-      title: s.title ?? 'Roll call', skipped: !!s.skipped,
-      startsMin: typeof s.starts_min === 'number' ? s.starts_min : null,
-      occursOn: String(s.occurs_on ?? ''), todayISO: String(s.today ?? ''),
-    });
-    const notices: Array<Record<string, unknown>> = [];
-    for (const t of (stoks ?? []) as Array<{ token: string; user_id: string }>) {
-      notices.push({
-        to: t.token,
-        // The coach's name, like the 6:00 push: this is their word about their roll call. No
-        // action button: there is nothing to answer yet.
-        title: s.coach_name || s.title || 'Roll call',
-        body: bodyText,
-        data: { route: `roll-call/${instanceId}`, from_coach: true },
-        channelId: ROLLCALL_CHANNEL,
-        priority: 'high',
-        sound: 'default',
-      });
+    // v3: the notice claim says it (one push per athlete per roll call), so the old per-day notice
+    // and the cron can never both buzz the roster. The claim above still writes the bell rows and
+    // spends the cooldown; the claim below decides who is pushed. Its sender re-checks blocks
+    // against the roll call's coach and answers a blocked athlete as delivered, like sGhost here.
+    const { data: instS } = await svc.from('commitment_instances').select('commitment_id').eq('id', instanceId).maybeSingle();
+    const cidS = (instS as { commitment_id?: string } | null)?.commitment_id;
+    let pushedS = 0;
+    if (cidS && who.length) {
+      const { data: rowsS } = await svc.rpc('claim_rollcall_notices', { p_commitment: cidS, p_limit: 500 });
+      pushedS = (await sendRollcallNotices({ svc, secret: SECRET, supabaseUrl: SUPABASE_URL, rows: (rowsS ?? []) as NoticeRow[] })).pushed;
     }
-    const pushedNotices = await push(notices);
-    return json({ ok: true, action: 'schedule', targeted: whoAll.length, pushed: pushedNotices + sGhost });
+    return json({ ok: true, action: 'schedule', targeted: whoAll.length, pushed: pushedS + sGhost });
+  }
+
+  // ---------------------------------------------------------------- v3: "Remind the N not set"
+  // The coach's one action before the window: the same assignment push, re-sent to everyone whose
+  // phone has not armed that morning. rollcall_arm_remind_claim authorizes the coach, honours the
+  // kill switch and spends a per-morning cooldown (429 on a second press); rollcall_remind_rows_svc
+  // shapes the rows like a claim so the same sender builds the push.
+  if (action === 'remind_arm') {
+    if (code) return fail('bad_action');
+    // A caller-supplied id: a non-uuid is the caller's mistake (400), never a database error (500).
+    if (!parseAthlete(instanceId)) return fail('bad_action');
+    const { data: rc, error: rcErr } = await svc.rpc('rollcall_arm_remind_claim', {
+      p_instance: instanceId, p_coach: coachId, p_cooldown_min: NUDGE_COOLDOWN_MIN,
+    });
+    if (rcErr) return fail('db_error');
+    const s = (rc ?? {}) as { ok?: boolean; reason?: string; commitment_id?: string; athlete_ids?: string[] };
+    if (!s.ok) {
+      const why = remindArmOutcome(s.reason);
+      // Everyone armed between the board read and the tap: nothing to send, nothing spent.
+      if (why === 'nobody') return json({ ok: true, action: 'remind_arm', targeted: 0, pushed: 0 });
+      return fail(why);
+    }
+    const ids = Array.isArray(s.athlete_ids) ? s.athlete_ids : [];
+    if (!ids.length || !s.commitment_id) return json({ ok: true, action: 'remind_arm', targeted: 0, pushed: 0 });
+    const { data: rowsR, error: rrErr } = await svc.rpc('rollcall_remind_rows_svc', { p_commitment: s.commitment_id, p_athletes: ids });
+    if (rrErr) return fail('db_error');
+    const r = await sendRollcallNotices({ svc, secret: SECRET, supabaseUrl: SUPABASE_URL, rows: (rowsR ?? []) as NoticeRow[] });
+    return json({ ok: true, action: 'remind_arm', targeted: ids.length, pushed: r.pushed + r.ghost });
   }
 
   // ---------------------------------------------------------------- "Nudge them"

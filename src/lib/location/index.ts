@@ -13,9 +13,9 @@
  * region monitoring needs it, but does NOT declare UIBackgroundModes "location" (App Review 2.5.4
  * on 2026-09-18 was exactly that key). The OS watches the region and wakes the app; if iOS then
  * refuses a reading, the region match is reported without one (see geofence.ts).
- * expo-location 57.0.19 refused startGeofencingAsync without that mode, and its geofencing
+ * expo-location 57.0.19 (and 57.0.20) refused startGeofencingAsync without that mode, and its geofencing
  * consumer set allowsBackgroundLocationUpdates (which CoreLocation throws on without the mode), so
- * it is PATCHED: patches/expo-location+57.0.19.patch, applied by the postinstall. Region
+ * it is PATCHED: patches/expo-location+57.0.20.patch, applied by the postinstall. Region
  * monitoring itself never needed the mode. If the device test disproves that, WALK_IN in
  * geofence.ts turns walk-in off per platform by OTA (docs/go-live/ROLLCALL-DEVICE-TEST.md).
  *

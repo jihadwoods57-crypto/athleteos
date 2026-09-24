@@ -1,4 +1,4 @@
-import { parseAction, httpStatusForCoach, isTerminal, nudgeBody, parseAthlete, scheduleNoticeBody, type CoachFailure } from './logic';
+import { parseAction, remindArmOutcome, httpStatusForCoach, isTerminal, nudgeBody, parseAthlete, type CoachFailure } from './logic';
 
 describe('parseAction', () => {
   it('accepts exactly the three verbs', () => {
@@ -88,23 +88,25 @@ describe('parseAthlete (0211)', () => {
   });
 });
 
-describe('scheduleNoticeBody (0216)', () => {
-  it('says tomorrow when it is tomorrow, with the moved time', () => {
-    expect(scheduleNoticeBody({ title: 'Wake-Up Roll Call', skipped: false, startsMin: 390, occursOn: '2026-09-03', todayISO: '2026-09-02' }))
-      .toBe('Wake-Up Roll Call is at 6:30 AM tomorrow.');
+describe('roll call v3 actions', () => {
+  it('accepts notify and remind_arm exactly, nothing near them', () => {
+    expect(parseAction('notify')).toBe('notify');
+    expect(parseAction('remind_arm')).toBe('remind_arm');
+    expect(parseAction('Notify')).toBeNull();
+    expect(parseAction('remind')).toBeNull();
   });
-  it('names the weekday further out, and today when it is today', () => {
-    expect(scheduleNoticeBody({ title: 'Roll call', skipped: false, startsMin: 285, occursOn: '2026-09-07', todayISO: '2026-09-02' }))
-      .toBe('Roll call is at 4:45 AM on Monday.');
-    expect(scheduleNoticeBody({ title: 'Roll call', skipped: false, startsMin: 0, occursOn: '2026-09-02', todayISO: '2026-09-02' }))
-      .toBe('Roll call is at 12:00 AM today.');
+});
+
+describe('remindArmOutcome: the arm-remind claim refusal, as the coach reads it', () => {
+  it('nobody left to remind is a quiet success, the kill switch is flag_off', () => {
+    expect(remindArmOutcome('nobody_to_remind')).toBe('nobody');
+    expect(remindArmOutcome('disabled')).toBe('flag_off');
   });
-  it('a skipped day is one sentence, no time', () => {
-    expect(scheduleNoticeBody({ title: 'Wake-Up Roll Call', skipped: true, startsMin: 360, occursOn: '2026-09-03', todayISO: '2026-09-02' }))
-      .toBe('No Wake-Up Roll Call tomorrow.');
-  });
-  it('never emits an em dash or an undefined', () => {
-    const out = scheduleNoticeBody({ title: '', skipped: false, startsMin: null, occursOn: 'x', todayISO: '2026-09-02' });
-    expect(out).not.toMatch(/undefined|—/);
+  it('passes the known refusals through and never turns an unknown one into a success', () => {
+    expect(remindArmOutcome('rate_limited')).toBe('rate_limited');
+    expect(remindArmOutcome('not_authorized')).toBe('not_authorized');
+    expect(remindArmOutcome('no_instance')).toBe('no_instance');
+    expect(remindArmOutcome('something_new')).toBe('db_error');
+    expect(remindArmOutcome(undefined)).toBe('db_error');
   });
 });

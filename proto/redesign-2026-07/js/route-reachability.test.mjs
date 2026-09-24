@@ -83,6 +83,9 @@ const DOORLESS_BY_DESIGN = new Set([
   'wakeup-morning',
   'coach-wakeup-new',
   'coach-wakeup-edit',
+  // Roll call v3 (2026-09-24): the week strip moved onto the one roll call screen (rollcall/<id>);
+  // rollcall-week/<id> redirects there before it paints.
+  'rollcall-week',
 ]);
 
 test('every registered screen can actually be opened', () => {
@@ -121,7 +124,7 @@ test('the coach Home roll call card opens the team board in every phase', () => 
    card's board) and an athlete two (the Home card, the detail screen). Each old route is kept as a
    redirect so a deep link in an old notification still lands; none may be linked to. */
 test('every old roll call entry lands on the rebuilt screens', async () => {
-  for (const r of ['rollcall-board', 'rollcall-new', 'rollcall-week', 'rollcall-history']) assert.ok(routes.has(r), r);
+  for (const r of ['rollcall', 'rollcall-board', 'rollcall-new', 'rollcall-week', 'rollcall-history']) assert.ok(routes.has(r), r);
   const code = (...p) => stripComments(readFileSync(join(JS, ...p), 'utf8'));
   const create = code('screens', 'coach-create.js');
   assert.match(create, /go: 'rollcall-new'/);
@@ -137,12 +140,17 @@ test('every old roll call entry lands on the rebuilt screens', async () => {
   }
   // The coach doors.
   const coach = code('screens', 'coach.js');
-  assert.match(coach, /data-go="rollcall-week\/\$\{esc\(rc\.commitment_id\)\}"/, 'Change the roll call opens the week strip');
+  assert.match(coach, /data-go="rollcall\/\$\{esc\(rc\.commitment_id\)\}"/, 'Open the roll call opens the one roll call screen');
   assert.match(coach, /data-go="rollcall-new"/, 'Set a roll call opens the setup');
   const cc = code('screens', 'coach-commitments.js');
   assert.match(cc, /data-go="rollcall-new">\$\{icon\('sun', 18\)\} Roll call/, 'the manage screen Roll call button opens the setup');
   assert.match(cc, /isRollcall\(row\)\) \{ location\.hash = `#rollcall-new\/\$\{row\.id\}`/, 'Edit on a roll call opens the setup on that rule');
-  assert.match(cc, /data-go="rollcall-week\/\$\{esc\(NEXT\.commitmentId\)\}"/, 'the next roll call card changes a morning in the week strip');
+  assert.match(cc, /data-go="rollcall\/\$\{esc\(NEXT\.commitmentId\)\}"/, 'the next roll call card opens the roll call screen');
+  // Roll call v3: nothing links to the retired week route; it only redirects.
+  for (const f of linkers) {
+    if (/screens[\/]rollcall-setup\.js$/.test(f)) continue;
+    assert.doesNotMatch(stripComments(readFileSync(f, 'utf8')), /['"`#]rollcall-week\//, `${relative(JS, f)} still links to the retired week route`);
+  }
   // The athlete doors.
   const plan = code('notify-plan.js');
   assert.match(plan, /!ROLLCALL_OFF && c\.type === 'morning_roll_call' \? `rollcall-board\/\$\{instanceId\}`/,

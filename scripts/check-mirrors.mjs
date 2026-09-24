@@ -31,6 +31,11 @@ const PAIRS = [
   ['modules/rollcall-live/ios/RollCallAttributes.swift', 'targets/RollCallWidget/RollCallAttributes.swift'],
   ['modules/rollcall-live/ios/RollCallCheckInIntent.swift', 'targets/RollCallWidget/RollCallCheckInIntent.swift'],
   ['modules/rollcall-live/ios/RollCallWidget.swift', 'targets/RollCallWidget/RollCallWidget.swift'],
+  // The Notification Service Extension (roll call v3) arms alarms from a push. The alarm's
+  // metadata, its intents and the scheduler must be the SAME types the app arms with, or an alarm
+  // armed from the push would carry intents the app cannot run.
+  ['modules/rollcall-live/ios/RollCallAlarm.swift', 'targets/NotificationService/RollCallAlarm.swift'],
+  ['modules/rollcall-live/ios/RollCallCheckInIntent.swift', 'targets/NotificationService/RollCallCheckInIntent.swift'],
   // WHO IS THIS MESSAGE FOR. The proto (browser ES modules, shipped in proto.zip) decides whether
   // to call the AI at all; meal-chat (Deno) enforces the SAME decision server-side so a stale or
   // tampered client cannot buy itself a turn. Two answers to one question is not a fix, so the

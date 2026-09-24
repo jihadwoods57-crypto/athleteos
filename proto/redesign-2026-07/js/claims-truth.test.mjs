@@ -141,7 +141,8 @@ test('no plan advertises a support tier, because the product has none', () => {
  * 2026-09-23 (roll call rebuilt): the composer is retired. The row opens the week strip, addressed
  * by the commitment id (rollcall-week/<id>), and Edit opens the rebuilt setup on the rule by id
  * (rollcall-new/<id>). Neither can start from a blank draft, so the duplicate stays impossible;
- * the pin below now asserts the id-addressed doors instead of editWakeup.
+ * the pin below now asserts the id-addressed doors instead of editWakeup. Roll call v3 (2026-09-24):
+ * the row opens the one roll call screen (rollcall/<id>), still by the commitment id.
  */
 test('the athlete card never claims an alarm state it cannot read', () => {
   const coach = code('screens', 'coach.js');
@@ -155,7 +156,7 @@ test('the only door to the roll call composer goes through a loaded rule', () =>
   const coach = code('screens', 'coach.js');
   assert.doesNotMatch(coach, /data-go="coach-wakeup-edit"/,
     'entering the composer without editWakeup(rule) starts a blank draft and saves a DUPLICATE roll call');
-  assert.match(coach, /data-go="rollcall-week\/\$\{esc\(rc\.commitment_id\)\}"/,
+  assert.match(coach, /data-go="rollcall\/\$\{esc\(rc\.commitment_id\)\}"/,
     'the athlete page opens THIS roll call by its commitment id, never a blank draft');
   const manage = code('screens', 'coach-commitments.js');
   assert.match(manage, /isRollcall\(row\)\) \{ location\.hash = `#rollcall-new\/\$\{row\.id\}`/,

@@ -161,3 +161,17 @@ describe('window codes', () => {
     expect(r.ok && r.claims.window).toBe(false);
   });
 });
+
+describe('allowEarly: the push extension reports an alarm armed days ahead', () => {
+  it('accepts a window code long before its window, and never after its close', async () => {
+    const code = await signWindowCode(SECRET, { instanceId: 'i', athleteId: 'a', opensMs: 10_000_000, closesMs: 11_000_000 });
+    expect(await verifyRollCallCode(SECRET, code, 1_000, 0, 'athlete', { allowEarly: true })).toMatchObject({ ok: true });
+    expect(await verifyRollCallCode(SECRET, code, 1_000, 0, 'athlete')).toEqual({ ok: false, reason: 'not_yet' });
+    expect(await verifyRollCallCode(SECRET, code, 11_000_000 + 10 * 60e3 + 1, 0, 'athlete', { allowEarly: true }))
+      .toEqual({ ok: false, reason: 'expired' });
+  });
+  it('still refuses a coach code', async () => {
+    const coach = await signCoachCode(SECRET, { instanceId: 'i', coachId: 'c', deadlineMs: 5_000_000, iatMs: 1_000 });
+    expect(await verifyRollCallCode(SECRET, coach, 2_000, 0, 'athlete', { allowEarly: true })).toEqual({ ok: false, reason: 'bad_kind' });
+  });
+});

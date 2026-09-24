@@ -196,28 +196,41 @@ export async function loadMine(force = false, dayISO = null) {
   } catch { RTC.mineError = true; return RTC.mine; }
 }
 
-/* The week AHEAD, for the alarm. loadMine's window is yesterday..tomorrow, which is right for Home
-   and wrong for arming alarms: an athlete who did not open the app for two days had no alarm on
-   the third morning, because nothing had ever read that morning's row. This materializes and
-   reads today..+7 once every half hour (the horizon wake-alarms.js arms to), merged with the Home
-   rows by the caller. Never touches RTC.mine, so Home's own cache stays the truth for the day. */
-const AHEAD_DAYS = 7;
-const AHEAD_FRESH_MS = 30 * 60_000;
-const AHEAD = { rows: [], at: 0, day: null };
+/* The 14 days AHEAD, for the alarm. loadMine's window is yesterday..tomorrow, wrong for arming:
+   an athlete who did not open the app for two days had no alarm on the third morning. Merged
+   with the Home rows by the caller; never touches RTC.mine. */
+const AHEAD_DAYS = 14; // the alarm horizon, roll call v3
+const AHEAD_FRESH_MS = 2 * 60_000; // covers plain re-renders; force (home.js armAhead) skips it
+const AHEAD = { rows: [], at: 0, day: null, ok: false, uid: null, inflight: null, inflightUid: null };
 export async function loadMineAhead(force = false) {
   const day = todayISO();
-  if (!force && AHEAD.day === day && Date.now() - AHEAD.at < AHEAD_FRESH_MS) return AHEAD.rows;
-  const c = sb(); if (!c) return AHEAD.rows;
+  const uid = vcUid(); // keyed: A's load must never populate B's cache
+  if (AHEAD.inflight && AHEAD.inflightUid === uid) return AHEAD.inflight;
+  if (!force && AHEAD.uid === uid && AHEAD.day === day && Date.now() - AHEAD.at < AHEAD_FRESH_MS) return AHEAD.rows;
+  const c = sb(); if (!c) { AHEAD.ok = false; return AHEAD.rows; }
   const from = day, to = shiftISO(day, AHEAD_DAYS);
-  try {
-    try { await c.rpc('ensure_my_commitment_instances', { p_from: from, p_to: to }); } catch { /* best-effort */ }
-    const { data, error } = await c.rpc('my_commitments', { p_from: from, p_to: to });
-    if (error) return AHEAD.rows;
-    AHEAD.rows = Array.isArray(data) ? data : [];
-    AHEAD.at = Date.now(); AHEAD.day = day;
-    return AHEAD.rows;
-  } catch { return AHEAD.rows; }
+  AHEAD.inflightUid = uid;
+  AHEAD.inflight = (async () => {
+    try {
+      try { await c.rpc('ensure_my_commitment_instances', { p_from: from, p_to: to }); } catch { /* best-effort */ }
+      const { data, error } = await c.rpc('my_commitments', { p_from: from, p_to: to });
+      if (vcUid() !== uid) return AHEAD.rows; // the account changed mid-flight; discard the answer
+      if (error) { AHEAD.ok = false; return AHEAD.rows; }
+      AHEAD.rows = Array.isArray(data) ? data : [];
+      AHEAD.at = Date.now(); AHEAD.day = day; AHEAD.ok = true; AHEAD.uid = uid;
+      return AHEAD.rows;
+    } catch { AHEAD.ok = false; return AHEAD.rows; }
+    finally { AHEAD.inflight = null; AHEAD.inflightUid = null; }
+  })();
+  return AHEAD.inflight;
 }
+
+export function aheadRows() { return AHEAD.rows; } // Home's next-roll-call card
+/** True only when today's load succeeded: only then may a sync cancel alarms it didn't arm
+ *  itself (wake-alarms.js `complete`). */
+export function aheadComplete() { return AHEAD.ok === true && AHEAD.day === todayISO(); }
+/** Wipe the ahead cache (state.js _wipeUserScopedState). Also a test seam. */
+export function _resetAhead() { AHEAD.rows = []; AHEAD.at = 0; AHEAD.day = null; AHEAD.ok = false; AHEAD.uid = null; AHEAD.inflight = null; AHEAD.inflightUid = null; }
 
 /** A longer history window for the Accountability screen. Does not touch the Home cache.
  *  null = FAILED (the fetcher contract): a dead network must never read as "Nothing to show
@@ -411,12 +424,14 @@ export async function loadUpcoming(commitmentId, days = 7, force = false) {
   const have = RTC.upcoming.get(commitmentId);
   if (have && have.seeded) return have.rows;
   const c = sb(); if (!c || !commitmentId) return null;
-  if (!force && have && Date.now() - have.at < FRESH_MS) return have.rows;
+  // A 7-day read never serves, or shrinks, a 14-day cache.
+  const span = Math.max(days, (have && have.days) || 0);
+  if (!force && have && have.days >= days && Date.now() - have.at < FRESH_MS) return have.rows;
   try {
-    const { data, error } = await c.rpc('rollcall_upcoming', { p_commitment: commitmentId, p_days: days });
+    const { data, error } = await c.rpc('rollcall_upcoming', { p_commitment: commitmentId, p_days: span });
     if (error) return have ? have.rows : null;
     const rows = Array.isArray(data) ? data : [];
-    RTC.upcoming.set(commitmentId, { rows, at: Date.now() });
+    RTC.upcoming.set(commitmentId, { rows, at: Date.now(), days: span });
     return rows;
   } catch { return have ? have.rows : null; }
 }

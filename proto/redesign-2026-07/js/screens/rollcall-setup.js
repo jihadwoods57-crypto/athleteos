@@ -3,7 +3,8 @@
    Three screens, one module:
      rollcall-new            set one up in four answers: time, days, who, alarm (about 20 seconds)
      rollcall-new/<id>       the same screen, editing a saved roll call
-     rollcall-week/<id>      this week on one line: move a morning, cancel it, undo
+     rollcall-week/<id>      retired (roll call v3): redirects to rollcall/<id>, the coach's one roll
+                             call screen (rollcall-hub.js), which carries this week strip now
      rollcall-history/<id>   the last 30 days: team on-time rate, who needs attention, who is reliable
 
    THE FOUR ANSWERS. Grace (5 minutes), the close (30 minutes) and the morning message have good
@@ -49,6 +50,7 @@ import {
   wakeupPayload, windowCells, windowLabel, hhmm, minOf, daysLabel, canSchedule,
   GRACES, CLOSE_CHOICES, CLOSE_DEFAULT_MIN, PRESETS,
 } from './coach-wakeup.js';
+import { tellAthletesNow } from '../rollcall-v3-data.js';
 
 /* ---------------------------------------------------------------- the model */
 
@@ -248,7 +250,7 @@ export function markSavingForHarness(on) { SAVING = !!on; }
 export function seedSetupForHarness(partial) { DRAFT = { ...blankSetup(), ...(partial || {}) }; }
 
 /** The rule behind an id, from the book's loaded commitments. */
-const ruleOf = (id) => (id ? (VC.commitments || []).find((r) => r && r.id === id) || null : null);
+export const ruleOf = (id) => (id ? (VC.commitments || []).find((r) => r && r.id === id) || null : null);
 /** A roll call this module can open: every wake-up, and an arrival-only row THIS screen made
  *  (carries the mark). Exported for the tests. */
 /* One definition, in commitments.js, so the doors (coach Home, Commitments) ask it too. */
@@ -425,7 +427,7 @@ const PLACE_ERR = {
 export const rollcallNew = {
   nav: 'operator', tab: 'home', transient: true,
   render({ sub } = {}) {
-    const back = sub ? `rollcall-week/${sub}` : (CD.kind === 'practice' ? 'trainer' : 'coach-home');
+    const back = sub ? `rollcall/${sub}` : (CD.kind === 'practice' ? 'trainer' : 'coach-home');
     if (ROLLCALL_OFF) return `${backHead('Roll call', 'Switched off', back)}${emptyState({ icon: 'sun', title: 'The roll call is off right now', body: 'Nobody is being asked to check in. Every roll call you already ran is kept.' })}`;
     if (!canSchedule()) return notForRole(back);
     const d = draftFor(sub);
@@ -571,8 +573,12 @@ export const rollcallNew = {
       // Leave FIRST, with the draft still whole (a repaint now shows the form, never a blank one),
       // then refresh. The saved draft carries its id, so the next New starts clean.
       d.id = id;
-      location.replace(`#rollcall-week/${id}`);
+      location.replace(`#rollcall/${id}`);
       SAVING = false;
+      // Roll call v3: tell the athletes now, not at the next cron minute, and the screen it lands
+      // on says how that went (rollcall-v3-data.js toldState). Only a live wake-up: an arrival-only
+      // or paused roll call has no alarm to tell anyone about (notify refuses both).
+      if (payload.type === 'morning_roll_call' && payload.active !== false) void tellAthletesNow(id);
       loadCommitments(own, CD.kind, true).then((rows) => { RT.vcCommitments = rows; }, () => {});
     });
   },
@@ -608,10 +614,13 @@ export function moveProblem(day, min, tz, nowMs = Date.now()) {
 }
 const dayOf = (iso) => new Date(`${iso}T12:00:00`);
 
-/** Seven days from today, each with its occurrence (or none), moved / skipped / started. */
-export function weekDays(rows, todayIso, nowMs = Date.now()) {
+/** `len` days from today (7: the strip; SHEET_DAYS: the day sheet, which the roll call screen's
+ *  Move and Cancel open on any morning they can name), each with its occurrence (or none), moved /
+ *  skipped / started. */
+export const SHEET_DAYS = 14;
+export function weekDays(rows, todayIso, nowMs = Date.now(), len = 7) {
   const list = Array.isArray(rows) ? rows : [];
-  return Array.from({ length: 7 }, (_, i) => {
+  return Array.from({ length: len }, (_, i) => {
     const iso = shiftISO(todayIso, i);
     let row = list.find((r) => r && r.occurs_on === iso) || null;
     // A cancelled occurrence the coach did not skip is the rule no longer repeating that day.
@@ -659,7 +668,7 @@ export function weekNote(rows, todayIso, nowMs = Date.now()) {
 
 const WEEK = { forId: null, failed: false };
 let SHEET_OPENER = null;
-function closeWeekSheet(focusBack) {
+export function closeWeekSheet(focusBack) {
   document.querySelectorAll('.rw-scrim, .sheet.rw-sheet').forEach((n) => n.remove());
   document.removeEventListener('keydown', weekSheetKey);
   window.removeEventListener('hashchange', closeWeekSheetQuiet);
@@ -668,14 +677,14 @@ function closeWeekSheet(focusBack) {
 function closeWeekSheetQuiet() { closeWeekSheet(null); }
 function weekSheetKey(e) { if (e.key === 'Escape') closeWeekSheet(SHEET_OPENER); }
 
-function weekSub(rule) {
+export function weekSub(rule) {
   const d = draftFromRule(rule, VC.locations || []);
   if (d.mode === 'arrival') return `${daysLabel(d.repeat_days)} · by ${fmtMin(d.arrive_by_min != null ? d.arrive_by_min : d.starts_min)}${placeName(d) ? ` · ${placeName(d)}` : ''}`;
   return `${daysLabel(d.repeat_days)} · ${fmtMin(d.starts_min)}${d.mode === 'both' && placeName(d) ? ` · then ${placeName(d)}` : ''}`;
 }
 
 /** The first roll call in the book, for a bare #rollcall-week / #rollcall-history. */
-const firstRollcall = () => {
+export const firstRollcall = () => {
   const all = (VC.commitments || []).filter(isRollcall);
   const live = all.filter((r) => r.active !== false);
   return live.find((r) => r.type === 'morning_roll_call') || live[0] || all.find((r) => r.type === 'morning_roll_call') || all[0] || null;
@@ -687,6 +696,9 @@ function noRollcallYet(title, back) {
 
 export const rollcallWeek = {
   nav: 'operator', tab: 'home',
+  /* Roll call v3: the week strip lives on the one roll call screen now (#rollcall/<id>). A bare
+     #rollcall-week still resolves the first roll call below, then lands there too. */
+  redirect({ sub } = {}) { return sub ? `rollcall/${sub}` : null; },
   render({ sub } = {}) {
     const back = CD.kind === 'practice' ? 'trainer' : 'coach-home';
     const rule = ruleOf(sub);
@@ -725,7 +737,7 @@ export const rollcallWeek = {
     const rerender = () => { if (root.isConnected && window.__render) window.__render(); };
     const owner = bookId();
     if (!sub) {
-      const go = () => { const r = firstRollcall(); if (r) location.replace(`#rollcall-week/${r.id}`); else rerender(); };
+      const go = () => { const r = firstRollcall(); if (r) location.replace(`#rollcall/${r.id}`); else rerender(); };
       if (firstRollcall()) { go(); return; }
       if (owner) loadCommitments(owner, CD.kind).then(go, () => {});
       return;
@@ -756,11 +768,11 @@ export const rollcallWeek = {
 };
 
 /** One morning's sheet: move it, cancel it, undo. Every write tells the athletes (0216). */
-function openDaySheet(root, commitmentId, instanceId, opener, rerender) {
+export function openDaySheet(root, commitmentId, instanceId, opener, rerender) {
   if (overlayOpen()) return;
   const rows = VC.upcomingFor(commitmentId) || [];
   const tz = (ruleOf(commitmentId) || {}).timezone;
-  const x = weekDays(rows, todayIn(tz)).find((d) => d.row && d.row.instance_id === instanceId);
+  const x = weekDays(rows, todayIn(tz), Date.now(), SHEET_DAYS).find((d) => d.row && d.row.instance_id === instanceId);
   if (!x) return;
   const rule = x.row.rule_starts_min != null ? x.row.rule_starts_min : x.min;
   const state = x.skipped ? `Cancelled. Usually ${fmtMin(rule)}.`
@@ -806,7 +818,7 @@ function openDaySheet(root, commitmentId, instanceId, opener, rerender) {
     }
     let told = null;
     try { told = await notifyScheduleChange(instanceId); } catch { told = null; }
-    await loadUpcoming(commitmentId, 7, true);
+    await loadUpcoming(commitmentId, SHEET_DAYS, true);   // the roll call screen reads 14 days (the alarm horizon)
     closeWeekSheet(opener);
     rerender();
     const note = document.querySelector('.rw-note');
@@ -910,7 +922,7 @@ const HIST = { forId: null, failed: false };
 export const rollcallHistory = {
   nav: 'operator', tab: 'home',
   render({ sub } = {}) {
-    const back = sub ? `rollcall-week/${sub}` : (CD.kind === 'practice' ? 'trainer' : 'coach-home');
+    const back = sub ? `rollcall/${sub}` : (CD.kind === 'practice' ? 'trainer' : 'coach-home');
     if (!sub) {
       if (VC.commitments && VC.commitments.length && !firstRollcall()) return noRollcallYet('Roll call history', back);
       return `${backHead('Roll call history', 'Loading…', back)}${skeletonRows(4, 'Loading history')}`;

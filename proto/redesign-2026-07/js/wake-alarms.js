@@ -17,8 +17,9 @@ import { WAKEUP_TYPE } from './wakeup-morning.js';
 /** Never arm more than this. A runaway row set must not fill a phone with alarms. */
 export const MAX_ALARMS = 14;
 
-/** How far ahead to arm. Beyond this the app will have synced again many times over. */
-export const HORIZON_DAYS = 7;
+/** How far ahead to arm (roll call v3): the server's window codes and the push extension use the
+ *  same 14 days. */
+export const HORIZON_DAYS = 14;
 
 /**
  * Which of the athlete's commitments deserve an alarm, in the shape the bridge wants.
@@ -47,12 +48,16 @@ export function alarmsFor(rows, nowMs = Date.now()) {
 
   for (const r of rows) {
     if (!r || r.type !== WAKEUP_TYPE) continue;
+    const id = r.instance_id == null ? '' : String(r.instance_id);
+    // The FIRST row decides — seen before any other check, so a fresh row (callers merge fresh
+    // before stale) always beats a stale duplicate for the same instance.
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+
     if (r.alarm === false) continue; // the coach turned the alarm off for this wake-up
     // A day the coach skipped or a rule they deleted (0215 sets the instance cancelled). The
     // verdict check below does not see it, so without this an alarm rang for a called-off morning.
     if (r.instance_status === 'cancelled' || r.skipped === true) continue;
-    const id = r.instance_id == null ? '' : String(r.instance_id);
-    if (!id || seen.has(id)) continue;
 
     // A verdict means the clock has already had its say. `pending` is the only state a morning
     // still ahead of us can legitimately be in.
@@ -77,7 +82,6 @@ export function alarmsFor(rows, nowMs = Date.now()) {
       buttonLabel: alarmButtonLabel(r),
       at,
     });
-    seen.add(id);
   }
 
   out.sort((a, b) => a.at - b.at);
@@ -112,8 +116,8 @@ export function alarmTitle(row) {
  * The alarm is armed days ahead and rings with OnStandard closed, so the code that lets its Stop
  * button check in by itself has to be on the phone BEFORE the morning. roll-call-ack's mint
  * ({ action: 'codes' }, the athlete's own session) returns one WINDOW code per wake-up over the
- * next 7 days; each is valid only from 15 minutes before that morning opens to 10 minutes after it
- * closes, for this athlete and that instance alone.
+ * next HORIZON_DAYS (14, v3); each is valid only from 15 minutes before that morning opens to 10
+ * minutes after it closes, for this athlete and that instance alone.
  *
  * A missing code costs nothing but the shortcut: the alarm still arms, and its button records the
  * tap for the app to drain on the next open, which is what it always did. */
@@ -219,13 +223,15 @@ export function withAckCodes(alarms, mint) {
  * app shell there is no bridge and this does nothing at all.
  * @returns {Promise<number>} how many are armed. 0 on a device that cannot set alarms.
  */
-export async function syncWakeAlarms(rows, nowMs = Date.now()) {
+export async function syncWakeAlarms(rows, nowMs = Date.now(), opts = {}) {
   try {
     const n = window.OnStandardNative;
     if (!n || !n.wakeAlarms) return 0;
     const alarms = alarmsFor(rows, nowMs);
     const mint = alarms.length ? await fetchAckCodes(window.sb, nowMs, alarms.map((a) => a.instanceId)) : null;
-    return Number(await n.wakeAlarms.sync(withAckCodes(alarms, mint))) || 0;
+    // `complete`: the caller loaded every morning in the horizon, so the shell may cancel alarms it
+    // did not arm itself (the push extension's). An older shell ignores the second argument.
+    return Number(await n.wakeAlarms.sync(withAckCodes(alarms, mint), { complete: opts.complete === true })) || 0;
   } catch {
     return 0; // no bridge, or the shell is older than this feature
   }

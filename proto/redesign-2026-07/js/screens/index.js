@@ -226,8 +226,11 @@ export const screens = {
   'location-consent': lazy(() => import('./location-consent.js')),
   // The roll call rebuilt (2026-09-23): the live team board, Your day, and the coach's board.
   'rollcall-board': lazy(() => import('./rollcall-board.js')),
-  // The coach's roll call (Task 10): setup in four answers, this week, history. Path subs carry
-  // the commitment id (rollcall-week/<id>); rollcall-new/<id> edits one.
+  // v3: where the assignment push lands.
+  'rollcall-assigned': lazy(() => import('./rollcall-assigned.js')),
+  // v3: the coach's one roll call screen (rollcall/<id>); rollcall-week redirects here.
+  rollcall: lazy(() => import('./rollcall-hub.js')),
+  // Setup in four answers (rollcall-new/<id> edits one), history, the retired week route.
   'rollcall-new': lazy(rollcallSetup, 'rollcallNew'),
   'rollcall-week': lazy(rollcallSetup, 'rollcallWeek'),
   'rollcall-history': lazy(rollcallSetup, 'rollcallHistory'),

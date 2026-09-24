@@ -100,6 +100,35 @@ test('sign-out disarms', async () => {
   assert.ok(!calls.includes('arm'));
 });
 
+test('roll call v3: sign-out sweeps every wake alarm this device holds, feature-detected', async () => {
+  const wakeCalls = [];
+  window.OnStandardNative.wakeAlarms = {
+    sync: (alarms, opts) => { wakeCalls.push([alarms, opts]); return Promise.resolve(0); },
+  };
+  RT.userId = 'u-1';
+  await act.signOut();
+  assert.deepEqual(wakeCalls, [[[], { complete: true }]],
+    'an empty set with complete:true sweeps every alarm the device holds, not just this process\'s own');
+  delete window.OnStandardNative.wakeAlarms;
+  // An older shell with no wakeAlarms bridge at all must not throw or block sign-out.
+  RT.userId = 'u-1';
+  await assert.doesNotReject(act.signOut());
+});
+
+test('roll call v3: sign-out fires onstd:account-wipe, so home.js can re-arm its own module state', async () => {
+  const events = [];
+  const realDispatch = window.dispatchEvent;
+  window.dispatchEvent = (ev) => { events.push(ev && ev.type); return realDispatch(ev); };
+  RT.userId = 'u-1';
+  try {
+    await act.signOut();
+  } finally {
+    window.dispatchEvent = realDispatch;
+  }
+  assert.ok(events.includes('onstd:account-wipe'),
+    'home.js has no other way to hear that the account under it just changed');
+});
+
 test('deleting the account disarms', async () => {
   RT.userId = 'u-1';
   calls.length = 0;
@@ -136,4 +165,17 @@ test('a native disarm that never answers cannot block sign-out or account deleti
   const ok = await act.deleteAccount();
   assert.ok(Date.now() - t < LOC_DISARM_WAIT_MS + 1000, 'deletion finished');
   assert.equal(typeof ok, 'boolean');
+});
+
+test('roll call v3: a wake-alarm sweep that never answers cannot block sign-out either', async () => {
+  const { WAKE_SWEEP_WAIT_MS, LOC_DISARM_WAIT_MS } = await import('./state.js');
+  assert.ok(WAKE_SWEEP_WAIT_MS <= 3000);
+  window.OnStandardNative.location = { arm: () => Promise.resolve({}), disarm: () => Promise.resolve(true) };
+  window.OnStandardNative.wakeAlarms = { sync: () => new Promise(() => {}) };
+  RT.userId = 'u-6';
+  const t = Date.now();
+  await act.signOut();
+  assert.ok(Date.now() - t < WAKE_SWEEP_WAIT_MS + LOC_DISARM_WAIT_MS + 1000, 'sign-out finished');
+  assert.equal(RT.userId, null, 'and the local state was still wiped');
+  delete window.OnStandardNative.wakeAlarms;
 });

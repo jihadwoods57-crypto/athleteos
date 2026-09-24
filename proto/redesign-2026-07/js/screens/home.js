@@ -21,7 +21,7 @@ import { warmMealPhotos, todayMealPhotoPath, cachedMealPhoto, cachedMealThumb, p
 import { launchCache, keepLaunch, launchOwner, onLaunchDrop } from '../launch-cache.js';
 import { shouldNudge, nudgeSignature, nudgeData } from '../coach-nudge.js';
 import { deriveCommitment, presenceOf, PRESENCE, tomorrowRollcall, wakeupPhase } from '../commitments.js';
-import { VC, loadMine, loadMineAhead, ackCommitment, todayISO as vcToday } from '../commitment-data.js';
+import { VC, loadMine, loadMineAhead, ackCommitment, todayISO as vcToday, aheadComplete } from '../commitment-data.js';
 import { commitmentCard, mountCommitmentCard, commitmentOfflineCard, tomorrowCard } from './roll-call.js';
 import { standardsCard, mountStandardsCard, standardsOfflineCard } from './standards-card.js';
 import { CS, loadMine as loadStandards, todayISO as csToday } from '../connected-standard-data.js';
@@ -288,43 +288,40 @@ const seenReceiptId = (seenAt) => `seen:${seenAt || ''}`;
 
 function paintCommitments(root) {
   const slot = root.querySelector('#vc-slot');
+  // A finished day has no cards, only the next roll call (v3).
+  const rn = root.querySelector('#rn-home');
+  if (rn) void import('../rollcall-next.js').then((RN) => RN.mountHomeNext(rn), () => {});
   if (!slot) return;
   const paint = () => {
     if (!slot.isConnected) return;
     const now = new Date().toISOString();
     paintPresenceReceipt(root);
     const today = vcToday();
-    // Tonight's preview (0216): from late afternoon, tomorrow's wake-up sits under today's cards,
-    // so a moved time or a skipped day is known BEFORE the alarm gets set. loadMine already
-    // fetches yesterday through tomorrow; this reads what is cached, nothing extra.
+    // From 4 PM a morning called OFF for tomorrow shows (0216); the next card (v3) says the rest.
     const evening = new Date().getHours() >= 16;
-    /* A settled receipt the athlete already cleared leaves the screen, and STAYS gone: at 11:59
-       an 8:30 check-in is proof of something finished, not a thing to act on. Only positive,
-       settled receipts are clearable - receipts.js canClear is the one place that line is drawn,
-       and a miss is never on the clearable side of it. */
+    /* A cleared receipt STAYS gone. Only positive, settled receipts clear (receipts.js canClear);
+       a miss never does. */
     const derived = VC.today(today).map((r) => deriveCommitment(r, now));
     const clearable = derived.filter((d) => d && d.visible && canClear(d) && d.instance_id);
     const shown = derived.filter((d) => !(canClear(d) && isCleared(RT.userId, today, d.instance_id)));
     RECEIPTS.ids = clearable
       .filter((d) => !isCleared(RT.userId, today, d.instance_id))
       .map((d) => String(d.instance_id));
-    /* ONE row per morning. An answered wake-up already has its receipt under the ring ("Up at
-       5:46 · +8 on today's score"), and the collapsed card in this slot said the same thing a
-       second time. The receipt is the door to the detail now; the card yields to it. A pending
-       offline answer keeps its card, because the receipt only speaks for a landed one. */
+    /* ONE row per morning: an answered wake-up's receipt under the ring is its door, so the card
+       yields. A pending offline answer keeps its card (the receipt only speaks for a landed one). */
     const receiptOnScreen = !!root.querySelector('.wk-receipt');
     const html = shown
       .filter((d) => !(receiptOnScreen && d.type === WAKEUP_TYPE && d.stage === 'acknowledged' && !d.pendingSync))
       .map((d) => commitmentCard(d))
       .filter(Boolean).join('')
-      + (evening ? tomorrowCard(tomorrowRollcall(VC.mine, today)) : '');
-    // An outage must never render as "you have nothing scheduled". For an athlete whose coach is
-    // counting on a 5:15 AM response, silence and a failed fetch look identical and mean opposite
-    // things — so when the fetch failed and we have nothing cached, say so.
+      + (() => { const t = evening && tomorrowRollcall(VC.mine, today); return t && t.skipped ? tomorrowCard(t) : ''; })();
+    // A failed fetch must never read as "nothing scheduled": say so.
     slot.innerHTML = html || (VC.mineError ? commitmentOfflineCard() : '');
     if (html) mountCommitmentCard(slot, () => paintCommitments(root));
-    // I4: the Continue primer (notifications, then the alarm) where the roll call is seen.
-    void import('../notify-permission.js').then((NP) => NP.mountRollcallPrimer(slot, VC.mine), () => {});
+    // v3: the next roll call and whether THIS phone rings for it (js/rollcall-next.js).
+    void import('../rollcall-next.js').then((RN) => RN.mountHomeNext(slot, shown), () => {});
+    // v3: the once-per-account alarm primer, else the notification one (js/alarm-primer.js).
+    void import('../alarm-primer.js').then((AP) => AP.mountPrimers(slot, VC.mine, S.coach.kind === 'coach'), () => {});
     paintClearReceipts(root);
     // The offline card's Retry re-runs THIS fetch — recovery on the card, not a dead notice.
     const retry = slot.querySelector('[data-vc-retry]');
@@ -334,7 +331,7 @@ function paintCommitments(root) {
   // A lock-screen tap recorded while the app was away (0212): refetch on the foreground beat.
   const onFg = () => {
     if (!slot.isConnected) return;
-    loadMine(true).then((rows) => { RT.vcRows = rows; publishWakeup(rows); paint(); });
+    loadMine(true).then((rows) => { RT.vcRows = rows; publishWakeup(rows, true); paint(); });
   };
   window.addEventListener('onstd:foreground', onFg);
   // The router runs window.__screenCleanup before every re-render/route change and then nulls it
@@ -351,7 +348,8 @@ function paintCommitments(root) {
     // module cycle coach-data.js documents, which makes RT undefined at eval time in an ESM
     // WebView), so the screen that owns the fetch is what publishes the result.
     RT.vcRows = rows;
-    publishWakeup(rows);
+    publishWakeup(rows, armFirstOpen);   // forced only on the first Home mount this app open
+    armFirstOpen = false;
     paint();
   });
 }
@@ -361,7 +359,18 @@ function paintCommitments(root) {
    for the same reason: commitment-data.js never imports day.js, so the screen that owns the fetch
    is what publishes the result. daySetWakeup is a no-op when nothing changed, which matters
    because these rows are refetched on every foreground beat. */
-function publishWakeup(rows) {
+let armFirstOpen = true; // true through Home's first mount this app open
+window.addEventListener('onstd:account-wipe', () => { armFirstOpen = true; }); // state.js wipe
+
+/** Arm the mornings still ahead (v3): forced on open/resume/answer, else rides loadMineAhead's
+ *  own cache + de-dupe (else EVERY __render() cost 2 extra RPCs, one a WRITE). */
+function armAhead(rows, force = false) {
+  try {
+    loadMineAhead(force).then((ahead) => syncWakeAlarms([...(rows || []), ...(ahead || [])], Date.now(), { complete: aheadComplete() }), () => syncWakeAlarms(rows));
+  } catch (_) { /* never block the paint */ }
+}
+
+function publishWakeup(rows, forceAhead = false) {
   try { daySetWakeup(myWakeupForDay(rows, DAY.date), RT.userId || null); } catch (_) { /* never block the paint */ }
   // The place check's twin (0242 s7): the server's arrival_verdict for today's assigned arrival,
   // whether it rides a wake-up or stands alone. Same no-op-when-unchanged push.
@@ -377,18 +386,11 @@ function publishWakeup(rows) {
       drain: () => { const N = window.OnStandardNative; return N && N.rollcall && N.rollcall.drain ? N.rollcall.drain() : 0; },
       points: () => Math.round(WAKEUP_SHIFT * 100),
       buzz,
-      onAnswered: () => { loadMine(true).then((r) => { RT.vcRows = r; daySetWakeup(myWakeupForDay(r, DAY.date), RT.userId || null); daySetArrival(myArrivalForDay(r, DAY.date), RT.userId || null); if (window.__render) window.__render(); }); },
+      onAnswered: () => { loadMine(true).then((r) => { RT.vcRows = r; daySetWakeup(myWakeupForDay(r, DAY.date), RT.userId || null); daySetArrival(myArrivalForDay(r, DAY.date), RT.userId || null); armAhead(r, true); if (window.__render) window.__render(); }); },
     });
     armWakeFace(rows);
   } catch (_) { /* never block the paint */ }
-  // And arm the mornings still ahead as real alarms. The native side reconciles the whole set, so
-  // calling this on every foreground beat is correct rather than wasteful, and outside the app
-  // shell there is no bridge and it does nothing. The week ahead rides along (loadMineAhead):
-  // Home's own rows stop at tomorrow, and an athlete who did not open the app for two days used
-  // to wake on the third morning with no alarm because nothing had ever read that morning's row.
-  try {
-    loadMineAhead().then((ahead) => syncWakeAlarms([...(rows || []), ...(ahead || [])]), () => syncWakeAlarms(rows));
-  } catch (_) { /* never block the paint */ }
+  armAhead(rows, forceAhead);
 }
 
 /* Connected Standards on Home (0155). Same shape as the commitments slot above: paint instantly
@@ -1303,6 +1305,7 @@ export default {
             appeared on Home. wakeupReceipt reads the athlete's own instance now. */''}
       ${receiptHtml(wakeupReceipt(VC.today().find((i) => i.type === WAKEUP_TYPE) || null, RT.userId), esc, Math.round(WAKEUP_SHIFT * 100))}
       <div id="reply-row"></div>
+      <div id="rn-home"></div>
       ${recentResults()}
       <div style="height:20px"></div>`;
     }

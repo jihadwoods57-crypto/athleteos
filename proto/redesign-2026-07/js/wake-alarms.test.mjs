@@ -9,7 +9,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { alarmsFor, alarmTitle, alarmButtonLabel, MAX_ALARMS, HORIZON_DAYS, DEFAULT_BUTTON, withAckCodes, fetchAckCodes, _resetAckCodes, ACK_CODES_TTL_MS } from './wake-alarms.js';
+import { alarmsFor, alarmTitle, alarmButtonLabel, MAX_ALARMS, HORIZON_DAYS, DEFAULT_BUTTON, withAckCodes, fetchAckCodes, _resetAckCodes, ACK_CODES_TTL_MS, syncWakeAlarms } from './wake-alarms.js';
 
 const NOW = Date.parse('2026-09-11T12:00:00Z');
 const inHours = (h) => new Date(NOW + h * 3600000).toISOString();
@@ -71,6 +71,16 @@ test('one alarm per instance, nearest morning first', () => {
     row({ instance_id: 'mid', starts_at: inHours(30) }),
   ];
   assert.deepEqual(alarmsFor(rows, NOW).map((a) => a.instanceId), ['soon', 'mid', 'late']);
+});
+
+test('roll call v3: the FIRST row for an instance decides, so a fresh answer beats a stale cached one', () => {
+  // Callers merge fresh rows (today's own read, or a just-forced ahead read) before the cached
+  // ahead read, which can be up to 14 days stale. The fresh row must win even though it comes
+  // first in array order and would otherwise be shadowed by a later duplicate.
+  const acked = [row({ status: 'acknowledged' }), row({ verdict: null, status: 'pending' })];
+  assert.deepEqual(alarmsFor(acked, NOW), [], 'a fresh acknowledged row beats a stale pending one');
+  const cancelled = [row({ instance_status: 'cancelled' }), row({ verdict: null, status: 'pending' })];
+  assert.deepEqual(alarmsFor(cancelled, NOW), [], 'a fresh cancelled row beats a stale pending one');
 });
 
 test('a runaway row set cannot fill a phone with alarms', () => {
@@ -268,6 +278,20 @@ test('signing in clears a cached failure, so the athlete gets codes at once, not
   await fetchAckCodes(c2, NOW, ['i1']);
   await fetchAckCodes(c2, NOW + ACK_CODES_TTL_MS, ['i1']);
   assert.equal(registrations, 1);
+});
+
+test('roll call v3: the alarm horizon is 14 days', () => {
+  assert.equal(HORIZON_DAYS, 14);
+});
+
+test('roll call v3: the shell is told whether the row set is complete', async () => {
+  const seen = [];
+  globalThis.window = { sb: null, OnStandardNative: { wakeAlarms: { sync: async (list, opts) => { seen.push(opts); return list.length; } } } };
+  _resetAckCodes();
+  await syncWakeAlarms([row()], NOW, { complete: true });
+  await syncWakeAlarms([row()], NOW);
+  assert.deepEqual(seen, [{ complete: true }, { complete: false }]);
+  delete globalThis.window;
 });
 
 test('signing out clears the cache too, so the next athlete on this phone never gets the last one codes', async () => {

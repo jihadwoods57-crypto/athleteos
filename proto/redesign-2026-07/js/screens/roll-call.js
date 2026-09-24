@@ -15,7 +15,7 @@ import { track, EVENTS } from '../analytics.js';
 import { backHead, esc, skeletonRows } from '../components.js';
 import { fmtMin } from '../requirements.js';
 import { deriveCommitment, TYPE_LABEL, fmtAt, offsetFor, VERDICT, wakeupPhase, deadlineOf, closesAtOf, opensAtOf, graceMinOf, sourceOf, SOURCE, athleteRollcallRoute, boardRoute } from '../commitments.js';
-import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal, subscribeMine, todayISO, nativeCaps } from '../commitment-data.js';
+import { VC, loadMine, ackCommitment, disputeResponse, completeCommitment, ackRefusal, subscribeMine, todayISO, nativeCaps, aheadRows } from '../commitment-data.js';
 import { pushTokenState, RT, S, act } from '../state.js';
 import { wakeAlarmState, syncWakeAlarms } from '../wake-alarms.js';
 
@@ -417,11 +417,9 @@ function pushWarning(phase) {
   </div>`;
 }
 
-/* Whether this phone will ring for this wake-up, in one line. The 2026-09-16 critique found the
-   only surface that said so was #wakeup-squad, whose only door is gated on a squad an athlete's
-   own rows never carry: the loudest thing the product does was never explained to the person it
-   happens to. Says nothing on a device that cannot ring at all (an older iPhone), because there
-   is nothing for them to do about it. */
+/* Whether this phone will ring for this wake-up, in one line (the 2026-09-16 critique: nothing
+   told the athlete). Silent on a phone that cannot ring: there is nothing for them to do. This is
+   the roll call card, where the alarm question may come back after the primer's Not now (v3). */
 async function paintAlarmLine(root, row) {
   const slot = root && root.querySelector('#wk-alarm-line');
   if (!slot || !row) return;
@@ -439,7 +437,8 @@ async function paintAlarmLine(root, row) {
     if (go) go.addEventListener('click', async () => {
       go.disabled = true; go.textContent = 'Asking…';
       await wakeAlarmState({ ask: true });
-      try { await syncWakeAlarms(VC.rows || [row]); } catch { /* the next Home load arms it */ }
+      void import('../rollcall-v3-data.js').then((D) => D.setPrimer('continue'), () => {}); // the account's answer
+      try { await syncWakeAlarms([...(VC.rows || [row]), ...(aheadRows() || [])]); } catch { /* the next Home load arms it */ }
       void paintAlarmLine(root, row);
     });
     return;
@@ -750,11 +749,10 @@ export default {
         if (!npSlot.isConnected) return;
         npSlot.innerHTML = NP.notifyPrimerHtml({ perm, context: 'rollcall' });
         NP.wireNotifyPrimer(npSlot, {
-          withAlarms: true,
           after: async () => {
             await act.registerPushToken({ ask: true });   // already answered, so this only mints the token
             RT._lastPlan = null; act.syncNotifications();
-            try { await syncWakeAlarms(VC.rows || []); } catch { /* Home arms it next */ }
+            try { await syncWakeAlarms([...(VC.rows || []), ...(aheadRows() || [])]); } catch { /* Home arms it next */ }
             if (root.isConnected) window.__render && window.__render();
           },
         });
