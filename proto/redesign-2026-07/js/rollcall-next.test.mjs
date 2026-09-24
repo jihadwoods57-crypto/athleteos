@@ -1,7 +1,8 @@
 /* The athlete's next roll call. Run: node --test proto/redesign-2026-07/js/rollcall-next.test.mjs */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { upcomingWakeups, nextWakeup, alarmLine, whenLabel, daysLabel, assignedModel, nextCardHtml } from './rollcall-next.js';
+import { upcomingWakeups, nextWakeup, alarmLine, whenLabel, daysLabel, assignedModel, nextCardHtml, pointsLine } from './rollcall-next.js';
+import { weightsForAssigned } from './plan-style.js';
 
 const NOW = new Date(2026, 8, 24, 20, 0).getTime();          // Thu 24 Sep 2026, 8:00 PM, phone clock
 const at = (d, h, m) => new Date(2026, 8, d, h, m).toISOString();
@@ -59,9 +60,21 @@ test('the Home card: route, message, the alarm pill, no em dash', () => {
   assert.match(set, /Tomorrow · 4:45 AM/);
   assert.match(set, /Up and at it\./);
   assert.match(set, /status-pill g">Alarm set ✓/);
+  assert.match(nextCardHtml(row(), { kind: 'ask', text: 'Alarm not set · Tap to fix', fix: 'ask' }, NOW), /class="status-pill b rn-fix"/, 'Tap to fix is selection blue, never amber');
   assert.doesNotMatch(set, /data-rn-fix/);
   const fix = nextCardHtml(row(), { kind: 'ask', text: 'Alarm not set · Tap to fix', fix: 'ask' }, NOW);
   assert.match(fix, /<button[^>]*data-rn-fix="ask"[^>]*>Alarm not set · Tap to fix</);
   assert.doesNotMatch(set + fix, /—/);
   assert.equal(nextCardHtml(null, null, NOW), '');
+});
+
+test('the points line never overclaims: the night budget is shared', () => {
+  // The shared case: a Recovery Standard on the same day halves the morning (8 -> 4).
+  assert.equal(Math.round(weightsForAssigned('athlete', { wakeup: true, sleep: true }).wakeup * 100), 4);
+  assert.equal(pointsLine({ sleep: true }), 'Up on time counts +4 on your day. Late counts half.');
+  assert.equal(pointsLine({ sleep: true, arrival: true }), 'Up on time counts +3 on your day. Late counts half.');
+  assert.equal(pointsLine({}), 'Up on time counts +8 on your day. Late counts half.');
+  // Unknown (the assignment screen): no number at all.
+  assert.equal(pointsLine(null), 'Up on time counts toward your day. Late counts half.');
+  assert.doesNotMatch(pointsLine(null), /\d/);
 });

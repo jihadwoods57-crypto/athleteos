@@ -7,6 +7,7 @@
    now (allowed but not yet armed). */
 import { icon } from './icons.js';
 import { fmtMin } from './requirements.js';
+import { weightsForAssigned } from './plan-style.js';
 
 /* Its own escape, not components.js's: components.js imports state.js, which this module (and its
    node:test suite) must not load. Same five characters. */
@@ -70,6 +71,17 @@ export function daysLabel(dows) {
   return [...d.filter((n) => n !== 0), ...d.filter((n) => n === 0)].map((n) => SHORT[n]).join(', ');
 }
 
+/** What a morning is worth, never overclaimed. The wake-up shares ONE night budget with a Recovery
+ *  Standard and an arrival check (plan-style.js weightsForAssigned: 8 alone, 4 and 4 with sleep,
+ *  8/3 each with both), and which of those a given morning carries is only known on that day. So
+ *  the number is said only when the caller KNOWS the morning's other parts (`assigned`, e.g.
+ *  { sleep: true }); with `null` the line names no number. */
+export function pointsLine(assigned = null) {
+  if (!assigned || typeof assigned !== 'object') return 'Up on time counts toward your day. Late counts half.';
+  const pts = Math.round(weightsForAssigned('athlete', { ...assigned, wakeup: true }).wakeup * 100);
+  return pts > 0 ? `Up on time counts +${pts} on your day. Late counts half.` : 'Up on time counts toward your day. Late counts half.';
+}
+
 export function assignedModel(rows, commitmentId, nowMs = Date.now()) {
   const mine = upcomingWakeups(rows, nowMs).filter((r) => String(r.commitment_id || '') === String(commitmentId || ''));
   if (!mine.length) return null;
@@ -90,7 +102,7 @@ export function nextCardHtml(row, line, nowMs = Date.now()) {
      gets its own full-width line under the words with a 44pt target, never a squeezed pill. */
   const pill = !line ? ''
     : line.fix
-      ? `<button type="button" class="status-pill a rn-fix" data-rn-fix="${esc(line.fix)}">${esc(line.text)}</button>`
+      ? `<button type="button" class="status-pill b rn-fix" data-rn-fix="${esc(line.fix)}">${esc(line.text)}</button>`
       : `<span class="status-pill ${line.kind === 'set' ? 'g' : 'muted'}">${esc(line.text)}</span>`;
   const sub = msg ? `“${esc(msg.slice(0, 140))}${msg.length > 140 ? '…' : ''}”`
     : esc(row.coach_name ? `${title} · ${row.coach_name}` : title);

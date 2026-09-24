@@ -4258,7 +4258,7 @@ button.rw-cell:active { transform: scale(var(--press-btn)); }
 
 /* ================================================================ roll call v3: the athlete's next
    roll call card (rn-) and the assignment screen (ra-). Neutral surfaces; green only for "Alarm set",
-   amber only for "Tap to fix" (a real warning), blue for the one action. */
+   "Tap to fix" is selection blue (an action, not an expiring warning; founder ruling 2026-09-24). */
 .rn-slot { margin-top: var(--s2); }
 .rn-card .rn-fix { font-family: var(--font); cursor: pointer; }
 .rn-card.rn-wrap { flex-wrap: wrap; }
@@ -4271,6 +4271,7 @@ button.rw-cell:active { transform: scale(var(--press-btn)); }
 .ra-msg { margin: var(--s2) 0 0; font-size: var(--t-sm); color: var(--text-2); line-height: 1.45; }
 .ra-alarm { margin-top: var(--s3); }
 .ra-why { margin-bottom: var(--s3); }
+.btn.ghost.ra-fix { background: var(--blue-surface); color: var(--blue-bright); border-color: var(--blue-border); }
 .ra-set { display: flex; align-items: center; gap: var(--s2); margin: 0; font-size: var(--t-base); font-weight: 800; color: var(--green-bright); }
 .ra-list { margin-top: var(--s2); }
 

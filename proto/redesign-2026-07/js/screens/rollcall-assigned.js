@@ -10,8 +10,7 @@
 import { backHead, esc, skeletonRows, emptyState } from '../components.js';
 import { icon } from '../icons.js';
 import { VC, loadMineAhead, aheadRows } from '../commitment-data.js';
-import { WAKEUP_SHIFT } from '../plan-style.js';
-import { assignedModel, alarmLine, whenLabel, fixAlarm } from '../rollcall-next.js';
+import { assignedModel, alarmLine, whenLabel, fixAlarm, pointsLine } from '../rollcall-next.js';
 import { markRollcallSeen } from '../rollcall-v3-data.js';
 import { wakeAlarmState } from '../wake-alarms.js';
 
@@ -37,7 +36,7 @@ function alarmBlock(line, row) {
     : line.fix === 'ask' ? 'OnStandard needs your OK once to set alarms on this phone.'
       : 'This phone has not set this alarm yet.';
   return `<p class="ra-s ra-why">${esc(why)}</p>
-    <button type="button" class="btn ghost sm" data-rn-fix="${esc(line.fix)}">${esc(line.text)}</button>`;
+    <button type="button" class="btn ghost sm ra-fix" data-rn-fix="${esc(line.fix)}">${esc(line.text)}</button>`;
 }
 
 export default {
@@ -48,14 +47,14 @@ export default {
       if (A.forId !== sub || !A.loaded) return `${backHead('Roll call', 'Loading…', back)}${skeletonRows(3, 'Loading your roll call')}`;
       return `${backHead('Roll call', '', back)}${emptyState({ icon: 'sun', title: 'No roll call ahead', body: 'When your coach puts you on one, it shows here.', action: { go: 'home', label: 'Home' } })}`;
     }
-    const pts = Math.round(WAKEUP_SHIFT * 100);   // the most a morning carries (it shares with a Recovery Standard)
     const clock = whenLabel(m.next).split(' · ')[1] || '';
     return `${backHead('Roll call', '', back)}
       <section class="card pad ra-hero">
         <p class="eyebrow">You’re on roll call</p>
         <h1 class="ra-t">${esc(m.title)}</h1>
         <p class="ra-when">${esc([m.days, clock].filter(Boolean).join(' at '))}${m.coach ? ` · ${esc(m.coach)}` : ''}</p>
-        <p class="ra-s">Up on time counts up to +${pts} on your day. Late counts half.</p>
+        ${/* No number: this screen cannot know which mornings also carry a Recovery Standard or an arrival check, and those split the points (rollcall-next.js pointsLine). */''}
+        <p class="ra-s">${esc(pointsLine(null))}</p>
         ${m.message ? `<p class="ra-msg">“${esc(m.message)}”</p>` : ''}
       </section>
       <section class="card pad ra-alarm" id="ra-alarm">${alarmBlock(alarmLine(A.state, m.next), m.next)}</section>
