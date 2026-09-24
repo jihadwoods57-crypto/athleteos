@@ -334,7 +334,7 @@ function paintCommitments(root) {
   // A lock-screen tap recorded while the app was away (0212): refetch on the foreground beat.
   const onFg = () => {
     if (!slot.isConnected) return;
-    loadMine(true).then((rows) => { RT.vcRows = rows; publishWakeup(rows); paint(); });
+    loadMine(true).then((rows) => { RT.vcRows = rows; publishWakeup(rows, true); paint(); });
   };
   window.addEventListener('onstd:foreground', onFg);
   // The router runs window.__screenCleanup before every re-render/route change and then nulls it
@@ -351,7 +351,8 @@ function paintCommitments(root) {
     // module cycle coach-data.js documents, which makes RT undefined at eval time in an ESM
     // WebView), so the screen that owns the fetch is what publishes the result.
     RT.vcRows = rows;
-    publishWakeup(rows);
+    publishWakeup(rows, armFirstOpen);   // forced only on the first Home mount this app open
+    armFirstOpen = false;
     paint();
   });
 }
@@ -361,16 +362,17 @@ function paintCommitments(root) {
    for the same reason: commitment-data.js never imports day.js, so the screen that owns the fetch
    is what publishes the result. daySetWakeup is a no-op when nothing changed, which matters
    because these rows are refetched on every foreground beat. */
-/* Arm the mornings still ahead (v3): every foreground beat, and again after an answer. Forces a
-   fresh loadMineAhead read (not its 30-min cache) so a morning 2-14 days out a coach just moved or
-   cancelled is caught before the next arm decision. */
-function armAhead(rows) {
+let armFirstOpen = true; // true only through Home's first mount this app open
+
+/** Arm the mornings still ahead (v3): forced on open/resume/answer, else rides loadMineAhead's
+ *  own cache + de-dupe (else EVERY __render() cost 2 extra RPCs, one a WRITE). */
+function armAhead(rows, force = false) {
   try {
-    loadMineAhead(true).then((ahead) => syncWakeAlarms([...(rows || []), ...(ahead || [])], Date.now(), { complete: aheadComplete() }), () => syncWakeAlarms(rows));
+    loadMineAhead(force).then((ahead) => syncWakeAlarms([...(rows || []), ...(ahead || [])], Date.now(), { complete: aheadComplete() }), () => syncWakeAlarms(rows));
   } catch (_) { /* never block the paint */ }
 }
 
-function publishWakeup(rows) {
+function publishWakeup(rows, forceAhead = false) {
   try { daySetWakeup(myWakeupForDay(rows, DAY.date), RT.userId || null); } catch (_) { /* never block the paint */ }
   // The place check's twin (0242 s7): the server's arrival_verdict for today's assigned arrival,
   // whether it rides a wake-up or stands alone. Same no-op-when-unchanged push.
@@ -386,11 +388,11 @@ function publishWakeup(rows) {
       drain: () => { const N = window.OnStandardNative; return N && N.rollcall && N.rollcall.drain ? N.rollcall.drain() : 0; },
       points: () => Math.round(WAKEUP_SHIFT * 100),
       buzz,
-      onAnswered: () => { loadMine(true).then((r) => { RT.vcRows = r; daySetWakeup(myWakeupForDay(r, DAY.date), RT.userId || null); daySetArrival(myArrivalForDay(r, DAY.date), RT.userId || null); armAhead(r); if (window.__render) window.__render(); }); },
+      onAnswered: () => { loadMine(true).then((r) => { RT.vcRows = r; daySetWakeup(myWakeupForDay(r, DAY.date), RT.userId || null); daySetArrival(myArrivalForDay(r, DAY.date), RT.userId || null); armAhead(r, true); if (window.__render) window.__render(); }); },
     });
     armWakeFace(rows);
   } catch (_) { /* never block the paint */ }
-  armAhead(rows);
+  armAhead(rows, forceAhead);
 }
 
 /* Connected Standards on Home (0155). Same shape as the commitments slot above: paint instantly

@@ -152,3 +152,16 @@ test('a native disarm that never answers cannot block sign-out or account deleti
   assert.ok(Date.now() - t < LOC_DISARM_WAIT_MS + 1000, 'deletion finished');
   assert.equal(typeof ok, 'boolean');
 });
+
+test('roll call v3: a wake-alarm sweep that never answers cannot block sign-out either', async () => {
+  const { WAKE_SWEEP_WAIT_MS, LOC_DISARM_WAIT_MS } = await import('./state.js');
+  assert.ok(WAKE_SWEEP_WAIT_MS <= 3000);
+  window.OnStandardNative.location = { arm: () => Promise.resolve({}), disarm: () => Promise.resolve(true) };
+  window.OnStandardNative.wakeAlarms = { sync: () => new Promise(() => {}) };
+  RT.userId = 'u-6';
+  const t = Date.now();
+  await act.signOut();
+  assert.ok(Date.now() - t < WAKE_SWEEP_WAIT_MS + LOC_DISARM_WAIT_MS + 1000, 'sign-out finished');
+  assert.equal(RT.userId, null, 'and the local state was still wiped');
+  delete window.OnStandardNative.wakeAlarms;
+});

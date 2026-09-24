@@ -1003,6 +1003,17 @@ let NOTIF_FETCH_AT = 0;
 let LOC_ARM_AT = 0;
 const LOC_ARM_EVERY_MS = 60_000;
 export const LOC_DISARM_WAIT_MS = 2_000;   // sign-out never waits longer on the phone
+export const WAKE_SWEEP_WAIT_MS = 1_500;   // same, for the wake-alarm sweep (v3)
+// A native call that never answers must not hold sign-out hostage — races it, moves on either way.
+async function raceNative(fn, ms) {
+  let timer = null;
+  try {
+    await Promise.race([
+      Promise.resolve().then(fn).catch(() => { /* best-effort */ }),
+      new Promise((res) => { timer = setTimeout(res, ms); }),
+    ]);
+  } catch { /* best-effort */ } finally { if (timer) clearTimeout(timer); }
+}
 function nativeLocation() {
   try {
     const N = typeof window !== 'undefined' ? window.OnStandardNative : null;
@@ -3754,12 +3765,13 @@ export const act = {
     // task would keep firing arrivals against a session that no longer exists (or, worse,
     // attribute crossings under whoever signs in next on this phone).
     await this._disarmLocation();
-    // Same reasoning for a real alarm (v3): it keeps ringing across sign-out too. `complete: true`
-    // sweeps the whole device, not just this process's own; called direct so nothing new boots.
-    try {
+    // Same for a real alarm (v3): rings across sign-out too. `complete: true` sweeps the device.
+    {
       const N = window.OnStandardNative;
-      if (N && N.wakeAlarms && typeof N.wakeAlarms.sync === 'function') await N.wakeAlarms.sync([], { complete: true });
-    } catch { /* best-effort */ }
+      if (N && N.wakeAlarms && typeof N.wakeAlarms.sync === 'function') {
+        await raceNative(() => N.wakeAlarms.sync([], { complete: true }), WAKE_SWEEP_WAIT_MS);
+      }
+    }
     try { if (sb) await sb.auth.signOut(); } catch { /* ignore */ }
     try { localStorage.removeItem('os.sso.new'); } catch { /* R2-I1: the bounce note ends with the session */ }
     this._wipeUserScopedState({ keepPendingOb: true });
@@ -3791,21 +3803,12 @@ export const act = {
       if (p && typeof p.then === 'function') p.then((r) => noteLocationArm(r), () => { /* the next beat retries */ });
     } catch { /* the next beat retries */ }
   },
-  /* Every way out of an account disarms: sign-out, account deletion, a launch with no session. */
-  /* RACED against a short timer (fix round 1): the bridge call has no timeout of its own, and a
-     native call that never answers must not hold sign-out or account deletion hostage (App Review
-     5.1.1(v): deletion has to complete). The disarm keeps running on the phone either way. */
+  // Every way out of an account disarms. RACED (App Review 5.1.1(v)) — see raceNative above.
   async _disarmLocation() {
     LOC_ARM_AT = 0;
     const L = nativeLocation();
     if (!L || typeof L.disarm !== 'function') return;
-    let timer = null;
-    try {
-      await Promise.race([
-        Promise.resolve().then(() => L.disarm()).catch(() => { /* best-effort */ }),
-        new Promise((res) => { timer = setTimeout(res, LOC_DISARM_WAIT_MS); }),
-      ]);
-    } catch { /* best-effort */ } finally { if (timer) clearTimeout(timer); }
+    await raceNative(() => L.disarm(), LOC_DISARM_WAIT_MS);
   },
 
   /* Walk-in check-in opt-out (0139 hardening 2026-08-19; live again with the roll call rebuilt,
