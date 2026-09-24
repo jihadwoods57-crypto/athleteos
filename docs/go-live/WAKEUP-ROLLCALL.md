@@ -448,3 +448,97 @@ still `pending` and untouched, the roll call row and all 4 recorded responses in
 - The kill switch is `verified_commitments`, which covers **all** commitment types, not only
   `morning_roll_call`. At the time of the flip production had **zero** other active commitments,
   so this removes exactly the morning roll call and nothing a coach was using.
+
+## SWITCHED OFF 2026-09-24 (founder): "Take roll call off the app but don't permanently delete it"
+
+> "It's not working right now but i want to revisit it in the future."
+
+**The roll call is OFF again, reversibly.** Nothing is deleted: no migration reverted, no table
+dropped, no row removed, no screen file deleted, no edge function removed. Every recorded morning,
+every standing roll call, every response and every setting stays exactly as it was, and comes back
+with the switch. The 2026-09-11 turn-back-on (v2 and v3 were built after it) added many paths; this
+pass audited every one of them.
+
+### How it is off
+
+**1. Server, the authority.** The same `verified_commitments` kill switch as 2026-09-02. Prod has
+exactly one active commitment (the morning roll call), so it takes off exactly the roll call.
+```sql
+update feature_flags set kill_switch = true where name = 'verified_commitments';
+```
+Migration **0248** (`0248_rollcall_off_guards.sql`) closes the eight v1/v2/v3 paths that did NOT
+honour it. Each function is recreated from its current body with one guard line, grants restated:
+
+| Path | What it did while "off" | 0248 |
+|---|---|---|
+| `rollcall_nudge_claim` (roll-call-coach `nudge`) | coach Nudge / Ping wrote bell rows and pushed | `flag_off` |
+| `rollcall_schedule_notice_claim` (roll-call-coach `schedule`) | "Tell athletes" wrote bell rows | `flag_off` |
+| `rollcall_window_rows_svc` (roll-call-ack `codes`) | minted alarm check-in codes for 14 days | empty |
+| `rollcall_live_update_targets` (roll-call-ack team fan-out) | pushed Live Activity updates to teammates | empty |
+| `claim_live_team_updates` (same fan-out) | claimed those updates | empty |
+| `claim_rollcall_card_starts` (commitment-reminders) | started a Live Activity (only behind a guarded claim) | empty |
+| `rollcall_arming` (coach hub) | showed who will ring | refuses, like `rollcall_team_board` |
+| `rollcall_summary` (coach results) | showed per-morning results | `[]` |
+
+Already guarded before 0248, and now pinned by `supabase/tests/rollcall_off_test.sql` (39 checks,
+in `npm run test:rls`): `my_commitments`, `commitment_board`, `rollcall_upcoming`,
+`rollcall_team_board`, `rollcall_history`, `my_armable_geofences`, `verify_arrival`,
+`ensure_*`/`materialize_*` (both materializers and the 14-day one), `claim_due_commitment_reminders`,
+`claim_missed_commitments`, `claim_rollcall_card_opens`, `claim_rollcall_notices`,
+`rollcall_notify_claim`, `rollcall_arm_remind_claim`, `rollcall_remind_rows_svc`, and the
+`commitments` write trigger. `commitment-escalation` returns `{ skipped: 'flag off' }` before its
+first claim, which also covers `claim_closed_rollcalls`, `claim_rollcall_summary` and
+`rollcall_digest`. `send-push` now drops a `rollcall_answered` report to coaches while the switch is
+thrown (`rollcallReportSilenced`, needs a `send-push` deploy to take effect; the new client never
+sends one, because the answering screens are unreachable).
+
+**Deliberately still answerable** (as on 2026-09-02): `ack_commitment` / `ack_commitment_by_token`
+record a tap on a push sent before the switch; `claim_live_answered_update` turns that athlete's own
+card answered; `set_wake_alarm_armed(_svc)` records a phone that REMOVED its alarm.
+
+**2. Client.** `ROLLCALL_OFF = true` in `proto/redesign-2026-07/js/commitments.js`:
+- **No roll call data is read.** `commitment-data.js` `loadMine` / `loadMineAhead` return `[]`
+  without a request and `VC.mine` is empty even from a cache, so Home's commitment cards, the next
+  roll call card, the in-app alarm face, local roll call reminders and the wake-up score share all
+  go quiet on the first paint.
+- **No dead ends.** `router.js` sends every roll call route (`ROLLCALL_ROUTES`: roll-call,
+  rollcall, rollcall-board, rollcall-assigned, rollcall-new/-week/-history, wakeup-squad,
+  location-consent, accountability, coach-commitments, coach-commit-edit/-manage) to the role's
+  Home before the screen is fetched. `coach-wakeup-*` and `wakeup-morning` redirect themselves to
+  coach Home. So a push, a bell row, a drained lock-screen tap or an old link lands on Home.
+- **Furniture hidden:** the coach create menu (both rows), coach Home's roll call card
+  (`paintBoard` reads nothing), the athlete page's Roll call section, the alarm primer and the
+  roll call notification primer, Progress "Roll call record", Profile "Location check-in", and the
+  Settings privacy rows that said teammates see roll call answers.
+- **The phone is cleaned, once per launch.** `state.js _armLocation` (sign-in, restored session,
+  foreground) never arms while off; it runs `rollcall-off-sweep.js` instead, which, feature-detected
+  for builds 43 and 46-49: `wakeAlarms.sync([], { complete: true })` cancels every AlarmKit /
+  setAlarmClock alarm (including the push extension's), `location.disarm()` removes every
+  geofence, and `rollcall.endAll()` (new bridge message `ROLLCALL_END_ALL`, in the same OTA) ends
+  every roll call Live Activity still on screen. Any other alarm sync while off also sends the
+  empty, complete set.
+
+### PAUSED while off
+- **The owed v3 `commitment-reminders` deploy is PAUSED. Do not deploy it while the roll call is
+  off.** Deployed, it would start the one-time "Coach put you on roll call" assignment burst the
+  moment the switch is released, unannounced. Deploy it only as a deliberate step of turning the
+  roll call back on.
+- The build 49 device test (`ROLLCALL-V3-DEVICE-TEST.md`) and the App Review ROLL CALL paragraph
+  (`RESUBMIT-2026-09-23.md`) wait with it. A submission while off should not describe a roll call
+  the reviewer cannot reach.
+
+### How to turn it back on (server first, then client)
+1. **Server.**
+   ```sql
+   update feature_flags set kill_switch = false where name = 'verified_commitments';
+   ```
+   0248 stays applied: its guards are no-ops while the switch is released.
+2. **Client.** `ROLLCALL_OFF = false` in `proto/redesign-2026-07/js/commitments.js`. Update
+   `rollcall-off.test.mjs` / `rollcall-off-phone.test.mjs` to assert the switch is released (the
+   roll call's own tests already run it on). `npm run verify`, rebuild `assets/proto.zip`, OTA,
+   prove the manifest.
+3. **Then, deliberately:** decide on the paused `commitment-reminders` deploy (daytime, team time)
+   and re-run the build 49 device test. Phones re-arm their alarms and geofences on the next open.
+
+Nothing to restore by hand: the roll call rows, the athletes on them and all history return with
+the switch.
