@@ -19,7 +19,7 @@
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { signRollCallCode } from '../_shared/rollcall-code.ts';
 import { rollCallCategoryId, ROLLCALL_CHANNEL, ROLLCALL_QUIET_CHANNEL } from '../_shared/rollcall-category.ts';
-import { composeReminderPush, codeDeadlineMs, platformCopy, isInitialPush, cardPlanAtRung, splitStartGroups, clockIn, reminderRoute, type ReminderRow } from './logic.ts';
+import { composeReminderPush, codeDeadlineMs, platformCopy, isInitialPush, cardPlanAtRung, splitStartGroups, openingDelivery, clockIn, reminderRoute, type ReminderRow } from './logic.ts';
 import { ApnsClient, apnsFromEnv } from '../_shared/apns.ts';
 import { pushLiveActivity, loadLiveCard, loadTeamBoard, windowCodesFor, ackUrlFor } from '../_shared/rollcall-live-send.ts';
 import { rollCallPushData, teamFields } from '../_shared/rollcall-live.ts';
@@ -287,8 +287,16 @@ Deno.serve(async (req: Request) => {
       // tested in logic.ts (splitStartGroups, review round 1, Minor #2). The card IS the
       // notification now, so its alert is what lights the phone up and plays the sound. Same words
       // the suppressed notification would have carried.
+      // Roll call v3 (the backup alert): at the START the card's alert is quiet for everyone. For an
+      // armed athlete the alarm is the sound; for an unarmed one the time-sensitive notification
+      // below (openingDelivery) is, and that notification is no longer suppressed under the card,
+      // so a sounding card alert as well would be two noises for one roll call. Follow-up rungs
+      // keep the card's sound (cardQuiet is false there).
       const armedIds = new Set(rows.filter((x) => isArmed(x)).map((x) => x.athlete_id));
-      const groups = splitStartGroups(rows.map((r) => r.athlete_id), (id) => armedIds.has(id), justClaimed);
+      const rowOf = new Map(rows.map((x) => [x.athlete_id, x] as const));
+      const quietCard = (id: string) => armedIds.has(id)
+        || (phase === 'initial' && openingDelivery(rowOf.get(id)!, false).cardQuiet);
+      const groups = splitStartGroups(rows.map((r) => r.athlete_id), quietCard, justClaimed);
       for (const g of groups) {
         try {
           const r = await pushLiveActivity({
@@ -340,13 +348,18 @@ Deno.serve(async (req: Request) => {
 
   const messages: Array<Record<string, unknown>> = [];
   let suppressed = 0;
+  let backup = 0;
   for (const t of (toks ?? []) as Array<{ token: string; user_id: string; platform: string | null }>) {
     const d = byAthlete.get(t.user_id);
     if (!d) continue;
     // The card is already on this phone saying exactly this. Skipping is the whole point of doing
     // the Live Activity first. Android never matches (it has no card) and neither does an athlete
     // whose card Apple refused, so neither can be left with a silent morning.
-    if (t.platform === 'ios' && hasCard.has(t.user_id) && iosTokenCount.get(t.user_id) === 1) {
+    // Roll call v3: EXCEPT the start push of an athlete with no armed alarm. The card cannot ring
+    // for 28 seconds and nothing else will wake them, so that notification always goes out
+    // (openingDelivery: time-sensitive, the bundled alarm sound).
+    const delivery = openingDelivery(d, isArmed(d));
+    if (t.platform === 'ios' && hasCard.has(t.user_id) && iosTokenCount.get(t.user_id) === 1 && delivery.suppressWithCard) {
       suppressed++;
       continue;
     }
@@ -395,8 +408,14 @@ Deno.serve(async (req: Request) => {
       // A coach-scheduled commitment is a scheduled event, not a nudge: it is allowed to break
       // through at 4:45 AM. The phone's own Do Not Disturb still wins.
       priority: 'high',
-      sound: isArmed(d) ? null : 'default',
+      // iOS only (Expo drops both on Android, where the channel decides). The custom sound is part
+      // of the BINARY (app.json expo-notifications `sounds`): an older build plays the default
+      // sound for a name it does not have, and one without the time-sensitive entitlement gets it
+      // as 'active'. Both are the pre-v3 behaviour.
+      sound: delivery.sound,
+      ...(delivery.interruptionLevel === 'time-sensitive' ? { interruptionLevel: 'time-sensitive' } : {}),
     });
+    if (delivery.interruptionLevel === 'time-sensitive') backup++;
   }
 
   // Best-effort: the notification row is already written, so the athlete still sees it in app.
@@ -406,5 +425,5 @@ Deno.serve(async (req: Request) => {
   if (pushOut.failed) console.error('commitment-reminders: push refused', pushOut.failed, pushOut.errors.join('; '));
 
   const notices = await runNotices(svc);
-  return json({ sent: recorded, pushed, claimed: due.length, materialized, live, suppressed, opened, notices });
+  return json({ sent: recorded, pushed, claimed: due.length, materialized, live, suppressed, backup, opened, notices });
 });

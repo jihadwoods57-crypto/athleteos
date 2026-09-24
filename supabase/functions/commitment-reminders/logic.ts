@@ -209,3 +209,26 @@ export function splitStartGroups(
 export function reminderRoute(type: string | null | undefined, instanceId: string): string {
   return type === 'morning_roll_call' ? `rollcall-board/${instanceId}` : `roll-call/${instanceId}`;
 }
+
+/** The bundled alarm sound (assets/sounds/rollcall_alarm.caf, registered by the expo-notifications
+ *  plugin in app.json). A binary without it plays the default sound for this name. */
+export const BACKUP_SOUND = 'rollcall_alarm.caf';
+
+/** How the START-TIME push of a wake-up is delivered (roll call v3, the backup alert).
+ *
+ *  Armed (the phone reported an AlarmKit alarm for this morning): the alarm is the sound, so the push
+ *  is silent and the Live Activity alone is enough (0239).
+ *  Not armed: nothing else will wake this athlete. The notification goes out even where the card is
+ *  up, time-sensitive (breaks through a Focus that allows it; the silent switch still wins, and no
+ *  Critical Alert is asked for, per the founder), with the 28-second alarm sound. The card's own
+ *  alert goes quiet so the phone makes one noise, not two.
+ *  Everything else (follow-up rungs, other commitment types) is unchanged. */
+export function openingDelivery(row: ReminderRow, armed: boolean): {
+  sound: string | null; interruptionLevel: 'active' | 'time-sensitive'; suppressWithCard: boolean; cardQuiet: boolean;
+} {
+  if (row.type !== 'morning_roll_call' || !isInitialPush(row)) {
+    return { sound: 'default', interruptionLevel: 'active', suppressWithCard: true, cardQuiet: false };
+  }
+  if (armed) return { sound: null, interruptionLevel: 'active', suppressWithCard: true, cardQuiet: true };
+  return { sound: BACKUP_SOUND, interruptionLevel: 'time-sensitive', suppressWithCard: false, cardQuiet: true };
+}

@@ -1,4 +1,4 @@
-import { composeReminderPush, isInitialPush, minutesLeft, clockIn, codeDeadlineMs, pushBody, platformCopy, PUSH_BODY_MAX_BYTES, type ReminderRow } from './logic';
+import { composeReminderPush, isInitialPush, minutesLeft, clockIn, codeDeadlineMs, pushBody, platformCopy, PUSH_BODY_MAX_BYTES, openingDelivery, BACKUP_SOUND, type ReminderRow } from './logic';
 
 const base: ReminderRow = {
   athlete_id: 'a', instance_id: 'i', title: 'Wake-Up Roll Call',
@@ -205,5 +205,24 @@ describe('reminderRoute (roll call rebuilt, 2026-09-23)', () => {
     expect(reminderRoute('morning_roll_call', 'i1')).toBe('rollcall-board/i1');
     expect(reminderRoute('study_hall', 'i1')).toBe('roll-call/i1');
     expect(reminderRoute(undefined, 'i1')).toBe('roll-call/i1');
+  });
+});
+
+describe('openingDelivery: the backup alert (roll call v3)', () => {
+  it('an unarmed athlete at the start gets the loud time-sensitive alarm sound, even under a card', () => {
+    expect(openingDelivery(base, false)).toEqual({
+      sound: BACKUP_SOUND, interruptionLevel: 'time-sensitive', suppressWithCard: false, cardQuiet: true,
+    });
+  });
+  it('an armed athlete keeps the silent start push (the alarm is the sound)', () => {
+    expect(openingDelivery(base, true)).toEqual({ sound: null, interruptionLevel: 'active', suppressWithCard: true, cardQuiet: true });
+  });
+  it('follow-up rungs and other commitment types are unchanged', () => {
+    const later = { ...base, offset_min: 2, fires_at: '2026-09-01T10:03:00Z' };
+    expect(openingDelivery(later, false)).toEqual({ sound: 'default', interruptionLevel: 'active', suppressWithCard: true, cardQuiet: false });
+    expect(openingDelivery({ ...base, type: 'practice' }, false)).toEqual({ sound: 'default', interruptionLevel: 'active', suppressWithCard: true, cardQuiet: false });
+  });
+  it('the sound file name is the bundled .caf', () => {
+    expect(BACKUP_SOUND).toBe('rollcall_alarm.caf');
   });
 });

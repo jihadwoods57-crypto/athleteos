@@ -28,11 +28,27 @@
 // ROLL CALL V3 (2026-09-24). A third target, the Notification Service Extension
 // com.onstandard.app.NotificationService, arms AlarmKit alarms from a push. It carries NO App
 // Group and no capability at all, so its bundle id and profile are fully scriptable here.
+//
+// THE BACKUP ALERT (roll call v3, 2026-09-24). `--time-sensitive` turns Time Sensitive
+// Notifications on for the APP's id (app.json carries com.apple.developer.usernotifications.
+// time-sensitive; the extensions do not). Enabling a capability invalidates every profile already
+// issued for that App ID, so run it with the app's profile in the same pass:
+//
+//   node scripts/apple-provision.mjs --time-sensitive --only app            # report
+//   node scripts/apple-provision.mjs --apply --time-sensitive --only app    # enable + re-mint
 import { readFileSync, writeFileSync, existsSync, copyFileSync } from 'node:fs';
 import { createPrivateKey, sign as cryptoSign } from 'node:crypto';
 
 const G = '\x1b[32m'; const R = '\x1b[31m'; const Y = '\x1b[33m'; const B = '\x1b[1m'; const D = '\x1b[2m'; const X = '\x1b[0m';
 const APPLY = process.argv.includes('--apply');
+const TIME_SENSITIVE = process.argv.includes('--time-sensitive');
+const TS_ENTITLEMENT = 'com.apple.developer.usernotifications.time-sensitive';
+/** Whether app.json asks for the time-sensitive entitlement: then an app profile without it will
+ *  fail code-signing, and the profile line below says so. */
+const APP_WANTS_TS = (() => {
+  try { return JSON.parse(readFileSync('app.json', 'utf8'))?.expo?.ios?.entitlements?.[TS_ENTITLEMENT] === true; }
+  catch { return false; }
+})();
 
 const APP_BUNDLE = 'com.onstandard.app';
 const WIDGET_BUNDLE = 'com.onstandard.app.RollCallWidget';
@@ -128,7 +144,8 @@ function writeProfile(file, base64, expectIdentifier) {
   const m = plist.match(/<key>com\.apple\.security\.application-groups<\/key>\s*<array>([\s\S]*?)<\/array>/);
   const groups = m ? [...m[1].matchAll(/<string>(.*?)<\/string>/g)].map((x) => x[1]) : [];
   const appId = (plist.match(/<key>application-identifier<\/key>\s*<string>(.*?)<\/string>/) || [])[1] || '';
-  return { bytes: raw.length, groups, hasGroup: groups.includes(APP_GROUP), appId };
+  const timeSensitive = new RegExp(`<key>${TS_ENTITLEMENT.replace(/[.]/g, '\\.')}</key>\\s*<true\\s*/>`).test(plist);
+  return { bytes: raw.length, groups, hasGroup: groups.includes(APP_GROUP), appId, timeSensitive };
 }
 
 // ---------------------------------------------------------------- run
@@ -216,6 +233,38 @@ function writeProfile(file, base64, expectIdentifier) {
     }
   }
 
+  // ---- Time Sensitive Notifications on the APP (roll call v3 backup alert)
+  // Only when this run also mints the app's profile (no --only, or --only app): enabling a
+  // capability invalidates the profiles already issued for that App ID, so flipping it and then
+  // stopping would leave `npm run ship` signing with a dead profile.
+  if (TIME_SENSITIVE && ONLY && ONLY !== 'app') {
+    console.log(`${Y}!${X} --time-sensitive ignored with --only ${ONLY}: it must re-mint the APP profile in the same run (use --only app)`);
+  } else if (TIME_SENSITIVE) {
+    const caps = await capabilities(app.id);
+    if (caps.has('USERNOTIFICATIONS_TIMESENSITIVE')) {
+      console.log(`${G}✓${X} Time Sensitive Notifications on ${APP_BUNDLE}`);
+    } else if (!APPLY) {
+      console.log(`${Y}→${X} would ENABLE Time Sensitive Notifications on ${APP_BUNDLE} ${D}(capabilities now: ${[...caps].sort().join(', ') || 'none'})${X}`);
+    } else {
+      try {
+        await api('POST', '/v1/bundleIdCapabilities', {
+          data: {
+            type: 'bundleIdCapabilities',
+            attributes: { capabilityType: 'USERNOTIFICATIONS_TIMESENSITIVE' },
+            relationships: { bundleId: { data: { type: 'bundleIds', id: app.id } } },
+          },
+        });
+        console.log(`${G}✓${X} enabled Time Sensitive Notifications on ${APP_BUNDLE}`);
+      } catch (e) {
+        // USERNOTIFICATIONS_TIMESENSITIVE is not in Apple's published CapabilityType enum (the
+        // portal and EAS use it; the public API may refuse it). The profile is still minted below
+        // and its line says whether it carries the entitlement.
+        console.log(`${R}✗${X} the API refused it (${e.message}). Tick "Time Sensitive Notifications" on ${APP_BUNDLE} at
+  ${B}https://developer.apple.com/account/resources/identifiers/list${X}, then re-run with --apply --only app.`);
+      }
+    }
+  }
+
   if (ONLY !== 'nse') console.log(`\n${Y}The one thing no API can do:${X} create the group ${B}${APP_GROUP}${X} and tick it
 on both identifiers. Apple has no appGroups endpoint. Do it once here:
   ${B}https://developer.apple.com/account/resources/identifiers/list/applicationGroup${X}
@@ -285,7 +334,13 @@ but no group, and the build will still fail to sign.\n`);
           : info.groups.length === 0
             ? `${Y}App Groups is ON but NO group is bound — do the portal step above, then re-run${X}`
             : `${Y}binds ${info.groups.join(', ')}, not ${APP_GROUP}${X}`;
-      console.log(`${G}✓${X} ${w.file} ${D}(${info.bytes} bytes, ${info.appId})${X} ${groupNote}`);
+      const tsNote = w.key !== 'app' ? ''
+        : info.timeSensitive
+          ? ` ${G}carries time-sensitive${X}`
+          : APP_WANTS_TS
+            ? ` ${R}NO time-sensitive entitlement, which app.json asks for: the build will fail to sign. Enable the capability (--time-sensitive, or the portal), then re-run --apply --only app${X}`
+            : ` ${D}(no time-sensitive)${X}`;
+      console.log(`${G}✓${X} ${w.file} ${D}(${info.bytes} bytes, ${info.appId})${X} ${groupNote}${tsNote}`);
     } catch (e) {
       console.log(`${R}✗${X} ${w.name}: ${e.message}`);
       if (e.status === 403) {
