@@ -1,5 +1,5 @@
 /* Hash router + chrome (status bar, tab bar). Screens register in js/screens/index.js */
-import { S, act, RT, routeForRole, memoTick } from './state.js';
+import { S, act, RT, routeForRole, memoTick, syncRtFromDay } from './state.js';
 import { CD } from './coach-data.js';
 import { primeDayFromCache } from './day.js';
 import { icon } from './icons.js';
@@ -12,6 +12,22 @@ import { initKeyboard } from './keyboard.js';
 import { withTransition, canTransition, transitioning, afterTransition } from './view-transition.js';
 import { hydrateAvatars } from './avatar.js';
 import { initGestures, gestureActive, afterGesture } from './gestures.js';
+import { pauseReveals, resumeReveals } from './motion.js';
+
+/* Under the native launch splash nothing should move: the entrance and the ring draw would play
+   behind it and be spent by the time it lifts. Held (css/app.css html.splash-held, motion.js
+   pauseReveals) until painted() below tells the shell to fade, and never longer than the shell's
+   own ceiling. A browser has no splash and holds nothing. */
+if (typeof window !== 'undefined' && window.ReactNativeWebView) {
+  document.documentElement.classList.add('splash-held');
+  pauseReveals({ wind: true });
+  setTimeout(unholdMotion, 4000);
+}
+function unholdMotion() {
+  if (!document.documentElement.classList.contains('splash-held')) return;
+  document.documentElement.classList.remove('splash-held');
+  resumeReveals();
+}
 
 // Shell-level and route-independent: the keyboard has to behave the same on the composer, the food
 // search box and a profile field, and #device outlives every render() so this is wired once here
@@ -1033,6 +1049,11 @@ function render(opts) {
     if (pane) paired.mod.mount(pane, { sub: null, S });
   }
   if (mod.mount && !prehydrate) mod.mount(device, { sub, S });
+  // The cold-launch paint's own hook: the parts of a mount that are only painting (Home's arrival
+  // and its receipts from the launch cache), so the mount after hydrate has nothing left to move.
+  if (prehydrate && mod.prepaint) mod.prepaint(device);
+  // Any first real screen releases the splash: the cached Home, a Home after hydrate, Welcome.
+  painted();
   // A sheet (transient route) takes focus on ARRIVAL: its title when aria-labelledby names one,
   // else the sheet itself. Without this a keyboard or screen-reader user opening the log sheet
   // stayed parked on the control behind the scrim, inside an aria-modal they could not perceive.
@@ -1237,7 +1258,28 @@ function bootShell() {
   }
 }
 
+/* The native splash stays up until the first real frame (src/proto/launchSplash.ts): this is that
+   frame's signal. Two rAFs so the pixels are on screen, not just in the DOM. Once per launch. */
+let paintedSent = false;
+function painted() {
+  if (paintedSent) return;
+  paintedSent = true;
+  // After the faces load (font-display:block paints text INVISIBLE until then), capped.
+  const fonts = document.fonts ? Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 600))]) : Promise.resolve();
+  fonts.then(() => requestAnimationFrame(() => requestAnimationFrame(() => {
+    try { if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('{"type":"PAINTED"}'); } catch { /* no shell */ }
+    // The shell starts its fade on this message: the held entrance and ring draw start with it.
+    unholdMotion();
+  })));
+}
+
+/* Once. A module script runs while readyState is already 'interactive', so the readyState check at
+   the bottom of this file called boot() AND the DOMContentLoaded listener called it again: every
+   launch read the session twice, ran the whole hydrate chain twice and painted Home twice. */
+let booted = false;
 async function boot() {
+  if (booted) return;
+  booted = true;
   initAnalytics(); // wire crash capture + visibility-flush (inert until a sink is configured)
   track(EVENTS.APP_OPEN, { role: RT.authRole || 'anon' });
   if (RT.userId && !AUTH_ROUTES.includes(parse().route)) bootShell();
@@ -1245,20 +1287,41 @@ async function boot() {
   // whole by the time the day lands. Not awaited: render() copes with whatever has arrived.
   if (RT.userId && (RT.authRole === 'coach' || RT.authRole === 'trainer')) void preloadScreens(OPERATOR_TAB_ROUTES);
   let authed = false;
+  // The cached day, drawn before the network answers (hydrateDay() then repaints in place). Only
+  // for a module already in memory and a cache that holds today. syncRtFromDay: the day-derived RT
+  // flags (weight logged, day 0...) must describe the day being drawn, exactly as hydrateDay sets
+  // them after loadDay; stale ones added a card later.
+  let primed = false;
+  const prime = () => {
+    try {
+      const { route: r0 } = parse();
+      if (!AUTH_ROUTES.includes(r0) && modOf(r0) && primeDayFromCache(RT.userId)) { syncRtFromDay(); render({ prehydrate: true }); primed = true; }
+    } catch { /* the skeleton stands until the day lands */ }
+  };
   try {
     const sb = window.sb;
     if (sb) {
+      /* BEFORE the token refresh (cold launch, 2026-09-23). getSession() refreshes an expired
+         access token over the network first, which on a morning open is a full round trip of
+         skeleton. The session this device has STORED already names its user, with no network:
+         when that is the same athlete the persisted runtime belongs to, their own cached Home
+         paints now. Paint only: no mount, no fetch, no timer runs until the session is confirmed
+         below, and if it is not (revoked, expired past refresh) the wipe below takes the screen
+         to Welcome exactly as before. Athletes only: an operator's route guard would navigate
+         (and mount) on this paint. */
+      try {
+        const r0 = parse().route;
+        if (RT.userId && RT.authRole === 'athlete' && !ageGuardRoute(r0) && typeof window.__storedSessionUid === 'function'
+          && (await window.__storedSessionUid()) === RT.userId) prime();
+      } catch { /* no early paint; the confirmed path below still runs */ }
       const { data } = await sb.auth.getSession();
       if (data && data.session) {
         authed = true;
         await act._syncSession(data.session.user);
-        // The cached day, drawn before the network answers. Only once the session is CONFIRMED
-        // (the auth gate is unchanged: no session, no app screen), only when the cache holds
-        // today, and only for a module already in memory. hydrateDay() then repaints in place.
-        try {
-          const { route: r0 } = parse();
-          if (!AUTH_ROUTES.includes(r0) && modOf(r0) && primeDayFromCache(RT.userId)) render({ prehydrate: true });
-        } catch { /* the skeleton stands until the day lands */ }
+        // Confirmed now: the same cached paint for anyone the early path did not cover.
+        if (!primed || RT.userId !== data.session.user.id) prime();
+        // Nothing cached for today: the skeleton IS the first frame, so let the splash go to it.
+        painted();
         await act.hydrateDay();
       }
     }

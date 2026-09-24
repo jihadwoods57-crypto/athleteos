@@ -204,6 +204,9 @@ body {
    same-route repaint). #view is rebuilt on every render(), so an unconditional animation here
    re-ran the whole entrance every time an async screen repainted itself. */
 .view.enter { animation: viewIn var(--dur-2) var(--ease-out); }
+/* Under the native launch splash (router.js: html.splash-held until PAINTED) every animation is
+   held at its first frame, so the entrance plays when the athlete can see it, not behind the splash. */
+html.splash-held .view, html.splash-held .view * { animation-play-state: paused !important; }
 @keyframes viewIn { from { opacity: 0; transform: translateY(8px);} to { opacity:1; transform:none; } }
 /* Directional arrivals — the screen enters the way the user asked for it. A detail screen slides
    in from the right (forward), back returns from the left (unwinding), tab roots keep the vertical

@@ -15,6 +15,12 @@ import { darkColors, lightColors } from '@/ui/tokens';
 import { ThemeProvider } from '@/ui/theme';
 import { useStore } from '@/store';
 import { useFlagsStore } from '@/store/flagsStore';
+import { holdSplash } from '@/proto/launchSplash';
+
+// Module scope, the earliest app code: the splash stays up until the proto has painted a real
+// frame (ProtoApp releases it), instead of expo-router dropping it the moment its navigator is
+// ready, before the WebView even exists.
+holdSplash();
 
 export default function RootLayout() {
   const [loaded] = useFonts({

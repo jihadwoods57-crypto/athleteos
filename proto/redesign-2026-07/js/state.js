@@ -64,7 +64,8 @@ import {
 } from './meal-intel.js';
 import { groundMealFromFoods, groundMealTotals, gapFoods, labelProducts, isCompleteMealResult } from './nutrition.js';
 import { explainCategories, reachPlan as modelReachPlan, maxPossibleScore, mealMaxGain, CI_BEST } from './breakdown-model.js';
-import { cachedMealPhoto, todayMealPhotoPath, invalidateMealPhoto, resolveMealPhoto } from './photo-store.js';
+import { cachedMealPhoto, cachedMealThumb, photoMissing, todayMealPhotoPath, invalidateMealPhoto, resolveMealPhoto } from './photo-store.js';
+import { dropLaunch } from './launch-cache.js';
 import { base64ToBytes, sha256Hex, photoAgeMinutes } from './photo-hash.js';
 import {
   fetchMyPracticeIdentity, fetchMyTeamIdentity, fetchMyCoach, fetchMyTrainer, fetchMyConsent,
@@ -3360,6 +3361,7 @@ export const act = {
     PUSH_TOKEN_TRIED = false; PUSH_TOKEN_VALUE = null; // next sign-in re-registers its own token
     NOTIF_FETCH_AT = 0; // next account's bell fetches its own feed immediately
     try { dayResetLocal(); } catch { /* never block a wipe */ }
+    dropLaunch();   // Home's last-known picture (launch-cache.js) belongs to this account alone
     // A staged in-flight capture (photo + analysis) is user data now that it persists to
     // sessionStorage — clear it too so the next account on this device never inherits it.
     try { this.clearMeal(); } catch { /* never block a wipe */ }
@@ -5167,6 +5169,8 @@ export const S = {
         // this log actually earned, separate from how good the plate was.
         impact: mealImpact(k),
         img, route: `meal-detail/${k}`,
+        thumb: slotHasPhoto(k) ? cachedMealThumb(todayMealPhotoPath(RT.userId, String(DAY.date), k)) : null,
+        pending: slotHasPhoto(k) && !photoMissing(todayMealPhotoPath(RT.userId, String(DAY.date), k)),
       });
     }
     if (RT.weightLogged && DAY.currentWeight != null) a.push({ time: 'Today', type: 'Morning Weight', icon: 'scale', value: `${DAY.currentWeight} lb`, vClass: 'muted', img: null, route: 'weight' });

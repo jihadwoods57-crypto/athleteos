@@ -9,7 +9,8 @@ import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { join, extname, normalize } from 'node:path';
 
-const ROOT = join(import.meta.dirname, '..', 'proto', 'redesign-2026-07');
+// PROTO_ROOT serves another copy of the proto (e.g. an exported baseline for a before/after run).
+const ROOT = process.env.PROTO_ROOT || join(import.meta.dirname, '..', 'proto', 'redesign-2026-07');
 const PORT = Number(process.argv[2]) || 8799;
 
 const TYPES = {
