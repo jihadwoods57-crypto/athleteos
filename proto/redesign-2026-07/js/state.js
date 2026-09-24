@@ -15,7 +15,7 @@ import { progressRead } from './progress-week.js';
 import { initialsOf } from './initials.js';
 import {
   DAY, computeComponents as realComponents, projectedDay, scoreFor, clampedScore, dayFromHistoryRow,
-  streakDays as dayStreak, streakInfo, loadDay, reloadPassState, pushDay, uploadMealPhoto, flushDayPush,
+  streakDays as dayStreak, streakInfo, loadDay, healStoredScore, reloadPassState, pushDay, uploadMealPhoto, flushDayPush,
   setSyncBlocked, isSyncBlocked, SYNC, setDayTaskProvider,
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayLogWeight, dayResetLocal, dayCheckTask,
   dayUnlogMeal, dayMoveMeal,
@@ -262,6 +262,10 @@ export function computeScore(c) {
     (w.arrival || 0) * (c.arrival || 0)
   );
 }
+
+/* Which score inputs THIS session has actually read from the server (healStoredScore gate).
+   Last-known values are right to SHOW while offline, and wrong to WRITE over the coach's copy. */
+const SCORE_INPUTS = { profile: false, std: false };
 
 /* Score tiers — re-exported from score-band.js, which owns the thresholds. This used to be a
    fourth hand-written copy of the ladder with a 75 floor for "Locked In", five points below the
@@ -3188,6 +3192,7 @@ export const act = {
     if (role === 'coach') { await this._loadTeamIntoRt(RT.userId); await this._loadCoachHandleIntoRt(); }
     if (role === 'athlete') { await this._loadCoachIntoRt(RT.userId); await this._loadTrainerIntoRt(RT.userId); await this._loadConsentIntoRt(RT.userId); await this._loadAssignmentsIntoRt(); }
     await loadDay(RT.userId);
+    await this._afterDayLoad();
     syncRtFromDay();
     return { ok: true, role };
   },
@@ -3231,16 +3236,19 @@ export const act = {
           catch { /* telemetry is never worth the hydrate */ }
         }
       }
-      let meta = null;
+      let meta = null, metaOk = false;
       try {
         const { data: pm, error: pmErr } = await sb.rpc('athlete_plan_meta', { athlete: userId });
-        if (!pmErr && Array.isArray(pm) && pm[0]) meta = pm[0];
-        else if (pmErr) {
+        if (!pmErr) { metaOk = true; if (Array.isArray(pm) && pm[0]) meta = pm[0]; }
+        else {
           // Pre-0103: the RPC doesn't exist yet but the columns are still directly readable.
-          const { data: legacy } = await sb.from('athlete_profiles').select('base_weight,targets').eq('athlete_id', userId).maybeSingle();
+          const { data: legacy, error: lErr } = await sb.from('athlete_profiles').select('base_weight,targets').eq('athlete_id', userId).maybeSingle();
+          if (!lErr) metaOk = true;
           if (legacy) meta = legacy;
         }
       } catch { /* offline — cached values survive untouched below */ }
+      // The goal and targets the score is graded on arrived (healStoredScore's precondition).
+      SCORE_INPUTS.profile = !apErr && metaOk;
       const patch = {};
       if (prof && prof.full_name) patch.name = prof.full_name;
       // Cross-device activation backstop: the server's committed_at is the first-day anchor when
@@ -3639,6 +3647,8 @@ export const act = {
      table not yet applied / offline, the fetch returns [] and we keep what we have. */
   async _loadAssignmentsIntoRt() {
     if (!RT.userId) return;
+    SCORE_INPUTS.std = false;
+    let stdOk = true;
     const rows = await fetchMyAssignments();
     // null = the fetch FAILED: keep last-known (splicing it in would wipe every real coach
     // assignment). No assignments: nothing to merge. EITHER WAY the standard below still loads.
@@ -3663,29 +3673,40 @@ export const act = {
       // Bounded read (0203): the RPC returns only the rows resolution can actually pick from;
       // it falls back to the full fetch on a pre-0203 server.
       const sets = await fetchRelevantRequirementSets(RT.myCoach.teamId, 'team');
-      if (sets !== null) RT.reqSets = sets;
+      if (sets !== null) RT.reqSets = sets; else stdOk = false;
       // The team's weekly pattern (0100) resolves this athlete's day-type. A real null (no
       // pattern configured) leaves day-type 'any', which is correct. { error:true } means the
       // read FAILED, and assigning that dropped rest-day gating for the session: the athlete
       // was then scored on training-day items on their rest day. Keep last-known instead.
       try {
         const wp = await fetchTeamWeekPattern(RT.myCoach.teamId);
-        if (!(wp && wp.error)) RT.weekPattern = wp;
-      } catch { /* best-effort */ }
+        if (!(wp && wp.error)) RT.weekPattern = wp; else stdOk = false;
+      } catch { stdOk = false; }
       // The athlete's assigned room label (0101): when set, their standard resolves against the ROOM
       // instead of their raw position. null (unassigned — every athlete until a coach assigns) = the
       // exact prior behavior; { error:true } = FAILED, which must not silently demote them to
       // position-based resolution (a different standard, scored the same day).
       try {
         const rl = await fetchMyRoomLabel(RT.myCoach.teamId);
-        if (!(rl && rl.error)) RT.myRoomLabel = rl;
-      } catch { /* best-effort */ }
+        if (!(rl && rl.error)) RT.myRoomLabel = rl; else stdOk = false;
+      } catch { stdOk = false; }
     } else if (RT.myTrainer && RT.myTrainer.practiceId) {
       const sets = await fetchRelevantRequirementSets(RT.myTrainer.practiceId, 'practice');
-      if (sets !== null) RT.reqSets = sets;
+      if (sets !== null) RT.reqSets = sets; else stdOk = false;
     }
+    SCORE_INPUTS.std = stdOk;
     this._applyStandardFromSets();
     save();
+  },
+  /* After loadDay: the standard, day type and style re-resolve for the date the day ACTUALLY
+     loaded (after midnight they were resolved for yesterday's), then the stored score is healed
+     only when every input behind it is known to be loaded (coach score truth). */
+  async _afterDayLoad() {
+    if (!RT.userId || (RT.authRole && RT.authRole !== 'athlete')) return;
+    this._applyStandardFromSets();
+    if (SCORE_INPUTS.std && SCORE_INPUTS.profile && RT.profile) {
+      try { await healStoredScore(RT.userId); } catch { /* best-effort */ }
+    }
   },
   /* Resolve the governing set (athlete > position room > team) into the DAY engine: slot
      list, deadlines, titles, and the nutrition denominator. No set → the classic day. */
@@ -4410,7 +4431,7 @@ export const act = {
         await this._loadAssignmentsIntoRt();
       }
     }
-    await loadDay(RT.userId); syncRtFromDay(); this.syncNotifications();
+    await loadDay(RT.userId); await this._afterDayLoad(); syncRtFromDay(); this.syncNotifications();
     void this.catchUpAiAdditions();
   },
   // User-driven recovery from the Plan offline card (data-act="retryProfile") — re-attempts the
