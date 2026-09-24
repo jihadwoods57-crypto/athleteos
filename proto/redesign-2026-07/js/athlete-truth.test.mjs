@@ -74,10 +74,12 @@ test('A-M4 / A-M5 / Rep 1: the breakdown and score-explained say the same true t
   assert.match(sx, /Recovery: every question answered/);
 });
 
-test('A-M8: the empty trends line branches on the real number of scored days', () => {
+test('A-M8 (superseded 2026-09-23): no apology stands in for a missing trends chart', () => {
+  // The empty trends line branched on the real number of scored days; the Progress cleanup cut
+  // it: when there is nothing to show, the section is absent, not a paragraph explaining why.
   const p = src('screens/progress.js');
-  assert.match(p, /function trendsEmptyLine\(\)/);
-  assert.match(p, /if \(scored >= 3\) return 'Your daily scores are in/);
+  assert.doesNotMatch(p, /function trendsEmptyLine\(\)/);
+  assert.doesNotMatch(p, /is not available for those days/);
 });
 
 test('A-Polish 1/3/5/7: dev route gone, error has a way out, the hours add up, no unverified socials', () => {

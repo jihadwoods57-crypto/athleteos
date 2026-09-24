@@ -15,6 +15,7 @@
 import { esc } from './components.js';
 import { scoreBand, tierFor } from './score-band.js';
 import { dateKey } from './fmt-date.js';
+import { icon } from './icons.js';
 
 /** The `n` calendar days ending on `todayKey` ('YYYY-MM-DD', local), oldest first, each with the
  *  score logged that day or null. A day with no row is a day with no log: it stays in the week as
@@ -40,14 +41,47 @@ export function daysBetween(dayKey, todayKey) {
   return Number.isFinite(a) && Number.isFinite(b) ? Math.round((b - a) / 864e5) : null;
 }
 
+/** One bar, filled to its score: both builders draw it the same way. */
+const bar = (v) => `<div class="bar" style="height:${Math.max(0, Math.min(100, v))}%"></div>`;
+
 export function weekBars({ scores = [], labels = [], cutIdx = -1, cutLabel = '', gaps = false } = {}) {
   const spoken = scores.map((v, i) => `${labels[i] || ''} ${gaps && v == null ? 'no log' : v}`).join(', ');
   return `<div class="weekbars" role="img" aria-label="Last ${scores.length} days: ${spoken}. The standard is 80.${cutIdx !== -1 ? ` ${esc(cutLabel)}.` : ''}">
         ${scores.map((v, i) => `
           ${i === cutIdx ? `<div class="wb-cutover" aria-hidden="true" title="${esc(cutLabel)}"></div>` : ''}
           <div class="wb b-${gaps && v == null ? 'none' : (scoreBand(v) || 'off')}${v == null ? '' : ` t-${tierFor(v).cls}`}">
-            <div class="track">${gaps && v == null ? '' : `<div class="bar" style="height:${Math.max(0, Math.min(100, v))}%"></div>`}</div>
+            <div class="track">${gaps && v == null ? '' : bar(v)}</div>
             <span class="d">${labels[i] || ''}</span>
           </div>`).join('')}
+      </div>`;
+}
+
+/** The athlete's own seven days, as Progress draws them (2026-09-23). `days` come from
+ *  progressRead (js/progress-week.js): { label, score, state: 'scored'|'missed'|'before'|'today' }.
+ *  Each bar prints its score above it in its tier colour, so the chart needs no colour legend; a
+ *  missed day is an empty track with a red mark (red means missed, nothing else); a day before
+ *  the athlete started is an empty, faded track; today is labelled Today and fills as it scores.
+ *  Below 60 stays neutral, bar and number alike (the athlete's-own-history ruling). */
+export function dayBars(days = [], { cutIdx = -1, cutLabel = '' } = {}) {
+  const spoken = days.map((d) => {
+    const name = d.state === 'today' ? 'today' : new Date(`${d.key}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short' });
+    if (d.state === 'missed') return `${name} no log`;
+    if (d.state === 'before') return `${name} before you started`;
+    if (d.score == null) return `${name} not scored yet`;
+    return `${name} ${d.score}${d.state === 'today' ? ' so far' : ''}`;
+  }).join(', ');
+  return `<div class="weekbars pg-days" role="img" aria-label="Last ${days.length} days: ${esc(spoken)}. The standard is 80.${cutIdx !== -1 ? ` ${esc(cutLabel)}.` : ''}">
+        ${days.map((d, i) => {
+          const cls = d.score != null ? tierFor(d.score).cls : '';
+          const ink = cls && cls !== 'r' ? ` tier-ink ${cls}` : '';
+          const top = d.state === 'missed' ? icon('x', 12) : d.score != null ? d.score : '';
+          return `
+          ${i === cutIdx ? `<div class="wb-cutover" aria-hidden="true" title="${esc(cutLabel)}"></div>` : ''}
+          <div class="wb wb-${d.state}${cls ? ` t-${cls}` : ''}" aria-hidden="true">
+            <span class="wb-n${ink}">${top}</span>
+            <div class="track">${d.score != null ? bar(d.score) : ''}</div>
+            <span class="d">${d.state === 'today' ? 'Today' : esc(d.label || '')}</span>
+          </div>`;
+        }).join('')}
       </div>`;
 }
