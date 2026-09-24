@@ -61,3 +61,10 @@ row below tells you nothing about the extension.
   pass-through.
 
 Verdict: _pending_
+
+
+## Result (2026-09-24, build 48, founder iPhone, iOS 27.0)
+
+Row 1 banner, literal: `SPIKE 0/1 armed · cancelled 0 · auth notDetermined`. The extension ran with the app force-quit and rewrote the banner, but AlarmKit authorization is per bundle: the app was authorized (it armed the Oct 1 roll call that morning) while the extension saw notDetermined and cannot ask (no UI). No alarm rang.
+
+**Verdict: FAIL** for arming from the push. `rollcall_push_arming` stays OFF; v3 ships on the fallback path.
