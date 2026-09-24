@@ -281,7 +281,7 @@ export const coachVoice = {
 
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
-        <div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div>
+        <div class="lic nia-av"><span class="nia-n" aria-hidden="true">N</span></div>
         <div class="lm"><div class="lt">Coach Nia</div><div class="ls">${enabled ? 'On: always labeled as AI, never signed as you' : 'Off: Nia uses her default voice'}</div></div>
         <div class="seg" style="width:104px" id="cv-enabled" role="radiogroup" aria-label="Coach Nia"><button role="radio" aria-checked="${enabled}" class="${enabled ? 'on' : ''}">On</button><button role="radio" aria-checked="${!enabled}" class="${enabled ? '' : 'on'}">Off</button></div>
       </div>

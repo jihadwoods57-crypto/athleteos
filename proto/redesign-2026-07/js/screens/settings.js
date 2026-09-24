@@ -243,7 +243,7 @@ function aiPrivacySection(role) {
   return `<h2 class="eyebrow">AI</h2>
     <section class="card rows">
       <div class="lrow" id="pv-ai" role="button" tabindex="0">
-        <div class="lic">${icon('sparkle', 17)}</div>
+        <div class="lic nia-av"><span class="nia-n" aria-hidden="true">N</span></div>
         <div class="lm"><div class="lt">${role === 'athlete' ? 'Nia (AI meal reads)' : 'Nia (AI)'}</div><div class="ls">${esc(sub)}</div></div>
         ${aiPill(v)}
         ${icon('chevron', 15, 'class="chev-dim"')}
