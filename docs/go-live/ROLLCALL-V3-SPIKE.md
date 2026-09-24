@@ -36,7 +36,8 @@ row below tells you nothing about the extension.
 |---|---|---|---|---|
 | 1 | Force-quit OnStandard (swipe it away). Run `node scripts/rollcall-nse-spike.mjs --token "<token>" --in 3`. | Banner body reads `SPIKE 1/1 armed · cancelled 0 · auth authorized`. | | |
 | 2 | Lock the phone and wait 3 minutes. | The full-screen alarm rings with title "Spike roll call" and the "I’m Up" button. | | |
-| 3 | Press "I’m Up". | OnStandard opens. | | |
+| 3 | Press "I’m Up". | OnStandard opens ON the team board for the spike instance (`#rollcall-board/<spike id>`). Opening anywhere else is a FAIL: it means the tap was not recorded in the app. | | |
+| 3b | Run the spike again (`--in 3`), let it ring, and press the system Stop instead. Then open OnStandard. | The app drains a check-in for that spike id on open (the board or a check-in toast for it). Nothing recorded is a FAIL. | | |
 | 4 | Run again with `--in 10`, then within a minute run `--cancel <printed id>` with the app still force-quit. | Second banner reads `SPIKE 0/0 armed · cancelled 1 · auth authorized`; no alarm rings at +10. | | |
 | 5 | Reboot the phone, force-quit OnStandard, repeat rows 1 and 2. | Same as rows 1 and 2. | | |
 | 6 | Settings > OnStandard > Alarms OFF, repeat row 1. | Banner reads `SPIKE 0/1 armed · … · auth denied`, no alarm. | | |
