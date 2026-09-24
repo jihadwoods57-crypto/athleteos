@@ -62,7 +62,7 @@ let BULK_BUSY = false;
 let GDEL = null;   // group id armed for delete (two-tap confirm), or null
 let BULK_NUDGE_ARM = null;   // the editable bulk-nudge body while previewing, or null
 
-const STATUS_ORDER = ['overdue', 'no_activity', 'needs_review', 'below_standard', 'due_soon', 'excused', 'on_standard'];
+const STATUS_ORDER = ['overdue', 'no_activity', 'needs_review', 'below_standard', 'due_soon', 'in_progress', 'excused', 'on_standard'];
 
 const NO_MATCH_HTML = `<div style="padding:18px;text-align:center;font-size:12px;font-weight:600;color:var(--text-3)">No one matches that filter.</div>`;
 

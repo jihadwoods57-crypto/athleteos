@@ -264,7 +264,7 @@ test('the write-path invariant survives a pass: scoreFor never exceeds evidenceC
 
 /* ---------------------------------------------------------------- milestone prompt (coach-data.js) */
 
-import { consecutiveOnStandard, passWorthy } from './coach-data.js';
+import { consecutiveOnStandard, passWorthy } from './team-count.js';
 
 const day = (dateISO, score) => ({ date: dateISO, score });
 

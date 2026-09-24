@@ -1,7 +1,7 @@
 /* Coach OS athlete statuses — PURE (no DOM, no fetch, no Date.now — callers pass nowMs; the one
    import is the dependency-free score-band.js): testable like notify-plan.js.
    One athlete → one status, precedence-ordered so the roster chip is never ambiguous:
-   excused > overdue > needs_review > below_standard > due_soon > no_activity > on_standard.
+   excused > overdue > needs_review > below_standard > due_soon > no_activity > in_progress > on_standard.
    Every input is real data (day row, resolved requirement windows, exception rows) —
    an unknown score/window degrades to the safest honest answer, never an invented one. */
 import { ON_STANDARD, tierColor } from './score-band.js';
@@ -17,6 +17,9 @@ export const STATUS_META = {
   below_standard: { label: 'Below standard', color: 'var(--amber-bright)' },
   due_soon:       { label: 'Due soon',       color: 'var(--amber-bright)' },
   no_activity:    { label: 'No activity',    color: 'var(--text-3)' },
+  // Logged, under the bar, windows still open: the athlete's own Home says "In progress" here,
+  // never a verdict, until the day is settled (coach score truth, 2026-09-24).
+  in_progress:    { label: 'In progress',    color: 'var(--blue-bright)' },
   on_standard:    { label: 'On standard',    color: 'var(--green-bright)' },
 };
 const DUE_SOON_MIN = 60;
@@ -138,7 +141,10 @@ export function athleteStatus({ nowMin, nowMs = /** @type {number | null} */ (nu
   if (excused) return mk('excused', 'Excused today');
   if (overdue.length) return mk('overdue', `${joinTitles(overdue.map(i => i.title))} overdue`);
   if (needsReview) return mk('needs_review', 'A log is waiting on your review');
-  if (row.loggedToday && row.score != null && row.score < ON_STANDARD) return mk('below_standard', `Scored ${row.score} today`);
+  // Settled = no required window still open on time (dayverdict.js dayDecided, the athlete's rule).
+  const open = items.some(i => i.dueMin != null && i.state !== 'overdue');
+  const under = row.score != null && row.score < ON_STANDARD;
+  if (row.loggedToday && under && !open) return mk('below_standard', `Scored ${row.score} today`);
   if (dueSoon.length) {
     const next = dueSoon.reduce((a, b) => (a.dueMin ?? 9999) <= (b.dueMin ?? 9999) ? a : b);
     return mk('due_soon', `${next.title} window closes in ${Math.max(0, (next.dueMin ?? nowMin) - nowMin)} minutes`);
@@ -148,6 +154,7 @@ export function athleteStatus({ nowMin, nowMs = /** @type {number | null} */ (nu
   // `needsReview` flag above (a flagged/reviewed log) and here (a log landed but the score
   // hasn't resolved yet) — both are honestly "needs a human", just different reasons why.
   if (row.loggedToday && row.score == null) return mk('needs_review', 'Logged today · score pending');
+  if (row.loggedToday && under) return mk('in_progress', 'Day still open');
   if (row.loggedToday) return mk('on_standard', 'On standard today');
   return mk('no_activity', 'Nothing logged yet today');
 }

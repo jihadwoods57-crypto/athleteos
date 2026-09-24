@@ -144,6 +144,49 @@ test('the athlete standard loads even with no one-off coach assignment', async (
   D.setDayStandard(null); delete window.sb; RT.myCoach = null;
 });
 
+/* Review I2: the stored score is only rewritten when every input behind it loaded THIS session. */
+function hydrateStub({ setsFail }) {
+  const upserts = [];
+  const TODAY = localDayISO(null);
+  const chain = (table) => {
+    const st = { order: false, upsert: false };
+    const p = new Proxy(function () {}, {
+      get(_t, prop) {
+        if (prop === 'then') return (res) => {
+          if (st.upsert) return res({ data: null, error: null });
+          if (table === 'rpc:relevant_requirement_sets' || table === 'requirement_sets') {
+            return res(setsFail ? { data: null, error: { message: 'down' } } : { data: [{ id: 's1', scope_kind: 'team', scope_value: null, effective_date: '2026-08-28', items: ITEMS }], error: null });
+          }
+          if (table === 'days') return res({ data: st.order ? [] : { ...ROW_0924, date: TODAY, score: 1 }, error: null });
+          if (table === 'athlete_profiles') return res({ data: { base_goal: 'performance', position: 'LB' }, error: null });
+          if (table === 'rpc:athlete_plan_meta') return res({ data: [{ base_weight: null, targets: { protein: 180, calories: 2400 } }], error: null });
+          if (table === 'requirement_assignments' || table === 'meals' || table === 'trust_passes' || table === 'pass_spends') return res({ data: [], error: null });
+          return res({ data: null, error: null });
+        };
+        return (...args) => { if (prop === 'order') st.order = true; if (prop === 'upsert') { st.upsert = true; upserts.push(args[0]); } return p; };
+      },
+      apply() { return p; },
+    });
+    return p;
+  };
+  window.sb = { from: (t) => chain(t), rpc: (fn) => chain(`rpc:${fn}`), auth: { getUser: async () => ({ data: { user: { id: ATHLETE } } }) } };
+  return upserts;
+}
+test('the stored score is healed only when the standard and profile both loaded this session', async () => {
+  RT.userId = ATHLETE; RT.authRole = 'athlete'; RT.myCoach = { teamId: 'team-1', name: 'Coach Grinch' };
+  for (const [setsFail, expectWrite] of [[true, false], [false, true]]) {
+    const upserts = hydrateStub({ setsFail });
+    await act._loadProfileIntoRt(ATHLETE);
+    await act._loadAssignmentsIntoRt();
+    await D.loadDay(ATHLETE);
+    await act._afterDayLoad();
+    const wrote = upserts.filter((r) => r && r.athlete_id === ATHLETE && 'score' in r);
+    assert.equal(wrote.length > 0, expectWrite, setsFail ? 'a failed standard fetch must not write' : 'a fully loaded day heals the stale 1');
+    if (expectWrite) assert.equal(wrote[0].score, S.score, 'and it writes exactly what Home shows');
+  }
+  D.setDayStandard(null); delete window.sb; RT.myCoach = null; RT.authRole = null;
+});
+
 test('S.score and pushDay name the same function', () => {
   assert.match(src('state.js'), /get score\(\) \{ return memo\('score', \(\) => clampedScore\(DAY\)\); \}/);
   assert.match(src('day.js'), /const s = clampedScore\(DAY\);/);
@@ -251,4 +294,40 @@ test('coach Home prints yesterday as yesterday, never a delta, until today settl
   assert.match(ch, /groupPulse\(entries\)/);
   assert.match(ch, /Yesterday ended at \$\{p\.yesterday\}/);
   assert.doesNotMatch(ch, /First day of data/);
+});
+
+/* ------------------------------------------------------------------ status follows the athlete */
+
+test('coach status: under the bar with windows open is "In progress", never a verdict or a score', () => {
+  const reqs = catalogFromItems(ITEMS);
+  const row = { athleteId: 'a', score: 57, loggedToday: true, tasks: ROW_0924.tasks, meals: ROW_0924.meals };
+  const noon = athleteStatus({ nowMin: 750, nowMs: 0, nowDow: 4, row, reqs, excused: false });
+  assert.equal(noon.key, 'in_progress');
+  assert.doesNotMatch(noon.detail, /\d/, 'no number in the line while the day is open');
+  // Everything in, and every window has closed: now the verdict is honest.
+  const full = { ...row, score: 70, meals: { breakfast: true, lunch: true, dinner: true }, tasks: [...ROW_0924.tasks.filter((t) => t.id !== 'dinner'), { id: 'dinner', done: true }] };
+  const late = athleteStatus({ nowMin: 1420, nowMs: 0, nowDow: 4, row: full, reqs, excused: false });
+  assert.equal(late.key, 'below_standard');
+  assert.equal(late.detail, 'Scored 70 today');
+  // A closed window with nothing in stays live: overdue is a fact the coach can act on.
+  const missed = athleteStatus({ nowMin: 1300, nowDow: 4, row, reqs, excused: false });
+  assert.equal(missed.key, 'overdue');
+  // One count for every screen.
+  const c = teamCounts([{ row, reqs, nowMin: 750, nowDow: 4, status: noon }]);
+  assert.equal(c.inProgress, 1);
+  assert.equal(c.attention, 0);
+});
+
+/* ------------------------------------------------------------------ breakdown adds up */
+
+test('the breakdown sums to the ring on a day with an arrival (and "max today" is the engine\'s)', async () => {
+  const { dayScoreOf, explainCategories } = await import('./breakdown-model.js');
+  liveDay(null);
+  D.DAY.arrival = { assigned: true, verdict: 'on_standard', lateMin: 0 };
+  assert.equal(dayScoreOf(D.DAY), D.scoreFor(D.DAY));
+  const cats = explainCategories(D.DAY, { slots: D.MEAL_KEYS, denom: 4, nowMin: 750, fmtClock: (m) => String(m) });
+  assert.ok(cats.some((x) => x.id === 'arrival'), 'an Arrival card exists when arrival carries points');
+  const sum = cats.reduce((n, x) => n + x.earned, 0);
+  assert.ok(Math.abs(sum - D.scoreFor(D.DAY)) <= 1, `parts ${sum} vs ring ${D.scoreFor(D.DAY)}`);
+  D.DAY.arrival = null;
 });

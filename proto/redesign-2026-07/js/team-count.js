@@ -3,12 +3,14 @@
    Its own module, off status.js, because only the lazily loaded coach screens need it: status.js
    sits in the eager boot graph. PURE, like status.js. */
 import { STATUS_META, runsOn, tasksTrustworthy, isMealSlot } from './status.js';
-import { tierFor } from './score-band.js';
+import { tierFor, ON_STANDARD } from './score-band.js';
+import { dateKey } from './fmt-date.js';
 import { localDayISO } from './roster-day.js';
 
 /* Buckets in display order; `cls` is the .dot / .seg accent. */
 export const COUNT_BUCKETS = [
   { key: 'onStandard', cls: 'g', label: 'on standard', statuses: ['on_standard'] },
+  { key: 'inProgress', cls: 'b', label: 'in progress', statuses: ['in_progress'] },
   { key: 'attention', cls: 'a', label: 'need attention', one: 'needs attention', statuses: ['due_soon', 'below_standard', 'needs_review'] },
   { key: 'overdue', cls: 'r', label: 'overdue', statuses: ['overdue'] },
   { key: 'noActivity', cls: 'd', label: 'no activity', statuses: ['no_activity'] },
@@ -119,7 +121,9 @@ export function groupPulse(entries, nowMs = Date.now()) {
   const list = (entries || []).filter((e) => e && e.row);
   const mean = (a) => Math.round(a.reduce((x, v) => x + v, 0) / a.length);
   const today = list.map((e) => ({ e, s: shownScore(e, nowMs) })).filter((x) => x.s != null);
-  const ys = list.map((e) => e.row.yesterdayScore).filter((v) => v != null);
+  // Yesterday over the SAME athletes the ring averages; before anyone has a score today (the
+  // ring is not started) it is the whole group's yesterday, labelled as such.
+  const ys = (today.length ? today.map((x) => x.e) : list).map((e) => e.row.yesterdayScore).filter((v) => v != null);
   const settled = today.length > 0
     && today.every(({ e }) => (e.status && e.status.key === 'excused') || dayStanding(e).settled);
   const pairs = today.filter(({ e }) => e.row.yesterdayScore != null);
@@ -131,4 +135,50 @@ export function groupPulse(entries, nowMs = Date.now()) {
     delta: settled && pairs.length
       ? mean(pairs.map((x) => x.s)) - mean(pairs.map((x) => x.e.row.yesterdayScore)) : null,
   };
+}
+
+/* ---------- Trust Pass milestone (0196; moved from coach-data.js, off the boot graph): who just earned a reward, from data already loaded ---
+   `row.scoreHistory` is what buildRosterRow already carries — up to 7 days back plus today, the
+   same window loadCoachRoster/loadTrainerBook fetch for the sparkline. No new query. */
+
+/** Consecutive on-standard (score >= 80) days ending at the most recent entry in scoreHistory.
+ *  Counting BACKWARD from the newest row and stopping at the first gap or sub-80 score means the
+ *  result is a LOWER BOUND on the athlete's real streak, never an inflated one: a streak that
+ *  started before this 7-day window is real but invisible here, and this function only ever
+ *  under-counts, so a milestone that fires is always true.
+ *
+ *  A day with no ROW at all (never logged) must break the chain exactly like a sub-80 score does
+ *  — "absent days count as misses" is the same rule the streak screen states outright, and a
+ *  version of this that just skipped a gap in the dates would count two Tuesdays a week apart as
+ *  adjacent. So each older row is required to be exactly one calendar day before the one after
+ *  it; anything else ends the count right there. */
+export function consecutiveOnStandard(scoreHistory) {
+  const rows = (scoreHistory || []).slice().sort((a, b) => (a.date < b.date ? 1 : -1)); // newest first
+  let n = 0;
+  let expected = null;
+  for (const r of rows) {
+    if (!r || typeof r.score !== 'number' || r.score < ON_STANDARD) break;
+    if (expected !== null && r.date !== expected) break;
+    n++;
+    const d = new Date(r.date + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
+    expected = dateKey(d);
+  }
+  return n;
+}
+
+/** Clients who just crossed the reward milestone and hold no active pass, ranked by streak length
+ *  (the athlete closest to earning a moment gets it). `passes` is the map fetchRosterPasses
+ *  already returns for the roster's own trust-pass section.
+ *
+ *  `minStreak` default is 5, NOT the 14 days floated at design time — the roster fetch carries at
+ *  most ~8 days of scoreHistory (7 back + today), so a 14-day threshold could never fire on data
+ *  this screen actually has. 5 is the largest number the current window can prove without lying.
+ *  Widening this needs widening the roster's own date fetch (roles.js loadCoachRoster /
+ *  loadTrainerBook), which is a real product decision, not a default to guess past. */
+export function passWorthy(rows, passesMap, minStreak = 5) {
+  return (rows || [])
+    .map((r) => ({ row: r, streak: consecutiveOnStandard(r.scoreHistory) }))
+    .filter((x) => x.streak >= minStreak && !(passesMap || {})[x.row.athleteId])
+    .sort((a, b) => b.streak - a.streak);
 }

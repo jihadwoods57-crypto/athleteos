@@ -28,9 +28,16 @@ test('due soon: within 60 min of an open required item', () => {
   const s = athleteStatus({ nowMin: 800, row: row({ loggedToday: true, score: 85, tasks: [{ id: 'breakfast', done: true }, { id: 'lunch', done: false }] }), reqs: REQS, excused: false });
   expect(s.key).toBe('due_soon');
 });
-test('below standard: everything logged on time but score < 80', () => {
+test('under 80 with windows still open: in progress, no verdict and no number (the athlete rule)', () => {
   const s = athleteStatus({ nowMin: 700, row: row({ loggedToday: true, score: 55, tasks: [{ id: 'breakfast', done: true }] }), reqs: REQS, excused: false });
+  expect(s.key).toBe('in_progress');
+  expect(s.detail).not.toMatch(/\d/);
+});
+test('below standard: every window settled, score < 80', () => {
+  const all = [{ id: 'breakfast', done: true }, { id: 'lunch', done: true }, { id: 'dinner', done: true }];
+  const s = athleteStatus({ nowMin: 1300, row: row({ loggedToday: true, score: 55, tasks: all }), reqs: REQS, excused: false });
   expect(s.key).toBe('below_standard');
+  expect(s.detail).toBe('Scored 55 today');
 });
 // Overdue outranks no_activity by design — nowMin 500 keeps every item merely 'ready'.
 test('no activity: nothing today and no meal inside 24h', () => {
@@ -57,7 +64,7 @@ test('groupPulse: average, and a delta only once today is settled', () => {
   expect(noon.yesterday).toBe(85);
 });
 test('every status key has display meta', () => {
-  for (const k of ['excused', 'overdue', 'needs_review', 'below_standard', 'due_soon', 'no_activity', 'on_standard']) {
+  for (const k of ['excused', 'overdue', 'needs_review', 'below_standard', 'due_soon', 'no_activity', 'in_progress', 'on_standard']) {
     expect(STATUS_META[k].label).toBeTruthy();
   }
 });

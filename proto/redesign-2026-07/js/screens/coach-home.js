@@ -4,12 +4,12 @@ import { initialsOf } from '../initials.js';
 import { hydrateAvatars } from '../avatar.js';
 import { avatarHead, esc, safeImg, collapseSection, skeletonRows, errorState, emptyState, emailVerifyBanner, wireEmailVerifyBanner, copyText, scoreRing } from '../components.js';
 import * as roles from '../roles.js';
-import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention, passWorthy, bookId, seenMealSet } from '../coach-data.js';
+import { CD, loadBook, bookKindFor, loadActivity, actTime, entriesFor, getScope, setScope, logBookIntervention, bookId, seenMealSet } from '../coach-data.js';
 import { buildPriorities } from '../priority.js';
 import { nudgePreset, nudgeResultCopy } from '../nudge-presets.js';
 import { PLANS } from '../ob2.js';
 import { statusLabel } from '../status.js';
-import { teamCounts, COUNT_BUCKETS, bucketLabel, groupPulse, shownScore } from '../team-count.js';
+import { teamCounts, COUNT_BUCKETS, bucketLabel, groupPulse, shownScore, passWorthy } from '../team-count.js';
 import { scoreColor } from '../score-band.js';
 import { encodeQR, addQuietZone, qrSvg } from '../qr.js';
 import { paintBoard } from './coach-commitments.js';
@@ -419,7 +419,8 @@ function pulseCard(entries) {
   /* Like for like (2026-09-24): the delta exists only once today is settled for everyone counted
      (groupPulse). Before that the pill names yesterday's final for what it is, never a drop. */
   const delta = p.delta;
-  const dCls = delta == null ? 'muted' : delta > 0 ? 'g' : delta < 0 ? 'r' : 'muted';
+  // Down is amber, as on the athlete's Home (xh-delta down): a lower day is not a missed one.
+  const dCls = delta == null ? 'muted' : delta > 0 ? 'g' : delta < 0 ? 'a' : 'muted';
   const dTxt = delta != null
     ? (delta === 0 ? 'Even with yesterday' : `${delta > 0 ? '▲' : '▼'} ${Math.abs(delta)} vs yesterday`)
     : p.yesterday != null ? `Yesterday ended at ${p.yesterday}` : '';
@@ -783,10 +784,8 @@ export const coachHome = {
     const now = new Date();
     const nowMin = now.getHours() * 60 + now.getMinutes();
     const nowMs = now.getTime();
-    // Each card's number is the one the athlete's own Home shows (shownScore), same as the ring.
-    const shownBy = {}; for (const e of (entries || [])) shownBy[e.row.athleteId] = shownScore(e, nowMs);
-    const cards = entries ? buildPriorities({ nowMin, nowMs, entries, interventions: (CD.extras && CD.extras.interventions) || [] })
-      .map((c) => ({ ...c, score: shownBy[c.athleteId] ?? null })) : [];
+    // Each card's number (and its rank) is the one the athlete's own Home shows (shownScore).
+    const cards = entries ? buildPriorities({ nowMin, nowMs, entries: entries.map((e) => ({ ...e, shown: shownScore(e, nowMs) })), interventions: (CD.extras && CD.extras.interventions) || [] }) : [];
     const pending = CD.roster.pending || [];
     const seen = seenMealSet(RT.coachSeenMealIds || []); // device list + every staff view (0229)
     const feed = CD.act && CD.act.rows ? CD.act.rows.filter(m => rows.some(r => r.athleteId === m.athlete_id)) : null;

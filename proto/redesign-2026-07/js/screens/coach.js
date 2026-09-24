@@ -1876,11 +1876,14 @@ export const coachInbox = {
           const list = entries.filter(e => e.status.key === key).map(e => e.row.name.split(' ')[0]);
           return `${esc(list.slice(0, 3).join(', '))}${list.length > 3 ? '…' : ''}`;
         };
-        const top = rows.filter(r => r.score != null && r.score >= ON_STANDARD).sort((a, b) => b.score - a.score)[0];
+        // The number each athlete's own Home shows (shownScore), never the raw stored one.
+        const top = entries.map(e => ({ name: e.row.name, score: shownScore(e) }))
+          .filter(r => r.score != null && r.score >= ON_STANDARD).sort((a, b) => b.score - a.score)[0];
         const lines = [];
         const bline = (color, html) => `<div class="l"><span class="dot" style="background:${color}"></span><span>${html}</span></div>`;
         if (c.overdue) lines.push(bline(statusColor({ key: 'overdue' }), `<b>${c.overdue} overdue</b>. ${names('overdue')}.`));
         if (c.noActivity) lines.push(bline(statusColor({ key: 'no_activity' }), `<b>${c.noActivity} no activity</b> yet today. ${names('no_activity')}.`));
+        if (c.inProgress) lines.push(bline(statusColor({ key: 'in_progress' }), `<b>${c.inProgress} in progress</b>: under the bar with windows still open.`));
         if (c.attention) lines.push(bline(statusColor({ key: 'below_standard' }), `<b>${c.attention} ${c.attention === 1 ? 'needs' : 'need'} attention</b>: below standard, due soon or waiting on review.`));
         if (top) lines.push(bline(scoreColor(top.score), `<b>${esc(top.name)}</b> leads the day at ${top.score}.`));
         briefing = lines.join('') || `<div class="l"><span>Quiet so far. Logs land here as they come in.</span></div>`;
@@ -2806,7 +2809,9 @@ export const coachAthlete = {
     </div>`;
     // An on-standard athlete has nothing to nudge — the always-available detail nudge used to be
     // the one path where "Time to get your log in." could land on someone who logged everything.
-    const onStd = !!(P.row && P.row.score != null && P.row.score >= ON_STANDARD);
+    const e1 = (entriesFor({ kind: 'athlete', value: athleteId }) || [])[0];
+    const shown1 = e1 ? shownScore(e1) : null;
+    const onStd = shown1 != null && shown1 >= ON_STANDARD;
     // One nudge a day, held across devices and staff: the server's intervention rows are the
     // record, RT.coachNudged is only this device's fast path. This page used to have no daily
     // guard at all — a coach could ping the same athlete every two minutes from here.

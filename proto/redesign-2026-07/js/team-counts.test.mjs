@@ -48,7 +48,8 @@ const DAYS = [
   { athlete_id: 'a1', date: TODAY, score: 92, grade: 'A', tasks: [], meals: { breakfast: true, lunch: true } },
   // a2: breakfast only, 64 -> OVERDUE (lunch), even though 64 is a "Building" score. 1 of 2.
   { athlete_id: 'a2', date: TODAY, score: 64, grade: 'D', tasks: [], meals: { breakfast: true } },
-  // a3: both meals in, 71 -> below standard. 2 of 2.
+  // a3: both meals in, 71, dinner still open -> IN PROGRESS (no verdict until the day settles,
+  //     the athlete Home's own rule; coach score truth 2026-09-24). 2 of 2.
   { athlete_id: 'a3', date: TODAY, score: 71, grade: 'C', tasks: [], meals: { breakfast: true, lunch: true } },
   // a4: NO day row today (logged yesterday) -> overdue on both. 0 of 2. The old row-sum left
   //     this athlete out of the requirement total entirely.
@@ -105,13 +106,13 @@ RT.userId = 'u1';
 RT.authRole = 'coach';
 await loadBook(true, 'team');
 
-const EXPECT = { onStandard: 1, attention: 2, overdue: 2, noActivity: 0, excused: 1, reqDue: 10, reqDone: 7 };
+const EXPECT = { onStandard: 1, inProgress: 1, attention: 1, overdue: 2, noActivity: 0, excused: 1, reqDue: 10, reqDone: 7 };
 const strip = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
 test('the seeded team resolves to the statuses the fixture describes', () => {
   const byId = Object.fromEntries(entriesFor({ kind: 'team', value: null }).map(e => [e.row.athleteId, e.status.key]));
   assert.deepStrictEqual(byId, {
-    a1: 'on_standard', a2: 'overdue', a3: 'below_standard', a4: 'overdue', a5: 'excused', a6: 'needs_review',
+    a1: 'on_standard', a2: 'overdue', a3: 'in_progress', a4: 'overdue', a5: 'excused', a6: 'needs_review',
   });
 });
 
@@ -137,18 +138,21 @@ test('Home, Inbox, Insights and Roster print the same numbers in the same words'
   // Home's legend and Insights' legend are the same buckets.
   for (const text of [home, insights]) {
     assert.match(text, /\b1 on standard\b/);
-    assert.match(text, /\b2 need attention\b/);
+    assert.match(text, /\b1 in progress\b/);
+    assert.match(text, /\b1 needs attention\b/);
     assert.match(text, /\b2 overdue\b/);
     assert.match(text, /\b1 excused\b/);
     assert.doesNotMatch(text, /no activity/, 'nobody is in the no-activity bucket, and excused is not lumped into it');
   }
   // The Inbox briefing reads the same counts.
   assert.match(inbox, /\b2 overdue\b/);
-  assert.match(inbox, /\b2 need attention\b/);
+  assert.match(inbox, /\b1 in progress\b/);
+  assert.match(inbox, /\b1 needs attention\b/);
   assert.doesNotMatch(inbox, /below the bar/);
   // The Roster: status chips and status bands, one vocabulary, same counts.
   assert.match(roster, /Overdue 2/);
-  assert.match(roster, /Below standard 1/);
+  assert.match(roster, /In progress 1/);
+  assert.doesNotMatch(roster, /Below standard/, 'no verdict while dinner is still open');
   assert.match(roster, /Needs review 1/);
   assert.match(roster, /On standard 1/);
   assert.doesNotMatch(roster, /OnStandard|Locked In|Building|No log today/, 'no tier bands under status chips; the brand is never a tier label');
