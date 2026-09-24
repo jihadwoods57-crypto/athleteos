@@ -12,7 +12,11 @@
 //
 // Returned as a source string to inject via Page.addScriptToEvaluateOnNewDocument.
 
-export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity Football', practiceName = 'Ruiz Performance', voice = 'numbers' }) {
+// `sessionUserId` is whose Keychain session getSession() restores. The screenshot seeds sign the
+// runtime in after boot, so the default stays the inert 'seed-user'; a COLD-LAUNCH run
+// (scripts/cold-launch-timeline.mjs) boots a persisted athlete and needs the session to be theirs,
+// or boot's user-mismatch guard wipes the very state it is measuring.
+export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity Football', practiceName = 'Ruiz Performance', voice = 'numbers', sessionUserId = 'seed-user' }) {
   // The AI rows on the signed-in athlete's own lunch thread. In production analyze-meal writes
   // this prose PER PLAN STYLE, so an Intuitive athlete's thread never contains a stored figure —
   // a numbers-voice fixture under an Intuitive seed shows QA a screen no real athlete can reach
@@ -563,7 +567,7 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
     return api;
   }
 
-  const SESSION = { access_token: 'seed', user: { id: 'seed-user', email: 'seed@onstandard.app' } };
+  const SESSION = { access_token: 'seed', user: { id: ${JSON.stringify(sessionUserId)}, email: 'seed@onstandard.app' } };
   const client = {
     from: (t) => builder(t),
     rpc: (name, params) => Promise.resolve({ data: RPCS[name] ? RPCS[name](params) : [], error: null }),
