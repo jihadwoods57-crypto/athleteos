@@ -20,6 +20,7 @@ import { layoutThread, visibleThread, MUTED_HIDDEN_NOTE, authorName, initialsFor
   isCorrectionReceipt, receiptCardHtml, playFreshReceipts, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta, personText, workingLabel,
   participantList, participantSummary, AI_NAME, NIA_MARK, whoHtml, facesHtml, threadTitle,
 } from '../chat-view.js';
+import { bubblesHtml } from '../thread-polish.js';
 import { wireChatTimes } from '../chat-times.js';
 import { focusComposer } from '../keyboard.js';
 import {
@@ -3436,7 +3437,12 @@ export const coachMeal = {
               ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : rq}
               ${/* The "Updated analysis" badge is gone (founder ruling: robotic; the athlete
                     thread already dropped it). The quote above still marks what changed. */''}
-              <div class="bubble">${escalated ? `<span class="esc">${AI_NAME} flagged this for you</span>` : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc)}${bubbleRx.length ? `<span class="rxo">${bubbleRx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+              ${bubblesHtml(c, esc, {
+                photo: !!photo,
+                head: `${escalated ? `<span class="esc">${AI_NAME} flagged this for you</span>` : ''}${bubblePhotoHtml(photo, esc)}`,
+                body: photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc),
+                after: bubbleRx.length ? `<span class="rxo">${bubbleRx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : '',
+              })}
               ${/* G-P8: the AI's first words on the coach's side carry the same "not medical advice"
                     line the athlete sees on the meal read and in nutrition chat. Once per thread. */''}
               ${c.role === 'ai' && !(opening && !msgs.some(isAnalysisOpener)) && all.find((it) => it.type !== 'time' && it.comment && it.comment.role === 'ai' && !isCorrectionReceipt(it.comment)) === item ? aiDisclaimer() : ''}

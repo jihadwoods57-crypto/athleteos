@@ -40,6 +40,7 @@ import {
   isCorrectionReceipt, receiptCardHtml, playFreshReceipts, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta,
   personText, workingLabel,
 } from '../chat-view.js';
+import { bubblesHtml } from '../thread-polish.js';
 import { wireChatTimes } from '../chat-times.js';
 import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos, postChatMessage } from '../chat-attach.js';
 import {
@@ -420,7 +421,12 @@ export default {
           ${''/* No "Updated analysis" badge (founder: robotic). The quote stem above already
                shows what a correction reply answers. The escalation badge stays: "this reached
                your coach" is a fact worth labeling, exactly as the meal thread labels it. */}
-          <div class="bubble">${escalated ? `<span class="esc">${escalationChip(c, S.coach)}</span>` : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : bubbleText(c)}${offerChips(c)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+          ${bubblesHtml(c, esc, {
+            photo: !!photo,
+            head: `${escalated ? `<span class="esc">${escalationChip(c, S.coach)}</span>` : ''}${bubblePhotoHtml(photo, esc)}`,
+            body: photoOnly ? '' : bubbleText(c),
+            after: `${offerChips(c)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}`,
+          })}
           ${deliveredHtml({ mine, isLast: c === newest })}
         </div>
         ${msgTimeHtml(c, fmtTime, esc)}

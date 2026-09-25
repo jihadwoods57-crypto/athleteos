@@ -4545,3 +4545,37 @@ html[data-layout] .aicsheet { place-items: center; }
 .np-go { background: var(--blue-surface); color: var(--blue-bright); }
 .nf-acts{display:flex;flex-wrap:wrap;gap:var(--s2)}
 .rb-primer:empty{display:none}
+
+/* ===== The meal thread, polished (2026-09-25, founder-approved mockup; js/thread-polish.js) =====
+   NIA'S READ AS SHORT TEXTS. One row of hers can be several bubbles: the name once on top, the face
+   beside the last (the row's own .av, bottom-aligned), the tail on the last bubble only, and the
+   mockup's 5px between them (a 4px step plus the hairline, tighter than the gap between rows). */
+.msg .stack > .bubble.tp-b + .bubble.tp-b { margin-top: calc(var(--s1) + 1px); }
+.msg.last .bubble.tp-mid::before { display: none; }
+/* THE MOVE. The text carrying the ==highlight== is the one thing to do: Nia's blue tint over the
+   bubble's gray, a hairline in her blue, and a small label. No tail: a border cannot follow it. */
+.msg.ai .bubble.tp-move {
+  background: linear-gradient(var(--blue-surface), var(--blue-surface)), var(--surface-3);
+  border: 1px solid var(--blue-border); padding: calc(var(--s2) - 1px) calc(var(--s3h) - 1px);
+}
+.msg .bubble.tp-move::before { display: none; }
+.tp-lbl { display: block; margin-bottom: 2px; font-size: var(--t-sm); font-weight: 800; line-height: 1.3; color: var(--blue-bright); }
+/* TAP TO ANSWER. The thread's own chips (.fx-chip: its 44px hit expander included), set in the
+   thread's face at the chrome size, 36px to the eye. */
+.tp-chips { display: flex; gap: var(--s2h); }
+.tp-chips .tp-chip {
+  display: inline-flex; align-items: center; justify-content: center; flex: none; min-height: 36px;
+  padding: 0 var(--s2h); font-family: var(--font-chat);
+  font-size: var(--t-sm); font-weight: 600; white-space: nowrap;
+}
+.msg.tp-askrow { margin-top: calc(-1 * var(--s1)); }
+.tp-ask { flex-wrap: wrap; }
+/* The starters above the box: one row that scrolls sideways when it runs past the phone, with room
+   above and below for each chip's hit expander. Gone while the box has words in it or the keyboard
+   is up (keyboard.js sets .has-text and body.kb-open); the mount also sets [hidden]. */
+.tp-cmp {
+  margin: calc(-1 * var(--s1)) calc(-1 * var(--pad-screen, 16px)) var(--s1); padding: var(--s1) var(--pad-screen, 16px);
+  overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.tp-cmp::-webkit-scrollbar { display: none; }
+.tp-cmp[hidden], body.kb-open .tp-cmp, .chat-dock:has(.composer.has-text) .tp-cmp { display: none; }
