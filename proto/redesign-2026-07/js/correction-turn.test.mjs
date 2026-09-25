@@ -28,15 +28,17 @@ const PLATE = {
   detectedRich: [{ name: 'Grilled chicken', quantity: '3 oz', per: { protein: 21, kcal: 140, carbs: 0, fat: 6 } }],
 };
 
-/** A Supabase stand-in: `invoke` answers from a script, `from().select()` from a list of rows. */
+/** A Supabase stand-in: `invoke` answers from a script; `from().select()` finds rows by meta->>ct
+ *  in `filed` (a list of the cts already in the thread). */
 function fakeSb({ invoke, filed = [] }) {
   const calls = [];
-  const q = { select: () => q, eq: () => q, limit: async () => ({ data: filed, error: null }) };
-  return {
-    calls,
-    functions: { invoke: async (fn, { body }) => { calls.push(body); return invoke(body); } },
-    from: () => q,
+  const reads = [];
+  const from = () => {
+    let ct = null;
+    const q = { select: () => q, eq: (col, v) => { if (col === 'meta->>ct') ct = v; return q; }, limit: async () => { reads.push(ct); return { data: filed.includes(ct) ? [{ id: ct }] : [], error: null }; } };
+    return q;
   };
+  return { calls, reads, functions: { invoke: async (fn, { body }) => { calls.push(body); return invoke(body); } }, from };
 }
 const net = () => ({ data: null, error: { message: 'Failed to fetch' } });
 const forbidden = () => ({ data: null, error: { message: 'Edge Function returned a non-2xx status code', context: { status: 403 } } });
@@ -87,19 +89,33 @@ test('I4: past the token\'s life the plain receipt is filed, so the thread recor
   const job = { ...SQ.readQueue()[0] };
   const sb = fakeSb({ invoke: (body) => (body.correctionOutcome ? net() : { data: { ok: true }, error: null }) });
   assert.equal(await sendOutcome(job, sb, T0 + 16 * 60000), true);
-  assert.deepEqual(sb.calls, [{ mealId: 'meal-1', correctionReceipt: [{ label: 'Protein', unit: 'g', from: 29, to: 50 }] }],
-    'no token (it is spent), not in Nia\'s voice: the pre-feature receipt, exactly');
+  assert.deepEqual(sb.calls, [{ mealId: 'meal-1', correctionReceipt: [{ label: 'Protein', unit: 'g', from: 29, to: 50 }], receiptCt: 'nonce-1:f' }],
+    'no token (it is spent), not in Nia\'s voice: the pre-token receipt, under its own ct');
+  assert.deepEqual(sb.reads, ['nonce-1:r', 'nonce-1:f'], 'asked first whether a receipt is already in');
   assert.equal(job.fallback, true, 'and the fallback gets fresh tries of its own');
 });
 
-test('I4: a refused token falls back at once; a reply that did land is never doubled', async () => {
+test('R2 I4: a refused token falls back at once; a receipt already in is never filed twice', async () => {
   const job = { ...SQ.readQueue()[0], fallback: false };
   const refused = fakeSb({ invoke: (body) => (body.correctionOutcome ? forbidden() : { data: { ok: true }, error: null }) });
   assert.equal(await sendOutcome(job, refused, T0 + 60000), true);
-  assert.deepEqual(refused.calls.map((b) => Object.keys(b).sort().join(',')), ['correctionOutcome,correctionReceipt,mealId', 'correctionReceipt,mealId']);
-  const landed = fakeSb({ invoke: net, filed: [{ id: 'nia-row' }] });
-  assert.equal(await sendOutcome({ ...job, fallback: true }, landed, T0 + 20 * 60000), true);
-  assert.equal(landed.calls.length, 0, 'the lead is already in the thread (its response was lost): nothing more to file');
+  assert.deepEqual(refused.calls.map((b) => Object.keys(b).sort().join(',')), ['correctionOutcome,correctionReceipt,mealId', 'correctionReceipt,mealId,receiptCt']);
+  for (const ct of ['nonce-1:r', 'nonce-1:f']) {
+    const landed = fakeSb({ invoke: net, filed: ['nonce-1', ct] });
+    assert.equal(await sendOutcome({ ...job, fallback: true }, landed, T0 + 20 * 60000), true);
+    assert.equal(landed.calls.length, 0, `${ct} is in the thread: nothing more to file`);
+  }
+});
+
+test('R2 I4: Nia\'s row landed but the receipt did not: the receipt is filed by its own ct', async () => {
+  const job = { ...SQ.readQueue()[0], fallback: true };
+  const sb = fakeSb({ invoke: () => ({ data: { ok: true }, error: null }), filed: ['nonce-1'] });
+  assert.equal(await sendOutcome(job, sb, T0 + 20 * 60000), true);
+  assert.deepEqual(sb.calls.map((b) => b.receiptCt), ['nonce-1:f']);
+  // And straight from a delivered outcome whose server receipt insert failed (receipt: false).
+  const live = fakeSb({ invoke: (b) => ({ data: b.correctionOutcome ? { ok: true, receipt: false } : { ok: true }, error: null }) });
+  assert.equal(await sendOutcome({ ...job, fallback: false }, live, T0 + 1000), true);
+  assert.deepEqual(live.calls.map((b) => (b.correctionOutcome ? 'outcome' : b.receiptCt)), ['outcome', 'nonce-1:f']);
 });
 
 test('I4: nothing moved, nothing owed: a spent question-only report leaves the outbox', async () => {

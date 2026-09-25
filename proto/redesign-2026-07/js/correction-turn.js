@@ -48,33 +48,53 @@ export function tokenInfo(token, now = Date.now()) {
 /**
  * Deliver one queued outcome. true = done (filed, already filed, or nothing is owed); false = try
  * again later. Past the token's life, the plain receipt is filed in its place.
+ *
+ * Every row this can end up filing has its own ct (review round 2): Nia's lead is the nonce, the
+ * server's receipt nonce:r, the device's fallback receipt nonce:f. So a retry after a lost response
+ * asks "is it there?" by that ct first, and 0249's unique index refuses a second copy anyway.
  */
 export async function sendOutcome(job, sb, now = Date.now()) {
   if (!sb || !job) return false;
   if (!job.fallback && now < job.expiresAt) {
     try {
-      const { error } = await sb.functions.invoke('meal-chat', { body: job.body });
-      if (!error) return true;
+      const { data, error } = await sb.functions.invoke('meal-chat', { body: job.body });
+      // Nia's words are in; the server says whether its receipt made it too.
+      if (!error) return data && data.receipt === false ? plainReceipt(job, sb) : true;
       // 403 is the server refusing the token (spent or out of date): no retry will change that.
       const status = error.context && error.context.status;
       if (status !== 403) return false;
     } catch { return false; }
   }
   if (!job.fallback) {
-    // From here the job is the fallback, with its own fresh tries (the outbox caps at 5).
+    // From here the job is the fallback, with its own fresh tries (the outbox caps at 5, and a
+    // launch or a foreground revives an exhausted one: state.js drainSyncQueue).
     job.fallback = true; job.tries = 0;
     SQ.patchJob(SQ.keyOf(job), { fallback: true, tries: 0 });
   }
+  return plainReceipt(job, sb);
+}
+
+/** Is a row with this ct in the thread? null when the read itself failed. */
+async function filed(sb, job, ct) {
+  const { data, error } = await sb.from('meal_comments').select('id').eq('meal_id', job.mealId).eq('meta->>ct', ct).limit(1);
+  return error ? null : Array.isArray(data) && data.length > 0;
+}
+
+/** The numbers moved: make sure a receipt says so, whatever else did or did not land. */
+async function plainReceipt(job, sb) {
   try {
-    // A reply that did land, with the response lost on the way back, is already in the thread.
-    if (job.ct) {
-      const { data, error } = await sb.from('meal_comments').select('id').eq('meal_id', job.mealId).eq('meta->>ct', job.ct).limit(1);
-      if (error) return false;
-      if (Array.isArray(data) && data.length) return true;
-    }
     // Nothing moved: nothing is owed in the thread.
     if (!Array.isArray(job.receipt) || !job.receipt.length) return true;
-    const { error } = await sb.functions.invoke('meal-chat', { body: { mealId: job.mealId, correctionReceipt: job.receipt } });
+    if (job.ct) {
+      for (const ct of [`${job.ct}:r`, `${job.ct}:f`]) {
+        const has = await filed(sb, job, ct);
+        if (has === null) return false;
+        if (has) return true;
+      }
+    }
+    const { error } = await sb.functions.invoke('meal-chat', {
+      body: { mealId: job.mealId, correctionReceipt: job.receipt, ...(job.ct ? { receiptCt: `${job.ct}:f` } : {}) },
+    });
     return !error;
   } catch { return false; }
 }

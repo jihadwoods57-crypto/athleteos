@@ -1274,10 +1274,12 @@ export const act = {
   _sqDraining: false,
   _sqTimer: null,
 
-  async drainSyncQueue() {
+  async drainSyncQueue(revive) {
     if (this._sqDraining || typeof window === 'undefined') return;
     this._sqDraining = true;
     try {
+      // A correction's receipt is never given up on: a launch or a foreground tries it again.
+      if (revive) for (const j of SQ.readQueue()) if (j.kind === 'correction-outcome' && j.tries >= SQ.MAX_TRIES) SQ.patchJob(SQ.keyOf(j), { tries: 0, lastTryAt: 0 });
       for (const job of SQ.due(SQ.readQueue(), Date.now())) {
         if (!job.uid || job.uid !== RT.userId) continue;   // another account's queue — leave it
         const ok = await this._runSyncJob(job);
@@ -4363,7 +4365,7 @@ export const act = {
     // last night in a dead zone. It used to wait for the athlete to background and foreground the
     // app before anything touched it. The moment there is a user to run it for, run it.
     void this.drainMealOutbox();
-    void this.drainSyncQueue();
+    void this.drainSyncQueue(true);
     if (!RT.authRole) {
       try {
         const { data: prof } = await window.sb.from('profiles').select('primary_role').eq('id', user.id).maybeSingle();
@@ -4471,7 +4473,7 @@ if (typeof document !== 'undefined' && document.addEventListener) {
     // The small-writes queue and the day-push healer ride the same beat.
     if (document.visibilityState === 'visible' && RT.userId) {
       void act.drainMealOutbox();
-      void act.drainSyncQueue();
+      void act.drainSyncQueue(true);
       act.healDaySync();
       void act.catchUpAiAdditions();
       // Re-arm walk-in check-in for whatever roll call is in its window now (throttled).
