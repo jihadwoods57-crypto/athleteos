@@ -43,9 +43,19 @@ const AI_NAME_WORD = 'nia';
    ambiguous, and ambiguous means quiet. */
 const NIA_LEAD = /^(@nia\b|nia\s*[,:])/;
 /* Only words that open a request TO someone. "Nia is coming", "Nia will drive", "Nia did it"
-   are sentences ABOUT a person, and "did you see Nia?" asks about one: none of them wake her. */
+   are sentences ABOUT a person, and "did you see Nia?" asks about one: none of them wake her.
+   NIA FIRST IS NIA ADDRESSED (review round 2, 2026-09-24). "Nia I had double chicken" and the
+   founder's "Nia in my meal i had double chicken..." named her and were still handed to a coach who
+   had spoken minutes earlier, because "nia i" and "nia in" were not on the list of openers. The
+   first word being "nia" (after hey/yo/ok) now addresses her, unless the next word makes it a
+   sentence about a person: "Nia is", "Nia said", "Nia's", "Nia and I". */
+const NIA_ABOUT = /^(?:is|was|said|says|and|will|has|had|told|just|can|did|does|isn't|wasn't|isnt|wasnt|didn't|didnt|doesn't|doesnt|can't|cant|won't|wont|would|could|should|went|came|got|gets|wants|thinks|thought|knows|asked|are|were|be|been|who|herself|s|left|made|brought|bought|drove|called|texted|might|may|must|needs|likes|loves|ate|eats)$/;
 const NIA_VOCATIVE = [
   NIA_LEAD,
+  (low) => {
+    const m = /^(?:(?:hey|hi|hello|yo|ok|okay|so)[,!]?\s+)?@?nia(?=$|[\s,:!?.'])('[a-z]+)?\s*([a-z']*)/.exec(low);
+    return !!m && !m[1] && !NIA_ABOUT.test(m[2]);
+  },
   /^(hey|hi|hello|yo|ok|okay|so|thanks|thank you)[,!]?\s+nia\b/,
   /^nia\s*[!?]/,
   /^nia\s+(what|how|can|could|should|would|why|when|where|which|who|any|give|tell|help|check)\b/,
@@ -249,7 +259,7 @@ function niaIsAmbiguous(participants) {
 /** Is this message calling Nia by name? `clash` = a human is also called Nia. */
 function niaAddressed(low, clash) {
   if (clash) return NIA_LEAD.test(low);
-  return NIA_VOCATIVE.some((re) => re.test(low));
+  return NIA_VOCATIVE.some((re) => (typeof re === 'function' ? re(low) : re.test(low)));
 }
 
 const recipient = (kind, who, how) => ({
@@ -421,7 +431,8 @@ export function shouldAiRespond(message, context) {
      Above the nod rule on purpose: "yes" to a question is an answer, not a nod. "see you at
      practice" is not an answer, and neither is anything once a person has spoken since. */
   const now = Number(ctx.now) || 0;
-  const recent = (h) => { const t = Date.parse(h && h.at); return !(now > 0) || !isFinite(t) || now - t <= ADJACENT_MS; };
+  // No clock or no timestamp: not known to be recent, so neither rule below claims the turn.
+  const recent = (h) => { const t = Date.parse(h && h.at); return now > 0 && isFinite(t) && now - t <= ADJACENT_MS; };
   const other = lastOther(history, msg);
   if (fromAthlete && other && isAiRole(other.senderRole) && /\?["')\s]*$/.test(String(other.text || '').trim())
     && recent(other) && answerShaped(flat, bare(other.text))) {
@@ -487,12 +498,18 @@ export function shouldAiRespond(message, context) {
   return verdict(false, NOBODY, 0.6, 'nothing addressed to the AI, staying quiet');
 }
 
+/* NIA'S RECORDS ARE NIA SPEAKING (review round 2). Her correction replies are filed as system rows
+   (an analysis_update ack, a receipt) so the model reads them as records, but for "who spoke last"
+   they are her turn: skipping them handed the founder's follow-up "Double chicken" to the coach who
+   had spoken before her. A system row from anyone else (a professional's correction) stays skipped. */
+const notSpeech = (h) => !h || (!h.text && h.photo !== true) || (h.system === true && !isAiRole(h.senderRole));
+
 /** The most recent speech from anyone OTHER than the sender of `msg` (their own earlier lines do
  *  not change who they are answering). */
 function lastOther(history, msg) {
   for (let i = history.length - 1; i >= 0; i--) {
     const h = history[i];
-    if (!h || (!h.text && h.photo !== true) || h.system === true) continue;
+    if (notSpeech(h)) continue;
     const same = h.senderId && msg.senderId ? String(h.senderId) === String(msg.senderId)
       : norm(h.senderRole) === norm(msg.senderRole) && norm(h.senderName) === norm(msg.senderName);
     if (!same) return h;
@@ -505,8 +522,7 @@ function lastOther(history, msg) {
 function lastHumanOrAi(history) {
   for (let i = history.length - 1; i >= 0; i--) {
     const h = history[i];
-    if (!h || (!h.text && h.photo !== true)) continue;
-    if (h.system === true) continue;
+    if (notSpeech(h)) continue;
     return h;
   }
   return null;
