@@ -101,10 +101,13 @@ test('the athlete Home now shows exactly what pushDay writes for the coach', () 
   D.setDayStandard(null);
 });
 
-test('coach vs athlete: the roster, the group ring and the athlete page read the SAME number', () => {
+test('coach vs athlete: the roster, the group ring and the athlete page read the SAME number', (t) => {
   liveDay(null);
   const athleteShows = S.score;
   const nowMs = Date.parse('2026-09-24T16:30:00Z'); // 12:30 PM ET
+  // teamCounts reads the device clock (it is what the coach's phone sees now), so pin it too; the
+  // suite otherwise went red at midnight after the fixture day.
+  t.mock.timers.enable({ apis: ['Date'], now: nowMs });
   const [row] = projectRows([[{ athlete_id: ATHLETE, athlete_name: 'Jihad Woods', position: 'LB' }]],
     [ROW_0923, ROW_0924], [], { [ATHLETE]: 'America/New_York' }, nowMs);
   const reqs = catalogFromItems(ITEMS);
