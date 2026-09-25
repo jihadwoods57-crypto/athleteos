@@ -17,7 +17,8 @@
      * labelProducts builds the product-cache warming payload from label-read items only. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeDetected, estimateConfidence, applyMealCorrection, mealQualityScore, correctionAxes } from './meal-intel.js';
+import { normalizeDetected, estimateConfidence, applyMealCorrection, mealQualityScore } from './meal-intel.js';
+import { correctionAxes } from './correction-axes.js';
 import { groundFood, labelProducts, gapFoods } from './nutrition.js';
 
 /* ---------------- provenance survives normalization ---------------- */

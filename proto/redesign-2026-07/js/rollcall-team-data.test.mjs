@@ -95,17 +95,23 @@ test('savePlace calls save_commitment_place(p) with exactly one owner and return
 });
 
 test('subscribeTeamBoard reloads the board on each tick and hands it over; unsubscribe stops it', async () => {
-  let n = 0;
-  client({ rollcall_team_board: () => ({ data: { ...BOARD, up: ++n }, error: null }) });
-  const seen = [];
-  const stop = CD.subscribeTeamBoard('i1', (b) => seen.push(b.up), { pollMs: 5 });
-  await new Promise((r) => setTimeout(r, 40));
-  stop();
-  const count = seen.length;
-  assert.ok(count >= 2, `ticked ${count} times`);
-  await new Promise((r) => setTimeout(r, 30));
-  assert.equal(seen.length, count, 'no tick after unsubscribe');
-  assert.ok(seen.every((v, i) => i === 0 || v > seen[i - 1]), 'each tick carries a fresh board');
+  // The clock is pinned inside the window (BOARD closes 10:30Z): past closes_at the board is idle
+  // and polls slowly, so on the real clock this went red every day after 10:30 UTC.
+  const realNow = Date.now;
+  Date.now = () => Date.parse('2026-09-25T10:00:00Z');
+  try {
+    let n = 0;
+    client({ rollcall_team_board: () => ({ data: { ...BOARD, up: ++n }, error: null }) });
+    const seen = [];
+    const stop = CD.subscribeTeamBoard('i1', (b) => seen.push(b.up), { pollMs: 5 });
+    await new Promise((r) => setTimeout(r, 40));
+    stop();
+    const count = seen.length;
+    assert.ok(count >= 2, `ticked ${count} times`);
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(seen.length, count, 'no tick after unsubscribe');
+    assert.ok(seen.every((v, i) => i === 0 || v > seen[i - 1]), 'each tick carries a fresh board');
+  } finally { Date.now = realNow; }
 });
 
 /* ---------------------------------------------------------------- the QC/marketing stub */

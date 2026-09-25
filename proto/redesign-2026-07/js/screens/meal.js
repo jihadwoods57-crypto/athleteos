@@ -35,7 +35,7 @@ import {
   memoryOfferOf, memoryOfferChips,
   mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
-  isCorrectionReceipt, receiptCardHtml, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta,
+  isCorrectionReceipt, receiptCardHtml, playFreshReceipts, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta,
   personText, workingLabel,
 } from '../chat-view.js';
 import { wireChatTimes } from '../chat-times.js';
@@ -135,25 +135,15 @@ async function warmReceipt(rolesMod, uid, dateISO) {
 /* Who is in the conversation (0158). Same session-cache idiom: membership does not change
    between two paints, and every mount would otherwise re-ask. */
 let PARTICIPANTS = { uid: null, rows: [], at: 0 };
-/* THE CORRECTION RECEIPT SURVIVES THE REPAINT THAT REVEALS IT (founder 2026-09-14).
- *
- * This lived as `let corrFx = null` inside mount(). The router calls mod.mount() on EVERY render
- * (router.js ~932), and the correction handler's own `window.__render()` is what paints the
- * receipt, so the sequence was: set corrFx -> re-render -> fresh mount -> corrFx = null ->
- * paint -> corrReceipt() returns ''. The card could not appear on the only path that sets it,
- * which is why a correction still looked like nothing happening after the 2026-09-07 fix.
- *
- * Module scope, keyed to the meal it belongs to and stamped, so a receipt cannot bleed onto a
- * different plate or replay itself when the athlete comes back to this thread an hour later. */
-let CORR_FX = null;
-const CORR_FX_TTL_MS = 120000;
-/* AND SO DOES THE NOTE. setNote() writes into #chat-note, and every caller that needs to say
-   something about a correction also calls window.__render() a line later, which rebuilds the
-   screen and takes the note with it. So "that didn't line up with anything in this meal's read"
-   has never actually been readable either: written, then erased in the same tick. Same shape of
-   fix as CORR_FX above, same key, same TTL. */
+/* THE NOTE SURVIVES THE REPAINT (2026-09-14). setNote() writes into #chat-note, and the caller
+   usually calls window.__render() a line later, which rebuilds the screen and takes the note with
+   it. Module scope, keyed to the meal and stamped, so it is restored on the next paint and cannot
+   bleed onto another plate. It is a calm system line now (2026-09-24), and nothing about a
+   correction is ever said there: Nia says it in the thread (correction-turn.js). The live receipt
+   card that used to share this slot is gone too; the filed receipt counts up as it arrives
+   (chat-view.js playFreshReceipts), on every screen that shows the thread. */
 let CHAT_NOTE = null;
-const corrFxFor = (key) => (CORR_FX && CORR_FX.key === key && (Date.now() - CORR_FX.at) < CORR_FX_TTL_MS ? CORR_FX : null);
+const CHAT_NOTE_TTL_MS = 120000;
 /** Returns true only when this call actually FETCHED something new — the caller repaints on that
  *  and nothing else. A warm that repaints unconditionally is a render loop: every mount asks,
  *  the cache answers instantly, the repaint remounts, and the screen never settles. It also
@@ -1512,9 +1502,10 @@ export const thread = {
           the screen only while the discussion is on screen, so it rides up to meet you the moment
           the conversation scrolls into view and never covers the plate or the breakdown above. */''}
     <div class="chat-dock disc-dock dock-end">
+    ${/* The note sits ABOVE the box, as calm small print (screens.css .cmp-note). */''}
+    <div id="chat-note" class="cmp-note" role="status"></div>
     ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: composerPrompt(S.coach.hasCoach, S.coach.noun), sendLabel: 'Send', attachId: 'meal-attach', atEnd: true })}
     <div class="composer-attach-pending" id="meal-attach-pending" hidden></div>
-    <div id="chat-note" class="cmp-note"></div>
     </div>` : ''}
     </section>`;
 
@@ -1827,127 +1818,7 @@ export const thread = {
     // The flag lives in chat-live.js, keyed to this meal, so a repaint (or a re-mount) cannot
     // drop it and any screen showing this thread draws the same typing row (typingRowHtml).
 
-    /* THE RECOMPUTE RECEIPT (2026-09-07).
-       A chat correction rewrote protein, calories and the meal score in a card that is almost
-       always scrolled off the top of the thread, immediately after the AI had said "updating
-       your numbers and score now". The app kept the promise and showed no evidence of it, so
-       from the athlete's seat a correction and a correction that silently failed looked
-       identical. This is the evidence: what each figure was, what it is, counted from one to
-       the other so the change is something you watch happen rather than something you are told.
-       It obeys the plan style like every other numeric surface — a professional who hid
-       calories hides them here too — and the meal score is always shown, because it is a score
-       and not calorie math. */
     const corrKey = String(M.mealId || M.slot || '');
-    // `first`: the live card opens a Nia run (the row above it is not hers), so it carries her name.
-    const corrReceipt = (first = true) => {
-      const corrFx = corrFxFor(corrKey);
-      if (!corrFx || !corrFx.rows.length) return '';
-      /* The live card covers the seconds between applying a correction and its filed receipt
-         landing in the thread. Once the row is there the card's job is done — drawing both would
-         show the same change twice, once as a record and once as an echo of it. */
-      if ((comments || []).some(isCorrectionReceipt)) return '';
-      return `
-        <div class="msg ai" id="corr-fx">
-          <div class="av">${NIA_MARK}</div>
-          <div class="stack rcpt-stack">${first ? whoHtml(AI_NAME, true, esc) : ''}
-          <div class="corr-card" role="status">
-            <div class="corr-head">${corrFx.done ? icon('check', 14) : '<span class="corr-spin" aria-hidden="true"></span>'}<span>${corrFx.done ? 'Updated' : 'Recomputing'}</span></div>
-            ${corrFx.rows.map((r) => `
-              <div class="corr-row${r.score ? ' corr-score' : ''}">
-                <span class="ck">${esc(r.label)}</span>
-                ${/* While it is working the destination is a placeholder, not the old value
-                      repeated: "24g -> 24g" is the shape of a change that did not happen, which
-                      is the exact thing this card exists to disprove. */''}
-                <span class="cv"><i class="was">${esc(r.fromText)}</i>${icon('arrowRight', 12)}${corrFx.done
-                  ? `<b class="${esc(r.band)}" data-fx-from="${r.from}" data-fx-to="${r.to}" data-fx-unit="${esc(r.unit || '')}">${esc(r.fromText)}</b>`
-                  : '<b class="pend" aria-hidden="true"></b>'}</span>
-              </div>`).join('')}
-          </div></div>
-        </div>`;
-    };
-    /* Count each figure from its old value to its new one. Text only, so nothing here animates a
-       layout property; the card's own entrance is a transform. prefers-reduced-motion lands every
-       value immediately, which is the whole point of the receipt anyway. */
-    const playCorrReceipt = (root) => {
-      const corrFx = corrFxFor(corrKey);
-      /* THE CARD, NOT ITS MESSAGE ROW (founder 2026-09-14). This selected #corr-fx, which is the
-         .msg wrapper; every class then landed on the wrapper while the stylesheet targets
-         .corr-card.in and .corr-card.landed. .corr-card starts at opacity:0 and only .in turns it
-         on, so the receipt has been rendering INVISIBLE since it shipped: correct markup, correct
-         numbers, painted at zero opacity behind a wrapper wearing the classes. The perspective
-         stays on #corr-fx (a parent has to own it); everything else belongs to the card. */
-      const card = root.querySelector('#corr-fx .corr-card');
-      // The guard lives on corrFx, not on the node: paint() rebuilds threadEl.innerHTML on every
-      // repaint (the 15s poll, a reaction, a coach message landing), so a DOM-local flag would
-      // let a finished receipt replay its count-up minutes later under the athlete's thumb.
-      if (!card || !corrFx || corrFx.played) return;
-      const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      const nums = [...card.querySelectorAll('[data-fx-to]')];
-      const settle = (n) => { n.textContent = n.dataset.fxTo + (n.dataset.fxUnit || ''); };
-      if (reduce) { corrFx.played = true; corrFx.done = true; nums.forEach(settle); buzz('reveal'); return; }
-      card.classList.add('in');
-      // A beat on "Recomputing" before the numbers move. The deterministic kitchen math is
-      // effectively instant, so without it the figures would jump the moment the card appeared
-      // and the work would read as a glitch rather than as work. 420ms is long enough to see and
-      // short enough that nobody waits on it.
-      if (!corrFx.done) {
-        corrFx.played = true;
-        setTimeout(() => { const c = corrFxFor(corrKey); if (!c) return; c.done = true; c.played = false; paint(); }, 420);
-        return;
-      }
-      corrFx.played = true;
-      const dur = 900, t0 = performance.now();
-      const step = (t) => {
-        const p = Math.min(1, (t - t0) / dur);
-        const e = 1 - Math.pow(1 - p, 3);           // ease-out cubic, same curve as the ring
-        for (const n of nums) {
-          const a = +n.dataset.fxFrom, b = +n.dataset.fxTo;
-          n.textContent = String(Math.round(a + (b - a) * e)) + (n.dataset.fxUnit || '');
-        }
-        if (p < 1) requestAnimationFrame(step);
-        else {
-          nums.forEach(settle);
-          card.classList.add('landed');
-          /* THE SCORE TURNS OVER. The macros counted; the score is the answer, so it gets a
-             physical beat of its own: the value rotates on X to its new face and arrives in its
-             new band colour. One 360ms turn, after the counting, so the eye has somewhere to
-             finish rather than four numbers all stopping at once. */
-          const sc = card.querySelector('.corr-score b');
-          if (sc) sc.classList.add('turn');
-          buzz('reveal');
-        }
-      };
-      requestAnimationFrame(step);
-    };
-    /* Build the receipt from what the reducer actually moved. A figure that did not change is
-       left out: a receipt that lists four unchanged numbers is noise, and one that lists a
-       number as "24 → 24" reads as a bug. */
-    const setCorrFx = (before, after) => {
-      const P = S.planStyle;
-      const cand = [];
-      if (P.showMacros) {
-        cand.push(['Protein', before.protein, after.protein, 'g']);
-        cand.push(['Carbs', before.carbs, after.carbs, 'g']);
-        cand.push(['Fat', before.fat, after.fat, 'g']);
-      }
-      if (P.showCalories) cand.push(['Calories', before.kcal, after.kcal, '']);
-      cand.push(['Meal score', before.quality, after.quality, '']);
-      const rows = cand
-        .filter(([, a, b]) => a != null && b != null && Math.round(+a) !== Math.round(+b))
-        .map(([label, a, b, unit]) => ({
-          label, unit, from: Math.round(+a), to: Math.round(+b),
-          fromText: Math.round(+a) + (unit || ''),
-          /* The score is the row the athlete actually asked about ("did it update the score?"),
-             so it is the one that gets the weight and the turn. It also carries its band, so the
-             number lands in the colour it now belongs to rather than in plain ink. */
-          score: label === 'Meal score',
-          band: label === 'Meal score' ? ((qualityBand(Math.round(+b)) || {}).cls || '') : '',
-        }));
-      // Score last: the macros are the cause, the score is the consequence, and the consequence
-      // is what the turn at the end of the sequence should be about.
-      rows.sort((x, y) => (x.score ? 1 : 0) - (y.score ? 1 : 0));
-      CORR_FX = rows.length ? { key: corrKey, rows, at: Date.now() } : null;
-    };
 
     // The Yes / No under a remember-this reply (2026-09-02), while the fact is still pending.
     // "Still pending" is what the pending-facts fetch says, once it has said anything for this
@@ -2146,9 +2017,12 @@ export const thread = {
       // Where the reader is, read BEFORE the new rows land (chat-live.js holdThread): measured
       // after, a reader resting on the newest message is one Nia reply short of the end.
       const hold = holdThread(threadEl, M.mealId);
-      threadEl.innerHTML = coachPin + openingLead + earlierBtn + rows + strandedRxHtml + openingTail + corrReceipt(!(lastMsg && lastMsg.role === 'ai'))
-        + (seen ? `<div class="seen">${seen}</div>` : '')
-        + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
+      threadEl.innerHTML = coachPin + openingLead + earlierBtn + rows + strandedRxHtml + openingTail
+        // THE FOOT (2026-09-24): what the thread says about itself, one centred line of small print
+        // at the very end. `th-foot` keeps the typing row and a bubble being sent ABOVE it
+        // (chat-live.js syncLive), so Nia's dots never open up under "your coach hasn't opened this".
+        + (seen ? `<div class="seen th-foot">${seen}</div>` : '')
+        + (tail.length ? `<div class="msg-status th-foot">${tail.join(' ')}</div>` : '');
       hydrateAvatars(threadEl);   // 0206: message monograms upgrade to real faces
       // FULL MESSAGES, ALWAYS (founder 2026-09-22). The Read more clamp is gone from every
       // renderer: the AI's read is long on purpose (2026-09-07 ruling) and a message you have to
@@ -2160,7 +2034,7 @@ export const thread = {
       placeLive(hold, fresh.size > 0 || added > 0);
       syncJump(threadEl, M.mealId, { dock: root.querySelector('#meal-disc .chat-dock'), added });
       void hydrateThreadPhotos(threadEl, roles);
-      playCorrReceipt(threadEl);
+      playFreshReceipts(threadEl, { onLand: () => buzz('reveal') });
     };
     // The live rows (chat-live.js): the bubble being sent and the AI at work. Re-placed after
     // every paint and on every change of that state, never by a re-render (it would rebuild the
@@ -2437,7 +2311,7 @@ export const thread = {
       writeNote(t, retry);
     };
     // Repaint restore: the note outlives the render that would otherwise erase it.
-    if (CHAT_NOTE && CHAT_NOTE.key === corrKey && (Date.now() - CHAT_NOTE.at) < CORR_FX_TTL_MS) {
+    if (CHAT_NOTE && CHAT_NOTE.key === corrKey && (Date.now() - CHAT_NOTE.at) < CHAT_NOTE_TTL_MS) {
       writeNote(CHAT_NOTE.text, CHAT_NOTE.retry);
     } else if (CHAT_NOTE && CHAT_NOTE.key === corrKey) { CHAT_NOTE = null; }
     let busy = false;
@@ -2504,6 +2378,8 @@ export const thread = {
             // "I can apply a structured correction": unlocks the apply_correction tool
             // server-side. Only sent because the handler below actually applies it.
             canApplyCorrection: true,
+            // "I apply first and report back": Nia's ack is filed only once the plate has changed.
+            canConfirmCorrection: true,
             // The addressing decision, so meal-chat can reach the SAME verdict rather than
             // trusting this client's word for it (see ai-addressing.js).
             ...(turn ? { speaker: turn.outgoing, addressing: turn.decision, participants: turn.participants } : {}),
@@ -2539,72 +2415,27 @@ export const thread = {
           if (parsed && parsed.error === 'limit') setNote("Nia is out of replies for today. Back tomorrow. Your coach still sees this.");
           else setNote("Couldn't reach Nia. Tap to try again.", true);
         } else {
-          // THE CORRECTION LOOP CLOSES HERE (founder escalation 2026-08-06). The athlete stated
-          // a fact about their own food ("the shake is the 42g bottle") and the AI called
-          // apply_correction instead of arguing. The app now applies it DETERMINISTICALLY —
-          // per-item macros, meal totals, score, rubric, coach focus, and day targets all
-          // recompute from the one canonical record, and the meals row mirror keeps coach view,
-          // daily score, and group chat reading the same finalized data. The AI's acknowledgment
-          // row is already persisted server-side; refresh() below shows it.
-          if (data.correction && (data.correction.item || (Array.isArray(data.correction.missed) && data.correction.missed.length))) {
-            const c = data.correction;
-            // ONE message, EVERY item it corrected (2026-09-02). "That isn't steak, that's
-            // chicken, sweet potatoes and broccoli" is three corrections, and a tool that took
-            // one per call renamed the first and dropped the rest. `more` carries the others;
-            // `missed` carries whole foods the read never had (a side left out of the photo, a
-            // plate someone sent a picture of afterwards) so they count toward the grade too.
-            const parts = [c, ...(Array.isArray(c.more) ? c.more : [])]
-              .filter((p) => p && p.item)
-              .map((p) => ({
-                kind: 'item', item: p.item, newName: p.newName || undefined,
-                // The corrected AMOUNT, when the athlete fixed how much rather than what. The
-                // client owns the rescale so this lands on exactly the numbers the breakdown's
-                // own quantity field would produce.
-                quantity: p.quantity || undefined,
-                per: p.per || {}, perBasis: p.perBasis || undefined, add: p.add || undefined, minutesLate: M.minutesLate,
-                // The athlete's own words, verbatim. meal-intel reads a stated macro straight out
-                // of them ("a 42g protein shake") and lets it beat the curated reference, which
-                // was pricing a generic shake over a figure the athlete had read off the bottle.
-                said: text || undefined,
-              }));
-            if (Array.isArray(c.missed) && c.missed.length) parts.push({ kind: 'add-foods', foods: c.missed, minutesLate: M.minutesLate, said: text || undefined });
-            const applied = await act.correctMeal(M.slot, parts, { skipAiUpdate: true });
-            // A CORRECTION THAT DID NOT LAND MUST SAY SO (2026-08-09). correctMeal returns null
-            // whenever it cannot act — the named item matches nothing in the read, the meal has no
-            // per-item detail, the day slot is gone. That null used to be discarded on the way
-            // past, and because the AI's "updating your numbers now" was already sitting in the
-            // thread, the athlete was left reading a promise the app had quietly failed. Now the
-            // thread admits it in the same breath and hands them the panel that always works.
-            if (!applied) {
-              setNote("That didn't line up with anything in this meal's read, so your numbers haven't changed. Tell me which food you mean, or what was on the plate, and I'll put it in.");
-              focusMealComposer();
-              if (window.__render) window.__render();
-              return;
-            }
-            /* NOTHING COUNTED IS ITS OWN ANSWER (2026-09-14). The AI has already said "your
-               numbers and score are updating now" by the time this runs, so the one thing the
-               thread must never do is go quiet on a correction that changed nothing. Two shapes:
-               some foods priced and some did not, or none did at all. The second used to be
-               indistinguishable from "I could not find that food in your read", because the
-               reducer returned null and the unpriced names died with it. */
-            if (applied.nothingPriced) {
-              const names = (applied.unpriced || []).join(' or ');
-              setNote(`Your numbers have not changed: I have nothing on file for ${names}. Tell me the protein and calories on the label, or what it is closest to, and I will count it properly.`);
-              focusMealComposer();
-              if (window.__render) window.__render();
-              return;
-            }
-            // An ingredient we have no reference for is named out loud rather than rounded away:
-            // the athlete is told exactly what is still missing and what would let us count it.
-            if (applied.unpriced && applied.unpriced.length) {
-              setNote(`Added what I could price. There are no numbers on file for ${applied.unpriced.join(' or ')}, so it isn't counted yet. Tell me its protein and calories, or what it's closest to, and I'll count it.`);
-            } else setNote('');
-            // The receipt. `before` rides the reducer's return because meta0 is gone by the time
-            // it lands anywhere else; `applied.meta` is the corrected record. Set BEFORE the
-            // repaint so the thread paints it in the same frame the numbers change.
-            if (applied.before && applied.meta) setCorrFx(applied.before, applied.meta);
-            // Full repaint: score ring, breakdown tiles, rubric, coach focus, day progress —
-            // every surface on this screen re-derives from the corrected record.
+          // THE CORRECTION LOOP CLOSES HERE (founder escalation 2026-08-06; truth rule 2026-09-24).
+          // The athlete stated a fact about their own food and Nia called apply_correction. The app
+          // applies it DETERMINISTICALLY (per-item macros, totals, score, rubric, coach focus, day
+          // targets, the meals row mirror), and only then does Nia say anything about it:
+          // correction-turn.js reports the outcome and meal-chat files her ack and the receipt when
+          // the numbers moved, or her one precise question when they did not ("Which one should I
+          // double: the grilled chicken or the chicken salad?"). The typing row stays up until
+          // then, so the athlete watches Nia work instead of reading a promise and an amber line
+          // that contradicts it.
+          // `pending`: the server is waiting to hear how it went, so Nia answers even a correction
+          // that carries only `more` (no top-level item) or that turns out to have nothing to apply.
+          if (data.correction && (data.pending || data.correction.item || ['missed', 'more'].some((k) => Array.isArray(data.correction[k]) && data.correction[k].length))) {
+            setTyping(true);
+            const { runChatCorrection } = await import('../correction-turn.js');
+            const res = await runChatCorrection({
+              act, sb: window.sb, uid: RT.userId, slot: M.slot, mealId: M.mealId, meta: DAY.slotMacros[M.slot] || M,
+              data, said: text, minutesLate: M.minutesLate,
+            });
+            setTyping(false);
+            if (res.note) setNote(res.note);
+            await refresh();
             if (window.__render) window.__render();
             return;
           }

@@ -55,6 +55,9 @@ import {
 import { sendExpoPush } from '../_shared/expo-push.mjs';
 import { missingConsent, consentSkipBody, loadConsentRows, consentedIds } from '../_shared/ai-consent.mjs';
 import { authorIds, scrubContext, scrubRows } from './consent-scrub.mjs';
+// THE PROMISE WAITS FOR THE PLATE (2026-09-24, "double chicken"): the ack is signed and handed to
+// the client, and filed only once the client reports the correction actually landed.
+import { signPending, readPending, correctionHash, allowedNames, sanitizeOutcome, outcomeRows } from './correction-outcome.mjs';
 
 // Per-surface override first: one shared ANTHROPIC_MODEL meant chat could not move tiers
 // without dragging vision with it. Unset -> unchanged.
@@ -265,6 +268,30 @@ const CORRECTION_TOOL = {
     required: ['ack'],
   },
 } as const;
+
+/* THE SAME TOOL, FOR A CLIENT THAT APPLIES FIRST (canConfirmCorrection, 2026-09-24). Two words
+   differ, and only here: an older client cannot turn "double" into an amount and files the ack
+   the moment the model answers, so telling IT that "double" is fine would bring back the exact bug
+   this fixes (Nia saying "updating" over numbers that never moved). A confirming client resolves
+   the word against the row's own amount (plate-edits.js), and its ack is filed only after the
+   plate has changed, so the ack speaks in the past tense. */
+const CORRECTION_TOOL_CONFIRM = {
+  ...CORRECTION_TOOL,
+  input_schema: {
+    ...CORRECTION_TOOL.input_schema,
+    properties: {
+      ...CORRECTION_TOOL.input_schema.properties,
+      quantity: {
+        ...CORRECTION_TOOL.input_schema.properties.quantity,
+        description: CORRECTION_TOOL.input_schema.properties.quantity.description.replace('(if the item reads "1 cup", answer in cups).', '(if the item reads "1 cup", answer in cups); "double", "half" or "2x" is fine when that is exactly what the athlete said.'),
+      },
+      ack: {
+        ...CORRECTION_TOOL.input_schema.properties.ack,
+        description: 'One to two conversational sentences to the athlete: own the miss plainly and without defensiveness ("Good catch, that is the 42g bottle"; "Two cups, got it"). This is shown only AFTER the app has applied the change, and only if it applied exactly as you described, so say their numbers and score are updated (past tense, never "updating now"). Never tell them to update anything themselves or to notify their coach. Do NOT state new meal totals or new per-item macros; they are recomputed. No em dashes.',
+      },
+    },
+  },
+};
 
 // Coach OS Slice D draft mode: FOUR candidate replies the coach could send, one per stance.
 // Forced tool with a fixed 4-item array. These are DRAFTS — the function persists nothing.
@@ -565,6 +592,13 @@ Deno.serve(async (req) => {
     const additionId = uuidish(coachReceiptIn ? coachReceiptIn.additionId : body?.additionId);
     const receiptRows = correctionReceiptRows(coachReceiptIn ? (additionId ? coachReceiptIn.rows : null) : body?.correctionReceipt);
     const coachReceipt = !!(coachReceiptIn && additionId && receiptRows);
+    // The ct a device's FALLBACK receipt files under (correction-turn.js): the turn's nonce + ':f'.
+    const receiptCt = !coachReceiptIn && typeof body?.receiptCt === 'string' && /^[A-Za-z0-9_-]{8,40}:f$/.test(body.receiptCt) ? body.receiptCt : null;
+    // What happened to a correction this function handed out with a pending token: applied (file
+    // Nia's ack, then the receipt) or not (file her one precise question). See correction-outcome.mjs.
+    const outcomeIn = body?.correctionOutcome && typeof body.correctionOutcome === 'object' ? body.correctionOutcome : null;
+    // "I apply first and report back": the ack is not filed until the plate has changed.
+    const canConfirmCorrection = body?.canConfirmCorrection === true;
     // Capability flag (2026-08-06): "I know how to apply a structured correction returned by
     // apply_correction". Only a client that can actually recompute + resync every surface gets
     // the tool offered — an older build keeps today's reply-only contract (with the never-argue
@@ -584,7 +618,7 @@ Deno.serve(async (req) => {
     // and only after the key is proven to sit inside the meal owner's own folder. That means a
     // caller cannot point the model at an arbitrary image, and cannot inflate the request body.
     const photoPathRaw = typeof body?.photoPath === 'string' ? body.photoPath.trim() : '';
-    if (!mealId || (!receiptRows && !context) || (!draftMode && !correctionUpdate && !receiptRows && !question)) return bad(400, 'bad_request', cors);
+    if (!mealId || (!receiptRows && !outcomeIn && !context) || (!draftMode && !correctionUpdate && !receiptRows && !outcomeIn && !question)) return bad(400, 'bad_request', cors);
     // `?? null`: a receipt request carries no context, and JSON.stringify(undefined) is undefined,
     // whose .length THREW into the outer catch. Every correction receipt came back 503 and was
     // never written (found 2026-09-22; the receipt path swallows its own failure by design).
@@ -610,7 +644,10 @@ Deno.serve(async (req) => {
     const callerId = userData?.user?.id;
     if (!callerId) return bad(401, 'unauthorized', cors);
     telemUserId = callerId;
-    const { data: mealRow } = await userClient.from('meals').select('id, athlete_id, day_date').eq('id', mealId).maybeSingle();
+    const { data: mealRow, error: mealErr } = await userClient.from('meals').select('id, athlete_id, day_date').eq('id', mealId).maybeSingle();
+    // A read that FAILED is not a meal that is not yours (review round 4): 503, so a device retries
+    // instead of treating its correction's report as refused. 403 only when the read found nothing.
+    if (mealErr) return bad(503, 'unavailable', cors);
     if (!mealRow) return bad(403, 'unauthorized', cors);
     // Coach modes (coachSupport + coachAsk + draft): the RLS-scoped select above succeeding for a
     // NON-owner proves can_view (linked coach/staff), so a coach must NOT own the meal. Athlete
@@ -627,6 +664,55 @@ Deno.serve(async (req) => {
        ownership check above (mealRow.athlete_id === callerId for the athlete path) has already
        run, so only the meal's own athlete can file one. */
     if (coachReceiptIn && !coachReceipt) return bad(400, 'bad_request', cors);
+    /* THE OUTCOME OF A CORRECTION (2026-09-24). Same shape as the receipt below: no model, no
+       tokens, before the cap and the consent read (the words were produced by a turn that already
+       passed both). The token is the authority: it names this meal and this caller, carries the
+       model's own ack, and is good once. */
+    if (outcomeIn) {
+      const pending = await readPending(outcomeIn.token, { mealId, userId: callerId }, SUPABASE_SERVICE_ROLE_KEY);
+      if (!pending || !pending.nonce) return bad(403, 'unauthorized', cors);
+      // The report must carry the correction the token was issued for, byte for byte: a token is
+      // good for ONE turn's correction, and that correction is where Nia's food names come from.
+      if ((await correctionHash(outcomeIn.correction ?? null)) !== pending.hash) return bad(403, 'unauthorized', cors);
+      const ok = (extra: Record<string, unknown> = {}) =>
+        new Response(JSON.stringify({ ok: true, ...extra }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      // Names Nia may say: the signed correction's, and the meal row's own detected list.
+      const { data: detRow } = await service.from('meals').select('detected').eq('id', mealId).maybeSingle();
+      const outcome = sanitizeOutcome(outcomeIn, allowedNames(outcomeIn.correction, detRow?.detected));
+      const { lead, follow } = outcomeRows(outcome, pending.ack, { nonce: pending.nonce, photos: pending.photos });
+      const base = { meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai', kind: 'message' };
+      // In thread order, one insert each so created_at keeps that order: Nia's words, the receipt
+      // (only after words that say the numbers moved, only with figures that did), what is owed.
+      // Always WITH meta: the ct is what makes each row file once (0249's unique index), so a row
+      // without it would be the one that could be filed twice.
+      const file = async (row: { text: string; meta: Record<string, unknown> }) =>
+        (await service.from('meal_comments').insert({ ...base, text: row.text, meta: row.meta })).error;
+      const put = async (row: { text: string; meta: Record<string, unknown> }) => { const e = await file(row); return !e || e.code === '23505'; };
+      /* A RETRY FILLS THE GAPS (review round 3). Each row is looked up by its own ct, so a report
+         whose response was lost, or whose receipt or follow-up failed to insert, files only what is
+         missing and says what it still could not: `receipt: false` has the device file its plain one
+         (nonce:f), `question: false` keeps the job in the device's outbox to try again. */
+      const has = async (ct: string) => {
+        const { data } = await service.from('meal_comments').select('id').eq('meal_id', mealId).eq('role', 'ai').eq('meta->>ct', ct).limit(1);
+        return Array.isArray(data) && data.length > 0;
+      };
+      const duplicate = await has(pending.nonce);
+      if (!duplicate) {
+        const leadErr = await file(lead);
+        // 23505: a concurrent report filed this turn first (the read above raced it). Already done.
+        if (leadErr && leadErr.code !== '23505') return bad(503, 'unavailable', cors);
+      }
+      let receipt = true;
+      if (outcome.applied && receiptRows) {
+        receipt = (await has(`${pending.nonce}:r`)) || (await has(`${pending.nonce}:f`))
+          || await put({ text: correctionReceiptText(receiptRows), meta: { t: 'correction_receipt', rows: receiptRows, ct: `${pending.nonce}:r` } });
+      }
+      let question = true;
+      if (follow) question = (await has(`${pending.nonce}:q`)) || await put(follow);
+      // No ai_calls row: this mode makes no model call, and ai_calls is one row per paid call
+      // (ai-telemetry.ts). The turn that produced the ack already recorded its own.
+      return ok({ reply: lead.text, receipt, question, ...(duplicate ? { duplicate } : {}) });
+    }
     if (receiptRows) {
       let rows = receiptRows;
       let note: string | null = null;
@@ -658,9 +744,15 @@ Deno.serve(async (req) => {
       const row = {
         meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai',
         text, kind: 'message',
-        meta: { t: 'correction_receipt', rows, ...(note ? { note, additionId } : {}) },
+        meta: { t: 'correction_receipt', rows, ...(note ? { note, additionId } : {}) } as Record<string, unknown>,
       };
+      if (receiptCt) row.meta.ct = receiptCt;
       const { error: recErr } = await service.from('meal_comments').insert(row);
+      // The device's fallback receipt carries its own ct (nonce:f): a retry after a lost response is
+      // the same row, and 0249's unique index says so.
+      if (recErr && recErr.code === '23505' && receiptCt) {
+        return new Response(JSON.stringify({ ok: true, duplicate: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
       if (recErr) {
         // A database without `meta` still gets the sentence: the figures are in the text, so the
         // thread keeps a true record of the change rather than losing it to a missing column.
@@ -966,7 +1058,7 @@ Deno.serve(async (req) => {
     // nothing there to escalate or correct, so it keeps the single forced tool.
     const athleteTools = [
       REPLY_TOOL,
-      ...(canApplyCorrection ? [CORRECTION_TOOL] : []),
+      ...(canApplyCorrection ? [canConfirmCorrection ? CORRECTION_TOOL_CONFIRM : CORRECTION_TOOL] : []),
       ...(canRemember ? [REMEMBER_TOOL] : []),
       ...(canSuggestMeal ? [SUGGEST_MEAL_TOOL] : []),
       FLAG_TOOL,
@@ -1265,6 +1357,22 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
         ? `${ack}${askLine}`
         : "I want to get that into your numbers, but I didn't catch enough to change them. Tell me what to fix, like the protein on the label or what else was in it, and I'll put it straight in.";
       const ackRow = { meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai', text };
+      /* A CLIENT THAT APPLIES FIRST GETS THE PROMISE TO HOLD, NOT TO FILE (2026-09-24). hasChange
+         proves the model SAID something applicable; only the client, which holds the plate, can
+         prove the plate took it. So nothing is written here: the ack travels back signed, and the
+         client files it (or Nia's follow-up question instead) through correctionOutcome. */
+      if (hasChange && canConfirmCorrection) {
+        const correction = { item, newName: newName || null, quantity: quantity || null, per, perBasis: top.perBasis, add, more, missed };
+        // Bound to THIS correction: the report must echo it, and it is the only source of the food
+        // names Nia may use when she speaks about it (besides the meal's own detected list). Hashed
+        // as the client will see it, after a JSON round trip.
+        const pending = await signPending({ mealId, userId: callerId, ack: text, photos: photoKeys, correction: JSON.parse(JSON.stringify(correction)) }, SUPABASE_SERVICE_ROLE_KEY);
+        await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: 'correction_tool', userId: callerId, model: msg.model ?? MODEL, latencyMs: 0, ok: true, outcome: 'correction_pending' });
+        return new Response(
+          JSON.stringify({ reply: text, pending, correction }),
+          { headers: { ...cors, 'Content-Type': 'application/json' } },
+        );
+      }
       // `photos`: the images this turn looked at are now in the numbers, so no later turn is shown
       // them again as something still to add (thread-photos.mjs appliedPhotoKeys).
       const { error: ackErr } = await service.from('meal_comments')

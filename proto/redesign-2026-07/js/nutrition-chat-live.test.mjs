@@ -126,8 +126,11 @@ test('the composer sends per-item foods, not totals only', () => {
 test("a structured correction is offered for TODAY's plate and applied, never promised elsewhere", () => {
   assert.match(SRC, /canApplyCorrection: true/, 'the capability flag unlocks apply_correction server-side');
   assert.match(SRC, /todaySlotFor\(mealId\)/, 'and it is keyed on the plate being in today\'s record');
-  assert.match(SRC, /act\.correctMeal\(slot,/, 'a returned correction is applied deterministically, like the meal thread');
-  assert.match(SRC, /if \(!applied\) setNote\(/, 'a correction that did not land is admitted, not left as a standing promise');
+  // 2026-09-24: through the one shared loop (correction-turn.js), which applies first and then has
+  // meal-chat file what Nia says about it: the ack when it landed, her question when it did not.
+  assert.match(SRC, /runChatCorrection\(\{/, 'a returned correction is applied deterministically, like the meal thread');
+  assert.match(SRC, /canApplyCorrection: true, canConfirmCorrection: true/, 'and Nia\'s promise waits for the plate');
+  assert.doesNotMatch(SRC, /line up with anything/, 'a miss is Nia asking in the thread, never a line under the box');
 });
 
 test('the AI may remember what the athlete says, and only the athlete can make it bind', () => {

@@ -17,7 +17,7 @@ import { mealReadHtml, wireReadControls } from './meal.js';
 import { pastMealDetail } from './trust.js';
 import { layoutThread, visibleThread, MUTED_HIDDEN_NOTE, authorName, initialsFor, isAnalysisUpdate, isAnalysisOpener, isEscalated, quotedFor,
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
-  isCorrectionReceipt, receiptCardHtml, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta, personText, workingLabel,
+  isCorrectionReceipt, receiptCardHtml, playFreshReceipts, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta, personText, workingLabel,
   participantList, participantSummary, AI_NAME, NIA_MARK, whoHtml, facesHtml, threadTitle,
 } from '../chat-view.js';
 import { wireChatTimes } from '../chat-times.js';
@@ -3506,9 +3506,10 @@ export const coachMeal = {
     </div>`;
     })()}
     <div class="chat-dock disc-dock dock-end">
+    ${/* The note sits ABOVE the box, as on the meal thread (screens.css .cmp-note). */''}
+    <div id="cm-note" class="cmp-note cmp-err" role="status"></div>
     ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment', attachId: 'cm-attach', aiId: 'cm-ai', atEnd: true })}
     <div class="composer-attach-pending" id="cm-attach-pending" hidden></div>
-    <div id="cm-note" class="cmp-note cmp-err"></div>
     </div>
     </section>
     ${/* Private notes sit AFTER the discussion (fix round 1, 2026-09-23). Inside it, the sticky
@@ -3635,6 +3636,7 @@ export const coachMeal = {
     // Resolve any attachments already in the thread. mount() re-runs on every __render(), which is
     // exactly when a repaint has just wiped the resolved src attributes, so this belongs here.
     void hydrateThreadPhotos(root, roles);
+    playFreshReceipts(root);   // an arriving receipt counts up (chat-view.js)
     hydrateAvatars(root);   // message monograms upgrade to real faces (0206), same as meal.js
     // Full messages, always (founder 2026-09-22): the Read more clamp is gone from every thread.
     // Tap an attached photo to open it full-screen. Delegated because repaints replace the <img>;

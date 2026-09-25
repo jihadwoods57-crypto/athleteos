@@ -43,9 +43,19 @@ const AI_NAME_WORD = 'nia';
    ambiguous, and ambiguous means quiet. */
 const NIA_LEAD = /^(@nia\b|nia\s*[,:])/;
 /* Only words that open a request TO someone. "Nia is coming", "Nia will drive", "Nia did it"
-   are sentences ABOUT a person, and "did you see Nia?" asks about one: none of them wake her. */
+   are sentences ABOUT a person, and "did you see Nia?" asks about one: none of them wake her.
+   NIA FIRST IS NIA ADDRESSED (review round 2, 2026-09-24). "Nia I had double chicken" and the
+   founder's "Nia in my meal i had double chicken..." named her and were still handed to a coach who
+   had spoken minutes earlier, because "nia i" and "nia in" were not on the list of openers. The
+   first word being "nia" (after hey/yo/ok) now addresses her, unless the next word makes it a
+   sentence about a person: "Nia is", "Nia said", "Nia's", "Nia and I". */
+const NIA_ABOUT = /^(?:is|was|said|says|and|will|has|had|told|just|can|did|does|isn't|wasn't|isnt|wasnt|didn't|didnt|doesn't|doesnt|can't|cant|won't|wont|would|could|should|went|came|got|gets|wants|thinks|thought|knows|asked|are|were|be|been|who|herself|s|left|made|brought|bought|drove|called|texted|might|may|must|needs|likes|loves|ate|eats)$/;
 const NIA_VOCATIVE = [
   NIA_LEAD,
+  (low) => {
+    const m = /^(?:(?:hey|hi|hello|yo|ok|okay|so)[,!]?\s+)?@?nia(?=$|[\s,:!?.'])('[a-z]+)?\s*([a-z']*)/.exec(low);
+    return !!m && !m[1] && !NIA_ABOUT.test(m[2]);
+  },
   /^(hey|hi|hello|yo|ok|okay|so|thanks|thank you)[,!]?\s+nia\b/,
   /^nia\s*[!?]/,
   /^nia\s+(what|how|can|could|should|would|why|when|where|which|who|any|give|tell|help|check)\b/,
@@ -125,6 +135,10 @@ const FOOD_WORDS = NUTRITION_WORDS.concat([
   'fruit', 'apple', 'banana', 'orange', 'chips', 'fries', 'cookie', 'cookies', 'dessert', 'side',
   'salad', 'egg', 'eggs', 'cheese', 'chicken', 'beef', 'steak', 'fish', 'sandwich', 'wrap',
   'burger', 'pizza', 'oatmeal', 'cereal', 'peanut butter', 'nuts', 'granola', 'bottle', 'can',
+  // A burrito bowl's parts (2026-09-24, "double chicken" at Chipotle): what an amount is said about.
+  'meat', 'bean', 'beans', 'corn', 'salsa', 'guac', 'guacamole', 'sour cream', 'cream', 'queso',
+  'avocado', 'tortilla', 'lettuce', 'veggies', 'vegetables', 'potato', 'potatoes', 'bacon',
+  'sausage', 'turkey', 'pork', 'shrimp', 'salmon', 'tuna', 'sauce', 'dressing', 'ranch', 'mayo',
 ]);
 const EAT_VERB = /\b(eat|eats|eating|ate|drink|drinks|drinking|drank|sip|sips|sipping|sipped|chug|chugged|chugging)\b/;
 const HAD_VERB = /\b(had|having|grabbed)\b/;
@@ -132,6 +146,42 @@ const ADDITIVE = /\b(also|too|as well|plus|with it|with this|with that|on the si
 const LEFT_OUT = /\b(forgot|forgot to (log|add)|left out|left off|didn't (log|add|include)|did not (log|add|include)|missed)\b/;
 const DEICTIC = /\b(this|that|these|those)\b/;
 const FUTURE = /\b(i'll|ill|i will|gonna|going to|next time|tomorrow|later)\b/;
+
+/* AN AMOUNT ON THIS PLATE (2026-09-24). "I had double chicken", then "Double chicken", went
+   unanswered on the founder's own Chipotle bowl: a statement, no name, no question, no additive
+   word. It is the plainest correction a meal thread gets, and only Nia can put it in the numbers.
+   An edit word followed by a food ("double chicken", "no sour cream", "half the rice", "extra
+   guac") is about this plate unless it is about later. */
+const AMOUNT_EDIT = /\b(?:double|doubled|triple|tripled|twice|extra|half|2x|x2|3x|x3|no|without)\s+(?:(?:the|a|of|my|portion|portions|serving|servings)\s+)*([a-z]+(?:\s[a-z]+)?)/g;
+/** Is the athlete changing how much of a food was on this meal? Takes normalised text. */
+export function changesAmountOnThisMeal(low) {
+  const t = String(low || '');
+  if (!t || FUTURE.test(t)) return false;
+  for (const m of t.matchAll(AMOUNT_EDIT)) {
+    const two = m[1];
+    const one = two.split(' ')[0];
+    if (FOOD_WORDS.indexOf(two) !== -1 || FOOD_WORDS.indexOf(one) !== -1 || FOOD_WORDS.indexOf(one.replace(/s$/, '')) !== -1) return true;
+  }
+  return false;
+}
+
+/* THE SHAPE OF AN ANSWER (review 2026-09-24). After Nia asks "Which one should I double: the grilled
+   chicken or the chicken salad?", the reply that is FOR her is a yes or a no, a pick, a number, an
+   amount or a food. "see you at practice", "lol" and "ok" are not, even straight after her question. */
+const YES_NO = /^(yes|yeah|yep|yup|ya|yea|yessir|yes sir|sure|correct|right|exactly|no|nope|nah|neither|both|none|all of it|first|second|the first|the second|that one|this one|the other)\b/;
+const AMOUNT_WORD = /\b(double|triple|half|extra|twice|oz|ounces?|cups?|grams?|tbsp|tsp|slices?|pieces?|servings?|portions?|scoops?|bowls?)\b/;
+const PLAIN = ['which', 'what', 'should', 'would', 'could', 'want', 'that', 'this', 'with', 'have', 'your', 'about', 'there', 'then', 'than', 'from', 'were', 'like', 'need', 'just'];
+/** Is this reply shaped like an answer to `question`? Both take bare() text. */
+function answerShaped(flat, question) {
+  if (!flat) return false;
+  if (YES_NO.test(flat) || /\d/.test(flat) || AMOUNT_WORD.test(flat)) return true;
+  if (FOOD_WORDS.some((w) => hasWord(flat, w))) return true;
+  // A word from her own question: "the grilled one" after "the grilled chicken or the chicken salad?".
+  const asked = String(question || '').split(' ').filter((w) => w.length >= 4 && PLAIN.indexOf(w) === -1);
+  return flat.split(' ').some((w) => asked.indexOf(w) !== -1);
+}
+/** How long a question or a remark stays the thing the athlete's next line answers. */
+const ADJACENT_MS = 30 * 60 * 1000;
 
 /** Is the athlete telling the room something ELSE went into this meal? Takes normalised text. */
 export function addsFoodToThisMeal(low) {
@@ -209,7 +259,7 @@ function niaIsAmbiguous(participants) {
 /** Is this message calling Nia by name? `clash` = a human is also called Nia. */
 function niaAddressed(low, clash) {
   if (clash) return NIA_LEAD.test(low);
-  return NIA_VOCATIVE.some((re) => re.test(low));
+  return NIA_VOCATIVE.some((re) => (typeof re === 'function' ? re(low) : re.test(low)));
 }
 
 const recipient = (kind, who, how) => ({
@@ -231,6 +281,7 @@ const verdict = (shouldRespond, intendedRecipient, confidence, reason) =>
  *   participants?: Array<{id,name,role}>,   // everyone who can read the thread, the AI included
  *   history?: Array<message>,               // oldest -> newest, NOT including `message`
  *   aiName?: string,
+ *   now?: number,                           // ms; history rows carry `at`. The module reads no clock.
  * }}
  * @returns {{ shouldRespond:boolean, intendedRecipient:object, confidence:number, reason:string }}
  *
@@ -374,7 +425,33 @@ export function shouldAiRespond(message, context) {
   if (fromAthlete && photo) {
     return verdict(true, recipient('ai', aiParticipant, 'semantic'), 0.85, 'the athlete posted a photo on their own meal thread');
   }
+  /* ANSWERING NIA'S QUESTION (2026-09-24, narrowed after review the same night). When the latest
+     word from anyone but the athlete is Nia's question, asked in the last 30 minutes, an answer-
+     shaped reply is hers: "yes", "the grilled one", "6 oz", which name nobody and ask nothing.
+     Above the nod rule on purpose: "yes" to a question is an answer, not a nod. "see you at
+     practice" is not an answer, and neither is anything once a person has spoken since. */
+  const now = Number(ctx.now) || 0;
+  // No clock or no timestamp: not known to be recent, so neither rule below claims the turn.
+  const recent = (h) => { const t = Date.parse(h && h.at); return now > 0 && isFinite(t) && now - t <= ADJACENT_MS; };
+  const other = lastOther(history, msg);
+  if (fromAthlete && other && isAiRole(other.senderRole) && /\?["')\s]*$/.test(String(other.text || '').trim())
+    && recent(other) && answerShaped(flat, bare(other.text))) {
+    return verdict(true, recipient('ai', aiParticipant, 'adjacency'), 0.85, 'answers the question the AI just asked');
+  }
   if (isAck) return verdict(false, recipient('human', null, 'adjacency'), 0.9, 'an acknowledgement, not a question');
+  /* THE COACH ASKED FIRST (review 2026-09-24). Coach: "How much chicken did you get?" Athlete:
+     "double chicken". That is the other half of the COACH's exchange, and Nia answering it is the
+     barging-in this module exists to stop. So adjacency to a person runs BEFORE the amount and
+     food rules below: when the latest word from anyone else is a person's, and recent, a statement
+     about the plate is for them. The founder's own sequence (Nia spoke last) still reaches her. */
+  const aboutPlate = fromAthlete && (changesAmountOnThisMeal(low) || addsFoodToThisMeal(low));
+  if (aboutPlate && other && isHumanRole(other.senderRole) && recent(other)) {
+    return verdict(false, recipient('human', { id: other.senderId, name: other.senderName, role: other.senderRole }, 'adjacency'), 0.85,
+      'answering ' + (other.senderName || other.senderRole) + ', who spoke last');
+  }
+  if (fromAthlete && changesAmountOnThisMeal(low)) {
+    return verdict(true, recipient('ai', aiParticipant, 'semantic'), 0.8, 'the athlete changed an amount on this meal');
+  }
   if (fromAthlete && addsFoodToThisMeal(low)) {
     return verdict(true, recipient('ai', aiParticipant, 'semantic'), 0.8, 'the athlete added food or drink to this meal');
   }
@@ -421,13 +498,31 @@ export function shouldAiRespond(message, context) {
   return verdict(false, NOBODY, 0.6, 'nothing addressed to the AI, staying quiet');
 }
 
+/* NIA'S RECORDS ARE NIA SPEAKING (review round 2). Her correction replies are filed as system rows
+   (an analysis_update ack, a receipt) so the model reads them as records, but for "who spoke last"
+   they are her turn: skipping them handed the founder's follow-up "Double chicken" to the coach who
+   had spoken before her. A system row from anyone else (a professional's correction) stays skipped. */
+const notSpeech = (h) => !h || (!h.text && h.photo !== true) || (h.system === true && !isAiRole(h.senderRole));
+
+/** The most recent speech from anyone OTHER than the sender of `msg` (their own earlier lines do
+ *  not change who they are answering). */
+function lastOther(history, msg) {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const h = history[i];
+    if (notSpeech(h)) continue;
+    const same = h.senderId && msg.senderId ? String(h.senderId) === String(msg.senderId)
+      : norm(h.senderRole) === norm(msg.senderRole) && norm(h.senderName) === norm(msg.senderName);
+    if (!same) return h;
+  }
+  return null;
+}
+
 /** The most recent message from a person or the AI, skipping rows that are not speech (receipts,
  *  analysis updates and other system writes carry a kind of their own). */
 function lastHumanOrAi(history) {
   for (let i = history.length - 1; i >= 0; i--) {
     const h = history[i];
-    if (!h || (!h.text && h.photo !== true)) continue;
-    if (h.system === true) continue;
+    if (notSpeech(h)) continue;
     return h;
   }
   return null;

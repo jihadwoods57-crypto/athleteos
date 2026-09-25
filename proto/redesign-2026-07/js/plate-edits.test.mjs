@@ -1,0 +1,676 @@
+/* "I HAD DOUBLE CHICKEN" (founder, 2026-09-24, 9:09 PM ET).
+ *
+ * The real thread (meal f4c982bb, prod meal_comments, read-only): "I had double chicken" (no
+ * reply), "Nia in my meal i had double chicken. This from chipotle", Nia: "Good catch, Jihad.
+ * Double chicken it is, your numbers and score are updating now" (meta analysis_update, filed by
+ * meal-chat at 01:09:59 UTC, ai_calls outcome correction_returned), then "Double chicken". Nothing
+ * moved, and an amber line under the box said so.
+ *
+ * THE PLATE. The six detected foods live only on the athlete's device: the meals row was inserted
+ * at log time with the plate still being read (name "Dinner", detected []), and the late read's
+ * mirror wrote macros only (fixed in the same change, state.js). So the plate below is RECONSTRUCTED
+ * from what prod does hold: the title the app showed ("Chicken Salad Bowl with Corn, Slaw, and ..."),
+ * the read's own words ("least sure on the sour cream or crema portion"), six items, and the row's
+ * totals, 29g protein / 400 kcal / 32g carbs / 19g fat, which these six sum to exactly.
+ *
+ * What the model can send for "double chicken", every one of which used to change nothing:
+ *   quantity "double"   (a word servingsFor cannot compare to "3 oz")
+ *   quantity "2x"       (a count against a mass)
+ *   newName "Double chicken" and no quantity (a rename of the same food: macros unchanged)
+ */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readPlateEdits, matchPlateFood, scaledQuantity, portionFactor, resolveChatCorrection, correctionOutcome, isProteinItem } from './plate-edits.js';
+import { applyMealCorrection, normalizeDetected } from './meal-intel.js';
+import { servingsFor } from './nutrition.js';
+
+const BOWL = {
+  name: 'Chicken Salad Bowl with Corn, Slaw, and Sour Cream', mealId: 'f4c982bb-4b2c-464c-930a-d14f168c3b5b',
+  protein: 29, kcal: 400, carbs: 32, fat: 19, fiber: 6, quality: 92,
+  foods: ['Grilled chicken', 'Romaine lettuce', 'Roasted corn salsa', 'Cabbage slaw', 'Sour cream', 'Chipotle-lime dressing'],
+  detectedRich: [
+    { name: 'Grilled chicken', quantity: '3 oz', confidence: 'high', per: { protein: 21, kcal: 140, carbs: 0, fat: 6 } },
+    { name: 'Romaine lettuce', quantity: '2 cups', confidence: 'high', per: { protein: 1, kcal: 15, carbs: 3, fat: 0 } },
+    { name: 'Roasted corn salsa', quantity: '1/2 cup', confidence: 'high', per: { protein: 3, kcal: 80, carbs: 16, fat: 1 } },
+    { name: 'Cabbage slaw', quantity: '1/2 cup', confidence: 'medium', per: { protein: 1, kcal: 50, carbs: 6, fat: 3 } },
+    { name: 'Sour cream', quantity: '2 tbsp', confidence: 'low', per: { protein: 1, kcal: 60, carbs: 2, fat: 5 } },
+    { name: 'Chipotle-lime dressing', quantity: '1 tbsp', confidence: 'medium', per: { protein: 2, kcal: 55, carbs: 5, fat: 4 } },
+  ],
+};
+const SAID = 'Nia in my meal i had double chicken. This from chipotle';
+
+/** What state.js correctMeal does with the parts, minus the device: each applied in turn. */
+function apply(meta, parts) {
+  let m = meta; const done = []; const landed = [];
+  for (const p of parts) { const r = applyMealCorrection(m, p); if (r) { m = r.meta; done.push(r); landed.push(p); } }
+  if (!done.length) return null;
+  return { meta: m, landed, moved: done.some((r) => r.moved), unpriced: done.flatMap((r) => r.unpriced || []), nothingPriced: done.every((r) => r.nothingPriced) };
+}
+
+test('the reconstructed plate sums to the prod row (29g / 400 kcal / 32g / 19g)', () => {
+  const sum = (k) => BOWL.detectedRich.reduce((a, d) => a + d.per[k], 0);
+  assert.deepEqual([sum('protein'), sum('kcal'), sum('carbs'), sum('fat')], [29, 400, 32, 19]);
+});
+
+test('the three things the founder typed each read as "double the chicken"', () => {
+  for (const s of ['I had double chicken', SAID, 'Double chicken']) {
+    assert.deepEqual(readPlateEdits(s).map((e) => [e.op, e.factor, e.food]), [['scale', 2, 'chicken']], s);
+  }
+});
+
+test('the other ways people say an amount changed', () => {
+  const read = (s) => readPlateEdits(s).map((e) => [e.op, e.factor || null, e.food]);
+  assert.deepEqual(read('extra guac'), [['scale', 1.5, 'guac']]);
+  assert.deepEqual(read('no sour cream'), [['remove', null, 'sour cream']]);
+  assert.deepEqual(read('half the rice'), [['scale', 0.5, 'rice']]);
+  assert.deepEqual(read('2x chicken'), [['scale', 2, 'chicken']]);
+  assert.deepEqual(read('chicken x2'), [['scale', 2, 'chicken']]);
+  assert.deepEqual(read('the rice was doubled'), [['scale', 2, 'rice']]);
+  assert.deepEqual(read('double portion of chicken'), [['scale', 2, 'chicken']]);
+  assert.deepEqual(read('added guac'), [['add', null, 'guac']]);
+  assert.deepEqual(read('I didn\u2019t have the rice'), [['remove', null, 'rice']]);
+  assert.deepEqual(read('2x chicken and no rice'), [['scale', 2, 'chicken'], ['remove', null, 'rice']]);
+});
+
+test('words that only look like edits are not edits', () => {
+  for (const s of ['extra protein', 'no problem', 'double check the numbers', 'should I get double chicken?',
+    "it wasn't double chicken", 'no, it was chicken', 'Thanks']) {
+    assert.deepEqual(readPlateEdits(s), [], s);
+  }
+});
+
+test('chicken on this plate is one food, a portion of its own', () => {
+  assert.deepEqual(matchPlateFood(BOWL.detectedRich, ['chicken']), { idx: 0 });
+  // Two salsas is a question, not a pick.
+  const two = [...BOWL.detectedRich, { name: 'Tomatillo salsa', quantity: '2 tbsp' }];
+  assert.deepEqual(matchPlateFood(two, ['salsa']), { candidates: [2, 6] });
+  assert.deepEqual(matchPlateFood(BOWL.detectedRich, ['steak']), { none: true });
+  // "chicken" is not "chickpea"; "guac" is "guacamole".
+  assert.deepEqual(matchPlateFood([{ name: 'Chickpeas' }], ['chicken']), { none: true });
+  assert.deepEqual(matchPlateFood([{ name: 'Guacamole' }], ['guac']), { idx: 0, strict: true }, 'every word of the name: near-exact');
+});
+
+test('a doubled amount keeps the row\'s own unit, and servingsFor reads it back as exactly 2', () => {
+  for (const [q, f, want] of [['3 oz', 2, '6 oz'], ['1/2 cup', 2, '1 cup'], ['1 bowl', 2, '2 bowls'], ['2 eggs', 0.5, '1 egg'], ['1 1/2 cups', 2, '3 cups']]) {
+    const got = scaledQuantity(q, f);
+    assert.equal(got, want);
+    assert.deepEqual(servingsFor(got, q), { servings: f, resolved: true }, `${got} over ${q}`);
+  }
+  // No comparable amount on the row: servings, which servingsFor reads without a label.
+  assert.equal(scaledQuantity('', 2), '2 servings');
+  assert.equal(scaledQuantity('~4 oz', 2), '2 servings');
+  assert.deepEqual(servingsFor('2 servings', '~4 oz'), { servings: 2, resolved: true });
+});
+
+test('portion words from the model are amounts, not strings', () => {
+  assert.equal(portionFactor('double'), 2);
+  assert.equal(portionFactor('2x'), 2);
+  assert.equal(portionFactor('double portion'), 2);
+  assert.equal(portionFactor('half'), 0.5);
+  assert.equal(portionFactor('8 oz'), null);
+  assert.equal(portionFactor('a bit more'), null);
+});
+
+/* ---- the incident, end to end through the real reducer ------------------------------------ */
+
+for (const [label, correction] of [
+  ['quantity "double"', { item: 'Grilled chicken', quantity: 'double', per: {} }],
+  ['quantity "2x" on a shortened name', { item: 'chicken', quantity: '2x', per: {} }],
+  ['a rename to "Double chicken"', { item: 'Grilled chicken', newName: 'Double chicken', per: {} }],
+  ['nothing usable at all', { item: 'Chipotle chicken bowl', per: {} }],
+]) {
+  test(`"double chicken" doubles the chicken whatever the model sent (${label})`, () => {
+    const { parts, asks, exact } = resolveChatCorrection(BOWL, correction, SAID);
+    assert.deepEqual(asks, []);
+    assert.equal(parts.length, 1, 'one edit, the athlete\'s, and the model\'s version of it is not applied twice');
+    assert.deepEqual([parts[0].kind, parts[0].item, parts[0].quantity], ['item', 'Grilled chicken', '6 oz']);
+    const r = apply(BOWL, parts);
+    assert.ok(r && r.moved);
+    const chicken = r.meta.detectedRich.find((d) => /chicken/i.test(d.name));
+    assert.equal(chicken.name, 'Grilled chicken', 'never renamed "Double chicken"');
+    assert.deepEqual(chicken.per, { protein: 42, kcal: 280, carbs: 0, fat: 12 });
+    assert.deepEqual([r.meta.protein, r.meta.kcal, r.meta.carbs, r.meta.fat], [50, 540, 32, 25]);
+    const o = correctionOutcome({ applied: r, asks, exact, parts });
+    assert.deepEqual([o.applied, o.unpriced, o.done], [true, [], [{ op: 'scale', verb: 'double', food: 'Grilled chicken', to: '6 oz' }]]);
+    // The model's ack is filed word for word only when its own part landed as it described.
+    assert.equal(o.exact, !!correction.quantity || !!correction.newName, label);
+  });
+}
+
+test('the model alone (no edit words) still lands when it says "double"', () => {
+  const { parts, asks } = resolveChatCorrection(BOWL, { item: 'Grilled chicken', quantity: 'double', per: {} }, 'Nia fix the chicken please');
+  assert.deepEqual(asks, []);
+  assert.equal(parts[0].quantity, '6 oz');
+  assert.equal(apply(BOWL, parts).meta.protein, 50);
+});
+
+test('a real amount from the model keeps working ("6 oz" over "3 oz")', () => {
+  const { parts } = resolveChatCorrection(BOWL, { item: 'Grilled chicken', quantity: '6 oz', per: {} }, 'it was 6 oz of chicken');
+  assert.equal(parts[0].quantity, '6 oz');
+  assert.equal(apply(BOWL, parts).meta.protein, 50);
+});
+
+/* ---- ask, never guess ----------------------------------------------------------------------- */
+
+test('two chickens: Nia asks which one, and nothing changes', () => {
+  const plate = { ...BOWL, detectedRich: [{ name: 'Grilled chicken', quantity: '4 oz', per: { protein: 28, kcal: 180, carbs: 0, fat: 8 } }, { name: 'Chicken salad', quantity: '1 cup', per: { protein: 14, kcal: 220, carbs: 8, fat: 15 } }] };
+  const { parts, asks } = resolveChatCorrection(plate, { item: 'chicken', quantity: 'double', per: {} }, 'double chicken');
+  assert.deepEqual(parts, [], 'the model saying "chicken" is not a pick between two chickens');
+  assert.deepEqual(asks, [{ reason: 'ambiguous', verb: 'double', food: 'chicken', candidates: ['Grilled chicken', 'Chicken salad'] }]);
+  assert.deepEqual(correctionOutcome({ applied: null, asks }), { applied: false, ask: asks[0], asks });
+});
+
+test('a row literally named what was said is that food, not a tie ("Chicken" beside "Chicken salad")', () => {
+  const plate = { ...BOWL, detectedRich: [{ name: 'Chicken', quantity: '4 oz', per: { protein: 28, kcal: 180, carbs: 0, fat: 8 } }, { name: 'Chicken salad', quantity: '1 cup', per: { protein: 14, kcal: 220, carbs: 8, fat: 15 } }] };
+  const { parts, asks } = resolveChatCorrection(plate, { item: 'Chicken', quantity: 'double', per: {} }, 'double chicken');
+  assert.deepEqual(asks, []);
+  assert.deepEqual(parts.map((p) => [p.item, p.quantity]), [['Chicken', '8 oz']]);
+});
+
+test('a chicken that only exists inside a dish is asked about, not doubled with its rice', () => {
+  const plate = { ...BOWL, detectedRich: [{ name: 'Chicken burrito bowl', quantity: '1 bowl', per: { protein: 40, kcal: 800, carbs: 90, fat: 25 } }] };
+  const { parts, asks } = resolveChatCorrection(plate, { item: 'Chicken burrito bowl', quantity: 'double', per: {} }, 'double chicken');
+  assert.deepEqual(parts, []);
+  assert.equal(asks[0].reason, 'composite');
+  assert.equal(asks[0].dish, 'Chicken burrito bowl');
+});
+
+test('a food the read never had: asked about for an amount, added for "added"', () => {
+  const a = resolveChatCorrection(BOWL, { item: 'steak', quantity: 'double', per: {} }, 'double steak');
+  assert.deepEqual([a.parts.length, a.asks[0].reason, a.asks[0].food], [0, 'missing', 'steak']);
+  const b = resolveChatCorrection(BOWL, { missed: [{ name: 'guacamole' }] }, 'added guac');
+  assert.deepEqual(b.parts.map((p) => [p.kind, p.foods.map((f) => f.name)]), [['add-foods', ['guacamole']]], 'the model\'s add, once');
+  const c = resolveChatCorrection(BOWL, {}, 'added guac');
+  assert.deepEqual(c.parts.map((p) => [p.kind, p.foods.map((f) => f.name)]), [['add-foods', ['guac']]], 'the athlete\'s word when the model sent none');
+});
+
+test('what is clear lands and what is not is asked, in the same turn', () => {
+  const plate = { ...BOWL, detectedRich: [...BOWL.detectedRich, { name: 'Tomatillo salsa', quantity: '2 tbsp', per: { protein: 0, kcal: 10, carbs: 2, fat: 0 } }] };
+  const { parts, asks } = resolveChatCorrection(plate, {}, 'double chicken and no salsa');
+  assert.deepEqual(parts.map((p) => p.item), ['Grilled chicken']);
+  assert.deepEqual([asks[0].reason, asks[0].verb, asks[0].candidates], ['ambiguous', 'remove', ['Roasted corn salsa', 'Tomatillo salsa']]);
+  const r = apply(plate, parts);
+  const o = correctionOutcome({ applied: r, asks });
+  assert.deepEqual([o.applied, o.exact, o.ask, o.done.map((d) => d.food)], [true, false, asks[0], ['Grilled chicken']]);
+});
+
+test('"no sour cream" takes it off and the totals with it', () => {
+  const { parts } = resolveChatCorrection(BOWL, {}, 'no sour cream');
+  assert.deepEqual(parts.map((p) => [p.kind, p.item]), [['remove', 'Sour cream']]);
+  const r = apply(BOWL, parts);
+  assert.ok(r.moved);
+  assert.deepEqual([r.meta.protein, r.meta.kcal], [28, 340]);
+  assert.ok(!r.meta.detectedRich.some((d) => d.name === 'Sour cream'));
+  assert.ok(!r.meta.foods.includes('Sour cream'), 'the flat list follows');
+});
+
+test('a model item that matches nothing is a question naming what IS on the plate', () => {
+  const { parts, asks } = resolveChatCorrection(BOWL, { item: 'tofu', quantity: '2 cups', per: {} }, 'Nia it was more');
+  assert.deepEqual(parts, []);
+  assert.equal(asks[0].reason, 'no_match');
+  assert.equal(asks[0].candidates.length, 4);
+});
+
+test('an amount nobody can compare is asked about, never invented', () => {
+  const { parts, asks } = resolveChatCorrection(BOWL, { item: 'Grilled chicken', quantity: 'a bit more', per: {} }, 'a bit more chicken');
+  assert.deepEqual(parts, []);
+  assert.deepEqual([asks[0].reason, asks[0].food], ['amount', 'Grilled chicken']);
+});
+
+test('a rename that really is a different food still re-prices (correction follows the food)', () => {
+  const { parts, asks } = resolveChatCorrection(BOWL, { item: 'Grilled chicken', newName: 'Grilled salmon', per: {} }, "it's actually salmon");
+  assert.deepEqual(asks, []);
+  const r = apply(BOWL, parts);
+  assert.ok(r.moved);
+  assert.equal(r.meta.detectedRich[0].name, 'Grilled salmon');
+});
+
+test('a stated macro still beats the reference (the 42g shake rule)', () => {
+  const { parts } = resolveChatCorrection(BOWL, { missed: [{ name: 'protein shake' }] }, 'I also had a 42g protein shake');
+  const r = apply(BOWL, parts);
+  assert.equal(r.meta.protein, 29 + 42);
+});
+
+test('the outcome for every miss is a question, never silence', () => {
+  assert.deepEqual(correctionOutcome({ applied: { nothingPriced: true, unpriced: ['moon dust'] } }), { applied: false, ask: { reason: 'unpriced', unpriced: ['moon dust'] } });
+  assert.deepEqual(correctionOutcome({ applied: { moved: false }, correction: { newName: 'Adobo chicken' } }), { applied: false, ask: { reason: 'unchanged', newName: 'Adobo chicken' } });
+  assert.deepEqual(correctionOutcome({ applied: null }), { applied: false, ask: { reason: 'nothing' } });
+});
+
+/* ============================ REVIEW FINDINGS (2026-09-24) ============================
+ * Nia's words must always match what actually happened. Each block below is a reviewer repro
+ * (the pe3 script), pinned before the fix. */
+
+const chickenOf = (m) => m.detectedRich.find((d) => /chicken/i.test(d.name));
+
+/* C1. "Double chicken" said twice doubled it twice (3 oz -> 6 -> 12 -> 24). */
+test('C1: a second "double chicken" is already counted, and nothing moves', () => {
+  const first = resolveChatCorrection(BOWL, { item: 'Grilled chicken', quantity: 'double', per: {} }, SAID);
+  let meta = apply(BOWL, first.parts).meta;
+  assert.equal(chickenOf(meta).quantity, '6 oz');
+  assert.deepEqual(chickenOf(meta).base, { q: '3 oz', per: { protein: 21, kcal: 140, carbs: 0, fat: 6 } }, 'the baseline is kept on the row the first time');
+  for (const [said, model] of [
+    ['Double chicken', { item: 'Grilled chicken', quantity: '6 oz', per: {} }],
+    ['yes double chicken', { item: 'Grilled chicken', quantity: '6 oz', per: {} }],
+    ['Double chicken', { item: 'Grilled chicken', quantity: 'double', per: {} }],
+    ['double chicken', {}],
+  ]) {
+    const r = resolveChatCorrection(meta, model, said);
+    assert.deepEqual(r.parts, [], `${said} ${JSON.stringify(model)}: nothing to apply`);
+    assert.deepEqual(r.asks, [{ reason: 'counted', verb: 'double', food: 'Grilled chicken', amount: '6 oz' }], said);
+    assert.equal(correctionOutcome({ applied: null, asks: r.asks }).applied, false);
+  }
+  // "triple" after a double is 3x the ORIGINAL (9 oz), not 3x the doubled amount.
+  const t = resolveChatCorrection(meta, {}, 'actually triple chicken');
+  assert.equal(t.parts[0].quantity, '9 oz');
+  meta = apply(meta, t.parts).meta;
+  assert.equal(chickenOf(meta).base.q, '3 oz', 'a relative edit never moves the baseline');
+});
+
+test('C1: the baseline rides the row through the saves (normalizeDetected keeps it)', () => {
+  const [row] = normalizeDetected([{ name: 'Grilled chicken', quantity: '6 oz', base: { q: '3 oz', per: { protein: 21, kcal: 140, carbs: 0, fat: 6 } }, per: { protein: 42, kcal: 280, carbs: 0, fat: 12 } }]);
+  assert.deepEqual(row.base, { q: '3 oz', per: { protein: 21, kcal: 140, carbs: 0, fat: 6 } });
+  assert.equal(normalizeDetected([{ name: 'Rice', quantity: '1 cup' }])[0].base, undefined, 'absent stays absent');
+});
+
+test('C1: the model\'s absolute amount wins over the athlete\'s word', () => {
+  const r = resolveChatCorrection(BOWL, { item: 'Grilled chicken', quantity: '8 oz', per: {} }, 'double chicken');
+  assert.deepEqual(r.parts.map((p) => [p.item, p.quantity, p.verb]), [['Grilled chicken', '8 oz', undefined]], '8 oz is not "a double" of 3 oz, so it is not called one');
+  const agree = resolveChatCorrection(BOWL, { item: 'Grilled chicken', quantity: '6 oz', per: {} }, 'double chicken');
+  assert.deepEqual(agree.parts.map((p) => [p.quantity, p.verb]), [['6 oz', 'double']]);
+});
+
+/* C2. Negations and "no X, it was Y" removed the wrong food, or dropped the model's part. */
+test('C2: "no chicken salad, it was grilled chicken" never removes the grilled chicken', () => {
+  const r = resolveChatCorrection(BOWL, { item: 'Grilled chicken', newName: 'Grilled chicken', per: {} }, 'Nia I had no chicken salad, it was grilled chicken');
+  assert.ok(!r.parts.some((p) => p.kind === 'remove'), JSON.stringify(r.parts));
+  const out = apply(BOWL, r.parts);
+  assert.ok(!out || chickenOf(out.meta), 'the chicken is still on the plate');
+  // The read already says grilled chicken: Nia says so, and nothing moves.
+  assert.deepEqual(r.asks, [{ reason: 'counted', verb: '', food: 'Grilled chicken', amount: '' }]);
+});
+
+test('C2: "i did not have double chicken" is not a removal', () => {
+  assert.deepEqual(readPlateEdits('i did not have double chicken'), []);
+  assert.deepEqual(readPlateEdits("I didn't get extra rice"), []);
+  const r = resolveChatCorrection(BOWL, { item: 'Grilled chicken', quantity: '3 oz', per: {} }, 'i did not have double chicken');
+  assert.ok(!r.parts.some((p) => p.kind === 'remove'));
+  const out = apply(BOWL, r.parts);
+  assert.ok(!out || chickenOf(out.meta).quantity === '3 oz');
+});
+
+test('C2: "no sour cream, it was guac" applies the model\'s rename, not a removal', () => {
+  const r = resolveChatCorrection(BOWL, { item: 'Sour cream', newName: 'Guacamole', per: {} }, 'Nia there was no sour cream, it was guac');
+  assert.deepEqual(r.parts.map((p) => [p.kind, p.item, p.newName]), [['item', 'Sour cream', 'Guacamole']]);
+  const out = apply(BOWL, r.parts);
+  assert.ok(out.meta.detectedRich.some((d) => d.name === 'Guacamole'));
+});
+
+test('C2: "no rice, it was cauliflower rice" keeps the model\'s add', () => {
+  const r = resolveChatCorrection(BOWL, { missed: [{ name: 'Cauliflower rice', quantity: '1 cup' }] }, 'no rice, it was cauliflower rice');
+  assert.deepEqual(r.asks, []);
+  assert.deepEqual(r.parts.map((p) => [p.kind, (p.foods || []).map((f) => f.name)]), [['add-foods', ['Cauliflower rice']]]);
+});
+
+test('C2: one shared word is never enough to take a food off', () => {
+  const r = resolveChatCorrection(BOWL, {}, 'no chicken');
+  assert.deepEqual(r.parts, []);
+  assert.deepEqual([r.asks[0].reason, r.asks[0].verb, r.asks[0].candidates], ['confirm', 'remove', ['Grilled chicken']]);
+  // The whole name, or all of its words, is.
+  assert.deepEqual(resolveChatCorrection(BOWL, {}, 'no grilled chicken').parts.map((p) => [p.kind, p.item]), [['remove', 'Grilled chicken']]);
+  assert.deepEqual(resolveChatCorrection(BOWL, {}, 'hold the sour cream').parts.map((p) => [p.kind, p.item]), [['remove', 'Sour cream']]);
+  // And when the model named that row with nothing on it, it is the model's call, refined.
+  assert.deepEqual(resolveChatCorrection(BOWL, { item: 'Grilled chicken', quantity: '0', per: {} }, 'no chicken').parts.map((p) => [p.kind, p.item]), [['remove', 'Grilled chicken']]);
+});
+
+test('C2: the parser never drops a model rename or add because it shares a word', () => {
+  const r = resolveChatCorrection(BOWL, { item: 'Roasted corn salsa', newName: 'Pico de gallo', per: {}, missed: [{ name: 'Chicken tortilla soup' }] }, 'the salsa was pico and I also had chicken soup');
+  assert.ok(r.parts.some((p) => p.kind === 'item' && p.newName === 'Pico de gallo'));
+  assert.ok(r.parts.some((p) => p.kind === 'add-foods' && p.foods.some((f) => f.name === 'Chicken tortilla soup')));
+});
+
+/* I6. "extra X" = 2x for a protein, 1.5x otherwise (founder ruling). */
+test('I6: extra chicken is a second portion; extra salsa is half again', () => {
+  assert.equal(resolveChatCorrection(BOWL, {}, 'extra chicken').parts[0].quantity, '6 oz');
+  assert.equal(resolveChatCorrection(BOWL, {}, 'extra salsa').parts[0].quantity, '3/4 cup');
+  assert.equal(resolveChatCorrection(BOWL, { item: 'Grilled chicken', quantity: 'extra', per: {} }, 'Nia I had extra chicken').parts[0].quantity, '6 oz');
+  assert.equal(resolveChatCorrection(BOWL, { item: 'Grilled chicken', newName: 'Extra chicken', per: {} }, 'Nia fix it').parts[0].quantity, '6 oz');
+  assert.equal(resolveChatCorrection(BOWL, { item: 'Sour cream', quantity: 'extra', per: {} }, 'Nia fix it').parts[0].quantity, '3 tbsp');
+});
+
+test('I6: a protein is judged by its macros first, a short word list second', () => {
+  assert.equal(isProteinItem({ name: 'Grilled chicken', per: { protein: 21, kcal: 140 } }), true);
+  assert.equal(isProteinItem({ name: 'Sour cream', per: { protein: 1, kcal: 60 } }), false);
+  assert.equal(isProteinItem({ name: 'Chicken salad', per: { protein: 14, kcal: 220 } }), false, 'macros outrank the word');
+  assert.equal(isProteinItem({ name: 'Steak' }), true, 'no macros: the word list');
+  assert.equal(isProteinItem({ name: 'Rice' }), false);
+});
+
+/* Unit words and plurals. */
+test('a unit word is not a food ("a half cup of rice" never asks about "cup")', () => {
+  assert.deepEqual(readPlateEdits('I had the chicken x2 and a half cup of rice').map((e) => [e.op, e.food]), [['scale', 'chicken'], ['set', 'rice']]);
+  const r = resolveChatCorrection(BOWL, { item: 'Grilled chicken', quantity: 'double', per: {}, missed: [{ name: 'White rice', quantity: '1/2 cup' }] }, 'I had the chicken x2 and a half cup of rice');
+  assert.deepEqual(r.asks, [], 'no "I don\'t see cup"');
+  assert.deepEqual(r.parts.map((p) => p.kind), ['item', 'add-foods']);
+  assert.equal(r.parts[0].quantity, '6 oz');
+});
+
+test('a scaled count keeps its size word and pluralises the food ("2 medium bananas")', () => {
+  assert.equal(scaledQuantity('1 medium banana', 2), '2 medium bananas');
+  assert.equal(scaledQuantity('2 large eggs', 0.5), '1 large egg');
+});
+
+/* I5. What Nia says is checked against what applied. */
+test('I5: the outcome says exactly what landed, and whether it is what the model described', () => {
+  const founder = resolveChatCorrection(BOWL, { item: 'Grilled chicken', quantity: 'double', per: {} }, SAID);
+  assert.equal(founder.exact, true, 'the model said double, the plate doubled');
+  const r = apply(BOWL, founder.parts);
+  const o = correctionOutcome({ applied: r, asks: founder.asks, exact: founder.exact });
+  assert.equal(o.exact, true);
+  assert.deepEqual(o.done, [{ op: 'scale', verb: 'double', food: 'Grilled chicken', to: '6 oz' }]);
+
+  const plate = { ...BOWL, detectedRich: [...BOWL.detectedRich, { name: 'Tomatillo salsa', quantity: '2 tbsp', per: { protein: 0, kcal: 10, carbs: 2, fat: 0 } }] };
+  const mixed = resolveChatCorrection(plate, { item: 'Grilled chicken', quantity: 'double', per: {} }, 'double chicken and no salsa');
+  assert.equal(mixed.exact, false, 'a part became a question');
+  const o2 = correctionOutcome({ applied: apply(plate, mixed.parts), asks: mixed.asks, exact: mixed.exact });
+  assert.equal(o2.exact, false);
+  assert.equal(o2.asks[0].reason, 'ambiguous');
+
+  const parserOnly = resolveChatCorrection(BOWL, { item: 'Grilled chicken', quantity: 'double', per: {} }, 'double chicken and no sour cream');
+  assert.equal(parserOnly.exact, false, 'the athlete\'s words added an edit the model never described');
+});
+
+/* ============================ REVIEW ROUND 2 (2026-09-24) ============================
+ * The re-reviewer's probes (rr/c1.mjs, rr/rm.mjs), pinned. A relative word scales from the row's
+ * BASELINE (amount and macros), never from its current numbers; anything absolute becomes the new
+ * baseline. */
+
+/** Say each line in turn, the way the device does: resolve, apply, save (normalizeDetected). */
+function say(meta0, turns) {
+  let meta = meta0;
+  const out = [];
+  for (const [said, model] of turns) {
+    const r = resolveChatCorrection(meta, model || {}, said);
+    const applied = r.parts.length ? apply(meta, r.parts) : null;
+    if (applied) meta = { ...applied.meta, detectedRich: normalizeDetected(applied.meta.detectedRich) };
+    out.push({ r, meta });
+  }
+  return out;
+}
+const plate = (rows) => ({ protein: rows.reduce((a, d) => a + d.per.protein, 0), kcal: rows.reduce((a, d) => a + d.per.kcal, 0), carbs: 0, fat: 0, quality: 80, detectedRich: rows, foods: rows.map((d) => d.name) });
+const CH = { protein: 21, kcal: 140, carbs: 0, fat: 6 };
+
+test('R2 C1: a row with no amount doubles once, however many times it is said', () => {
+  const steps = say(plate([{ name: 'Grilled chicken', per: CH }, { name: 'Rice', quantity: '1 cup', per: { protein: 4, kcal: 200, carbs: 45, fat: 0 } }]), [
+    ['double chicken', { item: 'Grilled chicken', quantity: 'double' }],
+    ['double chicken', { item: 'Grilled chicken', quantity: 'double' }],
+    ['double chicken', { item: 'Grilled chicken', quantity: 'double' }],
+  ]);
+  assert.deepEqual(steps.map((s) => chickenOf(s.meta).per.protein), [42, 42, 42], 'never 168');
+  assert.deepEqual(steps[1].r.asks.map((a) => [a.reason, a.verb]), [['counted', 'double']]);
+  assert.deepEqual(chickenOf(steps[2].meta).base.per, CH, 'the baseline is the read, macros and all');
+});
+
+test('R2 C1: a handful doubled then "actually triple" is 3x the handful, not 6x', () => {
+  const steps = say(plate([{ name: 'Almonds', quantity: 'a handful', per: { protein: 6, kcal: 160, carbs: 6, fat: 14 } }]), [
+    ['double almonds', { item: 'Almonds', quantity: 'double' }],
+    ['actually triple almonds', { item: 'Almonds', quantity: 'triple' }],
+  ]);
+  assert.deepEqual(steps.map((s) => s.meta.detectedRich[0].per.kcal), [320, 480]);
+  // The model's own "2 servings" on a serving row is a factor on the baseline too.
+  const again = say(steps[1].meta, [['2 servings of almonds', { item: 'Almonds', quantity: '2 servings' }]]);
+  assert.equal(again[0].meta.detectedRich[0].per.kcal, 320);
+});
+
+test('R2 C1: an absolute amount is the new baseline (3 oz, "8 oz", "double" = 16 oz)', () => {
+  const steps = say(plate([{ name: 'Grilled chicken', quantity: '3 oz', per: CH }]), [
+    ['it was 8 oz of chicken', { item: 'Grilled chicken', quantity: '8 oz' }],
+    ['yes double chicken', { item: 'Grilled chicken', quantity: 'double' }],
+    ['double chicken', { item: 'Grilled chicken', quantity: 'double' }],
+  ]);
+  assert.deepEqual(steps.map((s) => chickenOf(s.meta).quantity), ['8 oz', '16 oz', '16 oz']);
+  assert.deepEqual(steps.map((s) => chickenOf(s.meta).per.protein), [56, 112, 112], 'the numbers only ever go up here');
+  assert.equal(steps[2].r.asks[0].reason, 'counted');
+});
+
+test('R2 C1: 3 oz, "double" = 6 oz; "double" again stays 6 oz, already counted', () => {
+  const steps = say(plate([{ name: 'Grilled chicken', quantity: '3 oz', per: CH }]), [
+    ['double chicken', { item: 'Grilled chicken', quantity: 'double' }],
+    ['double chicken', { item: 'Grilled chicken', quantity: 'double' }],
+  ]);
+  assert.deepEqual(steps.map((s) => chickenOf(s.meta).quantity), ['6 oz', '6 oz']);
+  assert.deepEqual(steps[1].r.parts, []);
+  assert.deepEqual(steps[1].r.asks, [{ reason: 'counted', verb: 'double', food: 'Grilled chicken', amount: '6 oz' }]);
+});
+
+test('R2: "take the rice off" / "remove the rice" takes off the one rice; the model\'s "removed" is zero', () => {
+  const rows = [{ name: 'Grilled chicken', quantity: '3 oz', per: CH }, { name: 'Rice', quantity: '1 cup', per: { protein: 4, kcal: 200, carbs: 45, fat: 0 } }];
+  for (const said of ['Nia take the rice off', 'remove the rice', 'drop the rice', 'took the rice out']) {
+    assert.deepEqual(resolveChatCorrection(plate(rows), {}, said).parts.map((p) => [p.kind, p.item]), [['remove', 'Rice']], said);
+  }
+  for (const q of ['removed', 'remove', 'no rice', 'did not have', '0 cups', 'none']) {
+    const r = resolveChatCorrection(plate(rows), { item: 'Rice', quantity: q, per: {} }, 'Nia take the rice off');
+    assert.deepEqual([r.parts.map((p) => [p.kind, p.item]), r.asks], [[['remove', 'Rice']], []], q);
+  }
+  // Two rices: which one is a question.
+  const two = [...rows.slice(0, 1), { name: 'Brown rice', quantity: '1 cup', per: {} }, { name: 'White rice', quantity: '1 cup', per: {} }];
+  assert.equal(resolveChatCorrection(plate(two.map((d) => ({ ...d, per: { protein: 1, kcal: 1 } }))), {}, 'take the rice off').asks[0].reason, 'ambiguous');
+  assert.deepEqual(readPlateEdits('I did not take the rice off'), []);
+  assert.deepEqual(readPlateEdits('take it off'), []);
+});
+
+/* ============================ REVIEW ROUND 3 (2026-09-25) ============================
+ * rr/c3.mjs, rr/sv2.mjs, rr/rm2.mjs, pinned. */
+
+const SHAKE = { protein: 30, kcal: 160, carbs: 5, fat: 3 };
+const shakeOf = (m) => m.detectedRich.find((d) => /shake/i.test(d.name));
+
+test('R3 I1: a factor that lands WITH a stated figure rebases: 30g, "double shake, it has 42g" 84g, "double" still 84g, "triple" 126g', () => {
+  const steps = say(plate([{ name: 'Protein shake', quantity: '1 bottle', per: SHAKE }]), [
+    ['double shake, it has 42g protein', { item: 'Protein shake', quantity: 'double', per: { protein: 84, kcal: null, carbs: null, fat: null }, perBasis: 'stated' }],
+    ['double shake', { item: 'Protein shake', quantity: 'double' }],
+    ['triple shake', { item: 'Protein shake', quantity: 'triple' }],
+  ]);
+  assert.deepEqual(steps.map((s) => shakeOf(s.meta).per.protein), [84, 84, 126]);
+  assert.deepEqual(steps[1].r.asks.map((a) => [a.reason, a.verb]), [['counted', 'double']]);
+  assert.deepEqual([shakeOf(steps[0].meta).base.q, shakeOf(steps[0].meta).base.per.protein], ['1 bottle', 42], 'the baseline is the result over the factor');
+});
+
+test('R3 I1: a factor with a rename rebases on the NEW food ("double chicken, it was steak", then "double steak")', () => {
+  const steps = say(plate([{ name: 'Grilled chicken', quantity: '3 oz', per: CH }]), [
+    ['double chicken, it was steak', { item: 'Grilled chicken', quantity: 'double', newName: 'Steak' }],
+    ['double steak', { item: 'Steak', quantity: 'double' }],
+    ['triple steak', { item: 'Steak', quantity: 'triple' }],
+  ]);
+  const steak = (s) => s.meta.detectedRich[0];
+  assert.equal(steak(steps[0]).name, 'Steak');
+  assert.equal(steps[1].r.asks[0].reason, 'counted', 'still a double of the steak, not re-priced as chicken');
+  assert.equal(steak(steps[1]).per.protein, steak(steps[0]).per.protein);
+  const b = steak(steps[0]).base.per.protein;
+  assert.ok(Math.abs(steak(steps[2]).per.protein - 3 * b) <= 1, 'triple is 3x the steak baseline');
+  assert.notEqual(b, CH.protein, 'never chicken\'s macros');
+});
+
+test('R3 I1: a factor with an ingredient keeps the ingredient ("double sandwich with egg", then "double sandwich")', () => {
+  const steps = say(plate([{ name: 'Breakfast sandwich', quantity: '1 sandwich', per: { protein: 15, kcal: 350, carbs: 30, fat: 18 } }]), [
+    ['double sandwich with egg', { item: 'Breakfast sandwich', quantity: 'double', add: [{ name: 'egg', quantity: '1 large' }] }],
+    ['double sandwich', { item: 'Breakfast sandwich', quantity: 'double' }],
+  ]);
+  const first = steps[0].meta.detectedRich[0].per.protein;
+  assert.ok(first > 30, 'the egg is in');
+  assert.equal(steps[1].meta.detectedRich[0].per.protein, first, 'and it stays in');
+  assert.equal(steps[1].r.asks[0].reason, 'counted');
+});
+
+test('R3 I2: a serving count is an ABSOLUTE amount, over the baseline\'s own count', () => {
+  const pan = (q) => plate([{ name: 'Pancakes', quantity: q, per: { protein: 12, kcal: 350, carbs: 60, fat: 8 } }]);
+  const kcal = (q, said, mq) => {
+    const [s] = say(pan(q), [[said, { item: 'Pancakes', quantity: mq }]]);
+    return [s.meta.detectedRich[0].per.kcal, s.r.asks.map((a) => a.reason)];
+  };
+  assert.deepEqual(kcal('2 servings', 'it was 2 servings of pancakes', '2 servings'), [350, ['counted']]);
+  assert.deepEqual(kcal('2 servings', 'it was 3 servings of pancakes', '3 servings'), [525, []], '1.5x, not 3x');
+  assert.deepEqual(kcal('2 portions', 'just 1 portion of pancakes', '1 portion'), [175, []], 'half');
+  const none = say(plate([{ name: 'Grilled chicken', per: CH }]), [['2 servings of chicken', { item: 'Grilled chicken', quantity: '2 servings' }]]);
+  assert.equal(none[0].meta.detectedRich[0].per.protein, 42, 'no amount on the read: 2x');
+});
+
+test('R3 I2: an absolute count is the new baseline ("2 servings", then "double" is 4 servings)', () => {
+  // A serving row: the same count family, so the count is absolute (round 4 narrowed this; on a
+  // row with no amount "2 servings" is relative and a later "double" is already counted).
+  const steps = say(plate([{ name: 'Grilled chicken', quantity: '1 serving', per: CH }]), [
+    ['I had 2 servings of chicken', { item: 'Grilled chicken', quantity: '2 servings' }],
+    ['double chicken', { item: 'Grilled chicken', quantity: 'double' }],
+  ]);
+  assert.deepEqual(steps.map((s) => s.meta.detectedRich[0].per.protein), [42, 84]);
+  assert.equal(steps[1].r.parts[0].quantity, '4 servings');
+});
+
+test('R3: the athlete\'s relative word beats a stale model amount that moves the wrong way', () => {
+  const steps = say(plate([{ name: 'Grilled chicken', quantity: '3 oz', per: CH }]), [
+    ['it was 8 oz', { item: 'Grilled chicken', quantity: '8 oz' }],
+    ['double chicken', { item: 'Grilled chicken', quantity: '6 oz' }],
+  ]);
+  assert.equal(chickenOf(steps[1].meta).quantity, '16 oz', '"double" never lowers it');
+  // A model amount that agrees in direction still wins.
+  const up = say(plate([{ name: 'Grilled chicken', quantity: '3 oz', per: CH }]), [['double chicken', { item: 'Grilled chicken', quantity: '8 oz' }]]);
+  assert.equal(chickenOf(up[0].meta).quantity, '8 oz');
+  // "half" with a model amount that goes UP: the half wins.
+  const half = say(plate([{ name: 'Grilled chicken', quantity: '4 oz', per: CH }]), [['half the chicken', { item: 'Grilled chicken', quantity: '6 oz' }]]);
+  assert.equal(chickenOf(half[0].meta).quantity, '2 oz');
+});
+
+test('R3: "take off the cheese", "can you take the rice off?", "remove rice and cheese"', () => {
+  const rows = [{ name: 'Grilled chicken', quantity: '3 oz', per: CH }, { name: 'Rice', quantity: '1 cup', per: { protein: 4, kcal: 200, carbs: 45, fat: 0 } },
+    { name: 'Cheese', quantity: '1 slice', per: { protein: 6, kcal: 110, carbs: 1, fat: 9 } }];
+  const got = (s) => { const r = resolveChatCorrection(plate(rows), {}, s); return [r.parts.map((p) => [p.kind, p.item]), r.asks.map((a) => [a.reason, a.food])]; };
+  assert.deepEqual(got('take off the cheese'), [[['remove', 'Cheese']], []]);
+  assert.deepEqual(got('can you take the rice off?'), [[['remove', 'Rice']], []]);
+  assert.deepEqual(got('remove rice and cheese'), [[['remove', 'Rice'], ['remove', 'Cheese']], []]);
+  assert.deepEqual(got('remove rice and pickles'), [[['remove', 'Rice']], [['missing', 'pickles']]], 'the one it cannot match is asked about, never dropped');
+  assert.deepEqual(got('should I take the rice off?'), [[], []], 'a question about later is not an edit');
+});
+
+test('R3: a malformed stored baseline is ignored, never zeroing the row', () => {
+  const [s] = say(plate([{ name: 'Grilled chicken', quantity: '3 oz', per: CH, base: { q: 7, per: 'x' } }]), [['double chicken', { item: 'Grilled chicken', quantity: 'double' }]]);
+  assert.deepEqual([chickenOf(s.meta).quantity, chickenOf(s.meta).per.protein], ['6 oz', 42]);
+});
+
+/* ============================ REVIEW ROUND 4 (2026-09-25) ============================
+ * rr/c5.mjs, rr/c6.mjs, rr/rm3.mjs, rr/rm4.mjs, pinned. */
+
+test('R4 C1: "double chicken" with the model\'s "2 servings" on a 3 oz row is 6 oz, and again is already counted, whatever the model says next', () => {
+  for (const second of ['2 servings', 'double', '4 servings']) {
+    const steps = say(plate([{ name: 'Grilled chicken', quantity: '3 oz', per: CH }]), [
+      ['Nia in my meal i had double chicken', { item: 'Grilled chicken', quantity: '2 servings' }],
+      ['double chicken', { item: 'Grilled chicken', quantity: second }],
+    ]);
+    assert.equal(chickenOf(steps[0].meta).quantity, '6 oz', second);
+    assert.equal(steps[0].r.parts[0].verb, 'double', 'the athlete\'s verb labels it ("Doubled...")');
+    assert.equal(chickenOf(steps[0].meta).base.q, '3 oz', 'a count over a measured baseline is relative: no rebase');
+    assert.deepEqual(steps[1].r.parts, [], second);
+    assert.deepEqual(steps[1].r.asks, [{ reason: 'counted', verb: 'double', food: 'Grilled chicken', amount: '6 oz' }], second);
+  }
+});
+
+test('R4 C1: the same on a serving row and on a row with no amount', () => {
+  for (const q of ['1 serving', undefined]) {
+    for (const second of ['2 servings', 'double', '4 servings']) {
+      const steps = say(plate([{ name: 'Grilled chicken', ...(q ? { quantity: q } : {}), per: CH }]), [
+        ['Nia in my meal i had double chicken', { item: 'Grilled chicken', quantity: '2 servings' }],
+        ['double chicken', { item: 'Grilled chicken', quantity: second }],
+      ]);
+      assert.deepEqual([chickenOf(steps[0].meta).per.protein, chickenOf(steps[1].meta).per.protein], [42, 42], `${q} ${second}`);
+      assert.equal(steps[1].r.asks[0].reason, 'counted', `${q} ${second}`);
+    }
+  }
+});
+
+test('R4 C1: "N servings" against a different count is N x the baseline (pancakes, pizza), never a rebase', () => {
+  const pan = say(plate([{ name: 'Pancakes', quantity: '3 pancakes', per: { protein: 12, kcal: 350, carbs: 60, fat: 8 } }]), [
+    ['I had 2 servings of pancakes', { item: 'Pancakes', quantity: '2 servings' }],
+    ['I had 2 servings of pancakes', { item: 'Pancakes', quantity: '2 servings' }],
+  ]);
+  assert.equal(pan[0].meta.detectedRich[0].quantity, '6 pancakes');
+  assert.equal(pan[1].r.asks[0].reason, 'counted');
+  const pizza = say(plate([{ name: 'Pizza', quantity: '2 slices', per: { protein: 24, kcal: 560, carbs: 60, fat: 22 } }]), [
+    ['I had 2 servings of pizza', { item: 'Pizza', quantity: '2 servings' }],
+  ]);
+  assert.deepEqual([pizza[0].meta.detectedRich[0].quantity, pizza[0].meta.detectedRich[0].per.kcal], ['4 slices', 1120]);
+  // The same count family is absolute and rebases, as round 3 had it: 1 scoop, "it was 2 scoops".
+  const whey = say(plate([{ name: 'Whey protein', quantity: '1 scoop', per: { protein: 24, kcal: 120, carbs: 3, fat: 1 } }]), [
+    ['it was 2 scoops', { item: 'Whey protein', quantity: '2 scoops' }],
+    ['it was 2 scoops', { item: 'Whey protein', quantity: '2 scoops' }],
+  ]);
+  assert.deepEqual([whey[0].meta.detectedRich[0].per.protein, whey[1].r.asks[0].reason], [48, 'counted']);
+});
+
+test('R4 I3: a take/remove form needs the full name; one shared word asks', () => {
+  const rows = [{ name: 'Grilled chicken', quantity: '3 oz', per: CH }, { name: 'Rice', quantity: '1 cup', per: { protein: 4, kcal: 200, carbs: 45, fat: 0 } },
+    { name: 'Cheese', quantity: '1 slice', per: { protein: 6, kcal: 110, carbs: 1, fat: 9 } }];
+  const got = (s, c = {}, r = rows) => { const x = resolveChatCorrection(plate(r), c, s); return [x.parts.map((p) => [p.kind, p.item]), x.asks.map((a) => [a.reason, a.food])]; };
+  assert.deepEqual(got('remove the chicken salad'), [[], [['confirm', 'chicken salad']]], 'never the grilled chicken on "chicken salad"');
+  assert.deepEqual(got('remove the chicken salad', { item: 'Chicken salad', quantity: '0' })[0], [], 'nor when the model names a salad the plate does not have');
+  assert.deepEqual(got('remove the rice and chicken skin', { item: 'Rice', quantity: '0', more: [] }), [[['remove', 'Rice']], [['confirm', 'chicken skin']]]);
+  const both = [...rows, { name: 'Chicken salad', quantity: '1 cup', per: { protein: 14, kcal: 220, carbs: 8, fat: 15 } }];
+  assert.deepEqual(got('remove the chicken salad', {}, both)[0], [['remove', 'Chicken salad']], 'the salad only');
+  // The one exception: one item holds the word and no other shares it.
+  const brown = [rows[0], { name: 'Brown rice', quantity: '1 cup', per: { protein: 5, kcal: 215, carbs: 45, fat: 2 } }];
+  assert.deepEqual(got('take the rice off', {}, brown)[0], [['remove', 'Brown rice']]);
+});
+
+test('R4: a question is never an edit ("can you tell me if I should...", "would you recommend...", "do you think I should...")', () => {
+  for (const s of ['can you tell me if I should take the rice off?', 'can you tell me if double chicken is too much?', 'would you recommend I remove the cheese?',
+    'do you think I should take the rice off', 'should I take the rice off?', 'Should I double the chicken']) {
+    assert.deepEqual(readPlateEdits(s), [], s);
+  }
+  assert.deepEqual(readPlateEdits('could you double the chicken?').map((e) => e.verb), ['double'], 'a request is still an edit');
+});
+
+/* ============================ REVIEW ROUND 5 (2026-09-25) ============================
+ * rr/r4.mjs and rr/r4b.mjs, pinned. */
+
+test('R5.1: "N pieces" against a counted row is absolute: 6 wings, "3 pieces" is 3 wings; 6 nuggets, "2 pieces" is 2', () => {
+  const wings = say(plate([{ name: 'Chicken wings', quantity: '6 wings', per: { protein: 36, kcal: 480, carbs: 0, fat: 32 } }]), [
+    ['I only had 3 pieces', { item: 'Chicken wings', quantity: '3 pieces' }],
+    ['I only had 3 pieces', { item: 'Chicken wings', quantity: '3 pieces' }],
+  ]);
+  assert.deepEqual([wings[0].meta.detectedRich[0].quantity, wings[0].meta.detectedRich[0].per.kcal], ['3 wings', 240]);
+  assert.equal(wings[1].r.asks[0].reason, 'counted', 'and it rebased');
+  const nug = say(plate([{ name: 'Chicken nuggets', quantity: '6 nuggets', per: { protein: 15, kcal: 280, carbs: 16, fat: 17 } }]), [
+    ['it was 2 pieces', { item: 'Chicken nuggets', quantity: '2 pieces' }],
+  ]);
+  assert.equal(nug[0].meta.detectedRich[0].quantity, '2 nuggets');
+  // A measure or no amount keeps round 4: N x the baseline.
+  const oz = say(plate([{ name: 'Grilled chicken', quantity: '3 oz', per: CH }]), [['2 pieces of chicken', { item: 'Grilled chicken', quantity: '2 pieces' }]]);
+  assert.equal(chickenOf(oz[0].meta).quantity, '6 oz');
+});
+
+test('R5.2: mixed-number baselines are read whole', () => {
+  const a = say(plate([{ name: 'Grilled chicken', quantity: '2 1/2 servings', per: CH }]), [['it was 2 servings', { item: 'Grilled chicken', quantity: '2 servings' }]]);
+  assert.deepEqual([chickenOf(a[0].meta).quantity, chickenOf(a[0].meta).per.kcal], ['2 servings', 112], 'down, not 5 servings');
+  const b = say(plate([{ name: 'Grilled chicken', quantity: '1 serving', per: CH }]), [
+    ['one and a half servings', { item: 'Grilled chicken', quantity: '1.5 servings' }],
+    ['actually 2 servings', { item: 'Grilled chicken', quantity: '2 servings' }],
+  ]);
+  assert.equal(chickenOf(b[0].meta).quantity, '1 1/2 servings');
+  assert.deepEqual([chickenOf(b[1].meta).quantity, chickenOf(b[1].meta).per.kcal], ['2 servings', 280]);
+});
+
+test('R5.3: a dish that holds more than one food is never taken off for one word; Nia asks whole or part', () => {
+  for (const dish of ['Chicken and rice', 'Teriyaki chicken with rice', 'Chicken fried rice', 'Rice and beans', 'Chicken, rice']) {
+    const r = resolveChatCorrection(plate([{ name: dish, quantity: '1 plate', per: { protein: 35, kcal: 600, carbs: 60, fat: 12 } }, { name: 'Soda', quantity: '12 oz', per: { protein: 0, kcal: 150, carbs: 39, fat: 0 } }]), {}, 'take the rice off');
+    assert.deepEqual(r.parts, [], dish);
+    assert.deepEqual([r.asks[0].reason, r.asks[0].verb, r.asks[0].dish], ['composite', 'remove', dish], dish);
+  }
+});
+
+test('R5.5: the athlete names one removal and the model zeroes another: only the athlete\'s, and only on its full name', () => {
+  const rows = [{ name: 'Grilled chicken', quantity: '3 oz', per: CH }, { name: 'Rice', quantity: '1 cup', per: { protein: 4, kcal: 200, carbs: 45, fat: 0 } }];
+  const loose = resolveChatCorrection(plate(rows), { item: 'Rice', quantity: '0' }, 'take the chicken off');
+  assert.deepEqual(loose.parts, [], 'never the rice the athlete did not name, and not the chicken on one word');
+  assert.deepEqual(loose.asks.map((a) => [a.reason, a.candidates]), [['confirm', ['Grilled chicken']]]);
+  const full = resolveChatCorrection(plate(rows), { item: 'Rice', quantity: '0' }, 'take the grilled chicken off');
+  assert.deepEqual(full.parts.map((p) => [p.kind, p.item]), [['remove', 'Grilled chicken']]);
+  assert.equal(full.exact, false);
+});

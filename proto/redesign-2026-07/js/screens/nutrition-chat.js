@@ -21,7 +21,7 @@
  */
 
 import { S, RT, act, mealDetail, athleteContextForAnalysis } from '../state.js';
-import { MEAL_KEYS } from '../day.js';
+import { MEAL_KEYS, DAY } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, composer, aiDisclaimer } from '../components.js';
 import { decideAiTurn } from '../ai-thread.js';
@@ -37,7 +37,7 @@ import {
   memoryOfferOf, memoryOfferChips,
   mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
-  isCorrectionReceipt, receiptCardHtml, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta,
+  isCorrectionReceipt, receiptCardHtml, playFreshReceipts, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta,
   personText, workingLabel,
 } from '../chat-view.js';
 import { wireChatTimes } from '../chat-times.js';
@@ -228,8 +228,8 @@ export default {
     <div class="chat-dock dock-end">
       ${aiDisclaimer()}
       <div class="nc-target" id="nc-target" hidden></div>
+      <div id="nc-note" class="cmp-note" role="status"></div>
       ${composer({ inputId: 'nc-msg', sendId: 'nc-send', placeholder: composerPrompt(S.coach.hasCoach, S.coach.noun), sendLabel: 'Send', atEnd: true })}
-      <div id="nc-note" class="cmp-note"></div>
     </div>`;
   },
 
@@ -357,6 +357,7 @@ export default {
       // Attached message photos resolve after paint (signed URLs are async), same as the meal
       // thread. Safe on every repaint.
       void hydrateThreadPhotos(threadEl, roles);
+      playFreshReceipts(threadEl);   // an arriving receipt counts up (chat-view.js)
       // Fill in any meal photos that were not cached at paint time, then repaint once.
       warmMealPhotos(STATE.meals.map((m) => m.photo_path).filter(Boolean));
     };
@@ -660,7 +661,7 @@ export default {
             ...athleteContextForAnalysis(),
             // The addressing decision, re-checked server-side (ai-addressing.js).
             ...(turn ? { speaker: turn.outgoing, addressing: turn.decision, participants: turn.participants } : {}),
-            ...(slot ? { canApplyCorrection: true } : {}),
+            ...(slot ? { canApplyCorrection: true, canConfirmCorrection: true } : {}),
             // "I render the remember-this chips": unlocks the remember tool server-side.
             canRemember: true,
             // "I fill a suggest_meal bubble from Food Memory": unlocks the suggest_meal tool.
@@ -687,29 +688,18 @@ export default {
         // A fresh offer is pending by definition; mark it so the chips draw before the refetch
         // of pending facts catches up.
         if (data.memory && data.memory.id && PENDING_IDS) PENDING_IDS.add(String(data.memory.id));
-        // THE CORRECTION LOOP, as the meal thread closes it: the athlete stated a fact about their
-        // own food and the AI called apply_correction instead of arguing. Applied deterministically
-        // to today's record; the AI's acknowledgment row is already persisted server-side.
-        if (data.correction && slot && (data.correction.item || (Array.isArray(data.correction.missed) && data.correction.missed.length))) {
-          const cr = data.correction;
+        // THE CORRECTION LOOP, as the meal thread closes it (correction-turn.js): applied first,
+        // then Nia says what happened, in the thread, from the server. Never a line under the box.
+        if (data.correction && slot && (data.pending || data.correction.item || ['missed', 'more'].some((k) => Array.isArray(data.correction[k]) && data.correction[k].length))) {
+          setTyping(true);
           const live = mealDetail(slot);
-          const late = live ? live.minutesLate : undefined;
-          // Every item the message corrected, plus whole foods the read never had (see meal.js).
-          const parts = [cr, ...(Array.isArray(cr.more) ? cr.more : [])]
-            .filter((p) => p && p.item)
-            .map((p) => ({
-              kind: 'item', item: p.item, newName: p.newName || undefined,
-              quantity: p.quantity || undefined,
-              per: p.per || {}, perBasis: p.perBasis || undefined, add: p.add || undefined, minutesLate: late,
-              // The athlete's own words: a macro they stated outranks the curated reference.
-              said: text || undefined,
-            }));
-          if (Array.isArray(cr.missed) && cr.missed.length) parts.push({ kind: 'add-foods', foods: cr.missed, minutesLate: late, said: text || undefined });
-          const applied = await act.correctMeal(slot, parts, { skipAiUpdate: true });
-          // A correction that did not land must say so: the AI's "updating now" is already in the
-          // thread, and silence here would leave that promise standing over unchanged numbers.
-          if (!applied) setNote("That didn't line up with anything in this meal's read, so your numbers haven't changed. Tell me which food you mean, or what was on the plate, and I'll put it in.");
-          else if (applied.unpriced && applied.unpriced.length) setNote(`Added what I could price. No numbers on file for ${applied.unpriced.join(' or ')}, so it isn't counted yet. Tell me its protein and calories, or what it's closest to, and I'll count it.`);
+          const { runChatCorrection } = await import('../correction-turn.js');
+          const res = await runChatCorrection({
+            act, sb: c, uid: RT.userId, slot, mealId, meta: DAY.slotMacros[slot] || live || {}, data, said: text,
+            minutesLate: live ? live.minutesLate : undefined,
+          });
+          setTyping(false);
+          if (res.note) setNote(res.note);
         }
         // Not forced: load()'s paint carries a reader who was at the end to Nia's reply, and a
         // reader who scrolled up while she was typing is not yanked (the pill says she answered).

@@ -13,7 +13,7 @@ import { wireTapback } from '../tapback.js';
 import { mealReadHtml, wireReadControls } from './meal.js';
 import { layoutThread, MUTED_HIDDEN_NOTE, authorName, initialsFor, isAnalysisUpdate, isEscalated, quotedFor,
   dayLabelOf, participantList, participantSummary, AI_NAME, NIA_MARK, escalationChip, whoHtml, facesHtml, threadTitle, composerPrompt, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
-  isCorrectionReceipt, receiptCardHtml, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta, personText,
+  isCorrectionReceipt, receiptCardHtml, playFreshReceipts, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta, personText,
   visibleThread, workingLabel,
 } from '../chat-view.js';
 import { wireChatTimes } from '../chat-times.js';
@@ -424,6 +424,7 @@ function mountThread(root, mealId, meal) {
     // Resolve any attachments just painted. trust.js imports named roles functions rather than the
     // module, so the helper is handed the one function it needs.
     void hydrateThreadPhotos(threadEl, { signedMealPhotoUrl, signedMealPhotoUrls });
+    playFreshReceipts(threadEl);   // an arriving receipt counts up (chat-view.js)
     hydrateAvatars(threadEl);   // 0206: message monograms upgrade to real faces, as on the meal thread
     // Full messages, always (founder 2026-09-22): no Read more here or anywhere.
     placeLive(hold, fresh.size > 0 || added > 0);

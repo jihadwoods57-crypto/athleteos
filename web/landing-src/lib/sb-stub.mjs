@@ -191,7 +191,7 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
        contain one and the card went unreviewed in every contact sheet. */
     {
       id: 'mc-4b', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-athlete',
-      role: 'ai', kind: 'message', created_at: tAt(13, 25),
+      role: 'ai', kind: 'message', created_at: tAt(13, 25).replace(':00Z', ':02Z'),
       meta: { t: 'correction_receipt', rows: [
         { label: 'Protein', from: 52, to: 78, unit: 'g' },
         { label: 'Calories', from: 780, to: 980, unit: '' },
@@ -219,8 +219,13 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
       text: 'Make sure that gets added in',
     },
     {
+      /* Seconds after the coach's line, as it is filed in life (the receipt is written once the
+         meals row has moved). The fixture used to give both rows the same instant, and the two
+         readers break a tie differently (the meal page reads ascending; the full chat reads a
+         descending page and reverses it), so the receipt drew above the coach's message in one and
+         below it in the other. Real rows filed one after another never share a timestamp. */
       id: 'mc-8', meal_id: THREAD_MEAL, athlete_id: 'seed-athlete', author_id: 'seed-coach',
-      role: 'ai', kind: 'message', created_at: tAt(13, 42),
+      role: 'ai', kind: 'message', created_at: tAt(13, 42).replace(':00Z', ':20Z'),
       meta: { t: 'correction_receipt', note: 'Added from the photo of the label, at the coach’s request.', rows: [
         { label: 'Protein', from: 78, to: 120, unit: 'g' },
         { label: 'Calories', from: 980, to: 1210, unit: '' },

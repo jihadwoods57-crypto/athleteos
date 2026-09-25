@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { holdThread, followThread, syncJump, jumpLabel, noteArrivals, __resetChatLive } from './chat-live.js';
+import { holdThread, followThread, syncJump, jumpLabel, noteArrivals, __resetChatLive, __pinsForTest } from './chat-live.js';
 import { richText, plainText, mealSuggestHtml, mealSuggestOf, memoryOfferChips, memoryOfferOf, deliveredHtml } from './chat-view.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -289,4 +289,28 @@ test('the remember-this question under a bubble never shows raw marks', () => {
   const html = memoryOfferChips(offer, esc);
   assert.match(html, /Remember that you are lactose intolerant\?/);
   assert.doesNotMatch(html, /\*/);
+});
+
+/* ---- the pins are bounded and hold no DOM (review 2026-09-24) ---- */
+test('where readers rested is remembered for the last 20 threads, as numbers, never elements', () => {
+  for (let i = 0; i < 45; i++) {
+    const vp = fakeVp({ top: 100 + i });
+    followThread(holdThread(threadIn(vp), `meal-${i}`), {});
+  }
+  const pins = __pinsForTest();
+  assert.equal(pins.length, 20, 'bounded');
+  assert.deepEqual(pins.map(([k]) => k), Array.from({ length: 20 }, (_, i) => `meal-${25 + i}`), 'oldest out first');
+  for (const [, v] of pins) {
+    assert.deepEqual(Object.keys(v).sort(), ['end', 'top', 'vpId']);
+    assert.equal(typeof v.vpId, 'number', 'a number standing for the viewport, not the viewport');
+  }
+});
+
+test('a re-mounted viewport is still told apart from the one the pin was taken in', () => {
+  const a = fakeVp({ h: 3000, top: 900 });
+  followThread(holdThread(threadIn(a), 'meal-x'), {});
+  const b = fakeVp({ h: 3000, top: 300 });   // router.js restored a clamped offset
+  const hold = holdThread(threadIn(b), 'meal-x');
+  assert.equal(hold.restore, true);
+  assert.equal(hold.top, 900);
 });

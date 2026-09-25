@@ -45,7 +45,7 @@ describe('the tool contract', () => {
     // 2026-09-02: a third gated tool (remember) joined, so the set is built by spreading each
     // optional tool in; FLAG_TOOL is the unconditional last entry whatever the client can do.
     // 2026-09-10: a fourth (suggest_meal) joined the same way. The pin is the SHAPE, not the count.
-    expect(SRC).toMatch(/const athleteTools = \[\s*REPLY_TOOL,\s*\.\.\.\(canApplyCorrection \? \[CORRECTION_TOOL\] : \[\]\),\s*\.\.\.\(canRemember \? \[REMEMBER_TOOL\] : \[\]\),\s*\.\.\.\(canSuggestMeal \? \[SUGGEST_MEAL_TOOL\] : \[\]\),\s*FLAG_TOOL,\s*\]/);
+    expect(SRC).toMatch(/const athleteTools = \[\s*REPLY_TOOL,\s*\.\.\.\(canApplyCorrection \? \[canConfirmCorrection \? CORRECTION_TOOL_CONFIRM : CORRECTION_TOOL\] : \[\]\),\s*\.\.\.\(canRemember \? \[REMEMBER_TOOL\] : \[\]\),\s*\.\.\.\(canSuggestMeal \? \[SUGGEST_MEAL_TOOL\] : \[\]\),\s*FLAG_TOOL,\s*\]/);
     // The escape hatch is offered on the athlete's QUESTION path and nowhere else. The condition
     // gained correctionUpdate (2026-07-28) and coachAsk (2026-08-06) for the same reason
     // coachSupport was there: those turns have nothing in them to escalate.

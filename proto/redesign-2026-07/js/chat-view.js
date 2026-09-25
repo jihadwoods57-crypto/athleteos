@@ -631,20 +631,62 @@ export function receiptCardHtml(comment, esc, { fresh = false, first = false } =
   if (!rows.length) return '';
   const note = receiptNoteOf(comment);
   const id = esc(String(comment.id || ''));
+  /* A receipt that has just ARRIVED counts from each old figure to the new one (playFreshReceipts):
+     the move is something the athlete watches happen. On any later paint it lands on its final
+     values, because a record being re-read is not the change happening again. */
+  const val = (r) => (fresh
+    ? `<b class="${esc(r.band)}" data-fx-from="${r.from}" data-fx-to="${r.to}" data-fx-unit="${esc(r.unit)}">${esc(String(r.from) + r.unit)}</b>`
+    : `<b class="${esc(r.band)}">${esc(String(r.to) + r.unit)}</b>`);
   return `
         <div class="msg ai last rcpt${fresh ? ' in' : ''}" data-cid="${id}" data-receipt="${id}">
           <div class="av">${NIA_MARK}</div>
           <div class="stack rcpt-stack">${first ? whoHtml(AI_NAME, true, esc) : ''}
-          <div class="corr-card in landed" role="status">
+          <div class="corr-card in${fresh ? ' counting' : ' landed'}" role="status">
             <div class="corr-head">${icon('check', 14)}<span>Updated</span></div>
             ${note ? `<div class="corr-note">${esc(note)}</div>` : ''}
             ${rows.map((r) => `
               <div class="corr-row${r.score ? ' corr-score' : ''}">
                 <span class="ck">${esc(r.label)}</span>
-                <span class="cv"><i class="was">${esc(String(r.from) + r.unit)}</i>${icon('arrowRight', 12)}<b class="${esc(r.band)}">${esc(String(r.to) + r.unit)}</b></span>
+                <span class="cv"><i class="was">${esc(String(r.from) + r.unit)}</i>${icon('arrowRight', 12)}${val(r)}</span>
               </div>`).join('')}
           </div></div>
         </div>`;
+}
+
+/** Count every just-arrived receipt in `root` from its old figures to its new ones, then land it:
+ *  the green edge, the score turning to its new face, and `onLand` (the haptic). Text only, so no
+ *  layout property moves. Reduced motion lands at once. Safe to call after every paint. */
+export function playFreshReceipts(root, { onLand } = {}) {
+  if (!root || !root.querySelectorAll) return;
+  const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  for (const card of root.querySelectorAll('.corr-card.counting')) {
+    card.classList.remove('counting');
+    const nums = [...card.querySelectorAll('[data-fx-to]')];
+    const settle = (n) => { n.textContent = n.dataset.fxTo + (n.dataset.fxUnit || ''); };
+    const land = () => {
+      nums.forEach(settle);
+      card.classList.add('landed', 'just-landed');
+      const sc = card.querySelector('.corr-score b');
+      if (sc && !reduce) sc.classList.add('turn');
+      if (typeof onLand === 'function') onLand();
+    };
+    if (reduce || typeof requestAnimationFrame !== 'function') { land(); continue; }
+    const dur = 900;
+    let t0 = 0;
+    const step = (t) => {
+      if (!card.isConnected) return;
+      if (!t0) t0 = t;
+      const p = Math.min(1, (t - t0) / dur);
+      const e = 1 - Math.pow(1 - p, 3);   // ease-out cubic, the ring's curve
+      for (const n of nums) {
+        const a = +n.dataset.fxFrom, b = +n.dataset.fxTo;
+        n.textContent = String(Math.round(a + (b - a) * e)) + (n.dataset.fxUnit || '');
+      }
+      if (p < 1) requestAnimationFrame(step); else land();
+    };
+    // A beat on the old figures first, so the count reads as the change happening.
+    setTimeout(() => requestAnimationFrame(step), 320);
+  }
 }
 
 /* ---------------- The AI at work ----------------

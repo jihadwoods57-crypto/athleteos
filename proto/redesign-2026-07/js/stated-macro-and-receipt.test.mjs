@@ -171,8 +171,12 @@ test('the receipt is posted, and the ephemeral card stands down once it lands', 
   assert.match(state, /_postCorrectionReceipt\(r, opts\.additionId \|\| null\);/, 'every applied correction files one');
   assert.match(state, /correctionReceipt: rows/, 'written service-side as an unforgeable ai row');
   assert.match(state, /if \(!rows\.length\) return;/, 'nothing moved, nothing filed');
-  assert.match(meal, /if \(\(comments \|\| \[\]\)\.some\(isCorrectionReceipt\)\) return '';/,
-    'the live card yields to the filed row so the change is not shown twice');
+  // 2026-09-24: the live card is gone. The filed row IS the receipt, and it counts up as it
+  // arrives (chat-view.js playFreshReceipts). A chat correction files it with Nia's words, so the
+  // reducer's own receipt is skipped for it (noReceipt) rather than landing twice.
+  assert.match(meal, /playFreshReceipts\(threadEl/, 'the arriving receipt is what animates');
+  assert.match(state, /if \(!opts\.noReceipt\) void this\._postCorrectionReceipt/);
+  assert.match(read('correction-turn.js'), /noReceipt: !!token/);
 });
 
 test('every thread renderer draws a filed receipt', () => {
@@ -187,8 +191,9 @@ test('every thread renderer draws a filed receipt', () => {
 
 test('the athletes own words reach the reducer from both chat surfaces', () => {
   for (const f of [['screens', 'meal.js'], ['screens', 'nutrition-chat.js']]) {
-    assert.match(read(...f), /said: text \|\| undefined/, `${f.join('/')} passes the message through`);
+    assert.match(read(...f), /said: text,/, `${f.join('/')} passes the message through`);
   }
+  assert.match(read('plate-edits.js'), /said: said \|\| undefined/, 'and every part it builds carries it to the reducer');
 });
 
 test('the edge function bounds the receipt and spends nothing to file it', () => {

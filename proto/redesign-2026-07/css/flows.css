@@ -743,6 +743,14 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
   padding:var(--s1h) var(--s3); border-radius: var(--r-pill); background: var(--surface-1);
   border: 1px solid var(--hairline-soft); margin-top:2px;
 }
+/* What a MEAL thread says about itself ("Your coach hasn't opened this yet."): the phone's system
+   small print, centred, no pill. The capsule in bold made a status read like a button and shouted
+   over the conversation (2026-09-24). Scoped to the three meal threads (the athlete's meal page,
+   the coach's review, a past meal), so the settings, plan-answer and full-chat lines keep theirs. */
+:is(#meal-thread, #cm-thread, #mv-thread) .msg-status {
+  font-family: var(--font-chat); font-weight: 500; line-height: 1.35; text-align: center;
+  padding: var(--s1) var(--s3) 0; border: 0; border-radius: 0; background: none;
+}
 
 /* ----- Finish Today v2 ----- */
 .finish-segs { display: flex; gap:var(--s1h); margin:2px 0 var(--s3h); }
