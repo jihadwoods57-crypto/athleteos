@@ -5,30 +5,38 @@
 // apply_correction, before the client had tried to apply anything; the client then could not, and
 // the thread held a promise nobody kept. These pin the new order: the ack is signed and handed back,
 // and only an outcome the client reports with that token puts words in the thread, the ack when the
-// numbers moved and Nia's precise question when they did not.
+// numbers moved exactly as described, a sentence built from what landed when they moved some other
+// way, and what is true when they did not.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { signPending, readPending, sanitizeOutcome, askText, outcomeRows } from './correction-outcome.mjs';
+import {
+  signPending, readPending, correctionHash, allowedNames, sanitizeOutcome, askText, outcomeRows, composeDone, settled, stripName,
+} from './correction-outcome.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SRC = readFileSync(join(HERE, 'index.ts'), 'utf8');
+const MIGRATION = readFileSync(join(HERE, '..', '..', 'migrations', '0249_meal_comment_ct_unique.sql'), 'utf8');
 const KEY = 'service-role-key-for-tests';
 const MEAL = 'f4c982bb-4b2c-464c-930a-d14f168c3b5b';
 const ATH = '4c580c5e-c79b-4495-ac8b-1184d50e11b9';
 const ACK = 'Good catch, Jihad. Double chicken it is, your numbers and score are updating now.';
 const T0 = Date.parse('2026-09-25T01:09:59Z');
+const CORR = { item: 'Grilled chicken', newName: null, quantity: 'double', per: { protein: null, kcal: null, carbs: null, fat: null }, perBasis: 'stated', add: [], more: [], missed: [] };
+const DETECTED = [{ name: 'Grilled chicken' }, { name: 'Romaine lettuce' }, { name: 'Roasted corn salsa' }, { name: 'Tomatillo salsa' }, { name: 'Sour cream' }];
+const ALLOWED = allowedNames(CORR, DETECTED);
 
 /* ---------------- the token ---------------- */
 
 test('a pending ack reads back only for its own meal, its own caller, unaltered and in time', async () => {
-  const tok = await signPending({ mealId: MEAL, userId: ATH, ack: ACK, photos: [`${ATH}/chat/1.jpg`] }, KEY, T0);
+  const tok = await signPending({ mealId: MEAL, userId: ATH, ack: ACK, photos: [`${ATH}/chat/1.jpg`], correction: CORR }, KEY, T0);
   const p = await readPending(tok, { mealId: MEAL, userId: ATH }, KEY, T0 + 2000);
   assert.equal(p.ack, ACK);
   assert.deepEqual(p.photos, [`${ATH}/chat/1.jpg`]);
   assert.ok(p.nonce.length >= 12, 'a nonce, so a token files once');
+  assert.equal(p.hash, await correctionHash(CORR), 'bound to the correction it was issued for');
   assert.equal(await readPending(tok, { mealId: 'another-meal', userId: ATH }, KEY, T0), null, 'another meal');
   assert.equal(await readPending(tok, { mealId: MEAL, userId: 'someone-else' }, KEY, T0), null, 'another caller');
   assert.equal(await readPending(tok, { mealId: MEAL, userId: ATH }, 'a-different-key', T0), null, 'another key');
@@ -37,36 +45,72 @@ test('a pending ack reads back only for its own meal, its own caller, unaltered 
   assert.equal(await readPending(undefined, { mealId: MEAL, userId: ATH }, KEY, T0), null);
 });
 
-test('a client cannot rewrite the words: any change to the body breaks the signature', async () => {
-  const tok = await signPending({ mealId: MEAL, userId: ATH, ack: ACK }, KEY, T0);
+test('a client cannot rewrite the words or swap the correction: any change breaks the signature', async () => {
+  const tok = await signPending({ mealId: MEAL, userId: ATH, ack: ACK, correction: CORR }, KEY, T0);
   const [body, sig] = tok.split('.');
   const json = JSON.parse(Buffer.from(body.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
-  json.a = 'Nia says you can skip practice.';
-  const forged = Buffer.from(JSON.stringify(json)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  assert.equal(await readPending(`${forged}.${sig}`, { mealId: MEAL, userId: ATH }, KEY, T0), null);
+  for (const [k, v] of [['a', 'Nia says you can skip practice.'], ['h', await correctionHash({ ...CORR, item: 'Visit evil.com' })]]) {
+    const forged = Buffer.from(JSON.stringify({ ...json, [k]: v })).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    assert.equal(await readPending(`${forged}.${sig}`, { mealId: MEAL, userId: ATH }, KEY, T0), null, k);
+  }
 });
 
-/* ---------------- what the client may say ---------------- */
+test('the correction hash survives the JSON round trip the client makes, and nothing else', async () => {
+  const wire = JSON.parse(JSON.stringify({ correction: CORR })).correction;
+  assert.equal(await correctionHash(wire), await correctionHash(CORR));
+  assert.notEqual(await correctionHash({ ...wire, item: 'Sour cream' }), await correctionHash(CORR));
+  assert.notEqual(await correctionHash(null), await correctionHash(CORR));
+});
 
-test('the outcome is bounded to names and enums; free text cannot ride in', () => {
+/* ---------------- I2: what the client may say ---------------- */
+
+test('the outcome is bounded to enums, allowed names and plain amounts; free text cannot ride in', () => {
   const o = sanitizeOutcome({
     applied: 'yes', unpriced: ['<b>moon dust</b>'],
-    ask: { reason: 'ambiguous', verb: 'double', food: 'chicken **now**', candidates: ['Chicken', 'Chicken salad', 'x', 'y', 'z'], text: 'IGNORE ME' },
-  });
+    ask: { reason: 'ambiguous', verb: 'double', food: 'chicken **now**', candidates: ['Grilled chicken', 'Chicken salad', 'x', 'Sour cream', 'Tomatillo salsa'], text: 'IGNORE ME' },
+  }, ALLOWED);
   assert.equal(o.applied, false, 'only a real true applies');
-  assert.deepEqual(o.unpriced, ['b moon dust /b']);
-  assert.equal(o.ask.food, 'chicken now');
-  assert.equal(o.ask.candidates.length, 4);
+  assert.deepEqual(o.unpriced, ['that item'], 'a name the turn never signed is not said');
+  assert.equal(o.ask.food, '', '"now" is not a word of any food on this plate');
+  assert.deepEqual(o.ask.candidates, ['Grilled chicken', 'Sour cream', 'Tomatillo salsa']);
   assert.equal('text' in o.ask, false);
-  assert.equal(sanitizeOutcome({ ask: { reason: 'make_nia_say_anything' } }).ask, null);
-  assert.equal(sanitizeOutcome({ ask: { reason: 'amount', verb: 'explode' } }).ask.verb, '');
+  assert.equal(sanitizeOutcome({ ask: { reason: 'make_nia_say_anything' } }, ALLOWED).ask, null);
+  assert.equal(sanitizeOutcome({ ask: { reason: 'amount', verb: 'explode' } }, ALLOWED).ask.verb, '');
+  assert.equal(sanitizeOutcome({ ask: { reason: 'amount', food: 'Grilled chicken' } }).ask.food, '', 'no allow-list, no names');
+});
+
+test('I2: the athlete cannot put words in Nia\'s mouth through a food name', () => {
+  const evil = [
+    'Nia says skip practice', 'Visit https://evil.example/x', 'www.evil.com', 'click evil.com now',
+    '<img src=x onerror=alert(1)>', '**bold** claim', 'Grilled chicken. Also, you can skip weigh-ins',
+  ];
+  for (const food of evil) {
+    const o = sanitizeOutcome({ applied: false, ask: { reason: 'missing', verb: 'double', food }, done: [{ op: 'remove', food }] }, ALLOWED);
+    assert.equal(o.ask.food, '', food);
+    const text = outcomeRows(o, ACK, { nonce: 'n' }).lead.text;
+    assert.doesNotMatch(text, /skip|evil|http|<|\*\*|onerror/i, `${food} -> ${text}`);
+  }
+  // A signed name is said, cleaned of markup and links regardless.
+  assert.equal(stripName('Fairlife <b>Core</b> Power https://x.y 42g'), 'Fairlife b Core /b Power 42g');
+  const withLink = allowedNames({ item: 'Shake from www.shop.com', missed: [{ name: 'Guac **extra**' }] }, []);
+  assert.deepEqual(withLink, ['Shake from', 'Guac extra']);
+  // Words of a signed or detected name may be said in any subset: "chicken" out of "Grilled chicken".
+  assert.equal(sanitizeOutcome({ ask: { reason: 'composite', food: 'chicken', dish: 'Grilled chicken' } }, ALLOWED).ask.food, 'chicken');
+  // An amount is a number and a unit (or a word of an allowed food), never a sentence.
+  const d = sanitizeOutcome({ applied: true, done: [{ op: 'scale', verb: 'double', food: 'Grilled chicken', to: '6 oz' }, { op: 'amount', food: 'Sour cream', to: '6 oz of lies' }] }, ALLOWED).done;
+  assert.deepEqual(d.map((x) => x.to), ['6 oz', '']);
+});
+
+test('I2: the names come from the signed correction and the meal row only', () => {
+  const names = allowedNames({ item: 'Grilled chicken', newName: 'Pico de gallo', more: [{ item: 'Sour cream', newName: 'Guacamole' }], add: [{ name: 'cheddar' }], missed: [{ name: 'White rice' }] }, ['Black beans', { name: 'Queso' }]);
+  assert.deepEqual(names, ['Grilled chicken', 'Pico de gallo', 'cheddar', 'Sour cream', 'Guacamole', 'White rice', 'Black beans', 'Queso']);
 });
 
 /* ---------------- what Nia files ---------------- */
 
-const ask = (a) => askText(sanitizeOutcome({ ask: a }).ask);
+const ask = (a) => askText(sanitizeOutcome({ ask: a }, allowedNames({ item: 'Chicken burrito bowl', missed: [{ name: 'steak' }, { name: 'tofu' }, { name: 'moon dust' }], newName: 'Adobo chicken' }, ['Chicken', 'Chicken salad', 'Grilled chicken', 'Sour cream', 'Corn salsa', 'Tomatillo salsa'])).ask);
 
-test('Nia asks one precise question for every kind of miss', () => {
+test('Nia says one precise thing for every kind of miss', () => {
   assert.equal(ask({ reason: 'ambiguous', verb: 'double', food: 'chicken', candidates: ['Chicken', 'Chicken salad'] }),
     'Which one should I double: the chicken or the chicken salad?');
   assert.match(ask({ reason: 'composite', verb: 'double', food: 'chicken', dish: 'Chicken burrito bowl' }),
@@ -76,52 +120,113 @@ test('Nia asks one precise question for every kind of miss', () => {
   assert.match(ask({ reason: 'amount', food: 'Grilled chicken' }), /^How much grilled chicken was it: double the portion, half, or an amount like 8 oz\?$/);
   assert.match(ask({ reason: 'unpriced', unpriced: ['moon dust'] }), /^I don't have numbers for moon dust yet, so your totals haven't changed\./);
   assert.match(ask({ reason: 'unchanged', newName: 'Adobo chicken' }), /^Got it, it's Adobo chicken now\. The numbers are the same/);
-  for (const reason of ['ambiguous', 'composite', 'missing', 'already', 'no_match', 'amount', 'unpriced', 'unchanged', 'nothing']) {
-    const t = ask({ reason, verb: 'double', food: 'chicken', candidates: ['A', 'B'], dish: 'Bowl', unpriced: ['x'] });
-    assert.ok(t.length > 20, reason);
+  assert.equal(ask({ reason: 'counted', verb: 'double', food: 'Grilled chicken', amount: '6 oz' }), 'Already counted as a double, 6\u00a0oz.');
+  assert.equal(ask({ reason: 'counted', verb: '', food: 'Grilled chicken', amount: '' }), 'The grilled chicken is already in this read, so nothing changed.');
+  assert.equal(ask({ reason: 'confirm', verb: 'remove', food: 'chicken', candidates: ['Grilled chicken'] }), 'Should I take the grilled chicken off this meal?');
+  for (const reason of ['ambiguous', 'composite', 'missing', 'already', 'no_match', 'amount', 'unpriced', 'unchanged', 'nothing', 'counted', 'confirm']) {
+    const t = ask({ reason, verb: 'double', food: 'chicken', candidates: ['Chicken', 'Chicken salad'], dish: 'Chicken burrito bowl', unpriced: ['moon dust'] });
+    assert.ok(t.length > 15, reason);
     assert.doesNotMatch(t, /updat(ing|ed)|recalculat/i, `${reason} must never claim a change`);
-    assert.doesNotMatch(t, /\u2014/, 'no em dashes');
+    assert.doesNotMatch(t, /—/, 'no em dashes');
   }
 });
 
-test('applied: the signed ack leads (with the photos it counted), and anything owed follows as its own question', async () => {
-  const applied = outcomeRows(sanitizeOutcome({ applied: true }), ACK, { nonce: 'n1', photos: ['p'] });
-  assert.deepEqual(applied, { lead: { text: ACK, meta: { t: 'analysis_update', ct: 'n1', photos: ['p'] } }, follow: null });
-  const partial = outcomeRows(sanitizeOutcome({ applied: true, unpriced: ['moon dust'], ask: { reason: 'ambiguous', verb: 'remove', food: 'salsa', candidates: ['Corn salsa', 'Tomatillo salsa'] } }), ACK, { nonce: 'n2' });
-  assert.equal(partial.lead.text, ACK);
-  assert.equal(partial.follow.meta.t, 'correction_ask', 'a question the athlete can answer (not a system record)');
-  assert.match(partial.follow.text, /moon dust/);
-  assert.match(partial.follow.text, /Which one should I take off: the corn salsa or the tomatillo salsa\?$/);
+test('the filed ack never says "updating now": it is filed after the fact', () => {
+  assert.equal(settled(ACK), 'Good catch, Jihad. Double chicken it is, your numbers and score are updated.');
+  assert.equal(settled('Good catch. Updating your numbers and score now.'), 'Good catch. Your numbers and score are updated.');
+  assert.equal(settled('Two cups, got it, updating your numbers now.'), 'Two cups, got it, your numbers are updated.');
+  assert.equal(settled("Got it, I'll update your score now."), 'Got it, your score is updated.');
+  assert.equal(settled('Good catch, that is the 42g bottle.'), 'Good catch, that is the 42g bottle.');
+  for (const s of [ACK, 'Updating your numbers now.', 'Your macros are recalculating right now.']) assert.doesNotMatch(settled(s), /updating|recalculating|now\b/i, s);
 });
 
-test('not applied: the ack is never filed; the question is', () => {
-  const r = outcomeRows(sanitizeOutcome({ applied: false, ask: { reason: 'ambiguous', verb: 'double', food: 'chicken', candidates: ['Chicken', 'Chicken salad'] } }), ACK, { nonce: 'n3', photos: ['p'] });
+test('the composed lead says what landed, in the past tense, and pluralises honestly', () => {
+  assert.equal(composeDone([{ op: 'scale', verb: 'double', food: 'Grilled chicken', to: '6 oz' }]), 'Doubled the grilled chicken to 6\u00a0oz.');
+  assert.equal(composeDone([{ op: 'remove', food: 'Sour cream' }, { op: 'add', food: 'Guacamole' }, { op: 'add', food: 'White rice' }]), 'Took the sour cream off. Added guacamole and white rice.');
+  assert.equal(composeDone([{ op: 'scale', verb: 'extra', food: 'Grilled chicken', to: '6 oz' }]), 'Counted extra grilled chicken, 6\u00a0oz now.');
+  assert.equal(composeDone([{ op: 'rename', food: 'Roasted corn salsa', newName: 'Pico de gallo' }]), 'Changed the roasted corn salsa to Pico de gallo.');
+  assert.equal(composeDone([{ op: 'amount', food: '', to: '2 medium bananas' }]), 'Set that item to 2\u00a0medium bananas.');
+  assert.equal(composeDone([]), 'Your numbers are updated.');
+});
+
+/* ---------------- I5: the ack is checked against the outcome ---------------- */
+
+test('applied exactly as described: the signed ack leads (past tense, with the photos it counted)', () => {
+  const o = sanitizeOutcome({ applied: true, exact: true, done: [{ op: 'scale', verb: 'double', food: 'Grilled chicken', to: '6 oz' }] }, ALLOWED);
+  const r = outcomeRows(o, ACK, { nonce: 'n1', photos: ['p'] });
+  assert.deepEqual(r, { lead: { text: settled(ACK), meta: { t: 'analysis_update', ct: 'n1', photos: ['p'] } }, follow: null });
+});
+
+test('I5: a part that became a question: the lead is composed from what landed, and the question follows', () => {
+  const o = sanitizeOutcome({
+    applied: true, exact: false, done: [{ op: 'scale', verb: 'double', food: 'Grilled chicken', to: '6 oz' }],
+    asks: [{ reason: 'ambiguous', verb: 'remove', food: 'salsa', candidates: ['Roasted corn salsa', 'Tomatillo salsa'] }],
+  }, ALLOWED);
+  const r = outcomeRows(o, ACK, { nonce: 'n2' });
+  assert.equal(r.lead.text, 'Doubled the grilled chicken to 6\u00a0oz.', 'never the model\'s ack, which described something else');
+  assert.equal(r.lead.meta.ct, 'n2');
+  assert.equal(r.follow.meta.t, 'correction_ask', 'a question the athlete can answer (not a system record)');
+  assert.equal(r.follow.meta.ct, 'n2:q', 'each row files once on its own ct');
+  assert.equal(r.follow.text, 'Which one should I take off: the roasted corn salsa or the tomatillo salsa?');
+  // A client claiming exact while asking something is not believed on the words.
+  const lie = outcomeRows(sanitizeOutcome({ applied: true, exact: true, done: [], unpriced: ['moon dust'] }, ALLOWED), ACK, { nonce: 'n' });
+  assert.match(lie.follow.text, /that item/);
+});
+
+test('not applied: the ack is never filed; what is true is', () => {
+  const r = outcomeRows(sanitizeOutcome({ applied: false, ask: { reason: 'ambiguous', verb: 'double', food: 'chicken', candidates: ['Grilled chicken', 'Sour cream'] } }, ALLOWED), ACK, { nonce: 'n3', photos: ['p'] });
   assert.equal(r.follow, null);
-  assert.equal(r.lead.text, 'Which one should I double: the chicken or the chicken salad?');
+  assert.equal(r.lead.text, 'Which one should I double: the grilled chicken or the sour cream?');
   assert.deepEqual(r.lead.meta, { t: 'correction_ask', ct: 'n3', reason: 'ambiguous' }, 'no photos: nothing was counted');
-  assert.doesNotMatch(r.lead.text, /updating/);
+  assert.doesNotMatch(r.lead.text, /updat/);
+  // C1: the second "double chicken" is already counted. No receipt, no numbers, no "updated".
+  const c1 = outcomeRows(sanitizeOutcome({ applied: false, asks: [{ reason: 'counted', verb: 'double', food: 'Grilled chicken', amount: '6 oz' }] }, ALLOWED), ACK, { nonce: 'n4' });
+  assert.equal(c1.lead.text, 'Already counted as a double, 6\u00a0oz.');
+  assert.equal(c1.follow, null);
 });
 
 /* ---------------- the wiring in index.ts ---------------- */
 
-test('a client that confirms gets the ack back signed, and nothing is written before it reports', () => {
+test('a client that confirms gets the ack back signed and bound to the correction; nothing is written before it reports', () => {
   const i = SRC.indexOf('if (hasChange && canConfirmCorrection)');
   assert.ok(i > 0);
   const branch = SRC.slice(i, SRC.indexOf('\n      }\n', i));
-  assert.match(branch, /signPending\(/);
-  assert.match(branch, /pending,/);
+  assert.match(branch, /signPending\(\{ mealId, userId: callerId, ack: text, photos: photoKeys, correction:/);
+  assert.match(branch, /pending, correction \}/, 'the same object that was signed goes back');
   assert.doesNotMatch(branch, /\.insert\(/, 'the promise is not filed here');
   assert.ok(i < SRC.indexOf(".insert({ ...ackRow, kind: 'message', meta: hasChange"), 'and it returns before the legacy insert');
 });
 
-test('the outcome mode spends nothing and checks the token before writing', () => {
+test('I1: only a confirming client is told "double" is fine; an older one keeps the master tool, word for word', () => {
+  const base = SRC.slice(SRC.indexOf('const CORRECTION_TOOL = {'), SRC.indexOf('const CORRECTION_TOOL_CONFIRM = {'));
+  assert.doesNotMatch(base, /"double", "half" or "2x" is fine/, 'an old client files the ack at once and cannot apply a word');
+  assert.match(base, /say their numbers and score are updating now/, 'the master ack wording, unchanged, for the client that still files at once');
+  const conf = SRC.slice(SRC.indexOf('const CORRECTION_TOOL_CONFIRM = {'), SRC.indexOf('// Coach OS Slice D draft mode'));
+  assert.match(conf, /"double", "half" or "2x" is fine/);
+  assert.match(conf, /past tense, never "updating now"/);
+  assert.match(SRC, /canApplyCorrection \? \[canConfirmCorrection \? CORRECTION_TOOL_CONFIRM : CORRECTION_TOOL\] : \[\]/);
+});
+
+test('the outcome mode spends nothing, checks the token and its correction before writing, and files each row once', () => {
   const i = SRC.indexOf('if (outcomeIn) {');
   assert.ok(i > 0);
   assert.ok(i < SRC.indexOf('await missingConsent('), 'before the consent read and the model');
   assert.ok(i < SRC.indexOf('withinKeyCap(`meal_draft:'), 'and before any daily cap');
-  const block = SRC.slice(i, SRC.indexOf("return new Response(JSON.stringify({ ok: true, reply: lead.text })", i));
+  const block = SRC.slice(i, SRC.indexOf('return ok({ reply: lead.text });', i));
   assert.ok(block.indexOf('readPending(') < block.indexOf('.insert('), 'token first');
+  assert.ok(block.indexOf('correctionHash(outcomeIn.correction') < block.indexOf('.insert('), 'bound to its turn\'s correction');
+  assert.match(block, /allowedNames\(outcomeIn\.correction, detRow\?\.detected\)/, 'names from the signed correction and the meal row');
   assert.match(block, /meta->>ct/, 'and a token files once');
   assert.match(block, /outcome\.applied && receiptRows/, 'a receipt only follows words that say the numbers moved');
+  assert.match(block, /ct: `\$\{pending\.nonce\}:r`/, 'the receipt has a ct of its own');
+  assert.match(block, /leadErr\.code === '23505' \? ok\(\{ duplicate: true \}\)/, 'a lost race is "already filed", not an error');
+  assert.doesNotMatch(block, /insert\(\{ \.\.\.base, text: row\.text \}\)/, 'never a fallback insert without meta');
+  assert.doesNotMatch(block, /recordAiCall\(/, 'no zero-token ai_calls row: ai_calls is one row per paid call');
   assert.match(SRC, /!receiptRows && !outcomeIn && !context/, 'an outcome needs no context');
+});
+
+test('0249 closes the one-time race: a unique partial index on meta->>ct, additive and idempotent', () => {
+  const sql = MIGRATION.replace(/--.*$/gm, '');
+  assert.match(sql, /create unique index if not exists meal_comments_ct_once\s+on public\.meal_comments \(\(meta->>'ct'\)\)\s+where meta \? 'ct';/);
+  assert.doesNotMatch(sql, /\bdrop\b|\balter table\b|\bdelete\b|\bupdate\b/i, 'additive only');
 });

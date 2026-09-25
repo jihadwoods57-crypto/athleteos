@@ -38,6 +38,13 @@ test('both athlete surfaces close the loop through the one shared module', () =>
   }
 });
 
+test('a correction that carries only `more`, or only a token, still runs and is reported', () => {
+  for (const src of [MEAL, CHAT]) {
+    assert.match(src, /data\.pending \|\| data\.correction\.item \|\| \['missed', 'more'\]\.some\(/);
+    assert.match(src, /uid: RT\.userId/, 'the outbox job is the signed-in athlete\'s');
+  }
+});
+
 test('nothing about a correction is said under the box', () => {
   for (const src of [MEAL, CHAT]) {
     for (const phrase of [/didn't line up with anything/, /have nothing on file for/, /Added what I could price/, /No numbers on file/]) {
@@ -56,7 +63,9 @@ test('the typing row stays up until Nia has said what happened', () => {
 });
 
 test('the outcome is reported with the token, and the receipt goes with it', () => {
-  assert.match(TURN, /correctionOutcome: \{ token, \.\.\.outcome \}/);
+  assert.match(TURN, /correctionOutcome: \{ token, correction, \.\.\.outcome \}/, 'bound to the correction it was issued for');
+  assert.ok(TURN.indexOf('SQ.putJob(job)') < TURN.indexOf('await sendOutcome(job, sb)'), 'queued in the outbox before the first try (I4)');
+  assert.match(STATE, /job\.kind === 'correction-outcome'\) return \(await import\('\.\/correction-turn\.js'\)\)\.sendOutcome\(job, sbc\)/, 'and the outbox drain knows it, lazily');
   assert.match(TURN, /correctionReceipt: rows/);
   assert.match(TURN, /noReceipt: !!token/, 'so the reducer does not file a second, earlier receipt');
   assert.match(TURN, /resolveChatCorrection\(meta, correction, said/, 'the athlete\'s own words decide first');

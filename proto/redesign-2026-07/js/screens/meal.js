@@ -2424,11 +2424,13 @@ export const thread = {
           // double: the grilled chicken or the chicken salad?"). The typing row stays up until
           // then, so the athlete watches Nia work instead of reading a promise and an amber line
           // that contradicts it.
-          if (data.correction && (data.correction.item || (Array.isArray(data.correction.missed) && data.correction.missed.length))) {
+          // `pending`: the server is waiting to hear how it went, so Nia answers even a correction
+          // that carries only `more` (no top-level item) or that turns out to have nothing to apply.
+          if (data.correction && (data.pending || data.correction.item || ['missed', 'more'].some((k) => Array.isArray(data.correction[k]) && data.correction[k].length))) {
             setTyping(true);
             const { runChatCorrection } = await import('../correction-turn.js');
             const res = await runChatCorrection({
-              act, sb: window.sb, slot: M.slot, mealId: M.mealId, meta: DAY.slotMacros[M.slot] || M,
+              act, sb: window.sb, uid: RT.userId, slot: M.slot, mealId: M.mealId, meta: DAY.slotMacros[M.slot] || M,
               data, said: text, minutesLate: M.minutesLate,
             });
             setTyping(false);

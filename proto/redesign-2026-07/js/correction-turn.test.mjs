@@ -1,0 +1,109 @@
+/* I4 (review 2026-09-24): A FAILED OUTCOME REPORT LEFT THE THREAD SILENT.
+ *
+ * correction-turn.js applied the correction, then tried twice to tell meal-chat, then gave up: the
+ * numbers had moved and nothing in the thread said so. The reviewer's repro (e2e, outcome calls
+ * failing) ends with protein 29 -> 50 and a thread whose last line is the athlete's own message.
+ *
+ * The rule now: the report is a job in the small-writes outbox, retried while its token is good;
+ * past that, the plain device receipt is filed instead. Numbers never move with nothing in the
+ * thread. */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+// The outbox lives in localStorage; give node one.
+const store = new Map();
+globalThis.localStorage = {
+  getItem: (k) => (store.has(k) ? store.get(k) : null),
+  setItem: (k, v) => { store.set(k, String(v)); },
+  removeItem: (k) => { store.delete(k); },
+};
+const SQ = await import('./sync-queue.js');
+const { runChatCorrection, sendOutcome, tokenInfo } = await import('./correction-turn.js');
+
+const T0 = Date.now();   // the token was just issued
+const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const TOKEN = `${b64({ v: 2, m: 'meal-1', u: 'ath-1', a: 'Good catch.', p: [], h: 'x', t: T0, n: 'nonce-1' })}.sig`;
+const PLATE = {
+  mealId: 'meal-1', protein: 29, kcal: 400, carbs: 32, fat: 19, quality: 84,
+  detectedRich: [{ name: 'Grilled chicken', quantity: '3 oz', per: { protein: 21, kcal: 140, carbs: 0, fat: 6 } }],
+};
+
+/** A Supabase stand-in: `invoke` answers from a script, `from().select()` from a list of rows. */
+function fakeSb({ invoke, filed = [] }) {
+  const calls = [];
+  const q = { select: () => q, eq: () => q, limit: async () => ({ data: filed, error: null }) };
+  return {
+    calls,
+    functions: { invoke: async (fn, { body }) => { calls.push(body); return invoke(body); } },
+    from: () => q,
+  };
+}
+const net = () => ({ data: null, error: { message: 'Failed to fetch' } });
+const forbidden = () => ({ data: null, error: { message: 'Edge Function returned a non-2xx status code', context: { status: 403 } } });
+const act = {
+  correctMeal: async (_slot, parts) => ({
+    meta: { ...PLATE, protein: 50, kcal: 540, fat: 25, quality: 90 }, before: { protein: 29, carbs: 32, fat: 19, kcal: 400, quality: 84 },
+    moved: true, unpriced: [], landed: parts,
+  }),
+  _correctionReceiptRows: () => [{ label: 'Protein', unit: 'g', from: 29, to: 50 }],
+  _scheduleSyncDrain: () => {},
+};
+
+test('the token is tried for (just under) its 15 minutes, on the device clock', () => {
+  const { nonce, expiresAt } = tokenInfo(TOKEN, T0);
+  assert.equal(nonce, 'nonce-1');
+  assert.equal(expiresAt, T0 + 14 * 60000);
+  assert.equal(tokenInfo('not-a-token', T0).nonce, '');
+});
+
+test('I4: a report that cannot be delivered is queued, not dropped', async () => {
+  store.clear();
+  const sb = fakeSb({ invoke: net });
+  const res = await runChatCorrection({
+    act, sb, uid: 'ath-1', slot: 'lunch', mealId: 'meal-1', meta: PLATE, said: 'double chicken',
+    data: { reply: 'Good catch.', pending: TOKEN, correction: { item: 'Grilled chicken', quantity: 'double' } },
+  });
+  assert.equal(res.applied, true);
+  const q = SQ.readQueue();
+  assert.equal(q.length, 1, 'the outcome waits in the outbox');
+  assert.equal(q[0].kind, 'correction-outcome');
+  assert.equal(q[0].tries, 1);
+  assert.deepEqual(q[0].receipt, [{ label: 'Protein', unit: 'g', from: 29, to: 50 }], 'with the plain receipt to fall back on');
+  assert.equal(q[0].body.correctionOutcome.token, TOKEN);
+  assert.deepEqual(q[0].body.correctionOutcome.correction, { item: 'Grilled chicken', quantity: 'double' }, 'the correction rides back verbatim');
+});
+
+test('I4: while the token is good, a retry sends the report; a delivered one is done', async () => {
+  const job = SQ.readQueue()[0];
+  const down = fakeSb({ invoke: net });
+  assert.equal(await sendOutcome(job, down, T0 + 60000), false, 'still offline: try again later');
+  assert.equal(down.calls[0].correctionOutcome.token, TOKEN);
+  const up = fakeSb({ invoke: () => ({ data: { ok: true }, error: null }) });
+  assert.equal(await sendOutcome(job, up, T0 + 120000), true);
+  assert.equal(up.calls.length, 1);
+});
+
+test('I4: past the token\'s life the plain receipt is filed, so the thread records the change', async () => {
+  const job = { ...SQ.readQueue()[0] };
+  const sb = fakeSb({ invoke: (body) => (body.correctionOutcome ? net() : { data: { ok: true }, error: null }) });
+  assert.equal(await sendOutcome(job, sb, T0 + 16 * 60000), true);
+  assert.deepEqual(sb.calls, [{ mealId: 'meal-1', correctionReceipt: [{ label: 'Protein', unit: 'g', from: 29, to: 50 }] }],
+    'no token (it is spent), not in Nia\'s voice: the pre-feature receipt, exactly');
+  assert.equal(job.fallback, true, 'and the fallback gets fresh tries of its own');
+});
+
+test('I4: a refused token falls back at once; a reply that did land is never doubled', async () => {
+  const job = { ...SQ.readQueue()[0], fallback: false };
+  const refused = fakeSb({ invoke: (body) => (body.correctionOutcome ? forbidden() : { data: { ok: true }, error: null }) });
+  assert.equal(await sendOutcome(job, refused, T0 + 60000), true);
+  assert.deepEqual(refused.calls.map((b) => Object.keys(b).sort().join(',')), ['correctionOutcome,correctionReceipt,mealId', 'correctionReceipt,mealId']);
+  const landed = fakeSb({ invoke: net, filed: [{ id: 'nia-row' }] });
+  assert.equal(await sendOutcome({ ...job, fallback: true }, landed, T0 + 20 * 60000), true);
+  assert.equal(landed.calls.length, 0, 'the lead is already in the thread (its response was lost): nothing more to file');
+});
+
+test('I4: nothing moved, nothing owed: a spent question-only report leaves the outbox', async () => {
+  const sb = fakeSb({ invoke: net });
+  assert.equal(await sendOutcome({ mealId: 'm', ct: 'n', body: {}, receipt: [], expiresAt: T0 }, sb, T0 + 1), true);
+  assert.equal(sb.calls.length, 0);
+});

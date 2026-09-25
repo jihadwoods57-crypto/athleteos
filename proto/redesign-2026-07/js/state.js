@@ -1337,6 +1337,8 @@ export const act = {
         ]);
         return !res || !res.error;
       }
+      // A correction Nia has not yet said anything about (correction-turn.js owns the retry rules).
+      if (job.kind === 'correction-outcome') return (await import('./correction-turn.js')).sendOutcome(job, sbc);
       return true; // unknown kind: drop it rather than jam the queue forever
     } catch { return false; }
   },
@@ -2590,6 +2592,7 @@ export const act = {
       moved: parts.some((p) => p.r.moved),
       applied: parts.length,
       skipped: list.length - parts.length,
+      landed: parts.map((p) => p.c),   // which parts applied: Nia says only what did (correction-turn.js)
     };
     /* A CORRECTION THAT PRICED NOTHING MOVED NOTHING (2026-09-14). applyMealCorrection now
        returns the named-but-unpriceable foods instead of swallowing them with a null, so the

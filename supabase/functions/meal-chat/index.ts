@@ -57,7 +57,7 @@ import { missingConsent, consentSkipBody, loadConsentRows, consentedIds } from '
 import { authorIds, scrubContext, scrubRows } from './consent-scrub.mjs';
 // THE PROMISE WAITS FOR THE PLATE (2026-09-24, "double chicken"): the ack is signed and handed to
 // the client, and filed only once the client reports the correction actually landed.
-import { signPending, readPending, sanitizeOutcome, outcomeRows } from './correction-outcome.mjs';
+import { signPending, readPending, correctionHash, allowedNames, sanitizeOutcome, outcomeRows } from './correction-outcome.mjs';
 
 // Per-surface override first: one shared ANTHROPIC_MODEL meant chat could not move tiers
 // without dragging vision with it. Unset -> unchanged.
@@ -216,7 +216,7 @@ const CORRECTION_TOOL = {
          numbers never come from prose. The app now rescales the item from ITS OWN logged
          numbers by comparing this string to the quantity already on the item, unit-aware, so
          "8 oz" over a logged "4 oz" doubles it rather than octupling it. */
-      quantity: { type: 'string', description: 'The corrected amount in plain kitchen units, e.g. "2 cups", "8 oz", "3 eggs". Use this WHENEVER the athlete corrects how MUCH of an item there was rather than what it was. Phrase it in the SAME kind of unit the item already carries so the app can compare them (if the item reads "1 cup", answer in cups); "double", "half" or "2x" is fine when that is exactly what the athlete said. Do NOT also restate protein/kcal/carbs/fat for a pure portion correction: the app rescales the item from its own numbers, and your estimate would replace a measurement with a guess. Omit when the amount is unchanged.' },
+      quantity: { type: 'string', description: 'The corrected amount in plain kitchen units, e.g. "2 cups", "8 oz", "3 eggs". Use this WHENEVER the athlete corrects how MUCH of an item there was rather than what it was. Phrase it in the SAME kind of unit the item already carries so the app can compare them (if the item reads "1 cup", answer in cups). Do NOT also restate protein/kcal/carbs/fat for a pure portion correction: the app rescales the item from its own numbers, and your estimate would replace a measurement with a guess. Omit when the amount is unchanged.' },
       protein: { type: 'integer', description: 'Corrected grams of protein for THIS item, exactly as the athlete stated or their packaging prints. Omit when unchanged.' },
       kcal: { type: 'integer', description: 'Corrected calories for THIS item, only when the athlete stated them. Omit when unchanged.' },
       carbs: { type: 'integer', description: 'Corrected grams of carbohydrate for THIS item. Omit when unchanged.' },
@@ -268,6 +268,30 @@ const CORRECTION_TOOL = {
     required: ['ack'],
   },
 } as const;
+
+/* THE SAME TOOL, FOR A CLIENT THAT APPLIES FIRST (canConfirmCorrection, 2026-09-24). Two words
+   differ, and only here: an older client cannot turn "double" into an amount and files the ack
+   the moment the model answers, so telling IT that "double" is fine would bring back the exact bug
+   this fixes (Nia saying "updating" over numbers that never moved). A confirming client resolves
+   the word against the row's own amount (plate-edits.js), and its ack is filed only after the
+   plate has changed, so the ack speaks in the past tense. */
+const CORRECTION_TOOL_CONFIRM = {
+  ...CORRECTION_TOOL,
+  input_schema: {
+    ...CORRECTION_TOOL.input_schema,
+    properties: {
+      ...CORRECTION_TOOL.input_schema.properties,
+      quantity: {
+        ...CORRECTION_TOOL.input_schema.properties.quantity,
+        description: CORRECTION_TOOL.input_schema.properties.quantity.description.replace('(if the item reads "1 cup", answer in cups).', '(if the item reads "1 cup", answer in cups); "double", "half" or "2x" is fine when that is exactly what the athlete said.'),
+      },
+      ack: {
+        ...CORRECTION_TOOL.input_schema.properties.ack,
+        description: 'One to two conversational sentences to the athlete: own the miss plainly and without defensiveness ("Good catch, that is the 42g bottle"; "Two cups, got it"). This is shown only AFTER the app has applied the change, and only if it applied exactly as you described, so say their numbers and score are updated (past tense, never "updating now"). Never tell them to update anything themselves or to notify their coach. Do NOT state new meal totals or new per-item macros; they are recomputed. No em dashes.',
+      },
+    },
+  },
+};
 
 // Coach OS Slice D draft mode: FOUR candidate replies the coach could send, one per stance.
 // Forced tool with a fixed 4-item array. These are DRAFTS — the function persists nothing.
@@ -642,27 +666,35 @@ Deno.serve(async (req) => {
     if (outcomeIn) {
       const pending = await readPending(outcomeIn.token, { mealId, userId: callerId }, SUPABASE_SERVICE_ROLE_KEY);
       if (!pending || !pending.nonce) return bad(403, 'unauthorized', cors);
+      // The report must carry the correction the token was issued for, byte for byte: a token is
+      // good for ONE turn's correction, and that correction is where Nia's food names come from.
+      if ((await correctionHash(outcomeIn.correction ?? null)) !== pending.hash) return bad(403, 'unauthorized', cors);
+      const ok = (extra: Record<string, unknown> = {}) =>
+        new Response(JSON.stringify({ ok: true, ...extra }), { headers: { ...cors, 'Content-Type': 'application/json' } });
       const { data: dup } = await service.from('meal_comments').select('id')
         .eq('meal_id', mealId).eq('role', 'ai').eq('meta->>ct', pending.nonce).limit(1);
-      if (Array.isArray(dup) && dup.length) {
-        return new Response(JSON.stringify({ ok: true, duplicate: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
-      }
-      const outcome = sanitizeOutcome(outcomeIn);
+      if (Array.isArray(dup) && dup.length) return ok({ duplicate: true });
+      // Names Nia may say: the signed correction's, and the meal row's own detected list.
+      const { data: detRow } = await service.from('meals').select('detected').eq('id', mealId).maybeSingle();
+      const outcome = sanitizeOutcome(outcomeIn, allowedNames(outcomeIn.correction, detRow?.detected));
       const { lead, follow } = outcomeRows(outcome, pending.ack, { nonce: pending.nonce, photos: pending.photos });
       const base = { meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai', kind: 'message' };
       // In thread order, one insert each so created_at keeps that order: Nia's words, the receipt
       // (only after words that say the numbers moved, only with figures that did), what is owed.
-      const file = async (row: { text: string; meta: Record<string, unknown> }) => {
-        const { error } = await service.from('meal_comments').insert({ ...base, text: row.text, meta: row.meta });
-        if (error) await service.from('meal_comments').insert({ ...base, text: row.text });
-      };
-      await file(lead);
+      // Always WITH meta: the ct is what makes each row file once (0249's unique index), so a row
+      // without it would be the one that could be filed twice.
+      const file = async (row: { text: string; meta: Record<string, unknown> }) =>
+        (await service.from('meal_comments').insert({ ...base, text: row.text, meta: row.meta })).error;
+      const leadErr = await file(lead);
+      // 23505: a concurrent report filed this turn first (the dup read above raced it). Already done.
+      if (leadErr) return leadErr.code === '23505' ? ok({ duplicate: true }) : bad(503, 'unavailable', cors);
       if (outcome.applied && receiptRows) {
-        await file({ text: correctionReceiptText(receiptRows), meta: { t: 'correction_receipt', rows: receiptRows, ct: pending.nonce } });
+        await file({ text: correctionReceiptText(receiptRows), meta: { t: 'correction_receipt', rows: receiptRows, ct: `${pending.nonce}:r` } });
       }
       if (follow) await file(follow);
-      await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: 'correction_outcome', userId: callerId, model: MODEL, latencyMs: 0, ok: true, outcome: outcome.applied ? 'correction_applied' : `correction_ask:${outcome.ask?.reason ?? 'nothing'}` });
-      return new Response(JSON.stringify({ ok: true, reply: lead.text }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      // No ai_calls row: this mode makes no model call, and ai_calls is one row per paid call
+      // (ai-telemetry.ts). The turn that produced the ack already recorded its own.
+      return ok({ reply: lead.text });
     }
     if (receiptRows) {
       let rows = receiptRows;
@@ -1003,7 +1035,7 @@ Deno.serve(async (req) => {
     // nothing there to escalate or correct, so it keeps the single forced tool.
     const athleteTools = [
       REPLY_TOOL,
-      ...(canApplyCorrection ? [CORRECTION_TOOL] : []),
+      ...(canApplyCorrection ? [canConfirmCorrection ? CORRECTION_TOOL_CONFIRM : CORRECTION_TOOL] : []),
       ...(canRemember ? [REMEMBER_TOOL] : []),
       ...(canSuggestMeal ? [SUGGEST_MEAL_TOOL] : []),
       FLAG_TOOL,
@@ -1307,10 +1339,14 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
          prove the plate took it. So nothing is written here: the ack travels back signed, and the
          client files it (or Nia's follow-up question instead) through correctionOutcome. */
       if (hasChange && canConfirmCorrection) {
-        const pending = await signPending({ mealId, userId: callerId, ack: text, photos: photoKeys }, SUPABASE_SERVICE_ROLE_KEY);
+        const correction = { item, newName: newName || null, quantity: quantity || null, per, perBasis: top.perBasis, add, more, missed };
+        // Bound to THIS correction: the report must echo it, and it is the only source of the food
+        // names Nia may use when she speaks about it (besides the meal's own detected list). Hashed
+        // as the client will see it, after a JSON round trip.
+        const pending = await signPending({ mealId, userId: callerId, ack: text, photos: photoKeys, correction: JSON.parse(JSON.stringify(correction)) }, SUPABASE_SERVICE_ROLE_KEY);
         await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: 'correction_tool', userId: callerId, model: msg.model ?? MODEL, latencyMs: 0, ok: true, outcome: 'correction_pending' });
         return new Response(
-          JSON.stringify({ reply: text, pending, correction: { item, newName: newName || null, quantity: quantity || null, per, perBasis: top.perBasis, add, more, missed } }),
+          JSON.stringify({ reply: text, pending, correction }),
           { headers: { ...cors, 'Content-Type': 'application/json' } },
         );
       }

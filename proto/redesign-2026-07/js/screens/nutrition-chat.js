@@ -690,12 +690,12 @@ export default {
         if (data.memory && data.memory.id && PENDING_IDS) PENDING_IDS.add(String(data.memory.id));
         // THE CORRECTION LOOP, as the meal thread closes it (correction-turn.js): applied first,
         // then Nia says what happened, in the thread, from the server. Never a line under the box.
-        if (data.correction && slot && (data.correction.item || (Array.isArray(data.correction.missed) && data.correction.missed.length))) {
+        if (data.correction && slot && (data.pending || data.correction.item || ['missed', 'more'].some((k) => Array.isArray(data.correction[k]) && data.correction[k].length))) {
           setTyping(true);
           const live = mealDetail(slot);
           const { runChatCorrection } = await import('../correction-turn.js');
           const res = await runChatCorrection({
-            act, sb: c, slot, mealId, meta: DAY.slotMacros[slot] || live || {}, data, said: text,
+            act, sb: c, uid: RT.userId, slot, mealId, meta: DAY.slotMacros[slot] || live || {}, data, said: text,
             minutesLate: live ? live.minutesLate : undefined,
           });
           setTyping(false);

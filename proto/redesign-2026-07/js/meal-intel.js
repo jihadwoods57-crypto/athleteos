@@ -28,6 +28,8 @@ export function normalizeDetected(detected) {
     const out = { name: clean(d && d.name), confidence: c === 'low' || c === 'medium' ? c : 'high' };
     const q = d && d.quantity;
     if (typeof q === 'string' && q.trim()) out.quantity = clean(q).slice(0, 40);
+    // The read's own amount, kept once a correction changes it: "double" is twice THIS (plate-edits).
+    if (d && typeof d.origQuantity === 'string' && d.origQuantity.trim()) out.origQuantity = clean(d.origQuantity).slice(0, 40);
     const src = d && (d.per && typeof d.per === 'object' ? d.per : d);
     if (src && ['protein', 'kcal', 'carbs', 'fat'].some((k) => num(src[k]) > 0)) {
       out.per = { protein: num(src.protein), kcal: num(src.kcal), carbs: num(src.carbs), fat: num(src.fat) };
@@ -1599,7 +1601,7 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     else if (repriced) row.confidence = estimated ? 'medium' : 'high';
     // The corrected amount rides on the row, so the breakdown shows what the athlete said and
     // grounding bounds the item against that portion rather than the one the photo guessed.
-    if (qty) row.quantity = qty;
+    if (qty) { if (!row.origQuantity && oldQty && qty !== oldQty) row.origQuantity = oldQty; row.quantity = qty; }
     // edited vs portionEdited, the same distinction applyFoodEdit draws. `edited` means the
     // curated reference for this food's NAME no longer describes it, which is true when they
     // renamed it, stated a label macro, or added an ingredient, and grounding must stop clamping
