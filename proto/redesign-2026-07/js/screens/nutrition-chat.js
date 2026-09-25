@@ -45,7 +45,7 @@ import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos, postC
 import {
   beginSend, endSend, takeFailed, setAiWorking,
   setReply, replyOf, clearReply, paintReplyChip, noteArrivals, syncLive, syncJump,
-  bindLive, wireThreadTaps,
+  bindLive, wireThreadTaps, holdThread, followThread,
 } from '../chat-live.js';
 import { FILTERED_NOTE } from '../content-filter.js';
 import { hydrateAvatars } from '../avatar.js';
@@ -328,6 +328,9 @@ export default {
         else run.push(item.comment);
       }
       flushRun();
+      // Where the reader is, read BEFORE the new rows land (chat-live.js holdThread).
+      const hold = holdThread(threadEl, NC);
+      const arrived = FRESH.size > 0 || ARRIVED > 0;
       threadEl.innerHTML = html.join('');
       // The outbox bubble and the AI at work (chat-live.js), after the paint that wiped them.
       const sending = syncLive(threadEl, NC, { esc, imgSrc: safeImg });
@@ -344,7 +347,7 @@ export default {
         const head = root.querySelector('.nc-head');
         if (vp && head) vp.scrollTop -= head.getBoundingClientRect().height + 8;
       }
-      else scrollThreadToEnd(threadEl, { force: sending });
+      else followThread(hold, { force: sending, smooth: arrived });
       paintHeader();
       paintTarget();
       // FULL MESSAGES, ALWAYS (founder 2026-09-22): no Read more on any renderer. The read is
@@ -708,9 +711,10 @@ export default {
           if (!applied) setNote("That didn't line up with anything in this meal's read, so your numbers haven't changed. Tell me which food you mean, or what was on the plate, and I'll put it in.");
           else if (applied.unpriced && applied.unpriced.length) setNote(`Added what I could price. No numbers on file for ${applied.unpriced.join(' or ')}, so it isn't counted yet. Tell me its protein and calories, or what it's closest to, and I'll count it.`);
         }
+        // Not forced: load()'s paint carries a reader who was at the end to Nia's reply, and a
+        // reader who scrolled up while she was typing is not yanked (the pill says she answered).
         await load();
         startBurst();
-        scrollThreadToEnd(root, { force: true });
       } catch {
         setTyping(false);
         setNote("Couldn't reach Nia. Your message was sent. Tap to try again.", true);
@@ -852,8 +856,9 @@ export default {
     };
     const placeLive = () => {
       if (!threadEl || !threadEl.isConnected) return;
+      const hold = holdThread(threadEl, NC);
       const sending = syncLive(threadEl, NC, { esc, imgSrc: safeImg });
-      scrollThreadToEnd(threadEl, { force: sending });
+      followThread(hold, { force: sending, smooth: true });
     };
     bindLive(NC, { sync: placeLive, onRetry: retryItem });
     placeLive();

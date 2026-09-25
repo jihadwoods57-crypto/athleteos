@@ -285,65 +285,162 @@ export function jumpToMessage(threadEl, id) {
   return true;
 }
 
-/* ---------------- jump to latest ---------------- */
+/* ---------------- following the conversation (2026-09-24) ----------------
+   "When I get a new message from Nia I need to scroll down to see it every time" (founder, on an
+   iPhone). Two causes, both measured headless on the meal thread:
 
-/** How far from the end counts as "reading back", not "at the conversation". */
-const FAR_PX = 240;
-const JUMPS = new WeakMap();   // viewport -> { key, always, btn }
+   1. THE END WAS MEASURED AFTER THE MESSAGE LANDED. Every renderer painted, then asked "is the
+      reader within 120px of the end?" (keyboard.js scrollThreadToEnd). A reader resting on the
+      newest message is, after a 167px Nia reply lands, 167px from the end: not followed. And
+      the pill only showed past 240px, so a reply between 120 and 240px tall did neither. Where
+      the reader was is now read BEFORE the paint (holdThread) and honoured after it
+      (followThread), and the pill counts from the same line.
+   2. A SAME-ROUTE RE-RENDER DROPPED THE READER 600px UP. router.js restores the old scrollTop
+      before mount(), but the meal thread paints a microtask later (mount awaits roles.js), so the
+      restore was clamped by a page that had no messages in it yet. The last place the reader
+      rested is kept per thread (PINS) and put back by the first paint into the new viewport.
+
+   `.thread` is not a scroller; `.viewport` is (ProtoApp turns the WebView's own scrolling off),
+   so every measure here is the viewport's. */
+
+/** The same slack the keyboard's hold uses (keyboard.js shouldHoldEnd): within this of the end is
+ *  "at the conversation"; past it is reading back. */
+const NEAR_PX = 120;
+/** How long a smooth follow counts as still at the end: its own scroll events pass through
+ *  positions short of the end, and a paint landing mid-glide must follow too. */
+const GLIDE_MS = 700;
+const PINS = new Map();        // thread key -> { vp, end, top }: where the reader last rested
+const GLIDES = new WeakMap();  // viewport -> clock deadline of a follow in flight
+const WATCHED = new WeakMap(); // viewport -> thread key its scroll listener records under
+
+const clock = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
+const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+const gapOf = (vp) => vp.scrollHeight - vp.clientHeight - vp.scrollTop;
+const gliding = (vp) => (GLIDES.get(vp) || 0) > clock();
 
 const vpOf = (el) => (el && el.closest && el.closest('.viewport')) || (el && el.querySelector && el.querySelector('.viewport')) || null;
+
+function glideToEnd(vp, smooth) {
+  const top = vp.scrollHeight - vp.clientHeight;
+  if (top - vp.scrollTop <= 1) return;
+  const glide = smooth && !reduced();
+  if (glide) GLIDES.set(vp, clock() + GLIDE_MS);
+  vp.scrollTo({ top, behavior: glide ? 'smooth' : 'instant' });
+}
+
+function record(vp, key) {
+  PINS.set(key, { vp, end: gliding(vp) || gapOf(vp) <= NEAR_PX, top: vp.scrollTop });
+}
+
+/** One passive scroll listener per viewport: it keeps the pin true to where the reader actually
+ *  is, and keeps the pill true to it. */
+function watch(vp, key) {
+  const had = WATCHED.has(vp);
+  WATCHED.set(vp, key);
+  if (had) return;
+  let raf = 0;
+  vp.addEventListener('scroll', () => {
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      if (!gliding(vp)) record(vp, WATCHED.get(vp));
+      paintJump(vp);
+    });
+  }, { passive: true });
+}
+
+/**
+ * BEFORE a paint touches the thread: where is the reader? Returns a hold for followThread.
+ * On a viewport this thread has not painted into before, a scrollTop above 0 means router.js
+ * restored an offset (a same-route re-render, or Back): the pin from the old viewport is the
+ * truth, since the restore itself was clamped by a page with no messages in it yet. At 0 it is
+ * an arrival, measured like anything else.
+ */
+export function holdThread(anchor, key) {
+  const vp = vpOf(anchor);
+  if (!vp) return null;
+  const k = String(key == null ? '' : key);
+  const pin = PINS.get(k);
+  if (pin && pin.vp !== vp && vp.scrollTop > 0) return { vp, key: k, end: pin.end, top: pin.top, restore: true };
+  return { vp, key: k, end: gliding(vp) || gapOf(vp) <= NEAR_PX, top: vp.scrollTop, restore: false };
+}
+
+/**
+ * AFTER the paint: a reader who was at the end stays on the newest message, gliding to it when
+ * something arrived (`smooth`) and snapping when it is only a repaint; `force` is the one moment
+ * it always happens (they just sent). A reader scrolled back is left exactly where they are, and
+ * one a re-render clamped short is put back. Returns true when it followed.
+ */
+export function followThread(hold, { force = false, smooth = false } = {}) {
+  if (!hold || !hold.vp || !hold.vp.isConnected) return false;
+  const { vp } = hold;
+  const follow = force || hold.end;
+  if (follow) glideToEnd(vp, smooth);
+  else if (hold.restore && vp.scrollTop < hold.top) vp.scrollTo({ top: hold.top, behavior: 'instant' });
+  if (follow && !gliding(vp)) PINS.set(hold.key, { vp, end: true, top: vp.scrollTop });
+  else record(vp, hold.key);
+  watch(vp, hold.key);
+  return follow;
+}
+
+/* ---------------- jump to latest ---------------- */
+
+const JUMPS = new WeakMap();   // viewport -> { key, always, dockEl }
+
+/** The pill's words: "New message", "3 new messages", or (reading far back with nothing new, in
+ *  the full chat) no words at all, only the arrow. */
+export function jumpLabel(n) {
+  if (!n) return '';
+  return n === 1 ? 'New message' : `${n > 99 ? '99+' : n} new messages`;
+}
 
 function paintJump(vp) {
   const st = JUMPS.get(vp);
   if (!st) return;
   const s = slot(st.key);
-  const gap = vp.scrollHeight - vp.clientHeight - vp.scrollTop;
-  if (gap <= FAR_PX) s.unread = 0;
+  const gap = gapOf(vp);
+  const glide = gliding(vp);
+  if (gap <= NEAR_PX || glide) s.unread = 0;
   const dock = st.dockEl && st.dockEl.isConnected ? st.dockEl : null;
   if (!dock) return;
   let btn = dock.querySelector(':scope > .jump-latest');
-  const show = gap > FAR_PX && (s.unread > 0 || (st.always && gap > vp.clientHeight * 0.6));
+  const show = !glide && gap > NEAR_PX && (s.unread > 0 || (st.always && gap > vp.clientHeight * 0.6));
   if (!show) { if (btn) btn.remove(); return; }
   if (!btn) {
     btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'jump-latest';
     btn.addEventListener('click', () => {
-      const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-      vp.scrollTo({ top: vp.scrollHeight, behavior: reduce ? 'instant' : 'smooth' });
       slot(st.key).unread = 0;
+      glideToEnd(vp, true);
+      paintJump(vp);
     });
     dock.appendChild(btn);
   }
   const n = s.unread;
-  btn.setAttribute('aria-label', n ? `${n} new message${n === 1 ? '' : 's'}. Jump to the latest` : 'Jump to the latest message');
-  btn.innerHTML = `${n ? `<span class="jl-n">${n > 99 ? '99+' : n}</span>` : ''}${icon('arrowDown', 16)}`;
+  const say = jumpLabel(n);
+  btn.classList.toggle('has-new', !!say);
+  btn.setAttribute('aria-label', n ? `${say}. Jump to the latest` : 'Jump to the latest message');
+  btn.innerHTML = `${say ? `<span class="jl-t">${say}</span>` : ''}${icon('arrowDown', say ? 14 : 16)}`;
 }
 
 /**
  * Keep the jump-to-latest pill true after a paint. `added` is noteArrivals' count: when the
- * reader is scrolled back, those become unread; when they are at the end, nothing is. `always`
- * shows the pill whenever the reader is far back (the full chat), not only for unread rows.
+ * reader is reading back, those become unread; when they are at the end (or followThread is
+ * carrying them there) nothing is. `always` shows the pill whenever the reader is far back (the
+ * full chat), not only for unread rows.
  */
 export function syncJump(anchor, key, { dock = null, added = 0, always = false } = {}) {
   const vp = vpOf(anchor);
   if (!vp) return;
   let st = JUMPS.get(vp);
-  if (!st) {
-    st = { key, always, dockEl: dock };
-    JUMPS.set(vp, st);
-    let raf = 0;
-    vp.addEventListener('scroll', () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => { raf = 0; paintJump(vp); });
-    }, { passive: true });
-  }
+  if (!st) { st = { key, always, dockEl: dock }; JUMPS.set(vp, st); }
   st.key = key; st.always = always; st.dockEl = dock;
+  watch(vp, String(key == null ? '' : key));
   const s = slot(key);
-  const gap = vp.scrollHeight - vp.clientHeight - vp.scrollTop;
-  if (added > 0 && gap > FAR_PX) s.unread += added;
+  if (added > 0 && !gliding(vp) && gapOf(vp) > NEAR_PX) s.unread += added;
   paintJump(vp);
 }
 
 /** Test seam: forget every thread. */
-export function __resetChatLive() { THREADS.clear(); }
+export function __resetChatLive() { THREADS.clear(); PINS.clear(); }

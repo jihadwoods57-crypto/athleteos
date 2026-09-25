@@ -286,7 +286,7 @@ export function memoryOfferOf(comment) {
  *  the selector the meal thread has used for pending facts since 0019 landed. */
 export function memoryOfferChips(offer, esc) {
   if (!offer || !offer.id) return '';
-  return `<div class="mo-ask">${esc(offer.ask)}</div>
+  return `<div class="mo-ask">${esc(plainText(offer.ask))}</div>
     <div class="fq-chips">
       <button type="button" class="fx-chip" data-fact="${esc(offer.id)}" data-keep="1">Yes, remember</button>
       <button type="button" class="fx-chip" data-fact="${esc(offer.id)}" data-keep="0">No, one-off</button>
@@ -356,8 +356,12 @@ export function pickLabel(p) {
 export function mealSuggestHtml(sug, picks, esc) {
   if (!sug) return '';
   const list = Array.isArray(picks) ? picks : [];
-  if (!list.length) return esc(sug.framing === sug.fallback ? sug.framing : `${sug.framing} ${sug.fallback}`);
-  return `${esc(sug.framing)}<div class="fq-chips">${list.map((p) =>
+  /* Nia's words, drawn like every other row of hers (richText: escaped first, then the marks).
+     This bubble alone printed them through esc(), so the one figure she bolded arrived as
+     "**180g**" (founder's iPhone, 2026-09-24): the what-to-eat reply is the only AI row that
+     never reached richText. */
+  if (!list.length) return richText(sug.framing === sug.fallback ? sug.framing : `${sug.framing} ${sug.fallback}`, esc);
+  return `${richText(sug.framing, esc)}<div class="fq-chips">${list.map((p) =>
     `<button type="button" class="fx-chip" data-fm-log="${esc(p.id)}">${esc(pickLabel(p))}</button>`).join('')}</div>`;
 }
 
@@ -499,6 +503,9 @@ export function msgTimeHtml(comment, fmtTime, esc) {
 export function richText(text, esc) {
   let s = esc(String(text == null ? '' : text));
   s = s.replace(/\*\*([^*\n]+?)\*\*/g, '<b>$1</b>');
+  /* A pair the model left open ("your **180g target") has nothing to draw, and printing it is
+     the raw-markdown look the founder saw. Dropped, never guessed at: the words stay plain. */
+  s = s.replace(/\*\*/g, '');
   s = s.replace(/__([^_\n]+?)__/g, '<u>$1</u>');
   s = s.replace(/==([^=\n]+?)==/g, '<em class="hl">$1</em>');
   return linkify(s).replace(/\r?\n/g, '<br>');
@@ -526,7 +533,7 @@ export function personText(text, esc) {
 
 /** The text of an AI row with its marks stripped: for previews, notifications, clipboard. */
 export function plainText(text) {
-  return String(text == null ? '' : text).replace(/\*\*([^*\n]+?)\*\*/g, '$1').replace(/__([^_\n]+?)__/g, '$1').replace(/==([^=\n]+?)==/g, '$1');
+  return String(text == null ? '' : text).replace(/\*\*([^*\n]+?)\*\*/g, '$1').replace(/\*\*/g, '').replace(/__([^_\n]+?)__/g, '$1').replace(/==([^=\n]+?)==/g, '$1');
 }
 
 /* ---------------- Replies (2026-09-22) ----------------
