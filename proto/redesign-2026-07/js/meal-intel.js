@@ -530,7 +530,8 @@ export function openingMessage({
   if (conf !== 'exact' && conf !== 'high' && source !== 'manual') {
     parts.push(`If anything was cooked or portioned differently than it looks, tell me and I'll tighten the numbers.`);
   }
-  return parts.filter(Boolean).join(' ').slice(0, 1500);
+  // One text per part, as meal-opener.ts sends them (thread-polish.js draws each as a bubble).
+  return parts.map((x) => String(x || '').replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n\n').slice(0, 1500);
 }
 
 /* ---------- Meal quality vs compliance (founder feedback 2026-07-16) ----------
