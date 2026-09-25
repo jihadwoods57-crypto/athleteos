@@ -1396,7 +1396,7 @@ export function retitleMeal(title, oldName, newName, rich) {
   return `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`.slice(0, 80);
 }
 
-export function applyMealCorrection(meta, { kind, value, detail, item, newName, quantity, per, perBasis, add, foods, minutesLate, said, baseFactor } = {}) {
+export function applyMealCorrection(meta, { kind, value, detail, item, newName, quantity, per, perBasis, add, foods, minutesLate, said, baseFactor, rebase } = {}) {
   const src = meta || {};
   /* "No sour cream" (2026-09-24): the athlete took a food off the plate. Same removal math the
      professional lane uses, so it exists once; `item` is the exact row name plate-edits.js chose. */
@@ -1537,7 +1537,7 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     const nn2 = clean(newName).slice(0, 80);
     if (!statedAny && !applied.length && !nn2 && !scaled) return null;
     const basePer = row.per && typeof row.per === 'object' ? row.per : { protein: 0, kcal: 0, carbs: 0, fat: 0 };
-    const base0 = row.base || { q: oldQty, per: { ...basePer } };
+    const base0 = row.base && row.base.per && typeof row.base.per === 'object' ? { q: clean(row.base.q), per: row.base.per } : { q: oldQty, per: { ...basePer } };
     const sp = bf ? base0.per : basePer;
 
     /* ── A DIFFERENT FOOD IS DIFFERENT NUMBERS (2026-09-02) ───────────────────────────────────
@@ -1608,8 +1608,11 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     // The corrected amount rides on the row, so the breakdown shows what the athlete said and
     // grounding bounds the item against that portion rather than the one the photo guessed.
     if (qty) row.quantity = qty;
-    // A relative edit keeps the baseline; anything absolute (an amount, a label, a new food) IS one.
-    row.base = bf ? base0 : { q: row.quantity || '', per: { ...merged } };
+    // A relative edit keeps the baseline; anything absolute IS one. A factor landing with a figure,
+    // rename or ingredient rebases to the result over the factor (review round 3).
+    row.base = bf && !rebase ? (statedAny || applied.length || repriced || renamed
+      ? { q: base0.q, per: Object.fromEntries(Object.entries(merged).map(([k, v]) => [k, Math.round(v / bf)])) } : base0)
+      : { q: row.quantity || '', per: { ...merged } };
     // edited vs portionEdited, the same distinction applyFoodEdit draws. `edited` means the
     // curated reference for this food's NAME no longer describes it, which is true when they
     // renamed it, stated a label macro, or added an ingredient, and grounding must stop clamping
