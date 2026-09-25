@@ -1330,7 +1330,6 @@ export function dayLogWeight(userId, lb) {
       .catch((e) => { SYNC.last = 'error'; console.warn('[day] log_my_weight failed', e && e.message); });
   }
 }
-export function dayToggleQuick(userId, i) { DAY.quickAdded[i] = !DAY.quickAdded[i]; pushDay(userId); }
 
 /* ---- Correcting a logged meal (impeccable critique 2026-09-16) ----
  *

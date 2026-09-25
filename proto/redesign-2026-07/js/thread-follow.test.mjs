@@ -263,7 +263,7 @@ test("the founder's what-to-eat bubble: **180g** is bold, not asterisks", () => 
 test('with picks, the framing line is drawn the same way and the chips stay', () => {
   const html = mealSuggestHtml(mealSuggestOf(FOUNDER), [{ id: 'fm1', name: 'Shake', protein: 40, kcal: 300 }], esc);
   assert.match(html, /<b>180g<\/b>/);
-  assert.match(html, /data-fm-log="fm1"/);
+  assert.match(html, /data-fm-plan="fm1"/);
 });
 
 test('it escapes FIRST: nothing in a suggestion can open a tag', () => {

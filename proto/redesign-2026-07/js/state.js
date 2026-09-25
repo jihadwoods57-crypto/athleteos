@@ -145,7 +145,7 @@ function loadMeal() {
   if (typeof sessionStorage === 'undefined') return;
   try {
     const j = JSON.parse(sessionStorage.getItem(MEAL_KEY) || 'null');
-    if (j && typeof j === 'object') Object.assign(MEAL, j);
+    if (j && typeof j === 'object' && j.photoBase64) Object.assign(MEAL, j);
   } catch { /* corrupt / blocked store — start clean */ }
 }
 loadMeal(); // restore an in-flight capture across a reload, before the first render
@@ -1077,6 +1077,9 @@ export const act = {
        double-log, which is honest — far better than inventing a zero-macro meal in a slot the
        athlete never photographed. */
     const captured = (MEAL.photoBase64 && MEAL.key) ? MEAL.key : null;
+    // NO PHOTO, NO LOG (founder rule, 2026-09-25). Search, labels, barcodes and saved meals PLAN a
+    // meal (DAY.plans); only a photo commits one. The Trust Pass never comes through here.
+    if (!captured) return false;
     const slot = captured || nextOpenSlot(slotArg) || slotArg || MEAL.key;
     if (!slot || !MEAL_KEYS.includes(slot) || DAY.meals[slot]) return;
     const from = computeScore(componentsNow());
@@ -1901,8 +1904,6 @@ export const act = {
   },
 
   // Back-compat aliases (camera/search buttons and older routes) → the single logMeal impl.
-  logDinner() { this.logMeal('dinner'); },
-  day0Meal() { this.logMeal('breakfast'); },
   submitRecovery(ciValues) {
     if (DAY.ciSubmitted) return;
     const from = computeScore(componentsNow());
@@ -2896,53 +2897,11 @@ export const act = {
     save(); saveMeal();
   },
 
-  /* Manual entry (food search / label scan): stage the REAL built plate as the meal to log —
-     the actual macros the athlete assembled, not a demo constant. No AI "quality" is invented.
-     `source` distinguishes 'manual' (search-built plate) from 'label' (typed off the panel —
-     exact numbers, never estimated) so every downstream surface says the honest thing. */
-  captureManual(macros, foods, slot, source = 'manual') {
-    MEAL.key = nextOpenSlot(slot) || slot || 'dinner';
-    MEAL.mealType = cap(MEAL.key);
-    MEAL.photoBase64 = null; MEAL.photoDataUrl = null;
-    MEAL.live = true; // manual entries have no photo provenance — never inherit a prior gallery pick's non-live flag
-    MEAL.source = source === 'label' ? 'label' : 'manual';
-    MEAL.photoHash = null; MEAL.takenAt = null;
-    MEAL.memoryId = null; MEAL.memoryTimes = null; // never inherit a prior staged saved-meal
-    MEAL.capturedAtMin = minutesNow();
-    MEAL.result = {
-      quality: null,
-      protein: Math.round(macros.protein || 0), carbs: Math.round(macros.carbs || 0),
-      fat: Math.round(macros.fat || 0), kcal: Math.round(macros.kcal || 0),
-      detected: Array.isArray(foods) ? foods.slice(0, 8) : [], note: '',
-    };
-    saveMeal();
-  },
+  /* The manual-entry staging and the one-tap saved-meal re-log are gone
+     (2026-09-25): no meal is logged without a photo. Search, labels, barcodes and saved meals
+     PLAN a meal now (plan-today.js planSlot / planSavedMeal); only the camera commits one. */
 
   /* ---------------- Food Memory (0192): the Plan intelligence hub ---------------- */
-
-  /** One-tap re-log: stage a saved meal/order into the next open slot and route through the
-   *  SAME #meal-analysis confirm gate every other path uses (WS7: review before it counts).
-   *  No photo, no AI call — the macros are the saved item's own, at its stored trust tier.
-   *  Returns true when staged (caller navigates), false when the item is gone. */
-  stageSavedMeal(itemId) {
-    const fm = foodMemory(RT.userId);
-    const item = fm && fm.items.find((x) => x.id === itemId && x.status !== 'archived');
-    if (!item) return false;
-    const comp = Array.isArray(item.items) ? item.items.filter((c) => c && c.name) : [];
-    this.captureManual(
-      { protein: item.protein, carbs: item.carbs, fat: item.fat, kcal: item.kcal },
-      comp.length ? comp.map((c) => c.name) : [item.name],
-      null, 'manual'
-    );
-    // captureManual stamps the shared fields; these three make it a MEMORY log, not a manual one.
-    MEAL.source = 'memory';
-    MEAL.memoryId = item.id; MEAL.memoryTimes = item.times_logged;
-    MEAL.result.name = item.name;
-    MEAL.result.fiber = item.fiber || 0;
-    if (comp.length) MEAL.result.detectedRich = comp.slice(0, 8);
-    saveMeal();
-    return true;
-  },
 
   /** Accept a passive "save it as your usual?" suggestion (or save straight from a logged meal).
    *  Best-effort — memory can never block logging. `placeName` (optional) files it under a place. */

@@ -148,6 +148,24 @@ export function buildToday({ order, meals = {}, scored, macros = {}, plans = {},
   };
 }
 
+/**
+ * A LATER row's one line (fix round 2026-09-25): each slot says its own thing. Planned: the plan's
+ * name. Numbers styles: "About Ng protein" (or calories when only those show), the same split the
+ * card uses. Intuitive: "Ideas ready". An optional slot while required meals remain: "Optional".
+ * Ideas themselves appear only when the slot is tapped into the card.
+ */
+export function laterLine(T, slot, { showMacros, showCalories }) {
+  const s = (T.slots || []).find((x) => x.key === slot);
+  if (!s) return '';
+  if (s.plan) return s.plan.name;
+  if (!s.required && !T.allRequiredIn) return 'Optional';
+  if (!showMacros && !showCalories) return 'Ideas ready';
+  const rem = s.required ? T.mealsRemaining : 0;
+  if (showMacros && T.left.protein > 0) return `About ${perMealShare(T.left.protein, rem)}g protein`;
+  if (showCalories && T.left.kcal > 0) return `About ${perMealShare(T.left.kcal, rem, 50).toLocaleString('en-US')} cal`;
+  return 'Ideas ready';
+}
+
 /** How full the protein ring is, and where the ghost of the planned meals ends. 0..1 each. */
 export function ringFractions({ target, consumed, planned }) {
   const t = Number(target) || 0;

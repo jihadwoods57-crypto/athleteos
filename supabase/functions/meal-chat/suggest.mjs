@@ -20,7 +20,7 @@ import { namesAny, cleanPrefItem, prefsPromptText } from '../_shared/food-prefs.
 
 export const SUGGEST_MEAL_TOOL = {
   name: 'suggest_meal',
-  description: 'The athlete asked WHAT TO EAT or HOW TO CLOSE a gap ("what should I eat", "how do I hit my protein", "what closes the day"). Call this INSTEAD of reply: the app fills in up to three of the athlete\'s own saved usual meals that fit what is left of their day, each one tap from being logged. You write only the framing line and a fallback sentence. Never call it unprompted, and never for a question that is not about what to eat next.',
+  description: 'The athlete asked WHAT TO EAT or HOW TO CLOSE a gap ("what should I eat", "how do I hit my protein", "what closes the day"). Call this INSTEAD of reply: the app fills in up to three of the athlete\'s own saved usual meals that fit what is left of their day, each one tap from being planned (they log it with a photo). You write only the framing line and a fallback sentence. Never call it unprompted, and never for a question that is not about what to eat next.',
   input_schema: {
     type: 'object',
     properties: {

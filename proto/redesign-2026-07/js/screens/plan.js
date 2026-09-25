@@ -332,7 +332,8 @@ function legacyStylePrompt() {
 const overview = () => `
   ${legacyStylePrompt()}
   <div data-vt-row="plan-today">${TODAY ? TODAY.todayHtml() : skeletonRows(3, 'Loading your plan')}</div>
-  ${askSection('overview')}`;
+  ${/* No Ask OnStandard / Ask your coach row on Today (fix round 2026-09-25): the card's one
+        "Ask Nia for other ideas" link is the ask here. The other three tabs keep the row. */''}`;
 
 /* ---------------- Nutrition tab ---------------- */
 

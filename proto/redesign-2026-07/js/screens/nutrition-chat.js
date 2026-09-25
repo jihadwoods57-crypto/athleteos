@@ -25,6 +25,7 @@ import { MEAL_KEYS, DAY } from '../day.js';
 import { icon } from '../icons.js';
 import { backHead, esc, safeImg, composer, aiDisclaimer } from '../components.js';
 import { decideAiTurn } from '../ai-thread.js';
+import { planSavedMeal, plannedPick } from '../plan-today.js';
 import { threadMessages, reactionGroups, REACTION_EMOJI, contextForChat } from '../meal-intel.js';
 import { foodMemory, warmFoodMemory } from '../food-memory-data.js';
 import { remainingToday } from '../food-memory.js';
@@ -452,7 +453,7 @@ export default {
 
     // What should I eat (2026-09-10), exactly as the meal thread draws it: the AI framed it and
     // Food Memory fills it at paint time against the live day, the same remaining math Plan > Ask
-    // uses. A tap stages the meal through Plan's own one-tap re-log path.
+    // uses. A tap PLANS the meal (plan-today.js planSavedMeal); only a photo logs it.
     const suggestRemaining = () => {
       const PS = S.planStyle || {}, T = S.planTargets || {}, c = S.dayConsumed || {};
       return remainingToday({
@@ -464,7 +465,8 @@ export default {
     const bubbleText = (c) => {
       const sug = mealSuggestOf(c);
       if (!sug) return c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc);
-      return mealSuggestHtml(sug, fillMealSuggestion(sug, suggestItems(), suggestRemaining()), esc);
+      const picks = fillMealSuggestion(sug, suggestItems(), suggestRemaining());
+      return mealSuggestHtml(sug, picks, esc, plannedPick(picks));
     };
 
     const load = async ({ older = false } = {}) => {
@@ -522,13 +524,16 @@ export default {
       // A remember-this answer. The tap is the ONLY thing that lets a chat-heard fact bind; the
       // chips go on the next paint and the confirmation itself is state.js's, shared with the
       // meal thread's pending-fact row.
-      // A suggested usual meal: stage it through the same confirm gate Plan's one-tap re-log
-      // uses (plan.js data-fm-log), so it is reviewed before it counts.
-      const fm = ev.target && ev.target.closest ? ev.target.closest('[data-fm-log]') : null;
+      // A suggested usual meal PLANS the next open slot (plan-today.js, the same DAY.plans door
+      // Plan > Today uses) and never logs it: no meal is logged without a photo (2026-09-25). The
+      // bubble then confirms in place, and its camera button is the way to log it.
+      const fm = ev.target && ev.target.closest ? ev.target.closest('[data-fm-plan]') : null;
       if (fm) {
-        if (act.stageSavedMeal(fm.getAttribute('data-fm-log'))) location.hash = '#meal-analysis';
+        if (planSavedMeal(fm.getAttribute('data-fm-plan'))) paint();
         return;
       }
+      const snap = ev.target && ev.target.closest ? ev.target.closest('[data-fm-snap]') : null;
+      if (snap) { window.__go('camera/' + snap.getAttribute('data-fm-snap')); return; }
       const fx = ev.target && ev.target.closest ? ev.target.closest('[data-fact]') : null;
       if (fx) {
         const id = fx.getAttribute('data-fact');

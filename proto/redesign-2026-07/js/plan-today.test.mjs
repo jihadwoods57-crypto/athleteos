@@ -376,3 +376,74 @@ test('ring fractions: the ghost starts where the real fill ends and never passes
   assert.deepEqual(M.ringFractions({ target: 200, consumed: 180, planned: 60 }), { fill: 0.9, ghost: 1 });
   assert.deepEqual(M.ringFractions({ target: 0, consumed: 10, planned: 10 }), { fill: 0, ghost: 0 });
 });
+
+/* ---------------------------------------------------------------- fix round (2026-09-25) */
+
+test('LATER rows: each slot says its own thing, never another slot\'s ideas', () => {
+  const meals = { breakfast: true, lunch: false, dinner: false, snack: false };
+  const T = M.buildToday({ order: classic, meals, target: { protein: 180, kcal: 3000 }, consumed: { protein: 46, kcal: 600 }, deadline: () => 1440 });
+  assert.equal(T.upNext, 'lunch');
+  const nums = { showMacros: true, showCalories: true };
+  assert.equal(M.laterLine(T, 'dinner', nums), `About ${M.perMealShare(134, 2)}g protein`, 'the same split the card uses');
+  assert.equal(M.laterLine(T, 'snack', nums), 'Optional', 'an optional slot claims no share while required meals remain');
+  assert.equal(M.laterLine(T, 'dinner', { showMacros: false, showCalories: false }), 'Ideas ready');
+  assert.equal(M.laterLine(T, 'dinner', { showMacros: false, showCalories: true }), `About ${M.perMealShare(2400, 2, 50).toLocaleString('en-US')} cal`);
+  const P = M.buildToday({ order: classic, meals, plans: { dinner: { name: 'Salmon and rice', protein: 45, kcal: 700, source: 'usual' } }, target: { protein: 180 }, consumed: { protein: 46 }, deadline: () => 1440 });
+  assert.equal(M.laterLine(P, 'dinner', nums), 'Salmon and rice', 'a planned slot shows its plan');
+  const all = M.buildToday({ order: classic, meals: { breakfast: true, lunch: true, dinner: true, snack: false }, target: { protein: 180 }, consumed: { protein: 150 } });
+  assert.equal(M.laterLine({ ...all, upNext: 'x' }, 'snack', nums), 'About 30g protein', 'with every required meal in, the snack carries the gap');
+});
+
+test('RENDER: later rows carry no idea names; ideas appear only in the card', async () => {
+  await seedToday();
+  setStyle('structured');
+  const html = PT.todayHtml();
+  const later = html.slice(html.indexOf('Later today'), html.indexOf('>Logged<') > 0 ? html.indexOf('>Logged<') : undefined);
+  for (const u of USUALS.slice(0, 3)) assert.doesNotMatch(later, new RegExp(u.name), `${u.name} is not repeated in a later row`);
+  assert.match(later, /About \d+g protein|Optional/);
+});
+
+test('the plate: protein blue, carbs amber, vegetables green, each its own lightness, legend matched', () => {
+  const css = read('..', 'css', 'screens.css');
+  const tok = read('..', 'css', 'tokens.css');
+  const darkBlock = tok.slice(0, tok.indexOf(':root[data-theme="light"]'));
+  const lightBlock = tok.slice(tok.indexOf(':root[data-theme="light"]'));
+  const val = (block, name) => { const m = block.match(new RegExp(`${name}:\\s*(#[0-9A-Fa-f]{6})`)); return m && m[1]; };
+  const L = (h) => { const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const cr = (a, b) => { const x = L(a), y = L(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+  const pick = (block, varName) => {
+    const m = block.match(new RegExp(`${varName}:\\s*var\\((--[a-z-]+)\\)`));
+    assert.ok(m, `${varName} is defined from a token`);
+    return m[1];
+  };
+  const ptRoot = css.slice(css.indexOf('--pt-plate-pr'));
+  const ptLight = css.slice(css.indexOf(':root[data-theme="light"] { --pt-goal-ink'));
+  for (const [themeCss, tokens, bg] of [[ptRoot, darkBlock, val(darkBlock, '--bg')], [ptLight, lightBlock, val(lightBlock, '--bg')]]) {
+    const pr = val(tokens, pick(themeCss, '--pt-plate-pr')) || val(darkBlock, pick(themeCss, '--pt-plate-pr'));
+    const cb = val(tokens, pick(themeCss, '--pt-plate-cb')) || val(darkBlock, pick(themeCss, '--pt-plate-cb'));
+    const vg = val(tokens, pick(themeCss, '--pt-plate-vg')) || val(darkBlock, pick(themeCss, '--pt-plate-vg'));
+    assert.match(pick(themeCss, '--pt-plate-pr'), /blue/);
+    assert.match(pick(themeCss, '--pt-plate-cb'), /amber/);
+    assert.match(pick(themeCss, '--pt-plate-vg'), /green/);
+    for (const c of [pr, cb, vg]) assert.ok(cr(c, bg) >= 3, `${c} reads against ${bg} (graphics, 3:1)`);
+    const ls = [L(pr), L(cb), L(vg)].sort((a, b) => a - b);
+    assert.ok((ls[1] + 0.05) / (ls[0] + 0.05) >= 1.3 && (ls[2] + 0.05) / (ls[1] + 0.05) >= 1.3, 'three distinct lightnesses');
+  }
+  for (const g of ['pr', 'cb', 'vg']) {
+    assert.match(css, new RegExp(`\\.pt-pl-${g} \\{ fill: var\\(--pt-plate-${g}\\); \\}`));
+    assert.match(css, new RegExp(`\\.pt-rules i\\.${g} \\{ background: var\\(--pt-plate-${g}\\); \\}`));
+  }
+  assert.doesNotMatch(css.slice(css.indexOf('.pt-rules i.pr')), /pt-pl-[a-z]+ \{ fill: rgba\(var\(--teal-rgb\)/);
+});
+
+test('TAB: any plan/<sub> route lights Plan, not whatever tab came before', () => {
+  const router = read('router.js');
+  assert.match(router, /if \(ROOT_TAB\[route\] && \(!sub \|\| \(Array\.isArray\(mod\.subs\) && mod\.subs\.includes\(typeof mod\.resolveSub === 'function' \? mod\.resolveSub\(sub\) : sub\)\)\) && !denied\) NAV\.tab = ROOT_TAB\[route\];/);
+});
+
+test('DECLUTTER: Today has no Ask OnStandard / Ask your coach row; the other Plan tabs keep it', () => {
+  const plan = read('screens', 'plan.js');
+  const ov = plan.slice(plan.indexOf('const overview = () =>'), plan.indexOf('/* ---------------- Nutrition tab'));
+  assert.doesNotMatch(ov, /askSection\(/);
+  for (const t of ["askSection('nutrition')", "askSection('requirements')", "askSection('memory')"]) assert.ok(plan.includes(t), t);
+});

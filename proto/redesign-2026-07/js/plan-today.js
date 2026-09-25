@@ -21,7 +21,7 @@ import { recentRows } from './recent-meals.js';
 import { PREF_FLAGS, PREF_LIST_MAX, cleanFoodPrefs, cleanPrefItem, prefsKey, avoidWords } from './food-prefs.js';
 import {
   slotOrder, buildToday, ringFractions, rankIdeas, ideaMeta, ideaTag, shortName, planHeading,
-  slotTargetLine, goalWords, planFromIdea, readIdeasCache, writeIdeasCache,
+  slotTargetLine, goalWords, planFromIdea, readIdeasCache, writeIdeasCache, laterLine,
 } from './plan-today-model.js';
 import { aiConsentCached, isConsentSkip, noteAiConsentRequired } from './ai-consent.js';
 
@@ -115,6 +115,55 @@ function ideasFor(slot, slotTarget, max = 3) {
     nia = (s && readIdeasCache(s, RT.userId, DAY.date, slot, prefsKey(myPrefs()))) || [];
   }
   return rankIdeas({ usuals: own, nia, slotTarget, avoid: avoid(), max });
+}
+
+/* ---------------- ONE door for a plan (Today, the chat picks, search, label, barcode) ----------------
+   Every surface that can put a meal in front of the athlete PLANS it here and nowhere else: no meal
+   is logged without a photo (founder rule, 2026-09-25). A plan rides DAY.plans -> checkin.plans and
+   no scoring path reads it. */
+export function setPlan(slot, plan) {
+  if (!slot) return false;
+  DAY.plans = { ...(DAY.plans || {}), [slot]: plan || null };
+  pushDay(RT.userId);
+  return true;
+}
+
+/** The slot a plan from outside Today lands on: the same "up next" Today would show, never a
+ *  slot the athlete tapped into Today's card by hand. */
+function nextSlot() {
+  const T = buildToday({
+    order: slotOrder(RT.stdMeals), meals: DAY.meals, scored: (k) => mealScored(DAY, k), macros: DAY.slotMacros,
+    plans: DAY.plans || {}, deadline: (k) => slotDeadline(k) + slotGrace(k), nowMin: minutesNow(),
+  });
+  return T.upNext;
+}
+
+/** Plan any meal for `slot` (or the next open one). Returns { slot, title } or null. */
+export function planSlot(slot, { name, protein, kcal, source = 'usual' } = {}) {
+  const k = slot && !DAY.meals[slot] ? slot : nextSlot();
+  const p = planFromIdea({ name, protein, kcal, source }, new Date().toISOString());
+  if (!k || !p) return null;
+  setPlan(k, p);
+  return { slot: k, title: slotTitle(k) };
+}
+
+/** A saved usual from a chat pick: planned for the next open slot. null when the item is gone. */
+export function planSavedMeal(itemId) {
+  const fm = foodMemory(RT.userId);
+  const it = fm && fm.items.find((x) => x.id === itemId && x.status !== 'archived');
+  if (!it) return null;
+  return planSlot(null, { name: it.name, protein: it.protein, kcal: it.kcal, source: 'usual' });
+}
+
+/** The pick among `picks` that is an OPEN slot's plan right now, for the chat's confirmation. */
+export function plannedPick(picks) {
+  const plans = DAY.plans || {};
+  for (const [slot, p] of Object.entries(plans)) {
+    if (!p || !p.name || DAY.meals[slot]) continue;
+    const hit = (picks || []).find((x) => x && x.name === p.name);
+    if (hit) return { slot, title: slotTitle(slot), name: p.name };
+  }
+  return null;
 }
 
 /* ---------------- the hero ---------------- */
@@ -243,11 +292,8 @@ function laterHtml(ctx) {
   const { T } = ctx;
   if (!T.later.length) return '';
   const rows = T.later.map((k) => {
-    const s = T.slots.find((x) => x.key === k);
     const title = slotTitle(k);
-    const ideas = s.plan ? [] : ideasFor(k, T.slotTarget, 2).map((i) => i.name);
-    const sub = s.plan ? `Planned: ${s.plan.name}`
-      : [!s.required ? 'Optional' : s.late ? 'Late, still counts' : '', ideas.join(' · ')].filter(Boolean).join(' · ') || mealDueState(k).label;
+    const sub = laterLine(T, k, ctx.PS);
     return `<div class="pl-row tap pt-row pt-later" role="button" tabindex="0" data-pt-focus="${esc(k)}">
       <div class="req-icon muted s38">${icon(k === 'breakfast' || k === 'lunch' || k === 'dinner' || k === 'snack' ? k : 'utensils', 18)}</div>
       <div class="plb"><div class="plt"><span class="nm">${esc(title)}</span></div><div class="pls">${esc(sub)}</div></div>
@@ -367,8 +413,7 @@ export function wireToday(root, { openGoal } = {}) {
     if (t.closest('#pt-why')) { if (openGoal) openGoal(); return; }
     if (t.closest('#pt-ask') && card) { void askNia(card.dataset.ptSlot); return; }
     if (t.closest('#pt-change') && card) {
-      DAY.plans = { ...(DAY.plans || {}), [card.dataset.ptSlot]: null };
-      pushDay(RT.userId);
+      setPlan(card.dataset.ptSlot, null);
       repaint();
       return;
     }
@@ -379,8 +424,7 @@ export function wireToday(root, { openGoal } = {}) {
       const pick = ideasFor(k, ctx.T.slotTarget).find((i) => i.id === plan.dataset.ptPick);
       const p = pick && planFromIdea(pick, new Date().toISOString());
       if (!p) return;
-      DAY.plans = { ...(DAY.plans || {}), [k]: p };
-      pushDay(RT.userId);
+      setPlan(k, p);
       repaint();
       return;
     }

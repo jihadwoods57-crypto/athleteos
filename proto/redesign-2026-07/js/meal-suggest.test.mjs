@@ -66,12 +66,12 @@ test('the fill never exceeds max and returns nothing from nothing', () => {
   assert.deepEqual(fillMealSuggestion(sug, null, null), []);
 });
 
-test('the bubble is the framing plus one tap target per pick, on Plan\'s own data-fm-log selector', () => {
+test('the bubble is the framing plus one tap target per pick; a tap PLANS (data-fm-plan), never logs', () => {
   const sug = mealSuggestOf(row(SUG_META));
   const html = mealSuggestHtml(sug, fillMealSuggestion(sug, ITEMS, { protein: 40, kcal: 700 }), esc);
   assert.ok(html.startsWith(esc(SUG_META.framing)));
-  assert.equal((html.match(/data-fm-log="/g) || []).length, 2);
-  assert.match(html, /data-fm-log="a"[^>]*>Chicken and rice · 45g protein · 620 kcal</);
+  assert.equal((html.match(/data-fm-plan="/g) || []).length, 2);
+  assert.match(html, /data-fm-plan="a"[^>]*>Chicken and rice · 45g protein · 620 kcal</);
   assert.doesNotMatch(html, /A protein-forward plate/, 'the fallback is not shown when there are picks');
   assert.doesNotMatch(html, /style="/, 'no inline style; the chips are the shared .fx-chip');
 });
@@ -80,7 +80,7 @@ test('the bubble is never empty: no fitting meal shows the framing AND the fallb
   const sug = mealSuggestOf(row(SUG_META));
   const html = mealSuggestHtml(sug, [], esc);
   assert.equal(html, esc(`${SUG_META.framing} ${SUG_META.fallback}`));
-  assert.doesNotMatch(html, /data-fm-log/);
+  assert.doesNotMatch(html, /data-fm-plan/);
   // Identical sentences are not printed twice.
   const same = mealSuggestOf(row({ t: 'meal_suggest', framing: 'One line.', fallback: 'One line.' }));
   assert.equal(mealSuggestHtml(same, [], esc), 'One line.');
@@ -92,7 +92,7 @@ test('pickLabel reads like Plan > Ask and escapes through the caller', () => {
   assert.equal(pickLabel({ name: 'Eggs', protein: 0, kcal: 0 }), 'Eggs');
   const html = mealSuggestHtml(mealSuggestOf(row(SUG_META)), [{ id: 'x<y', name: '<b>Bad</b>', protein: 1, kcal: 1 }], esc);
   assert.doesNotMatch(html, /<b>/);
-  assert.match(html, /data-fm-log="x&lt;y"/);
+  assert.match(html, /data-fm-plan="x&lt;y"/);
 });
 
 test('usual meals reach the model bounded: eight at most, verified and most-logged first, names cleaned', () => {

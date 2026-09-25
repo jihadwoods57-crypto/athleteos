@@ -751,7 +751,9 @@ function render(opts) {
   // Profile lit (spec §10.4). mod.tab remains the fallback for direct/deep links.
   // A denied route never stamps a tab: it is not being rendered, and lighting the tab of a
   // dashboard the user was just refused would be the shell claiming they are somewhere they are not.
-  if (ROOT_TAB[route] && !sub && !denied) NAV.tab = ROOT_TAB[route];
+  // A tab strip's own subs (Plan's Today / Nutrition / Requirements / Food Memory) are the root
+  // too: #plan/nutrition opened cold used to leave whatever tab came before (Home) lit.
+  if (ROOT_TAB[route] && (!sub || (Array.isArray(mod.subs) && mod.subs.includes(typeof mod.resolveSub === 'function' ? mod.resolveSub(sub) : sub))) && !denied) NAV.tab = ROOT_TAB[route];
   const navRole = navFor(mod, RT.authRole);
   const roleTabs = (NAVS[navRole] || NAVS.athlete).map((t) => t.id);
   const activeTab = roleTabs.includes(NAV.tab) ? NAV.tab : (mod.tab || route);

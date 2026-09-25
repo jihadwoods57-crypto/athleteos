@@ -298,7 +298,7 @@ export function memoryOfferChips(offer, esc) {
    plain text (framing + fallback, complete on its own) with meta { t: 'meal_suggest', proteinGap,
    kcalGap, framing, fallback }. The two athlete-facing renderers draw the framing line and then
    up to three of the athlete's OWN saved meals, ranked by the same rule Plan > Ask uses, each one
-   tap from being staged. The other renderers (coach.js, trust.js) show the text and lose nothing.
+   tap from being planned. The other renderers (coach.js, trust.js) show the text and lose nothing.
    Only `role: 'ai'` rows count, as for memory offers: a client can write meta on its own rows. */
 export function isMealSuggest(comment) {
   return !!(comment && comment.role === 'ai' && comment.meta && comment.meta.t === 'meal_suggest');
@@ -350,10 +350,14 @@ export function pickLabel(p) {
   return bits.length ? `${p.name} · ${bits.join(' · ')}` : p.name;
 }
 
-/** The bubble body. Picks render as tap targets on `[data-fm-log]`, the selector Plan already
- *  delegates to act.stageSavedMeal; with no fitting pick the fallback sentence stands in, so the
- *  bubble is never a framing line over nothing. `esc` is passed in like memoryOfferChips takes it. */
-export function mealSuggestHtml(sug, picks, esc) {
+/** The bubble body. Picks render as tap targets on `[data-fm-plan]`: a tap PLANS the meal for the
+ *  next open slot (plan-today.js planSavedMeal, the same DAY.plans door Plan > Today uses) and never
+ *  logs it, because no meal is logged without a photo (founder rule, 2026-09-25). Once one of the
+ *  picks is a slot's plan (`planned`, from plan-today.js plannedPick) the chips give way to the
+ *  confirmation and a camera button on `[data-fm-snap]`. With no fitting pick the fallback sentence
+ *  stands in, so the bubble is never a framing line over nothing. `esc` is passed in like
+ *  memoryOfferChips takes it. */
+export function mealSuggestHtml(sug, picks, esc, planned = null) {
   if (!sug) return '';
   const list = Array.isArray(picks) ? picks : [];
   /* Nia's words, drawn like every other row of hers (richText: escaped first, then the marks).
@@ -361,8 +365,13 @@ export function mealSuggestHtml(sug, picks, esc) {
      "**180g**" (founder's iPhone, 2026-09-24): the what-to-eat reply is the only AI row that
      never reached richText. */
   if (!list.length) return richText(sug.framing === sug.fallback ? sug.framing : `${sug.framing} ${sug.fallback}`, esc);
+  if (planned && planned.slot) {
+    const t = String(planned.title || planned.slot).toLowerCase();
+    return `${richText(sug.framing, esc)}<div class="fq-planned"><span>${esc(`Planned for ${t}. Snap it when you eat.`)}</span>
+      <button type="button" class="fx-chip fq-snap" data-fm-snap="${esc(planned.slot)}">${icon('camera', 15)}Snap ${esc(t)}</button></div>`;
+  }
   return `${richText(sug.framing, esc)}<div class="fq-chips">${list.map((p) =>
-    `<button type="button" class="fx-chip" data-fm-log="${esc(p.id)}">${esc(pickLabel(p))}</button>`).join('')}</div>`;
+    `<button type="button" class="fx-chip" data-fm-plan="${esc(p.id)}">${esc(pickLabel(p))}</button>`).join('')}</div>`;
 }
 
 /**

@@ -27,6 +27,7 @@ import { recentRows, warmRecent as warmRecentShared } from '../recent-meals.js';
 import { foodMemory, warmFoodMemory } from '../food-memory-data.js';
 import { remainingToday } from '../food-memory.js';
 import { decideAiTurn } from '../ai-thread.js';
+import { planSavedMeal, plannedPick } from '../plan-today.js';
 import {
   layoutThread, visibleThread, MUTED_HIDDEN_NOTE,
   authorName, initialsFor, participantList, participantSummary, participantMeta,
@@ -386,10 +387,14 @@ export const analyzing = {
       if (r.aiOff) {
         const minor = aiMinorPending(RT.userId);
         if (phase) phase.textContent = minor ? 'Waiting on a parent.' : 'Nia is off.';
-        if (sub) sub.textContent = minor ? `Nothing was sent. ${AI_MINOR_LINE} Until then, log the meal with Search.` : 'Nothing was sent. Turn on Nia to have this photo read, or log the meal with Search.';
+        if (sub) sub.textContent = minor ? `Nothing was sent. ${AI_MINOR_LINE} You can still log the photo now; it counts for proof and timing.` : 'Nothing was sent. Turn on Nia to have this photo read, or log the photo now; it counts for proof and timing.';
         root.querySelector('.analyzing').insertAdjacentHTML('beforeend', `<div class="aic-off an-aioff">
           ${minor ? '' : `<button class="btn primary sm" id="an-ai-on">${icon('sparkle', 17)} Turn on Nia</button>`}
-          <button class="btn ghost sm" data-go="food-search">${icon('search', 17)} Log with Search</button></div>`);
+          <button class="btn ghost sm" id="an-log-photo">${icon('camera', 17)} Log the photo</button></div>`);
+        // The photo is right here, so it can be logged without a read (proof + timing credit).
+        // Post-paint content: the router never saw this button, so it carries its own tap.
+        const logPhoto = root.querySelector('#an-log-photo');
+        if (logPhoto) logPhoto.addEventListener('click', () => { const k = slot || MEAL.key; if (act.logMeal(k) !== false) window.__go('meal-thread/' + k, { dir: 'push', vt: 'plate' }); });
         const on = root.querySelector('#an-ai-on');
         if (on) on.addEventListener('click', async () => {
           if (await ensureAiConsent(RT.userId, { role: 'athlete', ask: true })) window.__render && window.__render();
@@ -1873,7 +1878,8 @@ export const thread = {
     const bubbleText = (c) => {
       const sug = mealSuggestOf(c);
       if (!sug) return c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc);
-      return mealSuggestHtml(sug, fillMealSuggestion(sug, suggestItems(), suggestRemaining()), esc);
+      const picks = fillMealSuggestion(sug, suggestItems(), suggestRemaining());
+      return mealSuggestHtml(sug, picks, esc, plannedPick(picks));
     };
 
     const paint = () => {
@@ -2352,13 +2358,16 @@ export const thread = {
     // Pending-read controls. Delegated on the root because openingBlockHtml re-renders these rows
     // on every repaint — a direct listener would be lost the first time the thread refreshed.
     root.addEventListener('click', (ev) => {
-      // A suggested usual meal: stage it through the same confirm gate Plan's one-tap re-log
-      // uses (plan.js data-fm-log), so it is reviewed before it counts.
-      const fm = ev.target && ev.target.closest ? ev.target.closest('[data-fm-log]') : null;
+      // A suggested usual meal PLANS the next open slot (plan-today.js, the same DAY.plans door
+      // Plan > Today uses) and never logs it: no meal is logged without a photo (2026-09-25). The
+      // bubble then confirms in place, and its camera button is the way to log it.
+      const fm = ev.target && ev.target.closest ? ev.target.closest('[data-fm-plan]') : null;
       if (fm) {
-        if (act.stageSavedMeal(fm.getAttribute('data-fm-log'))) location.hash = '#meal-analysis';
+        if (planSavedMeal(fm.getAttribute('data-fm-plan'))) paint();
         return;
       }
+      const snap = ev.target && ev.target.closest ? ev.target.closest('[data-fm-snap]') : null;
+      if (snap) { window.__go('camera/' + snap.getAttribute('data-fm-snap')); return; }
       // Memory confirmation: the athlete's tap is the ONLY thing that lets an inferred fact bind.
       const fx = ev.target && ev.target.closest ? ev.target.closest('[data-fact]') : null;
       if (fx) {
@@ -2485,8 +2494,8 @@ export const thread = {
             ...(turn ? { speaker: turn.outgoing, addressing: turn.decision, participants: turn.participants } : {}),
             // "I render the remember-this chips": unlocks the remember tool. Same contract.
             canRemember: true,
-            // "I fill a suggest_meal bubble from Food Memory and stage a tapped meal": unlocks
-            // the suggest_meal tool. Same contract; bubbleText + the data-fm-log tap close it.
+            // "I fill a suggest_meal bubble from Food Memory and plan a tapped meal": unlocks
+            // the suggest_meal tool. Same contract; bubbleText + the data-fm-plan tap close it.
             canSuggestMeal: true,
             ...(photoPath ? { photoPath } : {}),
           },
