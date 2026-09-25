@@ -16,6 +16,7 @@ import { layoutThread, MUTED_HIDDEN_NOTE, authorName, initialsFor, isAnalysisUpd
   isCorrectionReceipt, receiptCardHtml, playFreshReceipts, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta, personText,
   visibleThread, workingLabel,
 } from '../chat-view.js';
+import { bubblesHtml } from '../thread-polish.js';
 import { wireChatTimes } from '../chat-times.js';
 import {
   beginSend, endSend, takeFailed, setAiWorking,
@@ -415,7 +416,12 @@ function mountThread(root, mealId, meal) {
             ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : rq}
             ${/* No "Updated analysis" badge on correction replies (founder: robotic; the live
                   thread already dropped it) — the quote stem above says what it answers. */''}
-            <div class="bubble">${escalated ? `<span class="esc">${escalationChip(c, S.coach)}</span>` : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+            ${bubblesHtml(c, esc, {
+              photo: !!photo,
+              head: `${escalated ? `<span class="esc">${escalationChip(c, S.coach)}</span>` : ''}${bubblePhotoHtml(photo, esc)}`,
+              body: photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc),
+              after: rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : '',
+            })}
             ${deliveredHtml({ mine, isLast: c === lastMsg })}
           </div>
           ${msgTimeHtml(c, mvClock, esc)}

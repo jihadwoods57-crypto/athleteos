@@ -42,7 +42,7 @@ import { repairMealReport, verifyCorrectionMessage } from '../_shared/meal-verif
 import { productCacheKey } from '../_shared/food-resolve.ts';
 import { resolvePackagedProduct } from '../_shared/packaged-resolve.ts';
 import { groundPackagedItems, MAX_LOOKUPS as PACKAGED_MAX_LOOKUPS } from '../_shared/packaged-grounding.ts';
-import { composeOpenerText } from '../_shared/meal-opener.ts';
+import { composeOpener } from '../_shared/meal-opener.ts';
 import { athleteContextLine, positionWords, type AthleteContextIn } from '../_shared/athlete-context.ts';
 import { loadAthleteDossier, renderDossier } from '../_shared/athlete-dossier.mjs';
 import { clockLine, dayContextLine } from '../_shared/day-context.ts';
@@ -997,7 +997,7 @@ async function postOpener(
     const late = t && typeof t.minutesLate === 'number' ? t.minutesLate > 0
       : t && typeof t.minutesLeft === 'number' ? false
       : null;
-    const text = composeOpenerText(read, {
+    const { text, ask } = composeOpener(read, {
       planStyle,
       late,
       mealName: req.mealType ?? null,
@@ -1014,7 +1014,9 @@ async function postOpener(
 
     await service.from('meal_comments').insert({
       meal_id: mealId, athlete_id: userId, author_id: userId,
-      role: 'ai', kind: 'message', text, meta: { t: 'analysis' },
+      // `ask` (2026-09-25): the item the uncertainty line names, as data, so the athlete can answer
+      // it with one tap. Composed here from the grounded read's detected names, never from free text.
+      role: 'ai', kind: 'message', text, meta: ask ? { t: 'analysis', ask } : { t: 'analysis' },
     });
   } catch (e) {
     console.error('analyze-meal opener post failed:', e);

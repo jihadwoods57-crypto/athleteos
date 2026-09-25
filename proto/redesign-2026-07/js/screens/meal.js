@@ -18,7 +18,7 @@ import {
 } from '../chat-attach.js';
 import { openImageViewer } from '../image-viewer.js';
 import { openMembersSheet } from '../members-sheet.js';
-import { ensureAiConsent, isConsentSkip, noteAiConsentRequired, aiMinorPending, AI_MINOR_LINE, meetNiaDue, markMeetNia, MEET_NIA_TEXT } from '../ai-consent.js';
+import { ensureAiConsent, isConsentSkip, noteAiConsentRequired, aiMinorPending, AI_MINOR_LINE, meetNiaDue, markMeetNia, MEET_NIA_TEXT, aiConsentCached } from '../ai-consent.js';
 import { openMealQuestions, autoShownFor, markAutoShown } from '../meal-questions-sheet.js';
 import { hydrateAvatars } from '../avatar.js';
 import { wireTapback } from '../tapback.js';
@@ -42,8 +42,13 @@ import { wireChatTimes } from '../chat-times.js';
 import {
   beginSend, endSend, takeFailed, setAiWorking, aiWorkingOf,
   setReply, replyOf, clearReply, paintReplyChip, noteArrivals, syncLive, syncJump,
-  bindLive, wireThreadTaps, holdThread, followThread,
+  bindLive, wireThreadTaps, holdThread, followThread, pendingOf,
 } from '../chat-live.js';
+import {
+  bubblesHtml, askChipsFor, askChipsHtml, askReplyText, seenByLine,
+  composerChipsVisible, composerChipsHtml, composerChipOf,
+  quickSend, makeViewsCache, viewsKey, needsSeenRepaint, markSeenPainted,
+} from '../thread-polish.js';
 
 /* The meal score chip's ring, drawn as the brand dial (docs/brand/LOGO.md): a 300° gauge with
    a 60° gap at 6 o'clock and the signature --ring-a/b/c sweep — the same silhouette as the day
@@ -131,6 +136,21 @@ async function warmReceipt(rolesMod, uid, dateISO) {
   // difference between "reviewed" as a status and "Coach Brown saw this" as a fact.
   RECEIPT = { uid, date: dateISO, reviewed: !!(rows && rows.length), rows: rows || [], at: Date.now() };
 }
+
+/* Who on staff has opened THIS meal (0229 meal_views), for the thread's "Seen by" line. Same cache
+   idiom, keyed to the meal, 30s fresh: a coach opening the plate while the athlete watches shows up
+   on the next poll tick. `rows` is null when the read FAILED (offline, a pre-0229 server), which is
+   the one case the day-level receipt is allowed to stand in; undefined means not read yet, and
+   shows nothing rather than a line that is about to change. One read in flight is shared by every
+   mount; what each THREAD last painted is kept on that thread (thread-polish.js), so a mount whose
+   thread the router replaced can neither paint nor use up the change the live one needs. */
+const VIEWS = makeViewsCache();
+/* Nia's portion questions answered this session: the size chips go at the tap, before the refetch
+   brings the athlete's message back. */
+const ASKED = new Set();
+/** A staff or parent account on this screen: no tap-to-answer, no starters. The meal page is the
+ *  athlete's own; this only guards a stray deep link from another role. */
+const staffAccount = () => RT.authRole === 'coach' || RT.authRole === 'trainer' || RT.authRole === 'parent';
 
 /* Who is in the conversation (0158). Same session-cache idiom: membership does not change
    between two paints, and every mount would otherwise re-ask. */
@@ -707,11 +727,13 @@ export function openingBlockHtml(M, { sum, fullText, modelProse = false, hasPers
         <div class="bubble">${body}</div></div>
       </div>`, tail);
   }
+  // Drawn as the persisted opener will be (short texts, thread-polish.js), so the swap from this
+  // local bubble to the stored row a beat later stays invisible.
   return wrap(`
       <div class="msg ai last">
         <div class="av">${NIA_MARK}</div>
         <div class="stack">${whoHtml(AI_NAME, true)}
-        <div class="bubble">${body}</div></div>
+        ${fullText ? bubblesHtml({ role: 'ai', text: fullText, meta: { t: 'analysis' } }, esc, { body }) : `<div class="bubble">${body}</div>`}</div>
       </div>`, tail);
 }
 
@@ -1504,6 +1526,10 @@ export const thread = {
     <div class="chat-dock disc-dock dock-end">
     ${/* The note sits ABOVE the box, as calm small print (screens.css .cmp-note). */''}
     <div id="chat-note" class="cmp-note" role="status"></div>
+    ${/* Three starters for Nia above the box (thread-polish.js): the athlete's own meal only, only
+          when Nia is on for them. The mount hides them while the box has words in it. */''}
+    ${composerChipsVisible({ authRole: RT.authRole, ownMeal: !staffAccount(), mealId: M.mealId, consent: aiConsentCached(RT.userId || null), minorPending: aiMinorPending(RT.userId) })
+      ? composerChipsHtml(esc) : ''}
     ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: composerPrompt(S.coach.hasCoach, S.coach.noun), sendLabel: 'Send', attachId: 'meal-attach', atEnd: true })}
     <div class="composer-attach-pending" id="meal-attach-pending" hidden></div>
     </div>` : ''}
@@ -1794,6 +1820,7 @@ export const thread = {
     // clock skew between this device and Postgres could push the cursor past a row that's
     // legitimately new, which is exactly the silent-miss class of bug a scale fix must not add.
     let lastKnownAt = cacheHit ? THREAD_CACHE.lastKnownAt : null;
+    let threadLoaded = cacheHit;   // a repaint from a side read (who has seen it) waits for the thread itself
     let rxBusy = false; // one reaction write at a time — double-taps must not race into two rows
 
     // Message timestamps (feedback 2026-07-16: real chat mechanics). Local clock format;
@@ -1850,7 +1877,7 @@ export const thread = {
     };
 
     const paint = () => {
-      if (!threadEl) return;
+      if (!threadEl || !threadEl.isConnected) return;   // a replaced mount writes nothing, anywhere
       const msgs = threadMessages(comments);
       OFFERED_IN_THREAD.clear();
       for (const c of msgs) { const o = memoryOfferOf(c); if (o) OFFERED_IN_THREAD.add(o.id); }
@@ -1859,19 +1886,19 @@ export const thread = {
       // tail said "Coach hasn't reviewed this meal yet."):
       //   replied  — a coach actually wrote on THIS meal (comment/reaction row);
       //   reviewed — the coach marked the athlete's DAY reviewed (coach_views receipt);
-      //   seen     — the coach opened the day (a view receipt exists, "Seen by <name>").
-      // The header states the strongest one; the tail placeholder renders ONLY when none of the
-      // three holds, and says "seen", which is the thing it can honestly claim.
+      //   seen     — someone on staff opened THIS meal (0229 meal_views, "Seen by <name> · <time>"),
+      //              or, only when that read fails, the day-level receipt ("<name> opened your day").
+      // The header states the strongest one. The foot states only "seen", which is a fact about
+      // opening and so can never contradict "replied" or "reviewed" above it. The old placeholder
+      // for none of the three ("Your coach hasn't opened this yet") is GONE (founder 2026-09-25):
+      // the foot says nothing until someone has opened the meal.
       const coachSeen = (Array.isArray(comments) ? comments : []).some((c) => c && c.role === 'coach');
-      const dayReviewed = RECEIPT.uid === RT.userId && RECEIPT.date === String(DAY.date) && RECEIPT.reviewed;
-      const daySeen = (RECEIPT.rows || []).length > 0;
       // Upgrade the header status line from the real thread: a coach row = they actually replied.
       const csEl = root.querySelector('#coach-status');
       const Noun = S.coach.noun.charAt(0).toUpperCase() + S.coach.noun.slice(1);
       if (csEl && coachSeen) csEl.textContent = `${Noun} replied`;
       const tail = [];
       if (!msgs.length && !aiWorkingOf(M.mealId)) tail.push('No replies yet. Ask Nia about this meal below.');
-      if (S.coach.hasCoach && !coachSeen && !dayReviewed && !daySeen) tail.push(`Your ${S.coach.noun} hasn't opened this yet.`);
 
       // The pending / clarifying / failed rows are DERIVED, because they describe a read that has
       // not landed and so has nothing persisted to show. The READ ITSELF is now a real message in
@@ -1907,6 +1934,12 @@ export const thread = {
       // the jump pill's count (added). chat-live.js keeps this per meal across re-mounts.
       const { fresh, added } = noteArrivals(M.mealId, visible, RT.userId);
       const rxAt = reactionAnchor(visible);
+      // Nia's portion question, answerable with one tap while it is the newest thing said and the
+      // athlete has not written since (thread-polish.js askChipsFor). Never on a staff account.
+      const askAt = staffAccount() ? null : askChipsFor(visible, {
+        sending: pendingOf(M.mealId).length > 0, answered: ASKED,
+        consent: aiConsentCached(RT.userId || null), minorPending: aiMinorPending(RT.userId),
+      });
       const nameOfRow = (x) => (x.role === 'athlete' && (!x.author_id || x.author_id === RT.userId) ? 'You' : authorName(x, participants, RT.userId, S.coach.noun));
       const rows = layoutThread(shown, { muted: RT.mutedUsers, fmtTime: fmtMsgTime, fmtDay: dayKey, fmtDayLabel: dayLabelOf }).map((item) => {
         if (item.type === 'time') return timeSepHtml(item, esc);
@@ -1951,11 +1984,18 @@ export const thread = {
                   reply is just the AI's next message, like a person texting back. The quote stem
                   above already shows WHAT it answers. The escalation badge stays: "this reached
                   your coach" is a fact worth labeling. */''}
-            <div class="bubble">${escalated ? `<span class="esc">${escalationChip(c, S.coach)}</span>` : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : bubbleText(c)}${offerChips(c)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+            ${bubblesHtml(c, esc, {
+              photo: !!photo,
+              head: `${escalated ? `<span class="esc">${escalationChip(c, S.coach)}</span>` : ''}${bubblePhotoHtml(photo, esc)}`,
+              body: photoOnly ? '' : bubbleText(c),
+              after: `${offerChips(c)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}`,
+            })}
             ${deliveredHtml({ mine, isLast: c === lastMsg })}
           </div>
           ${msgTimeHtml(c, fmtMsgTime, esc)}
-        </div>`;
+        </div>${/* The size chips ride their own row under Nia's question, so her face stays beside
+                   her last bubble instead of sliding down beside the chips. */''}${askAt && askAt.id === String(c.id || '') ? `
+        <div class="msg ai tp-askrow"><div class="av-sp"></div><div class="stack">${askChipsHtml(askAt, esc)}</div></div>` : ''}`;
       }).join('');
 
       /* THE RECEIPT MUST BE TRUE (founder, 2026-08-06). Three things were wrong with it:
@@ -1977,13 +2017,30 @@ export const thread = {
         .map((r) => ({ ...r, _at: Date.parse(r && r.seen_at) }))
         .filter((r) => !isNaN(r._at) && r._at >= lastMsgAt)
         .sort((a, b) => b._at - a._at)[0] || null;
-      const seen = freshReceipt
+      const dayLine = freshReceipt
         ? (() => {
             const nm = String(freshReceipt.viewer_name || '').trim();
             const who = /^[A-Za-z][A-Za-z.'\- ]+$/.test(nm) ? nm : `Your ${S.coach.noun}`;
             return `${esc(who)} opened your day · ${esc(fmtMsgTime(freshReceipt.seen_at))}`;
           })()
         : '';
+      /* SEEN, PER MEAL (founder 2026-09-25). "Seen by Coach Grinch · 12:44 PM" once someone on
+         staff has opened THIS meal (0229 meal_views), in this phone's local time, named as the
+         thread names them; "and 1 other" for more. Nothing before that. A view older than the
+         athlete's own newest message is not shown (the rule above, pointed at a meal). The day
+         line stands in ONLY when the per-meal read failed. A solo athlete never sees a coach line. */
+      const mealViews = VIEWS.rowsFor(M.mealId);
+      const lastMineAt = visible.reduce((t, c) => {
+        if (!c || c.role !== 'athlete' || (c.author_id && c.author_id !== RT.userId)) return t;
+        const at = Date.parse(c.created_at || '');
+        return Number.isFinite(at) && at > t ? at : t;
+      }, 0);
+      const seen = !S.coach.hasCoach ? ''
+        : mealViews === null ? dayLine
+        : esc(seenByLine({
+          views: mealViews, selfId: RT.userId, participants, participantsReady: PARTICIPANTS.uid === RT.userId,
+          lastMineAt, fmtTime: fmtMsgTime,
+        }));
 
       // COACH LEADS, AI ASSISTS (founder 2026-08-04): when a coach has spoken on this meal,
       // their latest word is PINNED above the AI's opener so the human's voice frames the
@@ -2023,6 +2080,7 @@ export const thread = {
         // (chat-live.js syncLive), so Nia's dots never open up under "your coach hasn't opened this".
         + (seen ? `<div class="seen th-foot">${seen}</div>` : '')
         + (tail.length ? `<div class="msg-status th-foot">${tail.join(' ')}</div>` : '');
+      markSeenPainted(threadEl, viewsKey(mealViews));
       hydrateAvatars(threadEl);   // 0206: message monograms upgrade to real faces
       // FULL MESSAGES, ALWAYS (founder 2026-09-22). The Read more clamp is gone from every
       // renderer: the AI's read is long on purpose (2026-09-07 ruling) and a message you have to
@@ -2057,6 +2115,13 @@ export const thread = {
     // truth right now and calls refresh() with no args, which always does the full fetch.
     const refresh = async (opts = {}) => {
       const myGen = ++gen;
+      // Who has opened this meal rides every tick at its own 30s pace (VIEWS.warm), and repaints
+      // the foot only when it changed. Only for an athlete with a coach: nobody else sees the line.
+      if (S.coach.hasCoach) {
+        void VIEWS.warm(roles.fetchMealViews, M.mealId).then(() => {
+          if (threadLoaded && needsSeenRepaint(threadEl, viewsKey(VIEWS.rowsFor(M.mealId)))) paint();
+        }).catch(() => {});
+      }
       const probeSince = opts.probe && lastKnownAt ? lastKnownAt : null;
       const fetched = await roles.fetchMealComments(M.mealId, probeSince);
       if (myGen !== gen) return;
@@ -2069,7 +2134,7 @@ export const thread = {
       const fp = JSON.stringify(fetched);
       const changed = fp !== lastFetchFp;
       lastFetchFp = fp;
-      comments = fetched; if (statusEl) statusEl.remove();
+      comments = fetched; threadLoaded = true; if (statusEl) statusEl.remove();
       for (const row of Array.isArray(comments) ? comments : []) {
         if (row && row.created_at && (!lastKnownAt || row.created_at > lastKnownAt)) lastKnownAt = row.created_at;
       }
@@ -2248,6 +2313,41 @@ export const thread = {
       focusComposer(input);
     };
     root.querySelectorAll('.qa').forEach((b) => b.addEventListener('click', () => prefill(b.getAttribute('data-qa') || '')));
+    // The starters above the box are for an EMPTY box: gone the moment there are words in it,
+    // back once it is cleared (the stylesheet also hides them with the keyboard up).
+    const syncStarters = () => {
+      const row = root.querySelector('#tp-cmp');
+      const box = root.querySelector('#meal-msg');
+      if (row) row.classList.toggle('tp-off', !!(box && box.value.trim()));   // folds (screens.css), never steps
+    };
+    if (input) input.addEventListener('input', syncStarters);
+    syncStarters();
+
+    /* TAP TO ANSWER, delegated on #view (viewEl), NOT the device root: #view is rebuilt with every
+       render, so exactly one mount's handler is ever live. On the root, every repaint would add a
+       listener, and one tap would reach every stale mount's send. */
+    viewEl.addEventListener('click', (ev) => {
+      // Nia's portion question, answered in one tap: the chips go at once (and stay gone), and the
+      // answer is sent as the athlete's own message.
+      const sz = ev.target && ev.target.closest ? ev.target.closest('[data-tp-size]') : null;
+      if (sz) {
+        const id = sz.getAttribute('data-tp-ask') || '';
+        const row = sz.closest('.tp-ask');
+        // Spent only once the send is accepted: with one already in flight, the chips stay.
+        void sendQuick(askReplyText(sz.getAttribute('data-tp-food') || '', sz.getAttribute('data-tp-size') || 'regular'), {
+          onAccepted: () => { if (id) ASKED.add(id); if (row) row.remove(); },
+        });
+        return;
+      }
+      // A starter above the box: "What should I eat next?" sends; the other two fill the box.
+      const st = ev.target && ev.target.closest ? ev.target.closest('[data-tp-cmp]') : null;
+      if (st) {
+        const chip = composerChipOf(st.getAttribute('data-tp-cmp'));
+        if (chip && chip.send) void sendQuick(chip.text);
+        else if (chip) fillComposer(chip.text);
+        return;
+      }
+    });
 
     // Pending-read controls. Delegated on the root because openingBlockHtml re-renders these rows
     // on every repaint — a direct listener would be lost the first time the thread refreshed.
@@ -2552,10 +2652,30 @@ export const thread = {
       }
       setNote('');
       if (box) box.value = '';
+      syncStarters();
       attach.clear();
       clearReply(M.mealId);
       paintReplyChip(root.querySelector('#meal-disc .chat-dock'), M.mealId, esc);
       await deliver(claim.item);
+    };
+    /* TAP TO ANSWER (thread-polish.js). A chip that sends goes through the SAME path as Send: the
+       outbox bubble, the one-intent lock, the post, the coach's notification, and the addressing
+       gate, which routes it to Nia because every chip opens with "@Nia" or "Nia,". The box is left alone:
+       a chip is its own message, not the one being typed. */
+    const sendQuick = (text, { onAccepted = null } = {}) => quickSend(M.mealId, text, {
+      beginSend, deliver,
+      onAccepted: () => { setNote(''); if (onAccepted) onAccepted(); },
+      onDuplicate: () => setNote('You just sent that.'),
+    });
+    /** A starter that waits: the words go in the box, the caret at their end, the keyboard up. */
+    const fillComposer = (text) => {
+      const box = root.querySelector('#meal-msg') || input;
+      if (!box) return;
+      box.value = text;
+      box.dispatchEvent(new Event('input', { bubbles: true }));   // keyboard.js: .has-text, the fit
+      focusComposer(box);
+      try { box.setSelectionRange(text.length, text.length); } catch { /* not a text field */ }
+      syncStarters();
     };
     // Retry a bubble that did not land: the same words, photo and reply, as a fresh send.
     const retryItem = async (item) => {
