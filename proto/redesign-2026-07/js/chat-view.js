@@ -57,7 +57,8 @@ const KINDS = {
   team_admin: { ic: 'fileText', noun: 'Team admin', access: 'Sees this athlete’s meals and scores' },
   readonly: { ic: 'eye', noun: 'Staff', access: 'Can read this thread' },
   trainer: { ic: 'biceps', noun: 'Trainer', access: 'Sees this athlete’s meals and scores' },
-  guardian: { ic: 'shield', noun: 'Parent or guardian', access: 'Sees this athlete’s meals and scores' },
+  // 0081: a guardian reads ONLY a scoped summary (day, daily score, grade). Never meals or photos.
+  guardian: { ic: 'shield', noun: 'Parent or guardian', access: 'Sees daily scores and grades only, never meals or photos' },
   // A squad-board row (squad.js): not in any thread, but a person whose name and score you see,
   // and so a person you can report or mute (Guideline 1.2).
   teammate: { ic: 'user', noun: 'Teammate', access: 'On the squad board with you' },
@@ -74,9 +75,9 @@ export function initialsFor(name) {
 }
 
 /* The order a person would introduce the room in: the athlete, their coaches, a human
-   nutritionist or dietitian, a parent, then Nia last. */
+   nutritionist or dietitian, then Nia last. (Guardians are never in a meal thread; see below.) */
 const STAFF_KINDS = ['head_coach', 'assistant_coach', 'position_coach', 'coordinator', 'coach', 's_and_c', 'athletic_trainer', 'team_admin', 'readonly', 'nutritionist', 'dietitian'];
-const rankOf = (k) => (k === 'athlete' ? 0 : k === 'nutritionist' || k === 'dietitian' ? 2 : k === 'guardian' ? 3 : STAFF_KINDS.indexOf(k) !== -1 || k === 'trainer' ? 1 : 4);
+const rankOf = (k) => (k === 'athlete' ? 0 : k === 'nutritionist' || k === 'dietitian' ? 2 : STAFF_KINDS.indexOf(k) !== -1 || k === 'trainer' ? 1 : 3);
 
 /**
  * The facepile list: who to show, in the order a person would introduce them.
@@ -84,7 +85,10 @@ const rankOf = (k) => (k === 'athlete' ? 0 : k === 'nutritionist' || k === 'diet
  * than invented by the database.
  */
 export function participantList(rows, selfId) {
-  const list = Array.isArray(rows) ? rows.filter(Boolean) : [];
+  /* A guardian is NOT in the room (guardian ruling 2026-09-24): 0081 took meals and meal photos
+     away from guardians, but meal_thread_participants (0158) still lists them, so a parent showed
+     in the facepile and the members sheet as someone reading the meal chat. They cannot. */
+  const list = Array.isArray(rows) ? rows.filter((p) => p && String(p.kind || '') !== 'guardian') : [];
   const out = list.map((p) => (p.id && selfId && p.id === selfId
     ? { ...p, name: 'You', kind: String(p.kind || 'athlete'), self: true }
     : { ...p, kind: String(p.kind || '') }));
@@ -110,12 +114,15 @@ export function facesHtml(people, esc, n = 4) {
 /** What a conversation is called, from who is in it (2026-09-24): "Team discussion" only when team
  *  staff are in the room, "Discussion" with a personal trainer (or a parent), and "Chat with Nia"
  *  when it is the athlete and her alone. `guess` ({hasCoach, noun}) covers the beat before the
- *  participants land (or an RPC that failed), so a thread with a coach never reads as solo. */
-export function threadTitle(list, guess) {
+ *  participants land (or an RPC that failed), so a thread with a coach never reads as solo.
+ *  `msgs`: a thread that holds a past coach's messages (they have since left) is not a chat with
+ *  Nia alone, even with nobody else in the room today. */
+export function threadTitle(list, guess, msgs) {
   const people = (list || []).filter((p) => p && p.kind !== 'ai' && p.kind !== 'athlete');
   if (!people.length) {
-    if (!guess || !guess.hasCoach) return `Chat with ${AI_NAME}`;
-    return guess.noun === 'coach' ? 'Team discussion' : 'Discussion';
+    if (guess && guess.hasCoach) return guess.noun === 'coach' ? 'Team discussion' : 'Discussion';
+    const pastHuman = (Array.isArray(msgs) ? msgs : []).some((c) => c && c.role === 'coach');
+    return pastHuman ? 'Discussion' : `Chat with ${AI_NAME}`;
   }
   return people.some((p) => STAFF_KINDS.indexOf(p.kind) !== -1) ? 'Team discussion' : 'Discussion';
 }
@@ -235,6 +242,14 @@ export function isAnalysisUpdate(comment) {
 /** Is this the AI's original read of the plate? */
 export function isAnalysisOpener(comment) {
   return !!(comment && comment.role === 'ai' && comment.meta && comment.meta.t === 'analysis');
+}
+
+/** The chip over Nia's decline, athlete side. The row says whether a coach was actually told
+ *  (meta.coach, 2026-09-24); older rows fall back to whether this athlete has a coach at all. */
+export function escalationChip(comment, coach) {
+  const told = comment && comment.meta && typeof comment.meta.coach === 'boolean'
+    ? comment.meta.coach : !!(coach && coach.hasCoach && coach.kind !== 'trainer');
+  return told ? `${AI_NAME} sent this to your coach` : `${AI_NAME} can’t answer this one`;
 }
 
 /** Is this the AI's decline-and-hand-off message (flag_for_coach)? */
@@ -601,7 +616,10 @@ export function receiptNoteOf(comment) {
   return String(comment.meta.note || '').replace(/[<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 140);
 }
 
-export function receiptCardHtml(comment, esc, { fresh = false } = {}) {
+/* `first`: this receipt opens a run of Nia's rows (layoutThread's firstOfRun). It carries her name
+   then, because the reply after it is in the same run and so shows no name of its own: without
+   this, a correction receipt and Nia's answer read as an anonymous card and an unsigned bubble. */
+export function receiptCardHtml(comment, esc, { fresh = false, first = false } = {}) {
   const rows = correctionRowsOf(comment);
   if (!rows.length) return '';
   const note = receiptNoteOf(comment);
@@ -609,6 +627,7 @@ export function receiptCardHtml(comment, esc, { fresh = false } = {}) {
   return `
         <div class="msg ai last rcpt${fresh ? ' in' : ''}" data-cid="${id}" data-receipt="${id}">
           <div class="av">${NIA_MARK}</div>
+          <div class="stack rcpt-stack">${first ? whoHtml(AI_NAME, true, esc) : ''}
           <div class="corr-card in landed" role="status">
             <div class="corr-head">${icon('check', 14)}<span>Updated</span></div>
             ${note ? `<div class="corr-note">${esc(note)}</div>` : ''}
@@ -617,7 +636,7 @@ export function receiptCardHtml(comment, esc, { fresh = false } = {}) {
                 <span class="ck">${esc(r.label)}</span>
                 <span class="cv"><i class="was">${esc(String(r.from) + r.unit)}</i>${icon('arrowRight', 12)}<b class="${esc(r.band)}">${esc(String(r.to) + r.unit)}</b></span>
               </div>`).join('')}
-          </div>
+          </div></div>
         </div>`;
 }
 

@@ -38,9 +38,9 @@ export const ENTITLEMENT_LINE = 'Your score and stats are always free. Membershi
    tier, so every paying athlete already had all three. Two plans on this paywall now, not three. */
 export const CONSUMER_PLANS = [
   { id: 'individual', name: 'Individual', monthly: 19.99, annual: 199.99, trialDays: 14, seatLimit: 0,
-    blurb: 'For one athlete: Nia’s monthly review, your written monthly report, on top of everything that is already free.' },
+    blurb: 'For one athlete: Nia’s monthly review (your written monthly report), on top of everything that is already free.' },
   { id: 'family', name: 'Family', monthly: 24.99, annual: 249.99, trialDays: 14, seatLimit: 4,
-    blurb: 'One household, up to 4 athletes, one bill. Each athlete gets Nia’s monthly review, their written monthly report.' },
+    blurb: 'One household, up to 4 athletes, one bill. Each athlete gets Nia’s monthly review (their written monthly report).' },
 ];
 
 /* Guideline 2.3.10: an iOS build never names another platform. The store is the one this build

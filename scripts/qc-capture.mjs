@@ -72,6 +72,7 @@ const listen = `const mic = document.querySelector('.chat-dock .composer .cmp-mi
 const niaRpc = (name, data) => `if (window.sb) { const r0 = window.sb.rpc.bind(window.sb);
     const prev = window.sb.rpc; window.sb.rpc = (n, p) => (n === '${name}' ? Promise.resolve({ data: ${data}, error: null }) : prev.call(window.sb, n, p)); void r0; }`;
 const niaSolo = `const st = await import('./js/state.js'); st.RT.myCoach = null; st.RT.myTrainer = null;
+  window.__STUB_ROWS = (t, rows) => (t === 'meal_comments' ? rows.filter((r) => r.role !== 'coach' && !/coach/i.test(String((r.meta && r.meta.note) || ''))) : rows);
   ${niaRpc('meal_thread_participants', "[{ id: 'seed-athlete', name: 'Marcus Reed', kind: 'athlete' }]")}`;
 const niaMeet = `localStorage.setItem('os.aiConsent.seed-athlete', '1'); localStorage.removeItem('os.meetNia.seed-athlete');
   ${niaRpc('my_ai_consent', '{ ai_consent: true, minor_pending: false }')}`;

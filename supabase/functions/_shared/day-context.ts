@@ -55,13 +55,14 @@ const NEVER_WRITE =
  * like "Lunch (closes 1:30 PM)". Validated hard, because it is client text going into a prompt:
  * a clock that is not a clock, or a label with anything but plain words, renders nothing.
  */
-export function clockLine(a: { localTime?: unknown; next?: unknown } | null | undefined): string {
+export function clockLine(a: { localTime?: unknown; next?: unknown } | null | undefined, mode: 'now' | 'logged' = 'now'): string {
   if (!a || typeof a !== 'object') return '';
   const t = typeof a.localTime === 'string' ? a.localTime.trim().toUpperCase() : '';
   if (!/^(1[0-2]|[1-9]):[0-5]\d (AM|PM)$/.test(t)) return '';
   const rawNext = typeof a.next === 'string' ? a.next.replace(/\s+/g, ' ').trim().slice(0, 80) : '';
   const next = /^[\p{L}\p{N} .,:()'’&/+-]+$/u.test(rawNext) ? rawNext : '';
-  return ` Clock: it is ${t} where the athlete is.${next ? ` Next on their day: ${next}.` : ''} Let the hour shape the advice when it matters (fuel before a session, a lighter plate late at night, the next window), and never remark on the time for its own sake.`;
+  const when = mode === 'logged' ? `this meal was logged at ${t}, the athlete's local time.` : `it is ${t} where the athlete is.`;
+  return ` Clock: ${when}${next ? ` Next on their day: ${next}.` : ''} Let the hour shape the advice when it matters (fuel before a session, a lighter plate late at night, the next window), and never remark on the time for its own sake.`;
 }
 
 /** Render the day line, or '' when there is nothing honest to say. */

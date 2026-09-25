@@ -830,7 +830,8 @@ function userContent(req: AnalyzeReq, photoMime: string): unknown[] {
   // _shared/day-context.ts, which also decides WHERE IN THE DAY this plate sits — on the first
   // meal it withholds the zero total entirely, because handing the prompt a 0 is what produced
   // "Zero on the board for protein until now" over an athlete's breakfast (founder 2026-09-07).
-  const day = dayContextLine(req.dayContext) + clockLine(req.athlete);
+  // A meal read is about when the plate was eaten: the client sends the logged minute here.
+  const day = dayContextLine(req.dayContext) + clockLine(req.athlete, 'logged');
   // The foods behind that number (2026-09-07). Sanitized + bounded in _shared/day-meals.ts.
   const earlier = earlierMealsLine(req.earlierMeals);
   // The athlete's review-step note (what the camera can't see) — same sanitization as `description`.

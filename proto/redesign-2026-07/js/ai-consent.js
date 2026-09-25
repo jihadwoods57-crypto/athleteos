@@ -267,7 +267,8 @@ const MET = (uid) => `os.meetNia.${uid}`;
 
 /** True when this account has said yes to AI and has not been introduced to Nia yet. */
 export function meetNiaDue(uid) {
-  return !!uid && aiConsentCached(uid) === true && get(MET(uid)) !== '1';
+  // Never to a minor still waiting on a guardian: Nia is not on for them yet.
+  return !!uid && aiConsentCached(uid) === true && get(MET(uid)) !== '1' && !aiMinorPending(uid);
 }
 
 /** Nia has been introduced to this account (by the sheet or by the bubble). */

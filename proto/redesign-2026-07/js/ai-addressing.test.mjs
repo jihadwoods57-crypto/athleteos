@@ -231,3 +231,26 @@ test('the default AI name is Nia', () => {
   const d = shouldAiRespond(from(JIHAD, 'Nia, is this enough protein?'), { participants: [JIHAD], history: [] });
   assert.equal(d.intendedRecipient.name, 'Nia');
 });
+
+test('@mentioning a human coach named Nia goes to the person, not the AI', () => {
+  const coachNia = { id: 'u-nj', name: 'Nia Johnson', role: 'coach' };
+  const room = [coachNia, JIHAD, AI];
+  for (const text of ['@Nia Johnson can we talk after practice?', 'Nia Johnson, what time is lift', '@nia johnson how much protein should I get']) {
+    const d = decide(from(JIHAD, text), [], room);
+    assert.equal(d.shouldRespond, false, text);
+    assert.equal(d.intendedRecipient.kind, 'human', text);
+    assert.equal(d.intendedRecipient.name, 'Nia Johnson', text);
+  }
+  // A leading "@nia" followed by anything but the rest of her name is still the AI.
+  const ai = decide(from(JIHAD, '@nia how many carbs are left?'), [], room);
+  assert.equal(ai.shouldRespond, true);
+  assert.equal(ai.intendedRecipient.kind, 'ai');
+});
+
+test('sentences ABOUT someone called Nia never wake her, even right after a coach speaks', () => {
+  const texts = ['Nia is coming to lunch', 'Nia will drive us', 'did you see Nia?', 'Nia did the grocery run'];
+  for (const text of texts) {
+    assert.equal(decide(from(JIHAD, text)).shouldRespond, false, text);
+    assert.equal(decide(from(JIHAD, text), [from(ALEX, 'Good lift today')]).shouldRespond, false, `${text} (after a coach)`);
+  }
+});

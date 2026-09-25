@@ -42,14 +42,18 @@ const AI_NAME_WORD = 'nia';
    also called Nia, only a leading "@nia", "Nia," or "Nia:" is clear enough; anything else is
    ambiguous, and ambiguous means quiet. */
 const NIA_LEAD = /^(@nia\b|nia\s*[,:])/;
+/* Only words that open a request TO someone. "Nia is coming", "Nia will drive", "Nia did it"
+   are sentences ABOUT a person, and "did you see Nia?" asks about one: none of them wake her. */
 const NIA_VOCATIVE = [
   NIA_LEAD,
   /^(hey|hi|hello|yo|ok|okay|so|thanks|thank you)[,!]?\s+nia\b/,
   /^nia\s*[!?]/,
-  /^nia\s+(what|how|can|could|should|would|will|is|are|am|do|does|did|why|when|where|which|who|any|give|tell|help|check)\b/,
+  /^nia\s+(what|how|can|could|should|would|why|when|where|which|who|any|give|tell|help|check)\b/,
   /,\s*nia\s*[?.!]*$/,
-  /\bnia\s*\?+$/,
 ];
+/* The word after a leading "@nia" / "nia,": when it is the rest of a HUMAN Nia's name
+   ("@Nia Johnson ..."), the message is to that person. */
+const NIA_LEAD_NEXT = /^@?nia[\s,:]+([a-z][a-z'-]*)/;
 
 /** Words that name a HUMAN in the room. Matching one of these means the message is for a person,
  *  and the AI stays out of it. */
@@ -277,6 +281,14 @@ export function shouldAiRespond(message, context) {
   const aiParticipant = participants.find((p) => p && isAiRole(p.role)) || { id: null, name: ctx.aiName || 'Nia', role: 'ai' };
   const niaClash = niaIsAmbiguous(participants);
   const niaLeads = NIA_LEAD.test(low);
+  if (niaClash) {
+    // "@Nia Johnson, see you at lunch": the rest of a human Nia's name follows, so it is to them.
+    const next = (NIA_LEAD_NEXT.exec(low) || [])[1];
+    const human = next && next !== AI_NAME_WORD
+      ? participants.find((p) => p && !isAiRole(p.role) && namesOf(p).indexOf(AI_NAME_WORD) !== -1 && namesOf(p).indexOf(next) !== -1)
+      : null;
+    if (human) return verdict(false, recipient('human', human, 'mention'), 0.95, 'the message is to ' + (human.name || 'a person') + ', a person named Nia');
+  }
 
   /* ---------------- 1. explicit @mention ---------------- */
   const mentions = mentionsIn(text);

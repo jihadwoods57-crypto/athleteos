@@ -282,8 +282,8 @@ export const coachVoice = {
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
         <div class="lic nia-av"><span class="nia-n" aria-hidden="true">N</span></div>
-        <div class="lm"><div class="lt">Coach Nia</div><div class="ls">${enabled ? 'On: always labeled as AI, never signed as you' : 'Off: Nia uses her default voice'}</div></div>
-        <div class="seg" style="width:104px" id="cv-enabled" role="radiogroup" aria-label="Coach Nia"><button role="radio" aria-checked="${enabled}" class="${enabled ? 'on' : ''}">On</button><button role="radio" aria-checked="${!enabled}" class="${enabled ? '' : 'on'}">Off</button></div>
+        <div class="lm"><div class="lt">Set Nia’s voice</div><div class="ls">${enabled ? 'On: always labeled as AI, never signed as you' : 'Off: Nia uses her default voice'}</div></div>
+        <div class="seg" style="width:104px" id="cv-enabled" role="radiogroup" aria-label="Set Nia’s voice"><button role="radio" aria-checked="${enabled}" class="${enabled ? 'on' : ''}">On</button><button role="radio" aria-checked="${!enabled}" class="${enabled ? '' : 'on'}">Off</button></div>
       </div>
     </section>
     <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Shapes everything Nia says: meal reads, thread replies, answers to your questions, and nudges.</div>

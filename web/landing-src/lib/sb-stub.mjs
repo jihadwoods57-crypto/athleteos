@@ -560,6 +560,9 @@ export function sbStubSource({ todayISO, athletes, teamName = 'Lincoln Varsity F
   // ---- chainable PostgREST-ish query builder ----
   function builder(table) {
     let rows = (TABLES[table] || []).slice();
+    // Harness seam: a shot may reshape one table's rows (window.__STUB_ROWS(table, rows)), the way
+    // __BOOK_ACCESS and __CS_MODE pick a moment. Absent, every shot reads the tables as seeded.
+    if (typeof window.__STUB_ROWS === 'function') rows = window.__STUB_ROWS(table, rows) || rows;
     const api = {
       select: () => api, order: () => api, limit: (n) => { rows = rows.slice(0, n); return api; },
       eq: (c, v) => { rows = rows.filter(r => r[c] === v); return api; },

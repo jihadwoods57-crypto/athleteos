@@ -48,6 +48,15 @@ describe('Nia identity and honesty', () => {
     expect((s.match(/title: NIA_PUSH_TITLE/g) || []).length).toBe(4);
   });
 
+  it('the decline only claims a coach when one exists, and the monthly review is signed by who wrote it', () => {
+    const mc = src('meal-chat/index.ts');
+    expect(mc).toContain("That one's for a person, not me: a doctor or a registered dietitian.");
+    expect(mc).toContain("meta: { t: 'escalated', coach: hasCoach }");
+    const mr = src('monthly-report/index.ts');
+    expect(mr).toContain("author: byNia ? 'nia' : 'app'");
+    expect(mr).toContain("...dataObj, author: 'app' })");
+  });
+
   it('coach drafts go out in the coach\'s name and never mention Nia', () => {
     const s = src('meal-chat/index.ts');
     expect(s).toContain("never mention Nia or AI in them: they go out in the coach's own name");
@@ -60,6 +69,11 @@ describe('clockLine: the athlete\'s hour and what is next', () => {
     expect(out).toContain('it is 3:40 PM where the athlete is');
     expect(out).toContain('Next on their day: Lunch (closes 1:30 PM).');
     expect(out).toContain('never remark on the time for its own sake');
+  });
+
+  it('a meal read speaks of the time the meal was logged', () => {
+    expect(clockLine({ localTime: '7:05 AM' }, 'logged')).toContain("this meal was logged at 7:05 AM, the athlete's local time");
+    expect(clockLine({ localTime: '7:05 AM' })).toContain('it is 7:05 AM where the athlete is');
   });
 
   it('renders nothing for a clock that is not a clock, and drops a label that is not plain words', () => {

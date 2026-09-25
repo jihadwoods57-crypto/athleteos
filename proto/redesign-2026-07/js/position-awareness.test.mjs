@@ -39,13 +39,13 @@ const PROFILE = read('screens', 'profile.js');
 /* ---- 1. one builder, shared by the read and every reply ------------------------------------ */
 
 test('athleteContextForAnalysis is exported, so the read and the thread cannot describe two people', () => {
-  assert.match(STATE, /export function athleteContextForAnalysis\(\)/,
+  assert.match(STATE, /export function athleteContextForAnalysis\(\{ atMin = null \} = \{\}\)/,
     'the builder must be exported; a second, drifting copy in a screen is exactly how the read '
     + 'and the reply end up disagreeing about who the athlete is');
 });
 
 test('the builder still carries the position, and reads it off the athlete profile', () => {
-  const body = STATE.slice(STATE.indexOf('export function athleteContextForAnalysis()'));
+  const body = STATE.slice(STATE.indexOf('export function athleteContextForAnalysis('));
   const fn = body.slice(0, body.indexOf('\n}\n') + 1);
   for (const field of ['sport', 'position', 'level', 'bodyweightLb', 'dayType']) {
     assert.ok(fn.includes(field), `athleteContextForAnalysis must still send ${field}`);

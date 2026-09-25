@@ -12,7 +12,7 @@ import { threadMessages, reactionGroups, REACTION_EMOJI, normalizeDetected } fro
 import { wireTapback } from '../tapback.js';
 import { mealReadHtml, wireReadControls } from './meal.js';
 import { layoutThread, MUTED_HIDDEN_NOTE, authorName, initialsFor, isAnalysisUpdate, isEscalated, quotedFor,
-  dayLabelOf, participantList, participantSummary, AI_NAME, NIA_MARK, whoHtml, facesHtml, threadTitle, composerPrompt, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
+  dayLabelOf, participantList, participantSummary, AI_NAME, NIA_MARK, escalationChip, whoHtml, facesHtml, threadTitle, composerPrompt, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
   isCorrectionReceipt, receiptCardHtml, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta, personText,
   visibleThread, workingLabel,
 } from '../chat-view.js';
@@ -393,7 +393,7 @@ function mountThread(root, mealId, meal) {
       const c = item.comment;
       /* A filed correction receipt renders as the card, not as a bubble — the same record the
          athlete sees in their own thread (chat-view isCorrectionReceipt). */
-      if (isCorrectionReceipt(c)) return receiptCardHtml(c, esc, { fresh: fresh.has(String(c.id)) });
+      if (isCorrectionReceipt(c)) return receiptCardHtml(c, esc, { fresh: fresh.has(String(c.id)), first: item.firstOfRun });
       const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
       const who = authorName(c, participants, RT.userId, S.coach.noun);
       const update = isAnalysisUpdate(c);
@@ -413,7 +413,7 @@ function mountThread(root, mealId, meal) {
             ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : rq}
             ${/* No "Updated analysis" badge on correction replies (founder: robotic; the live
                   thread already dropped it) — the quote stem above says what it answers. */''}
-            <div class="bubble">${escalated ? `<span class="esc">${AI_NAME} sent this to your ${esc(S.coach.noun)}</span>` : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+            <div class="bubble">${escalated ? `<span class="esc">${escalationChip(c, S.coach)}</span>` : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
             ${deliveredHtml({ mine, isLast: c === lastMsg })}
           </div>
           ${msgTimeHtml(c, mvClock, esc)}
@@ -453,7 +453,7 @@ function mountThread(root, mealId, meal) {
     if (people.length === membersPainted) return;
     membersPainted = people.length;
     // The same one-row header the meal page's discussion wears: faces, title, who is in it.
-    const title = threadTitle(people, S.coach);
+    const title = threadTitle(people, S.coach, rows);
     const h2 = root.querySelector('#disc-title');
     if (h2) h2.textContent = title;
     membersSlot.innerHTML = `

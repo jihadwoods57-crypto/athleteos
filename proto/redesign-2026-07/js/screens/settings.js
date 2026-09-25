@@ -278,8 +278,9 @@ export function operatorPrivacyHtml(back) {
     { ic: 'heart', t: 'Parents and guardians', pill: 'Limited access',
       s: 'Consent and account controls, not day-to-day logs',
       detail: [
+        ['Can see', 'The athlete’s daily score and grade, day by day. Nothing else.'],
         ['Can do', 'Approve a minor’s account, request the minor’s data, or request deletion.'],
-        ['Cannot see', 'Meal photos and daily logs are not mirrored to a guardian view.'],
+        ['Cannot see', 'Meals, meal photos, meal conversations, weight or check-ins.'],
       ] },
     { ic: 'bolt', t: 'Trainers', pill: 'Limited access',
       s: 'Recovery, readiness and nutrition consistency',
@@ -375,8 +376,9 @@ export const privacy = {
         ic: 'heart', t: 'Parent / guardian', pill: 'Limited access',
         s: RT.consent && RT.consent.guardianEmail ? `${RT.consent.guardianEmail} · consent + account controls` : 'Consent status and account controls, not your day-to-day logs',
         detail: [
+          ['Can see', 'Your daily score and grade, day by day. Nothing else.'],
           ['Can do', 'Approve your account, request your data, or request deletion: legal guardian rights for minors.'],
-          ['Cannot see', 'Your meal photos and daily logs are not mirrored to a guardian view.'],
+          ['Cannot see', 'Your meals, meal photos, meal conversations, weight or check-ins.'],
         ],
       });
     }

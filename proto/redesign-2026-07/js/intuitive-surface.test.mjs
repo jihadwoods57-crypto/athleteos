@@ -177,7 +177,9 @@ test('the past-meal screen prints no stored analysis prose of its own', () => {
   // The old twin gated a paragraph behind both figure flags. The AI's words now reach a past meal
   // only through the thread rows, which meal-chat wrote per plan style server-side. No prose, no
   // leak: pinned that the screen does not read m.analysis into markup at all.
-  assert.doesNotMatch(TRUST_SRC, /class="ai-note"/);
+  // Any stored-analysis field interpolated into markup, whatever the class around it (the old
+  // card's .ai-note class is retired, so matching the class alone proved nothing).
+  assert.doesNotMatch(TRUST_SRC, /\$\{[^}]*\b(m|meal|M)\.analysis\b/);
   assert.doesNotMatch(TRUST_SRC, /esc\(m\.analysis/);
 });
 

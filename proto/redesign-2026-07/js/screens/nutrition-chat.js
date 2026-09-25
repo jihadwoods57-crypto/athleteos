@@ -32,7 +32,7 @@ import { stitchNutritionChat } from '../thread-stitch.js';
 import {
   layoutThread, visibleThread, MUTED_HIDDEN_NOTE,
   authorName, initialsFor, participantList, participantSummary,
-  AI_NAME, NIA_MARK, whoHtml, facesHtml, composerPrompt,
+  AI_NAME, NIA_MARK, whoHtml, facesHtml, composerPrompt, escalationChip,
   isAnalysisUpdate, quotedFor, isEscalated,
   memoryOfferOf, memoryOfferChips,
   mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
@@ -386,7 +386,7 @@ export default {
         const c = item.comment;
         /* A filed correction receipt renders as the card, not as a bubble — the same record the
            athlete sees in their own thread (chat-view isCorrectionReceipt). */
-        if (isCorrectionReceipt(c)) return receiptCardHtml(c, esc, { fresh: FRESH.has(String(c.id)) });
+        if (isCorrectionReceipt(c)) return receiptCardHtml(c, esc, { fresh: FRESH.has(String(c.id)), first: item.firstOfRun });
         const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
         const who = authorName(c, participants, RT.userId, S.coach.noun);
         const update = isAnalysisUpdate(c);
@@ -416,7 +416,7 @@ export default {
           ${''/* No "Updated analysis" badge (founder: robotic). The quote stem above already
                shows what a correction reply answers. The escalation badge stays: "this reached
                your coach" is a fact worth labeling, exactly as the meal thread labels it. */}
-          <div class="bubble">${escalated ? `<span class="esc">${AI_NAME} sent this to your ${esc(S.coach.noun)}</span>` : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : bubbleText(c)}${offerChips(c)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+          <div class="bubble">${escalated ? `<span class="esc">${escalationChip(c, S.coach)}</span>` : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : bubbleText(c)}${offerChips(c)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
           ${deliveredHtml({ mine, isLast: c === newest })}
         </div>
         ${msgTimeHtml(c, fmtTime, esc)}

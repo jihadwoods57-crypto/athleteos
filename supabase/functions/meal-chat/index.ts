@@ -1284,7 +1284,15 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
     if (tool?.name === 'flag_for_coach') {
       const reason = String(tool.input?.reason ?? 'other').slice(0, 32);
       const note = String(tool.input?.note ?? '').replace(/—/g, ',').trim().slice(0, 300);
-      const declineText = "That one's for a person, not me. I've flagged it for your coach so they can pick it up.";
+      // Only a team coach is notified below, so only a team athlete is told a coach has it. A solo
+      // athlete (or a trainer's client) is pointed at the right kind of person instead of at a
+      // hand-off that never happens (review 2026-09-24).
+      const { data: tm0 } = await service.from('team_members')
+        .select('team_id').eq('athlete_id', mealRow.athlete_id).eq('status', 'active').limit(1).maybeSingle();
+      const hasCoach = !!tm0?.team_id;
+      const declineText = hasCoach
+        ? "That one's for a person, not me. I've flagged it for your coach so they can pick it up."
+        : "That one's for a person, not me: a doctor or a registered dietitian.";
 
       // A jailbreak must not become a way to spam a coach: at most 3 flags per athlete per day.
       const { data: fclaim } = await service.rpc('claim_ai_usage_key', { p_key: `meal_flag:${mealRow.athlete_id}`, p_limit: 3 });
@@ -1293,7 +1301,7 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
       await service.from('meal_comments').insert({
         meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: mealRow.athlete_id,
         role: 'ai', kind: 'message', text: declineText,
-        meta: { t: 'escalated' },
+        meta: { t: 'escalated', coach: hasCoach },
       });
 
       // The coach reads a name, not "an athlete": on a roster of 40 the anonymous version was

@@ -635,6 +635,9 @@
 .trust.nia-card { background: var(--blue-surface); border-color: var(--blue-border); }
 .msg.ai .av .nia-n { font-size: var(--t-sm); }
 .msg.ai .who { color: var(--text-2); font-weight: 600; }
+/* A receipt card keeps its full width inside the stack that lets it carry Nia's name. */
+.msg .stack.rcpt-stack { flex: 1; max-width: none; }
+.msg .stack.rcpt-stack > .corr-card { flex: none; }
 .msg .who .who-sub { margin-left: var(--s1h); font-size: var(--t-xs); font-weight: 500; color: var(--text-3); }
 /* ---- Bubbles (design upgrade 2026-08-06) ----
    Nothing added; chrome removed. Every bubble used to carry a visible border on top of its fill,
@@ -994,7 +997,7 @@
 }
 .memsheet .ms-av.self { background: linear-gradient(150deg, var(--blue), var(--blue-deep)); color: var(--ink-on-accent); }
 .memsheet .ms-av.other { background: linear-gradient(150deg, var(--amber), var(--amber-deep)); color: var(--ink-on-accent); }
-.memsheet .ms-txt { display: flex; flex-direction: column; min-width: 0; }
+.memsheet .ms-txt { display: flex; flex-direction: column; min-width: 0; flex: 1 1 0; }
 .memsheet .ms-name { font-size: var(--t-base); font-weight: 800; }
 .memsheet .ms-kind { font-size: var(--t-xs); font-weight: 600; color: var(--text-3); }
 .memsheet .ms-foot {

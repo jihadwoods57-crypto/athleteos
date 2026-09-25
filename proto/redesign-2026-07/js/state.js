@@ -901,7 +901,7 @@ function earlierMealsForAnalysis(currentSlot) {
    meal thread that follows it. The thread used to know nothing about them, so its answers were
    coached for a generic athlete. One builder means the read and the reply can never describe two
    different people. Exported for screens/meal.js. */
-export function athleteContextForAnalysis() {
+export function athleteContextForAnalysis({ atMin = null } = {}) {
   const p = RT.profile || {};
   const bw = (p.baseWeight != null ? +p.baseWeight : 0)
     || (RT.ob && RT.ob.currentWeight ? +RT.ob.currentWeight : 0)
@@ -914,8 +914,10 @@ export function athleteContextForAnalysis() {
   if (bw > 0) out.bodyweightLb = Math.round(bw);
   if (dayType === 'training' || dayType === 'rest') out.dayType = dayType;
   // The athlete's own clock and the next thing on their day (data already on the device), so Nia
-  // can reason about timing: a plate an hour before practice is not a plate at 10 PM.
-  const nowMin = minutesNow();
+  // can reason about timing: a plate an hour before practice is not a plate at 10 PM. A meal READ
+  // passes the minute the meal was logged (`atMin`): a read that runs late (queued offline) is
+  // about the plate at the time it was eaten. A chat reply takes now.
+  const nowMin = atMin != null && Number.isFinite(+atMin) ? Math.max(0, Math.min(1439, Math.round(+atMin))) : minutesNow();
   out.localTime = fmtClock(nowMin);
   const nx = ((S.exec && S.exec.items) || []).filter((i) => i.minsLeft != null && i.state !== 'not_required')
     .sort((a, b) => a.minsLeft - b.minsLeft)[0];
@@ -1426,7 +1428,7 @@ export const act = {
     return {
       mode: 'meal', mealType: job.mealType || cap(job.slot), goal: RT.primaryGoal || null,
       photoBase64: job.base64, ...(timing ? { timing } : {}),
-      ...athleteContextForAnalysis(),
+      ...athleteContextForAnalysis({ atMin: job.capturedAtMin }),
       ...earlierMealsForAnalysis(job.slot),
       // The thread this read belongs to. The meals row is inserted before the analysis runs, so
       // by the time a job is drained it has one — that is what lets the finished read be posted
@@ -2321,7 +2323,7 @@ export const act = {
     return {
       mode: 'meal', mealType: MEAL.mealType || 'Dinner', goal: RT.primaryGoal || null,
       photoBase64: MEAL.photoBase64, ...(timing ? { timing } : {}),
-      ...athleteContextForAnalysis(),
+      ...athleteContextForAnalysis({ atMin: capturedAt }),
       ...earlierMealsForAnalysis(MEAL.key || 'dinner'),
       dayContext,
       ...(avoid.length ? { avoid } : {}),
@@ -5412,7 +5414,7 @@ export const S = {
       img: null, score: null, foods: [],
       macros: { protein: 0, carbs: 0, fat: 0, cals: 0 },
       planMatch: { verdict: 'Not analyzed yet', detail: 'Capture your meal and Nia reads it: real macros from your photo, no guesses.', level: 'b' },
-      ai: 'Take a photo of your meal and I’ll analyze it for real.',
+      ai: 'Take a photo of your meal and Nia reads it for real.',
       analysis: '', capturedAtMin: null,
       empty: true,
     };

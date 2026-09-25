@@ -22,6 +22,15 @@ let CACHE = { report: null, period: null, loaded: false, payload: null, paywallF
 /* True when the server declined the report because the account isn't on a plan that includes
    it (vs. a real fetch failure) — the one branch that gets the honest locked upsell instead of
    a dead "unavailable" wall. */
+/* Who wrote the month's words (R3, 2026-09-24). The server stamps `author`; a report stored before
+   the stamp is Nia's unless it carries one of the server's own scripted headlines. */
+const APP_HEADLINES = ['Your month', 'Not much logged this month', 'Your month, in your own signals'];
+export function byNia(report) {
+  if (!report) return false;
+  if (report.author) return report.author === 'nia';
+  return APP_HEADLINES.indexOf(String(report.headline || '')) === -1;
+}
+
 function isLockedReport(report) {
   return !!(report && report.error && /requires a plan/i.test(String(report.error)));
 }
@@ -147,7 +156,7 @@ function lockedCard(payload, period) {
     <div class="mr-veil">
       <span class="status-pill b" style="display:inline-flex;align-items:center;gap:5px" aria-label="Premium, locked">${icon('lock', 12)} Premium</span>
       <div class="mr-veil-t">A written read on your ${monthWord}</div>
-      <div class="mr-veil-s">Your three biggest wins, one focus for next month, and a coach's-voice summary.</div>
+      <div class="mr-veil-s">Your three biggest wins, one focus for next month, and Nia’s written review.</div>
     </div>
   </section>
 
@@ -195,7 +204,7 @@ function reportBody(report, period) {
 
   ${report.headline || report.narrative ? `
   <div style="height:16px"></div>
-  <h2 class="eyebrow">Nia’s read of your month</h2>
+  <h2 class="eyebrow">${byNia(report) ? 'Nia’s read of your month' : 'Your month in words'}</h2>
   <section class="card pad">
     ${report.headline ? `<div style="font-size:16px;font-weight:800">${esc(report.headline)}</div>` : ''}
     ${report.narrative ? `<p style="font-size:13.5px;font-weight:600;color:var(--text-2);margin-top:8px;line-height:1.5">${esc(report.narrative)}</p>` : ''}

@@ -134,7 +134,7 @@ export const role = {
         <div class="sidebox">
           <div class="req-icon b s38">${icon('lock', 17)}</div>
           <div><div class="tt">Joining as a parent or guardian?</div>
-          <div class="ts">Open the invite your athlete or coach sent you. Parents connect from there, and only ever see scores and streaks, never photos or weight.</div></div>
+          <div class="ts">Open the invite your athlete or coach sent you. Parents connect from there, and only ever see daily scores and grades, never meals, photos or weight.</div></div>
         </div>
       </div>
       <div class="ob-foot">

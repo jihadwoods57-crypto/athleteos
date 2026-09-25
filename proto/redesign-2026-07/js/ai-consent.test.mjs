@@ -180,6 +180,13 @@ test('Meet Nia is owed once, only to an account that already said yes', async ()
   assert.match(C.MEET_NIA_TEXT, /^I’m Nia, OnStandard’s AI nutritionist\./);
 });
 
+test('Meet Nia never reaches a minor still waiting on a guardian', async () => {
+  window.sb = fakeSb({ u5: true }, { minors: ['u5'] });
+  await C.refreshAiConsent('u5');
+  store.set('os.aiConsent.u5', '1');   // even with a cached yes
+  assert.equal(C.meetNiaDue('u5'), false);
+});
+
 test('a yes given on the onboarding Meet Nia sheet counts as the introduction', async () => {
   await C.setAiConsent(null, true);            // the demo, before the account exists
   window.sb = fakeSb({ u9: null });
@@ -216,6 +223,7 @@ test('every AI moment asks first', () => {
 test('coach-side thread: the AI disclaimer rides the first AI reply, once', () => {
   const src = readFileSync(join(JS, 'screens', 'coach.js'), 'utf8');
   assert.match(src, /import \{[^}]*aiDisclaimer[^}]*\} from '\.\.\/components\.js'/);
-  assert.equal((src.match(/\$\{aiDisclaimer\(\)\}/g) || []).length, 1, 'under the opening');
+  // Under the opening, in each of its two forms (Nia's own read, or the app's Quick read); only one renders.
+  assert.equal((src.match(/\$\{aiDisclaimer\(\)\}/g) || []).length, 2, 'under the opening');
   assert.match(src, /it\.comment\.role === 'ai' && !isCorrectionReceipt\(it\.comment\)\) === item \? aiDisclaimer\(\) : ''/);
 });

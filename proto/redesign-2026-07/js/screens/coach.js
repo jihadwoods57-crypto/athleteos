@@ -3392,18 +3392,23 @@ export const coachMeal = {
             `.thread` would also match plan, settings, trust and nutrition-chat, and a long press
             over there would post a reaction to whichever meal was last open. */''}
       <div class="thread" id="cm-thread" role="log" aria-label="Meal review conversation">
-        ${opening && !msgs.some(isAnalysisOpener) ? `
+        ${opening && !msgs.some(isAnalysisOpener) ? (meal && meal.analysis ? `
         <div class="msg ai last">
           <div class="av">${NIA_MARK}</div>
           <div class="stack">${whoHtml(AI_NAME, true, esc, `What the ${esc(CD.noun)} was told`)}
           <div class="bubble">${esc(opening)}</div>${aiDisclaimer()}</div>
-        </div>` : ''}
+        </div>` : `
+        <div class="msg coach last quick-read">
+          <div class="av">${icon('flash', 14)}</div>
+          <div class="stack"><div class="who">Quick read · what the ${esc(CD.noun)} was told</div>
+          <div class="bubble">${esc(opening)}</div>${aiDisclaimer()}</div>
+        </div>`) : ''}
         ${layoutThread(msgs, { muted: RT.mutedUsers, fmtTime: msgClock, fmtDay: msgDay, fmtDayLabel: dayLabelOf }).map((item, _i, all) => {
           if (item.type === 'time') return timeSepHtml(item, esc);
           const c = item.comment;
           /* A filed correction receipt renders as the card, not as a bubble — the same record the
              athlete sees in their own thread (chat-view isCorrectionReceipt). */
-          if (isCorrectionReceipt(c)) return receiptCardHtml(c, esc, { fresh: fresh.has(String(c.id)) });
+          if (isCorrectionReceipt(c)) return receiptCardHtml(c, esc, { fresh: fresh.has(String(c.id)), first: item.firstOfRun });
           // "athlete" styling is reserved for the OTHER side of the conversation; on the coach's
           // screen the coach's own words are the ones that should sit on the right. An 'ai' row is
           // NEVER "mine" even when author_id is this coach — author_id records who TRIGGERED the

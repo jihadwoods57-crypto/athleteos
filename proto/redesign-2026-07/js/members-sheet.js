@@ -110,7 +110,7 @@ export function openMembersSheet(members, ctx = {}) {
         <button class="ms-x" aria-label="Close">×</button>
       </div>
       <div class="ms-list">${rows}</div>
-      <div class="ms-foot">Anyone connected to your plan (coaches, trainers, parents, dietitians) appears here. Nobody else can read this. Blocking someone hides their messages and stops their notifications to you; they are not told.</div>
+      <div class="ms-foot">Everyone who can read this conversation appears here: coaches, trainers, dietitians and Nia. A parent sees only daily scores and grades, never this conversation. Nobody else can read this. Blocking someone hides their messages and stops their notifications to you; they are not told.</div>
     </div>`;
 
   document.body.appendChild(el);

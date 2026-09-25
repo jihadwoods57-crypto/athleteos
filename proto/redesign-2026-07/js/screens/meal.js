@@ -30,7 +30,7 @@ import { decideAiTurn } from '../ai-thread.js';
 import {
   layoutThread, visibleThread, MUTED_HIDDEN_NOTE,
   authorName, initialsFor, participantList, participantSummary, participantMeta,
-  AI_NAME, AI_TITLE, NIA_MARK, whoHtml, facesHtml, threadTitle, composerPrompt,
+  AI_NAME, AI_TITLE, NIA_MARK, whoHtml, facesHtml, threadTitle, composerPrompt, escalationChip,
   isAnalysisOpener, isAnalysisUpdate, isEscalated, quotedFor,
   memoryOfferOf, memoryOfferChips,
   mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
@@ -576,7 +576,8 @@ function openingInputs(M) {
      still carried an fqRow() that drew chips no handler had ever read, so anything that set `fq`
      again would have shipped buttons that do nothing. Dead code that only misleads is worse than
      no code; the capability lives in followUpQuestion() (meal-intel.js) with its own tests. */
-  return { sum, fullText };
+  // Only prose the model wrote may be signed Nia; the rest of the fallback is this device's.
+  return { sum, fullText, modelProse: !!(styleSafeProse && M.analysis) };
 }
 
 /**
@@ -595,7 +596,7 @@ const AI_OFF_REPLY_ON = 'Nia is off, so she stays quiet. Your message is posted.
 /** I6: a minor waiting on a parent is told why, and never offered the switch. */
 const aiOffReply = () => (aiMinorPending(RT.userId) ? `Your message is posted. ${AI_MINOR_LINE}` : AI_OFF_REPLY_ON);
 
-export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, part = 'all' } = {}) {
+export function openingBlockHtml(M, { sum, fullText, modelProse = false, hasPersistedRead = false, part = 'all' } = {}) {
   /* `part` exists because these rows live at two different points in time. The lead (the read
      itself, or its pending/failed/questions state) is the OLDEST thing in the thread and paints
      above the messages; the tail (the follow-up question, the memory confirmation) is the AI
@@ -603,10 +604,13 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
      as the thread being out of order. paint() asks for each half where it belongs; 'all' keeps
      the render()-time call (no messages yet) working unchanged. */
   const wrap = (lead, tail) => (part === 'lead' ? lead : part === 'tail' ? tail : lead + tail);
+  /* The app's own notices ABOUT Nia's read (reading, failed, questions waiting, a fact to keep).
+     They wear her mark because they are about her, but they are not signed by her and they speak
+     of her in the third person: nothing scripted is ever presented as Nia talking (R3). */
   const aiRow = (inner, id) => `
-      <div class="msg ai last"${id ? ` id="${id}"` : ''}>
+      <div class="msg ai last nia-status"${id ? ` id="${id}"` : ''}>
         <div class="av">${NIA_MARK}</div>
-        <div class="stack">${whoHtml(AI_NAME, true)}
+        <div class="stack">
         <div class="bubble">${inner}</div></div>
       </div>`;
 
@@ -625,7 +629,7 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
     // nothing left to read, so no retry chip — offering one would be a dead button.
     const lost = M.analysisFailed === 'photo_lost';
     return wrap(aiRow(`
-          <div style="font-weight:700">${capacity ? "I couldn't get to this one today." : lost ? "I couldn't read this one." : "I couldn't read this plate."}</div>
+          <div style="font-weight:700">${capacity ? "Nia couldn't get to this one today." : lost ? "Nia couldn't read this one." : "Nia couldn't read this plate."}</div>
           <div style="margin-top:4px;color:var(--text-2)">${lost
             ? "The photo couldn't be kept on this device, so there's nothing left to read. The log still counts for timing."
             : `It's logged and counts for timing either way. Your photo is the proof.${capacity ? '' : ' Worth another try?'}`}</div>
@@ -636,14 +640,14 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
   if (M && Array.isArray(M.pendingQuestions) && M.pendingQuestions.length) {
     const qs = M.pendingQuestions.slice(0, 3);
     // Count its own questions: this bubble promised "Two" over one question as easily as three.
-    const qHead = qs.length === 1 ? 'One quick thing' : qs.length === 2 ? 'Two quick things' : `${qs.length} quick things`;
+    const qHead = qs.length === 1 ? 'Nia has one quick question' : qs.length === 2 ? 'Nia has two quick questions' : `Nia has ${qs.length} quick questions`;
     /* The bubble states the ask and hands it to the sheet; it does not re-draw the form. It used
        to carry a full copy of the inputs, which put a blocking question in a chat bubble below a
        "Back to Home" button, at the same visual weight as a message. Two forms for one answer also
        meant two places to keep in sync. The sheet (js/meal-questions-sheet.js) is the form now,
        and it comes up on its own when this meal is opened. */
     return wrap(aiRow(`
-          <div style="font-weight:700">${qHead} and your numbers are exact.</div>
+          <div style="font-weight:700">${qHead}. Answer and your numbers are exact.</div>
           <div style="margin-top:3px;color:var(--text-2)">${qs.length === 1 ? 'A photo can’t show what’s under or off the plate.' : 'A photo can’t show what’s under or off the plate. It takes a moment.'}</div>
           <div class="fq-chips">
             <button class="fx-chip" id="mq-thread-go">${icon('sparkle', 13)} ${qs.length === 1 ? 'Answer it' : 'Answer them'}</button>
@@ -667,13 +671,13 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
   const askFact = unoffered.find((f) => f.kind === 'dislike' && plate.has(String(f.value).toLowerCase()))
     || unoffered[0] || null;
   const confirmRow = askFact ? `
-      <div class="msg ai last" id="fact-confirm">
+      <div class="msg ai last nia-status" id="fact-confirm">
         <div class="av">${NIA_MARK}</div>
-        <div class="stack">${whoHtml(AI_NAME, true)}
+        <div class="stack">
         <div class="bubble">
           ${esc(askFact.kind === 'dislike'
-            ? `Noted. You took ${askFact.value} off a plate. Skip it in future reads?`
-            : `Should I remember: ${askFact.kind.replace(/_/g, ' ')} (${askFact.value})?`)}
+            ? `You took ${askFact.value} off a plate. Should Nia skip it in future reads?`
+            : `Should Nia remember: ${askFact.kind.replace(/_/g, ' ')} (${askFact.value})?`)}
           <div class="fq-chips">
             <button class="fx-chip" data-fact="${esc(askFact.id)}" data-keep="1">Yes, remember</button>
             <button class="fx-chip" data-fact="${esc(askFact.id)}" data-keep="0">No, one-off</button>
@@ -702,9 +706,10 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
     : [sum && sum.wentWell, sum && sum.opportunity, sum && sum.next].filter(Boolean).map(esc).join(' ');
   if (!body) return wrap('', tail);
 
-  // Nia's name goes only on words a model wrote (fullText is analyze-meal's own prose). The
-  // summary floor is composed on this device, so it is a "Quick read", not Nia (R3, 2026-09-24).
-  if (!fullText) {
+  // Nia's name goes only on words a model wrote: the read carries analyze-meal's own prose
+  // (`modelProse`, from openingInputs). Anything composed on this device alone is a "Quick read",
+  // not Nia (R3, 2026-09-24): openingMessage() always returns text, so fullText proves nothing.
+  if (!modelProse) {
     return wrap(`
       <div class="msg coach last quick-read">
         <div class="av">${icon('flash', 14)}</div>
@@ -864,7 +869,10 @@ export const analysis = {
     })()}
 
     <section class="lm-sec ma-read">
-      <div class="ma-who"><span class="nia-av ma-av">${NIA_MARK}</span> Nia’s read<span class="who-sub">${AI_TITLE} · AI</span></div>
+      ${/* Signed Nia only over the model's own paragraph (R3); the short fallback line is the app's. */''}
+      ${styleSafeProse && L.analysis
+        ? `<div class="ma-who"><span class="nia-av ma-av">${NIA_MARK}</span> Nia’s read<span class="who-sub">${AI_TITLE} · AI</span></div>`
+        : `<div class="ma-who ma-quick">${icon('flash', 14)} Quick read</div>`}
       <p>${esc((styleSafeProse ? L.analysis : '') || L.ai)}</p>
     </section>
 
@@ -1448,14 +1456,14 @@ export const thread = {
     // used to be a wall of text nobody reads. Now it's the 5-second structured summary
     // (derived, never stored) with the full openingMessage paragraph behind an expander.
     // Quick actions make it feel like a chat, not a report. ----
-    const { sum, fullText } = openingInputs(M);
+    const { sum, fullText, modelProse } = openingInputs(M);
 
     // WHO IS IN THE ROOM. A messaging surface that hides its own audience is a privacy problem
     // wearing a UI problem's clothes — an athlete typing "I skipped breakfast" deserves to know
     // their coach and their mother can both read it before they hit send. Overlapping faces
     // rather than emoji, because these are people.
     const people = participantList(PARTICIPANTS.uid === RT.userId ? PARTICIPANTS.rows : [], RT.userId);
-    const discTitle = threadTitle(people, S.coach);
+    const discTitle = threadTitle(people, S.coach, THREAD_CACHE.mealId === M.mealId ? THREAD_CACHE.comments : []);
     // THE CONVERSATION'S OWN HEADER (2026-09-14). One row, the way the phone names a group at
     // the top of a thread: the faces, the title, who is in it, and the way to the whole
     // conversation. The faces are the members button; "Open" carries this plate into the full
@@ -1483,7 +1491,7 @@ export const thread = {
           The in-thread "View N earlier messages" seam (#thread-more) stays: that one carries
           information this screen truncated. */''}
     <div class="thread" id="meal-thread" role="log" aria-label="Meal conversation">
-      ${openingBlockHtml(M, { sum, fullText })}
+      ${openingBlockHtml(M, { sum, fullText, modelProse })}
       ${/* Loading is a skeleton shaped like the messages it stands in for, and only when there
             is no cached thread to paint instantly. The id stays: the mount removes it on load
             and rewrites it in place on failure. */''}
@@ -1830,7 +1838,8 @@ export const thread = {
        calories hides them here too — and the meal score is always shown, because it is a score
        and not calorie math. */
     const corrKey = String(M.mealId || M.slot || '');
-    const corrReceipt = () => {
+    // `first`: the live card opens a Nia run (the row above it is not hers), so it carries her name.
+    const corrReceipt = (first = true) => {
       const corrFx = corrFxFor(corrKey);
       if (!corrFx || !corrFx.rows.length) return '';
       /* The live card covers the seconds between applying a correction and its filed receipt
@@ -1840,6 +1849,7 @@ export const thread = {
       return `
         <div class="msg ai" id="corr-fx">
           <div class="av">${NIA_MARK}</div>
+          <div class="stack rcpt-stack">${first ? whoHtml(AI_NAME, true, esc) : ''}
           <div class="corr-card" role="status">
             <div class="corr-head">${corrFx.done ? icon('check', 14) : '<span class="corr-spin" aria-hidden="true"></span>'}<span>${corrFx.done ? 'Updated' : 'Recomputing'}</span></div>
             ${corrFx.rows.map((r) => `
@@ -1852,7 +1862,7 @@ export const thread = {
                   ? `<b class="${esc(r.band)}" data-fx-from="${r.from}" data-fx-to="${r.to}" data-fx-unit="${esc(r.unit || '')}">${esc(r.fromText)}</b>`
                   : '<b class="pend" aria-hidden="true"></b>'}</span>
               </div>`).join('')}
-          </div>
+          </div></div>
         </div>`;
     };
     /* Count each figure from its old value to its new one. Text only, so nothing here animates a
@@ -2035,7 +2045,7 @@ export const thread = {
            files a second receipt instead of overwriting the first. Historical ones land on their
            final values with no count-up: the animation belongs to the change as it happens, not
            to a record of it being re-read. */
-        if (isCorrectionReceipt(c)) return receiptCardHtml(c, esc, { fresh: fresh.has(String(c.id)) });
+        if (isCorrectionReceipt(c)) return receiptCardHtml(c, esc, { fresh: fresh.has(String(c.id)), first: item.firstOfRun });
         const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
         const who = authorName(c, participants, RT.userId, S.coach.noun);
         const update = isAnalysisUpdate(c);
@@ -2070,7 +2080,7 @@ export const thread = {
                   reply is just the AI's next message, like a person texting back. The quote stem
                   above already shows WHAT it answers. The escalation badge stays: "this reached
                   your coach" is a fact worth labeling. */''}
-            <div class="bubble">${escalated ? `<span class="esc">${AI_NAME} sent this to your ${esc(S.coach.noun)}</span>` : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : bubbleText(c)}${offerChips(c)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+            <div class="bubble">${escalated ? `<span class="esc">${escalationChip(c, S.coach)}</span>` : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : bubbleText(c)}${offerChips(c)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
             ${deliveredHtml({ mine, isLast: c === lastMsg })}
           </div>
           ${msgTimeHtml(c, fmtMsgTime, esc)}
@@ -2133,7 +2143,7 @@ export const thread = {
       const strandedRxHtml = strandedRx.length
         ? `<div class="rx-strip">${strandedRx.map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('')}</div>`
         : '';
-      threadEl.innerHTML = coachPin + openingLead + earlierBtn + rows + strandedRxHtml + openingTail + corrReceipt()
+      threadEl.innerHTML = coachPin + openingLead + earlierBtn + rows + strandedRxHtml + openingTail + corrReceipt(!(lastMsg && lastMsg.role === 'ai'))
         + (seen ? `<div class="seen">${seen}</div>` : '')
         + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
       hydrateAvatars(threadEl);   // 0206: message monograms upgrade to real faces
