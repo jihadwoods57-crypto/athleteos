@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  signPending, readPending, correctionHash, allowedNames, sanitizeOutcome, askText, outcomeRows, composeDone, settled, stripName,
+  signPending, readPending, correctionHash, allowedNames, sanitizeOutcome, askText, outcomeRows, composeDone, stillHappening, stripName,
 } from './correction-outcome.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -91,7 +91,7 @@ test('I2: the athlete cannot put words in Nia\'s mouth through a food name', () 
     assert.doesNotMatch(text, /skip|evil|http|<|\*\*|onerror/i, `${food} -> ${text}`);
   }
   // A signed name is said, cleaned of markup and links regardless.
-  assert.equal(stripName('Fairlife <b>Core</b> Power https://x.y 42g'), 'Fairlife b Core /b Power 42g');
+  assert.equal(stripName('Fairlife <b>Core</b> Power https://x.y 42g'), 'Fairlife Core Power 42g');
   const withLink = allowedNames({ item: 'Shake from www.shop.com', missed: [{ name: 'Guac **extra**' }] }, []);
   assert.deepEqual(withLink, ['Shake from', 'Guac extra']);
   // Words of a signed or detected name may be said in any subset: "chicken" out of "Grilled chicken".
@@ -119,7 +119,7 @@ test('Nia says one precise thing for every kind of miss', () => {
   assert.match(ask({ reason: 'no_match', food: 'tofu', candidates: ['Grilled chicken', 'Sour cream'] }), /Which one did you mean: grilled chicken or sour cream\?$/);
   assert.match(ask({ reason: 'amount', food: 'Grilled chicken' }), /^How much grilled chicken was it: double the portion, half, or an amount like 8 oz\?$/);
   assert.match(ask({ reason: 'unpriced', unpriced: ['moon dust'] }), /^I don't have numbers for moon dust yet, so your totals haven't changed\./);
-  assert.match(ask({ reason: 'unchanged', newName: 'Adobo chicken' }), /^Got it, it's Adobo chicken now\. The numbers are the same/);
+  assert.match(ask({ reason: 'unchanged', newName: 'Adobo chicken' }), /^Got it, it's adobo chicken now\. The numbers are the same/);
   assert.equal(ask({ reason: 'counted', verb: 'double', food: 'Grilled chicken', amount: '6 oz' }), 'Already counted as a double, 6\u00a0oz.');
   assert.equal(ask({ reason: 'counted', verb: '', food: 'Grilled chicken', amount: '' }), 'The grilled chicken is already in this read, so nothing changed.');
   assert.equal(ask({ reason: 'confirm', verb: 'remove', food: 'chicken', candidates: ['Grilled chicken'] }), 'Should I take the grilled chicken off this meal?');
@@ -131,30 +131,76 @@ test('Nia says one precise thing for every kind of miss', () => {
   }
 });
 
-test('the filed ack never says "updating now": it is filed after the fact', () => {
-  assert.equal(settled(ACK), 'Good catch, Jihad. Double chicken it is, your numbers and score are updated.');
-  assert.equal(settled('Good catch. Updating your numbers and score now.'), 'Good catch. Your numbers and score are updated.');
-  assert.equal(settled('Two cups, got it, updating your numbers now.'), 'Two cups, got it, your numbers are updated.');
-  assert.equal(settled("Got it, I'll update your score now."), 'Got it, your score is updated.');
-  assert.equal(settled('Good catch, that is the 42g bottle.'), 'Good catch, that is the 42g bottle.');
-  for (const s of [ACK, 'Updating your numbers now.', 'Your macros are recalculating right now.']) assert.doesNotMatch(settled(s), /updating|recalculating|now\b/i, s);
+test('R2: an ack still "updating now" is replaced whole by the server\'s lead, never rewritten word by word', () => {
+  for (const t of [ACK, 'Got it. Recalculating now.', 'Updating now!', 'Good catch, 42g it is. Updating your numbers and score now.',
+    "I'll update your macros now.", 'Your numbers will update now.', 'Two cups, got it, your score is recalculating.', 'Updating your protein, carbs and fat now.']) {
+    assert.equal(stillHappening(t), true, t);
+    const r = outcomeRows(sanitizeOutcome({ applied: true, exact: true, done: [{ op: 'scale', verb: 'double', food: 'Grilled chicken', to: '6 oz' }], correction: CORR }, ALLOWED), t, { nonce: 'n' });
+    assert.equal(r.lead.text, 'Doubled the grilled chicken to 6\u00a0oz.', t);
+  }
+  for (const t of ['Good catch, that is the 42g bottle.', 'Double chicken it is. Your numbers and score are updated.']) assert.equal(stillHappening(t), false, t);
 });
 
 test('the composed lead says what landed, in the past tense, and pluralises honestly', () => {
   assert.equal(composeDone([{ op: 'scale', verb: 'double', food: 'Grilled chicken', to: '6 oz' }]), 'Doubled the grilled chicken to 6\u00a0oz.');
   assert.equal(composeDone([{ op: 'remove', food: 'Sour cream' }, { op: 'add', food: 'Guacamole' }, { op: 'add', food: 'White rice' }]), 'Took the sour cream off. Added guacamole and white rice.');
   assert.equal(composeDone([{ op: 'scale', verb: 'extra', food: 'Grilled chicken', to: '6 oz' }]), 'Counted extra grilled chicken, 6\u00a0oz now.');
-  assert.equal(composeDone([{ op: 'rename', food: 'Roasted corn salsa', newName: 'Pico de gallo' }]), 'Changed the roasted corn salsa to Pico de gallo.');
+  assert.equal(composeDone([{ op: 'rename', food: 'Roasted corn salsa', newName: 'Pico de gallo' }]), 'Changed the roasted corn salsa to pico de gallo.', 'names are lowercase mid-sentence');
   assert.equal(composeDone([{ op: 'amount', food: '', to: '2 medium bananas' }]), 'Set that item to 2\u00a0medium bananas.');
   assert.equal(composeDone([]), 'Your numbers are updated.');
 });
 
 /* ---------------- I5: the ack is checked against the outcome ---------------- */
 
-test('applied exactly as described: the signed ack leads (past tense, with the photos it counted)', () => {
-  const o = sanitizeOutcome({ applied: true, exact: true, done: [{ op: 'scale', verb: 'double', food: 'Grilled chicken', to: '6 oz' }] }, ALLOWED);
-  const r = outcomeRows(o, ACK, { nonce: 'n1', photos: ['p'] });
-  assert.deepEqual(r, { lead: { text: settled(ACK), meta: { t: 'analysis_update', ct: 'n1', photos: ['p'] } }, follow: null });
+test('applied exactly as described: the signed ack leads, verbatim (with the photos it counted)', () => {
+  const ack = 'Good catch, Jihad. Double chicken it is. Your numbers and score are updated.';
+  const o = sanitizeOutcome({ applied: true, exact: true, done: [{ op: 'scale', verb: 'double', food: 'Grilled chicken', to: '6 oz' }], correction: CORR }, ALLOWED);
+  const r = outcomeRows(o, ack, { nonce: 'n1', photos: ['p'] });
+  assert.deepEqual(r, { lead: { text: ack, meta: { t: 'analysis_update', ct: 'n1', photos: ['p'] } }, follow: null });
+});
+
+test('R2 I5: the client\'s "exact" is believed only when what landed covers the signed correction', () => {
+  const ack = 'Good catch, Jihad. Double chicken it is. Your numbers and score are updated.';
+  const lead = (o) => outcomeRows(sanitizeOutcome({ applied: true, exact: true, correction: CORR, ...o }, ALLOWED), ack, { nonce: 'n' }).lead.text;
+  assert.equal(lead({ done: [] }), 'Your numbers are updated.', 'nothing landed: not the model\'s words');
+  assert.equal(lead({ done: [{ op: 'remove', food: 'Sour cream' }] }), 'Took the sour cream off.', 'landed, but not the part the model described');
+  assert.equal(lead({ applied: false, done: [{ op: 'scale', verb: 'double', food: 'Grilled chicken', to: '6 oz' }] }) === ack, false);
+  const both = { ...CORR, missed: [{ name: 'Guacamole' }] };
+  const two = allowedNames(both, DETECTED);
+  const r = outcomeRows(sanitizeOutcome({ applied: true, exact: true, correction: both, done: [{ op: 'scale', verb: 'double', food: 'Grilled chicken', to: '6 oz' }] }, two), ack, { nonce: 'n' });
+  assert.equal(r.lead.text, 'Doubled the grilled chicken to 6\u00a0oz.', 'the guacamole the model promised never landed');
+  assert.equal(outcomeRows(sanitizeOutcome({ applied: true, exact: true, correction: both, done: [{ op: 'scale', verb: 'double', food: 'Grilled chicken', to: '6 oz' }, { op: 'add', food: 'Guacamole' }] }, two), ack, { nonce: 'n' }).lead.text, ack);
+});
+
+test('R2 I2: a name is checked whole: tags stripped, and every word from ONE allowed food', () => {
+  const nm = (food) => sanitizeOutcome({ applied: true, done: [{ op: 'remove', food }] }, ALLOWED).done[0].food;
+  assert.equal(nm('<b>Grilled chicken</b>'), 'Grilled chicken', 'no "b grilled chicken /b"');
+  assert.equal(nm('**Grilled** chicken'), 'Grilled chicken');
+  assert.equal(nm('sour chicken lettuce'), '', 'not stitched from three foods');
+  assert.equal(nm('grilled cream'), '');
+  assert.equal(nm('Your coach'), '');
+  assert.equal(nm('grilled chicken evil.ru'), 'grilled chicken', 'any domain goes');
+});
+
+test('R2: an amount is a real, plate-sized number and a unit, and reads like a cook says it', () => {
+  const to = (v) => sanitizeOutcome({ applied: true, done: [{ op: 'amount', food: 'Grilled chicken', to: v }] }, allowedNames({ ...CORR, missed: [{ name: 'Banana' }] }, DETECTED)).done[0].to;
+  for (const bad of ['0 oz', '0 cups', '1/0 cup', '-6 oz', '99999 oz', '65 oz', '2001 g', '11 cups', '31 tbsp', '61 tsp', '13 servings', '13 pieces', '6 grilled chicken', '6 of lies']) {
+    assert.equal(to(bad), '', bad);
+  }
+  assert.equal(to('8 fl oz'), '8 fl oz');
+  assert.equal(to('150 g'), '150 g');
+  assert.equal(to('0.5 cup'), '1/2 cup');
+  assert.equal(to('1.5 cups'), '1 1/2 cups');
+  assert.equal(to('2 medium bananas'), '2 medium bananas');
+  assert.equal(to('3 eggs'), '3 eggs');
+  assert.equal(composeDone([{ op: 'amount', food: 'Rice', to: '1 1/2 cups' }]), 'Set the rice to 1\u00a01/2\u00a0cups.', 'one line, never "1" and "1/2 cups" apart');
+});
+
+test('R2: two foods with no numbers are "their", and names are lowercase in the middle of a sentence', () => {
+  const r = outcomeRows(sanitizeOutcome({ applied: true, done: [{ op: 'add', food: 'Sour cream' }], unpriced: ['Grilled chicken', 'Romaine lettuce'] }, ALLOWED), ACK, { nonce: 'n' });
+  assert.equal(r.follow.text, "I don't have numbers for grilled chicken and romaine lettuce yet, so those parts aren't counted. What are their protein and calories?");
+  const one = outcomeRows(sanitizeOutcome({ applied: true, done: [{ op: 'add', food: 'Sour cream' }], unpriced: ['Grilled chicken'] }, ALLOWED), ACK, { nonce: 'n' });
+  assert.match(one.follow.text, /for grilled chicken yet, so that part isn't counted\. What are its protein/);
 });
 
 test('I5: a part that became a question: the lead is composed from what landed, and the question follows', () => {
@@ -212,7 +258,7 @@ test('the outcome mode spends nothing, checks the token and its correction befor
   assert.ok(i > 0);
   assert.ok(i < SRC.indexOf('await missingConsent('), 'before the consent read and the model');
   assert.ok(i < SRC.indexOf('withinKeyCap(`meal_draft:'), 'and before any daily cap');
-  const block = SRC.slice(i, SRC.indexOf('return ok({ reply: lead.text });', i));
+  const block = SRC.slice(i, SRC.indexOf('return ok({ reply: lead.text, receipt });', i));
   assert.ok(block.indexOf('readPending(') < block.indexOf('.insert('), 'token first');
   assert.ok(block.indexOf('correctionHash(outcomeIn.correction') < block.indexOf('.insert('), 'bound to its turn\'s correction');
   assert.match(block, /allowedNames\(outcomeIn\.correction, detRow\?\.detected\)/, 'names from the signed correction and the meal row');
@@ -222,6 +268,9 @@ test('the outcome mode spends nothing, checks the token and its correction befor
   assert.match(block, /leadErr\.code === '23505' \? ok\(\{ duplicate: true \}\)/, 'a lost race is "already filed", not an error');
   assert.doesNotMatch(block, /insert\(\{ \.\.\.base, text: row\.text \}\)/, 'never a fallback insert without meta');
   assert.doesNotMatch(block, /recordAiCall\(/, 'no zero-token ai_calls row: ai_calls is one row per paid call');
+  assert.match(block, /receipt = !rErr \|\| rErr\.code === '23505'/, 'the device is told when its receipt did not land (R2)');
+  assert.match(SRC, /receiptCt = !coachReceiptIn && typeof body\?\.receiptCt === 'string' && \/\^\[A-Za-z0-9_-\]\{8,40\}:f\$\/\.test/, 'a fallback receipt files under nonce:f');
+  assert.match(SRC, /recErr && recErr\.code === '23505' && receiptCt/, 'and a second copy of it is "already filed"');
   assert.match(SRC, /!receiptRows && !outcomeIn && !context/, 'an outcome needs no context');
 });
 

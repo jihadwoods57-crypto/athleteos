@@ -111,10 +111,12 @@ export async function readPending(token, { mealId, userId }, key, now = Date.now
 /** URLs and markup out of anything that might become part of a sentence. */
 export function stripName(v, cap = 60) {
   return String(v == null ? '' : v)
+    .replace(/<[^>]*>?/g, ' ')                                   // a tag goes whole, never as "b ... /b"
     .replace(/(?:https?:\/\/|www\.)\S*/gi, ' ')
-    .replace(/\b[a-z0-9-]+\.(?:com|net|org|io|co|app|ly|gg|me|xyz|info|biz|us|tv|link|site)\b\S*/gi, ' ')
-    .replace(/[<>*_=`~#|[\]{}()\\^$@\u0000-\u001f]/g, ' ')
-    .replace(/\s+/g, ' ').trim().slice(0, cap).trim();
+    .replace(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b\S*/gi, ' ')   // any domain
+    .replace(/[^A-Za-z0-9' &,.%-]+/g, ' ')                          // markup, symbols, control characters
+    .replace(/(^|\s)[^A-Za-z0-9\s]+(?=\s|$)/g, ' ')                  // stray punctuation between words
+    .replace(/\s+/g, ' ').trim().slice(0, cap).replace(/[\s,.&-]+$/, '').trim();
 }
 const lowerWords = (s) => String(s || '').toLowerCase().split(/[^a-z0-9']+/).map((w) => w.replace(/'/g, '').replace(/s$/, '')).filter((w) => w.length >= 2);
 
@@ -133,31 +135,55 @@ export function allowedNames(correction, detected) {
   return out;
 }
 
-/** A gate over one list of allowed names: a name passes when it IS one of them, or when every
- *  word of it is a word of one of them ("chicken" out of "Grilled chicken"). Anything else is ''. */
+/** A gate over one list of allowed names: a name passes when every word of it is a word of ONE
+ *  of them ("chicken" out of "Grilled chicken"; never "sour chicken lettuce" stitched from three).
+ *  Anything else is ''. */
 function nameGate(allowed) {
-  const list = Array.isArray(allowed) ? allowed : [];
-  const whole = new Set(list.map((n) => lowerWords(n).join(' ')));
-  const vocab = new Set(list.flatMap(lowerWords));
+  const sets = (Array.isArray(allowed) ? allowed : []).map((n) => new Set(lowerWords(n)));
   return (v) => {
     const n = stripName(v);
-    if (!n) return '';
     const w = lowerWords(n);
     if (!w.length || w.length > 6) return '';
-    if (whole.has(w.join(' ')) || w.every((x) => vocab.has(x))) return n;
-    return '';
+    return sets.some((set) => w.every((x) => set.has(x))) ? n : '';
   };
 }
-const UNIT_WORDS = new Set(['oz', 'ounce', 'cup', 'g', 'gram', 'tbsp', 'tsp', 'tablespoon', 'teaspoon', 'lb', 'slice', 'piece',
-  'serving', 'portion', 'bowl', 'ml', 'scoop', 'large', 'medium', 'small', 'whole', 'egg', 'strip', 'patty', 'can', 'bottle', 'glass']);
-/** An amount like "6 oz", "3/4 cup" or "2 medium bananas", or ''. */
+/* An amount Nia may say: a positive number and a unit, inside what a plate can hold. The cap is
+   per unit (a sane plate, not a typo or a joke); anything outside it is not said at all. */
+const UNIT_CAP = { oz: 64, 'fl oz': 64, ounce: 64, g: 2000, gram: 2000, ml: 3000, cup: 10, tbsp: 30, tablespoon: 30,
+  tsp: 60, teaspoon: 60, lb: 4, pound: 4, slice: 12, piece: 12, serving: 12, portion: 12, bowl: 12, scoop: 12,
+  egg: 12, strip: 12, patty: 12, can: 12, bottle: 12, glass: 12, wing: 20, nugget: 20 };
+const SIZE = /^(?:large|medium|small|whole|big|jumbo|mini)$/;
+const FRAC = [[0.25, '1/4'], [1 / 3, '1/3'], [0.5, '1/2'], [2 / 3, '2/3'], [0.75, '3/4']];
+/** 0.5 -> "1/2", 1.5 -> "1 1/2", 4.5 -> "4 1/2"; metric stays decimal. */
+function asFraction(n, unit) {
+  if (/^(?:g|gram|ml)$/.test(unit)) return String(Math.round(n * 10) / 10);
+  const whole = Math.floor(n + 1e-9);
+  const fr = FRAC.find(([f]) => Math.abs(n - whole - f) < 0.01);
+  if (Math.abs(n - whole) < 0.01) return String(whole);
+  if (fr) return whole ? `${whole} ${fr[1]}` : fr[1];
+  return String(Math.round(n * 100) / 100);
+}
+/** "6 oz", "3/4 cup", "8 fl oz" or "2 medium bananas" (one word of ONE allowed food), or ''. */
 function amountGate(allowed) {
-  const vocab = new Set((Array.isArray(allowed) ? allowed : []).flatMap(lowerWords));
+  const sets = (Array.isArray(allowed) ? allowed : []).map((n) => new Set(lowerWords(n)));
   return (v) => {
-    const s = stripName(v, 30);
-    const m = s.match(/^(\d+(?:\.\d+)?|\d+\/\d+|\d+ \d+\/\d+)\s+([a-z]+(?:\s[a-z]+)?)$/i);
+    const s = stripName(v, 30).toLowerCase();
+    const m = s.match(/^(\d+(?:\.\d+)?|\d+\/\d+|\d+ \d+\/\d+)\s+(fl oz|[a-z]+)(?:\s([a-z]+))?$/);
     if (!m) return '';
-    return lowerWords(m[2]).every((w) => UNIT_WORDS.has(w) || UNIT_WORDS.has(w.replace(/e$/, '')) || vocab.has(w)) ? s : '';
+    const parts = m[1].match(/^(\d+) (\d+)\/(\d+)$/) || m[1].match(/^()(\d+)\/(\d+)$/);
+    const n = parts ? (Number(parts[1]) || 0) + Number(parts[2]) / Number(parts[3]) : Number(m[1]);
+    if (!(n > 0) || !isFinite(n)) return '';                         // zero is a removal; x/0 is nothing
+    let unit = m[2] === 'fl oz' ? 'fl oz' : m[2].replace(/(?:es|s)$/, '').replace(/^ounc$/, 'ounce');
+    let food = m[3] || '';
+    if (SIZE.test(unit) && food) { unit = ''; }                      // "2 medium bananas": size + food
+    const cap = unit ? UNIT_CAP[unit] || UNIT_CAP[m[2]] : 12;
+    if (unit && !cap) {                                               // "3 eggs" as a count of a food
+      if (food) return '';
+      food = m[2]; unit = '';
+    }
+    if (food && !sets.some((set) => set.has(lowerWords(food)[0]))) return '';
+    if (n > (cap || 12)) return '';
+    return `${asFraction(n, unit)} ${m[2]}${m[3] ? ` ${m[3]}` : ''}`;
   };
 }
 
@@ -191,7 +217,24 @@ export function sanitizeOutcome(raw, allowed) {
     .filter((d) => d && OPS.includes(d.op))
     .map((d) => ({ op: d.op, verb: VERBS.includes(d.verb) ? d.verb : '', food: nm(d.food), to: amt(d.to), newName: nm(d.newName) }));
   const unpriced = [...new Set((Array.isArray(o.unpriced) ? o.unpriced : []).slice(0, 3).map((x) => nm(x) || 'that item'))];
-  return { applied: o.applied === true, exact: o.exact === true, done, unpriced, asks, ask: asks[0] || null };
+  const applied = o.applied === true;
+  // `exact` is the client's claim that every part landed as the model described it. It is believed
+  // only when something applied, nothing is owed, and what landed covers every part of the SIGNED
+  // correction (review round 2). Otherwise the server composes the lead from what did land.
+  const exact = o.exact === true && applied && !asks.length && !unpriced.length && covers(done, o.correction);
+  return { applied, exact, done, unpriced, asks, ask: asks[0] || null };
+}
+
+/** Does what landed account for every part of the correction the model sent? */
+function covers(done, correction) {
+  const c = correction && typeof correction === 'object' ? correction : {};
+  const said = (d) => lowerWords(`${d.food} ${d.newName || ''}`);
+  const hit = (name, ops) => done.some((d) => ops.includes(d.op) && lowerWords(name).some((w) => said(d).includes(w)));
+  const items = [c, ...(Array.isArray(c.more) ? c.more : [])].filter((p) => p && typeof p === 'object' && p.item);
+  const missed = (Array.isArray(c.missed) ? c.missed : []).filter((f) => f && f.name);
+  if (!done.length || (!items.length && !missed.length)) return false;
+  return items.every((p) => hit(p.item, ['scale', 'amount', 'remove', 'rename', 'ingredients', 'macros']) || (p.newName && hit(p.newName, ['rename'])))
+    && missed.every((f) => hit(f.name, ['add']));
 }
 
 /* ---------------- the words Nia files ---------------- */
@@ -208,7 +251,7 @@ const orList = (names) => (names.length <= 1 ? names.join('') : `${names.slice(0
 const VERB_ASK = { double: 'double', triple: 'triple', extra: 'add extra to', half: 'cut in half', remove: 'take off', add: 'add', set: 'change' };
 const COUNTED_AS = { double: 'a double', triple: 'a triple', half: 'half', extra: 'extra' };
 /** "6 oz" never breaks between the 6 and the oz in a bubble. */
-const nb = (s) => String(s || '').replace(/(\d) (?=[a-z])/gi, '$1\u00a0');
+const nb = (s) => String(s || '').replace(/(\d) (?=[\da-z])/gi, '$1\u00a0');
 
 /** Nia's one precise sentence for a part that did not land. Deterministic, no model. */
 export function askText(ask) {
@@ -241,10 +284,10 @@ export function askText(ask) {
     case 'amount':
       return `How much ${a.food ? food : 'of it'} was it: double the portion, half, or an amount like 8 oz?`;
     case 'unpriced':
-      return `I don't have numbers for ${orList(a.unpriced && a.unpriced.length ? a.unpriced : ['that'])} yet, so your totals haven't changed. What are the protein and calories on the label, or what is it closest to?`;
+      return `I don't have numbers for ${orList((a.unpriced && a.unpriced.length ? a.unpriced : ['that']).map(lower))} yet, so your totals haven't changed. What are the protein and calories on the label, or what ${a.unpriced && a.unpriced.length > 1 ? 'are they' : 'is it'} closest to?`;
     case 'unchanged':
       return a.newName
-        ? `Got it, it's ${a.newName} now. The numbers are the same, so your totals and score stay where they were.`
+        ? `Got it, it's ${lower(a.newName)} now. The numbers are the same, so your totals and score stay where they were.`
         : `That didn't change any numbers. Tell me what to fix, like how much there was or what else was in it.`;
     case 'counted': {
       const as = COUNTED_AS[a.verb] || '';
@@ -274,7 +317,7 @@ export function composeDone(done) {
       else out.push(d.to ? `Set ${f}${to}.` : `Updated ${f}.`);
     } else if (d.op === 'amount') out.push(d.to ? `Set ${f}${to}.` : `Updated the amount of ${f}.`);
     else if (d.op === 'remove') out.push(`Took ${f} off.`);
-    else if (d.op === 'rename') out.push(d.newName ? `Changed ${f} to ${d.newName}.` : `Renamed ${f}.`);
+    else if (d.op === 'rename') out.push(d.newName ? `Changed ${f} to ${lower(d.newName)}.` : `Renamed ${f}.`);
     else if (d.op === 'add') adds.push(d.food ? lower(d.food) : 'that item');
     else if (d.op === 'ingredients') out.push(`Updated what's in ${f}.`);
     else if (d.op === 'macros') out.push(`Put your numbers on ${f}.`);
@@ -284,17 +327,11 @@ export function composeDone(done) {
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : 'Your numbers are updated.';
 }
 
-/** The model's ack, filed after the fact, so it says the numbers ARE updated, not "updating now". */
-export function settled(ack) {
-  let s = String(ack || '');
-  s = s.replace(/\b(are|is)\s+(?:being\s+)?(?:updating|recalculating|recomputing|changing)(?:\s+(?:right\s+)?now)?/gi, (_m, v) => `${v} updated`);
-  s = s.replace(/\bwill\s+(?:update|recalculate)(?:\s+(?:right\s+)?now)?/gi, 'are updated');
-  s = s.replace(/(^|[.!?]\s+|,\s*|\s)(?:i'?m\s+|i am\s+|i'?ll\s+|i will\s+)?(?:updating|update|recalculating|recomputing)\s+(your|the)\s+([a-z ]{1,40}?)(?:\s+(?:right\s+)?now)?(?=[.!?,]|$)/gi, (_m, pre, det, what) => {
-    const w = what.trim();
-    const said = `${lower(det) === 'the' ? 'the' : 'your'} ${w} ${/\band\b|s$/i.test(w) ? 'are' : 'is'} updated`;
-    return pre + (/^$|[.!?]\s+$/.test(pre) ? said.charAt(0).toUpperCase() + said.slice(1) : said);
-  });
-  return s.replace(/\b(?:updating|recalculating)\s+now\b/gi, 'updated');
+/** Is the model's ack still talking about a change in progress ("updating your numbers now")? It is
+ *  filed AFTER the change, so such an ack is never filed or rewritten word by word (review round 2:
+ *  "Got it. Recalculating now." became "Got it. updated."). The server's own lead replaces it. */
+export function stillHappening(ack) {
+  return /\b(?:updating|recalculating|recomputing|refreshing|changing)\b|\b(?:will|'ll|going to|about to)\s+(?:update|recalculate|change|refresh)\b|\bupdat\w*\s+(?:right\s+)?now\b/i.test(String(ack || ''));
 }
 
 /**
@@ -317,10 +354,13 @@ export function outcomeRows(outcome, ack, { nonce, photos = [] } = {}) {
   // What is already true reads before what is being asked.
   const ordered = [...asks.filter((a) => a.reason === 'counted'), ...asks.filter((a) => a.reason !== 'counted')];
   if (o.applied) {
-    const own = o.exact ? settled(ack).trim() : '';
+    const own = o.exact && !stillHappening(ack) ? String(ack || '').trim() : '';
     const lead = { text: (own || composeDone(o.done)).slice(0, 600), meta: { t: 'analysis_update', ...ct(''), ...(photos.length ? { photos } : {}) } };
     const owed = [];
-    if (o.unpriced.length) owed.push(`I don't have numbers for ${orList(o.unpriced)} yet, so that part isn't counted. What are its protein and calories?`);
+    if (o.unpriced.length) {
+      const many = o.unpriced.length > 1;
+      owed.push(`I don't have numbers for ${orList(o.unpriced.map(lower)).replace(/ or ([^,]*)$/, many ? ' and $1' : ' or $1')} yet, so ${many ? 'those parts aren\'t' : 'that part isn\'t'} counted. What are ${many ? 'their' : 'its'} protein and calories?`);
+    }
     for (const a of ordered.slice(0, 2)) owed.push(askText(a));
     const reason = o.unpriced.length ? 'unpriced' : ordered.length ? ordered[0].reason : '';
     return { lead, follow: owed.length ? { text: owed.join(' ').slice(0, 600), meta: { t: 'correction_ask', ...ct(':q'), reason } } : null };

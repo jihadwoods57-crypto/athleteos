@@ -592,6 +592,8 @@ Deno.serve(async (req) => {
     const additionId = uuidish(coachReceiptIn ? coachReceiptIn.additionId : body?.additionId);
     const receiptRows = correctionReceiptRows(coachReceiptIn ? (additionId ? coachReceiptIn.rows : null) : body?.correctionReceipt);
     const coachReceipt = !!(coachReceiptIn && additionId && receiptRows);
+    // The ct a device's FALLBACK receipt files under (correction-turn.js): the turn's nonce + ':f'.
+    const receiptCt = !coachReceiptIn && typeof body?.receiptCt === 'string' && /^[A-Za-z0-9_-]{8,40}:f$/.test(body.receiptCt) ? body.receiptCt : null;
     // What happened to a correction this function handed out with a pending token: applied (file
     // Nia's ack, then the receipt) or not (file her one precise question). See correction-outcome.mjs.
     const outcomeIn = body?.correctionOutcome && typeof body.correctionOutcome === 'object' ? body.correctionOutcome : null;
@@ -688,13 +690,17 @@ Deno.serve(async (req) => {
       const leadErr = await file(lead);
       // 23505: a concurrent report filed this turn first (the dup read above raced it). Already done.
       if (leadErr) return leadErr.code === '23505' ? ok({ duplicate: true }) : bad(503, 'unavailable', cors);
+      // `receipt`: whether the receipt row is in (or was already). false tells the device to file its
+      // own plain one (ct nonce:f), so moved numbers are never left without a record.
+      let receipt = !(outcome.applied && receiptRows);
       if (outcome.applied && receiptRows) {
-        await file({ text: correctionReceiptText(receiptRows), meta: { t: 'correction_receipt', rows: receiptRows, ct: `${pending.nonce}:r` } });
+        const rErr = await file({ text: correctionReceiptText(receiptRows), meta: { t: 'correction_receipt', rows: receiptRows, ct: `${pending.nonce}:r` } });
+        receipt = !rErr || rErr.code === '23505';
       }
       if (follow) await file(follow);
       // No ai_calls row: this mode makes no model call, and ai_calls is one row per paid call
       // (ai-telemetry.ts). The turn that produced the ack already recorded its own.
-      return ok({ reply: lead.text });
+      return ok({ reply: lead.text, receipt });
     }
     if (receiptRows) {
       let rows = receiptRows;
@@ -727,9 +733,15 @@ Deno.serve(async (req) => {
       const row = {
         meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai',
         text, kind: 'message',
-        meta: { t: 'correction_receipt', rows, ...(note ? { note, additionId } : {}) },
+        meta: { t: 'correction_receipt', rows, ...(note ? { note, additionId } : {}) } as Record<string, unknown>,
       };
+      if (receiptCt) row.meta.ct = receiptCt;
       const { error: recErr } = await service.from('meal_comments').insert(row);
+      // The device's fallback receipt carries its own ct (nonce:f): a retry after a lost response is
+      // the same row, and 0249's unique index says so.
+      if (recErr && recErr.code === '23505' && receiptCt) {
+        return new Response(JSON.stringify({ ok: true, duplicate: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
       if (recErr) {
         // A database without `meta` still gets the sentence: the figures are in the text, so the
         // thread keeps a true record of the change rather than losing it to a missing column.
