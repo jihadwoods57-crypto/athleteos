@@ -6,8 +6,9 @@
 // reference tomorrow, and nothing a coach could scroll back through. The founder's brief: it
 // should read like a person on the athlete's staff talking to them.
 //
-// So this composes ONE conversational paragraph and it is persisted as a real message in the
-// thread. What it covers, in the order a nutritionist would actually say it: what I can see on
+// So this composes ONE conversational message and it is persisted as a real message in the
+// thread (since 2026-09-25 its parts are separated by paragraph breaks, which the client draws as
+// a few short texts; see the join at the end of composeOpener). What it covers, in the order a nutritionist would actually say it: what I can see on
 // the plate, roughly what it comes to, how that fits your day and your goal, what I am not sure
 // about, and one practical thing. No headers, no bullets, no labels.
 //
@@ -178,14 +179,27 @@ function readCore(s: string): string {
   return clip(kept, READ_MAX);
 }
 
-/** Trim to `max` on a sentence boundary, falling back to a word boundary. */
+/** Trim to `max` on a sentence boundary, falling back to a word boundary. A paragraph break
+ *  ("\n\n", the opener's text boundary since 2026-09-25) is a boundary like a space is, so a clip
+ *  can land at the end of a whole text and never leaves a dangling break behind it. */
 function clip(s: string, max = MAX): string {
   if (s.length <= max) return s;
   const cut = s.slice(0, max);
-  const sentence = Math.max(cut.lastIndexOf('. '), cut.lastIndexOf('! '), cut.lastIndexOf('? '));
+  const sentence = Math.max(...['. ', '! ', '? ', '.\n', '!\n', '?\n'].map((b) => cut.lastIndexOf(b)));
   if (sentence > max * 0.5) return cut.slice(0, sentence + 1);
-  const word = cut.lastIndexOf(' ');
+  const word = Math.max(cut.lastIndexOf(' '), cut.lastIndexOf('\n'));
   return `${cut.slice(0, word > 0 ? word : max).trimEnd()}…`;
+}
+
+/** What the opener asks the athlete, as data the client can answer with one tap (2026-09-25):
+ *  the item the uncertainty line names, lowercase, and what about it is unsure. Built only from
+ *  the grounded read's own detected names, bounded and stripped to plain characters, so no free
+ *  text a client sends can ride it. Null when the line names nothing. */
+export interface OpenerAsk { food: string; aspect: UncertainAspect }
+function askOf(item: UncertainItem | null): OpenerAsk | null {
+  if (!item) return null;
+  const food = item.name.toLowerCase().replace(/[^\p{L}\p{N} '’&%.,()-]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 60);
+  return food ? { food, aspect: item.aspect } : null;
 }
 
 export type OpenerContext = {
@@ -224,6 +238,15 @@ export type OpenerContext = {
  * simply does not post — an empty bubble is worse than no bubble.
  */
 export function composeOpenerText(input: MealInput, ctx: OpenerContext = {}): string {
+  return composeOpener(input, ctx).text;
+}
+
+/**
+ * The opener and what it asks. `ask` is set only when the uncertainty line naming an item made it
+ * into the message whole (a clip that dropped it, or a style rail that emptied the message, leaves
+ * nothing to answer), so a tap-to-answer chip can never answer a question the athlete was not asked.
+ */
+export function composeOpener(input: MealInput, ctx: OpenerContext = {}): { text: string; ask: OpenerAsk | null } {
   const style = ctx.planStyle ?? null;
   // INTUITIVE (0142): not one macro or calorie figure may reach this athlete. The plate, the
   // timing and how it fits their goal still do — the composition IS the feedback. The model's own
@@ -314,9 +337,18 @@ export function composeOpenerText(input: MealInput, ctx: OpenerContext = {}): st
   // strips them (meal-chat does it on replies, acks, notes and drafts); this composed path carried
   // four hardcoded ones, in the single most-read AI message the app produces. The rail lives here
   // so a sentence added later cannot quietly reintroduce one.
-  const out = clip(parts.filter(Boolean).join(' ').replace(/—/g, ',').replace(/\s+/g, ' ').trim());
-  if (out.length < 2) return '';
+  //
+  // SHORT TEXTS, NOT ONE TALL BLOCK (founder, 2026-09-25, from the mockup). Each part is its own
+  // text, separated by a paragraph break, and the client draws each as its own bubble the way a
+  // person texts a breakdown in a few messages. This changes DELIVERY only: the same parts, in the
+  // same order, at the same length (the 2026-09-07 ruling above stands). Whitespace is collapsed
+  // INSIDE a part, so the only line breaks in the message are the ones between texts.
+  const tidy = (p: string) => p.replace(/—/g, ',').replace(/\s+/g, ' ').trim();
+  const out = clip(parts.map(tidy).filter(Boolean).join('\n\n'));
+  if (out.length < 2) return { text: '', ask: null };
   // Final rail, matching meal-chat: nothing that breaches the athlete's plan-style language is
   // ever persisted, even assembled from the model's own already-railed prose.
-  return violatesStyleLanguage(out, style) ? '' : out;
+  if (violatesStyleLanguage(out, style)) return { text: '', ask: null };
+  const asked = unsure && out.includes(tidy(unsure)) ? askOf(uncertainItem(input.detected)) : null;
+  return { text: out, ask: asked };
 }

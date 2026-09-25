@@ -2,7 +2,7 @@
 // thread. The bar (founder 2026-08-04): it must sound like a nutrition coach texting an athlete
 // they know, and it must NEVER repeat what the screen already shows — the photo, the score, the
 // macros, the foods. Takeaway first, one or two concrete moves, day framed forward, real history.
-import { composeOpenerText, uncertaintyLine } from './meal-opener';
+import { composeOpener, composeOpenerText, uncertaintyLine } from './meal-opener';
 
 /* The composer writes light emphasis marks since 2026-09-14 (**bold**, __underline__, ==colour==,
    drawn by the client); the wording is asserted with the marks stripped. */
@@ -62,9 +62,19 @@ describe('it coaches instead of narrating the screen', () => {
   });
 
   it('has no section headers, labels or bullets anywhere in it', () => {
-    for (const banned of ['WHAT WENT WELL', 'NEXT TIME', 'Biggest opportunity', '•', '- ', '\n']) {
+    for (const banned of ['WHAT WENT WELL', 'NEXT TIME', 'Biggest opportunity', '•', '- ']) {
       expect(out).not.toContain(banned);
     }
+  });
+
+  /* DELIBERATE CHANGE (2026-09-25): this test used to ban every newline, because the opener was
+     one paragraph. It is now a few short texts separated by ONE paragraph break each, which the
+     client draws as separate bubbles. What stays banned is any other line break: a stray single
+     newline, or a run of three, would be a formatting accident, not a text boundary. */
+  it('its only line breaks are single paragraph breaks between texts', () => {
+    expect(out.replace(/\n\n/g, '')).not.toContain('\n');
+    expect(out).not.toMatch(/\n{3,}/);
+    for (const t of out.split('\n\n')) expect(t).toBe(t.trim());
   });
 
   it('fits the column the database actually has', () => {
@@ -338,5 +348,127 @@ describe('the move is advice, a highlight is trivia', () => {
     );
     expect(out).toContain('Green beans add fiber and micronutrients.');
     expect(out.indexOf('Green beans add fiber')).toBeGreaterThan(out.indexOf('Land around'));
+  });
+});
+
+/* SHORT TEXTS, NOT ONE TALL BLOCK (founder, 2026-09-25). The parts are joined by a paragraph break
+   instead of a space; the client draws each as its own bubble. Delivery changes, content does not. */
+describe('the opener arrives as a few short texts', () => {
+  const day = { proteinIncludingThisMeal: 81, proteinTarget: 180, mealsRemaining: 2 };
+  const detected = [
+    { name: 'White rice', confidence: 'low', quantity: '1 cup', kcal: 200 },
+    { name: 'Grilled chicken', confidence: 'high', quantity: '6 oz', kcal: 280 },
+  ];
+  const full = composeOpenerText(read({ detected, highlights: ['Green beans add fiber and micronutrients'] }), {
+    planStyle: 'structured', late: true, mealName: 'Dinner', day,
+    patterns: ["You've hit your protein bar in 3 of your last 4 dinners"],
+  });
+  const texts = full.split('\n\n');
+
+  it('puts each part in its own text, in the order a nutritionist says it', () => {
+    expect(texts[0]).toBe('Real protein with vegetables and a starch is what a training day should look like.');
+    expect(plain(texts[1])).toBe("Land around 50g of protein at each of your last 2 meals and you'll hit today's target without forcing the last one.");
+    expect(texts[2]).toBe("You've hit your protein bar in 3 of your last 4 dinners.");
+    expect(texts[3]).toBe('Green beans add fiber and micronutrients.');
+    expect(plain(texts[4])).toBe("And logging dinner late still counts. Hiding it wouldn't.");
+    expect(texts[5]).toBe("I'm least sure on the white rice portion, so tell me how much and I'll tighten the numbers.");
+    expect(texts).toHaveLength(6);
+  });
+
+  it('is the same words the old single-paragraph join produced; only the spacing between texts changed', () => {
+    expect(full.replace(/\n\n/g, ' ')).toBe(texts.join(' '));
+    for (const t of texts) expect(t).not.toMatch(/\s{2,}|\n/);
+  });
+
+  it('the move (the ==highlight==) sits in a text of its own', () => {
+    expect(texts.filter((t) => t.includes('==')).length).toBe(1);
+    expect(texts[1].startsWith('==')).toBe(true);
+  });
+
+  it('collapses whitespace INSIDE a part, never across the break', () => {
+    const out = composeOpenerText(read({ analysis: 'Good   plate.\n\nReally\tgood.', highlights: [] }), {});
+    expect(out.split('\n\n')[0]).toBe('Good plate. Really good.');
+  });
+
+  it('a clip lands on a whole sentence and never leaves a trailing break', () => {
+    const long = 'This plate does a lot of things right and here is the reason why. '.repeat(30);
+    const out = composeOpenerText(read({ analysis: long, detected, highlights: ['Green beans add fiber and micronutrients'] }), {
+      planStyle: 'structured', late: true, mealName: 'Dinner', day,
+    });
+    expect(out.length).toBeLessThanOrEqual(1000);
+    expect(out).toMatch(/[.!?…]$/);
+    expect(out).not.toMatch(/\s$/);
+  });
+
+  it('Intuitive still never sees a number, split or not', () => {
+    const out = composeOpenerText(read({ analysis: 'A plate that sets up a strong afternoon.', detected }), {
+      planStyle: 'intuitive', late: true, mealName: 'Dinner', day,
+    });
+    expect(out).toContain('\n\n');
+    expect(out).not.toMatch(/\d+\s*(?:g|grams?|kcal|calories)/i);
+  });
+});
+
+/* THE ASK, AS DATA (2026-09-25). The opener row carries meta.ask = { food, aspect } when the
+   uncertainty line names an item, so the athlete can answer with one tap. */
+describe('composeOpener says what it asked', () => {
+  it('names the item the uncertainty line asks about, lowercase, with the aspect', () => {
+    const { text, ask } = composeOpener(read({ detected: [
+      { name: 'White Rice', confidence: 'low', quantity: '1 cup', kcal: 200 },
+    ] }), {});
+    expect(text).toContain('least sure on the White Rice portion');   // two capitals read as a name, and stay
+    expect(ask).toEqual({ food: 'white rice', aspect: 'portion' });
+  });
+
+  it('keeps the aspect for a product or identity question', () => {
+    expect(composeOpener(read({ detected: [{ name: 'Core Power shake', kind: 'packaged', confidence: 'low', quantity: '1 bottle' }] }), {}).ask)
+      .toEqual({ food: 'core power shake', aspect: 'product' });
+    expect(composeOpener(read({ detected: [{ name: 'some kind of stew', confidence: 'low' }] }), {}).ask)
+      .toEqual({ food: 'some kind of stew', aspect: 'identity' });
+  });
+
+  it('asks nothing on a confident read, or when the uncertain item has no name', () => {
+    expect(composeOpener(read(), {}).ask).toBeNull();
+    const generic = composeOpener(read({ detected: [{ name: '', confidence: 'low' }] }), {});
+    expect(generic.text).toContain('cooked or portioned differently');
+    expect(generic.ask).toBeNull();
+  });
+
+  it('asks nothing when the message itself is refused', () => {
+    const r = composeOpener(read({ analysis: 'That is roughly 45g of protein on the plate.', detected: [{ name: 'Rice', confidence: 'low', quantity: '1 cup' }], highlights: [] }),
+      { planStyle: 'intuitive' });
+    expect(r).toEqual({ text: '', ask: null });
+  });
+
+  it('asks nothing when a clip dropped the question from the message', () => {
+    // A three-sentence read of ~330 chars each, a 160-char pattern, a highlight and a late line:
+    // past 1000 characters, so the clip takes the tail, which is where the question sits.
+    const sentence = `${'This plate does a lot of things right and here is the long reason why it works so well '.repeat(3).trim()}.`;
+    const r = composeOpener(read({
+      analysis: `${sentence} ${sentence} ${sentence}`,
+      detected: [{ name: 'Rice', confidence: 'low', quantity: '1 cup' }],
+      highlights: ['Green beans add fiber and micronutrients and a lot of other good things to this plate today'],
+    }), {
+      late: true, mealName: 'Dinner', planStyle: 'structured',
+      patterns: [`${'Your dinners have carried the protein on training days '.repeat(3).trim()}.`],
+      day: { proteinIncludingThisMeal: 81, proteinTarget: 180, mealsRemaining: 2 },
+    });
+    expect(r.text.length).toBeLessThanOrEqual(1000);
+    expect(r.text).not.toContain('least sure');
+    expect(r.ask).toBeNull();
+  });
+
+  it('carries no markup or free text: only plain characters from the detected name, bounded', () => {
+    const r = composeOpener(read({ detected: [
+      { name: '<b>Rice</b> {"x":1} ' + 'a'.repeat(80), confidence: 'low', quantity: '1 cup' },
+    ] }), {});
+    expect(r.ask).not.toBeNull();
+    expect(r.ask!.food).not.toMatch(/[<>{}":]/);
+    expect(r.ask!.food.length).toBeLessThanOrEqual(60);
+  });
+
+  it('composeOpenerText is exactly composeOpener().text', () => {
+    const inp = read({ detected: [{ name: 'Rice', confidence: 'low', quantity: '1 cup' }] });
+    expect(composeOpenerText(inp, { late: true })).toBe(composeOpener(inp, { late: true }).text);
   });
 });
