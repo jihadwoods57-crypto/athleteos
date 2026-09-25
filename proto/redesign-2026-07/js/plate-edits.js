@@ -157,8 +157,10 @@ const skipFiller = (toks, i) => { let j = i; while (j < toks.length && FILLER.ha
 export function readPlateEdits(said) {
   const t = fold(said);
   if (!t.trim()) return [];
-  // A question about later ("should I get double chicken?") is not an edit; a request put as a
-  // question ("can you take the rice off?") is one.
+  // A question ("should I get double chicken?", "can you tell me if...", "would you recommend...",
+  // "do you think I should...") is never an edit; a request put as a question ("can you take the
+  // rice off?") is one.
+  if (/\b(?:should (?:i|we)|do you think|would you recommend|(?:can|could) you tell me|is (?:it|that) (?:ok|okay|too|good|bad))\b/.test(t)) return [];
   if (/\?/.test(t) && /\b(should|can|could|would|will|is it|do you)\b/.test(t) && !/\b(?:can|could|would|will) you\b/.test(t)) return [];
   const toks = t.replace(/@?nia\b[,:]?/g, ' nia ').replace(/[.!?;:,]+/g, ' . ').split(/\s+/).filter(Boolean);
   const out = [];
@@ -364,21 +366,28 @@ function atFactor(row, f) {
   }
   return atAmount(relQ(row, f), row);
 }
-/* A COUNT IS AN ABSOLUTE AMOUNT (review round 3). "it was 2 servings" on a row read as 2 servings
-   is the same plate, not twice it. A count scales from the baseline by N over the baseline's OWN
-   count (1 when the baseline is a measure, like "3 oz", or has no amount), and it becomes the new
-   baseline. Only the relative words (double, 2x, triple, half, extra) are factors. */
+/* A COUNT, AND WHAT IT IS COUNTED IN (review rounds 3 and 4). "it was 2 servings" on a row read as
+   2 servings is the same plate: within its own count family (servings / portions, or the same
+   noun: scoops over scoops) a count is ABSOLUTE, N over the baseline's count, and it is the new
+   baseline. Against anything else ("3 oz", "3 pancakes", "2 slices", no amount) "N servings" is N
+   times the baseline: RELATIVE, like "double", and it never rebases, so saying it again (or the
+   model rendering the athlete's "double" as "2 servings") is already counted. */
 const servingsWord = (q) => { const m = fold(q).trim().match(/^(\d+(?:\.\d+)?)\s*(?:servings?|portions?|scoops?|pieces?)$/); return m ? Number(m[1]) : null; };
-const MEASURE = /^(?:oz|ounces?|g|gm|grams?|kg|ml|l|cups?|tbsp|tsp|tablespoons?|teaspoons?|lbs?|pounds?|fl)$/;
-function baseCount(q) {
-  const m = fold(q).trim().match(/^(\d+(?:\.\d+)?|\d+\s*\/\s*\d+)\s+([a-z]+)/);
-  if (!m || MEASURE.test(m[2])) return 1;
-  const fr = m[1].match(/^(\d+)\s*\/\s*(\d+)$/);
-  const n = fr ? Number(fr[1]) / Number(fr[2]) : Number(m[1]);
-  return n > 0 ? n : 1;
+const nounOf = (u) => { const w = singular(u); return w === 'portion' ? 'serving' : w; };
+/** A count's factor on the baseline and whether it is absolute (rebases), or null for a non-count. */
+function countOf(q, row) {
+  const m = fold(q).trim().match(/^(\d+(?:\.\d+)?)\s*([a-z]+)$/);
+  const n = servingsWord(q);
+  if (n == null || !m) return null;
+  const b = fold(baseOf(row).q).trim().match(/^(\d+(?:\.\d+)?|\d+\s*\/\s*\d+)\s+([a-z]+)/);
+  if (b && nounOf(b[2]) === nounOf(m[2])) {
+    const fr = b[1].match(/^(\d+)\s*\/\s*(\d+)$/);
+    const bn = fr ? Number(fr[1]) / Number(fr[2]) : Number(b[1]);
+    if (bn > 0) return { f: n / bn, rebase: true };
+  }
+  return { f: n, rebase: false };
 }
-/** The factor on the baseline a count means, or null when `q` is not a count. */
-const countFactor = (q, row) => { const n = servingsWord(q); return n == null ? null : n / baseCount(baseOf(row).q); };
+const countFactor = (q, row) => { const c = countOf(q, row); return c ? c.f : null; };
 /** Where the model's amount would take the row, as a multiple of what it holds now. */
 function moveOf(q, row) {
   const cf = countFactor(q, row);
@@ -414,6 +423,14 @@ function rowFor(rich, item) {
     if (m.idx != null && !m.composite) idx = m.idx;
   }
   return idx;
+}
+
+/** The one row a take/remove form may take off without its full name: every word said is a word of
+ *  that row, and no other row shares any of them ("take the rice off" over one Brown rice). */
+function soleHolder(rich, ws) {
+  const has = rich.map((d) => { const nw = words(d && d.name); return ws.filter((w) => nw.some((x) => sameWord(w, x))).length; });
+  const full = has.map((n, i) => (n === ws.length ? i : -1)).filter((i) => i >= 0);
+  return full.length === 1 && has.filter((n) => n > 0).length === 1 ? full[0] : -1;
 }
 
 /** A model newName that is really an amount: "Double chicken" over "Grilled chicken". */
@@ -503,13 +520,16 @@ export function resolveChatCorrection(meta, correction, said, { minutesLate } = 
       const zeroed = mdl && onlyAmount(mdl.p0) && isZero(mdl.p0.quantity);
       // The model says something else about this food (a rename, an amount, a label): its part stands.
       if (mdl && !zeroed && !(onlyAmount(mdl.p0) && !mdl.p0.quantity)) continue;
-      if (m.strict || zeroed || (e.take && !m.composite)) {
+      // Certain enough to take food off: the whole name, the model naming this very row, or (for an
+      // explicit take/remove) the one row that alone holds every word said (review round 4).
+      if (m.strict || (zeroed && mdl.exactName) || (e.take && soleHolder(rich, e.words) === idx)) {
         claimed.add(idx);
         if (mdl) mdl.done = true; else exact = false;
         parts.push({ kind: 'remove', item: row.name, from: mdl ? 'model' : 'athlete', ...base });
       } else {
         // One shared word ("no chicken" over "Grilled chicken") is never enough to take food off.
         asks.push({ reason: 'confirm', verb: 'remove', food: e.food, candidates: [String(row.name)] });
+        if (mdl) mdl.done = true;
         exact = false;
       }
       continue;
@@ -521,7 +541,11 @@ export function resolveChatCorrection(meta, correction, said, { minutesLate } = 
     // A model amount that moves the row the OPPOSITE way to the athlete's word ("double" and a stale
     // 6 oz over 8 oz) is out of date: the word, from the baseline, wins (review round 3).
     const mv = mdl && f && absoluteAmount(mdl.p0.quantity, row) ? moveOf(mdl.p0.quantity, row) : 1;
-    const stale = (f > 1 && mv < 0.99) || (f < 1 && mv > 1.01);
+    // A model COUNT beside the athlete's relative word is the model's rendering of that word (it
+    // sends "2 servings" or, seeing a doubled row, "4 servings" for "double"): the word, from the
+    // baseline, is what lands; the count only decides whether it agreed (round 4).
+    const mc = mdl && f ? countOf(mdl.p0.quantity, row) : null;
+    const stale = !!mc || (f > 1 && mv < 0.99) || (f < 1 && mv > 1.01);
     if (mdl && absoluteAmount(mdl.p0.quantity, row) && !stale) {
       // The word names the model's amount only when they agree ("double" and 6 oz over a 3 oz read).
       const same = servingsFor(mdl.p0.quantity, q);
@@ -539,7 +563,8 @@ export function resolveChatCorrection(meta, correction, said, { minutesLate } = 
     if (mdl) {
       // Refine the model's own part: its rename, ingredients or label figures ride along.
       mdl.q = q; mdl.bf = f; mdl.verb = f ? e.verb : '';
-      if (stale || (mdl.p0.quantity && !portionFactor(mdl.p0.quantity) && !isZero(mdl.p0.quantity))) exact = false;
+      const agreed = mc && Math.abs(mc.f - f) < 0.01;
+      if ((stale && !agreed) || (!mc && mdl.p0.quantity && !portionFactor(mdl.p0.quantity) && !isZero(mdl.p0.quantity))) exact = false;
     } else {
       parts.push({ kind: 'item', item: row.name, quantity: q, per: {}, ...(f ? { verb: e.verb, baseFactor: f } : {}), from: 'athlete', ...base });
       exact = false;
@@ -573,12 +598,12 @@ export function resolveChatCorrection(meta, correction, said, { minutesLate } = 
     }
     if (p.quantity && !x.q && (!p.verb || servingsWord(p.quantity) != null)) {
       const pf = portionFactor(p.quantity, row);
-      const cf = pf ? null : countFactor(p.quantity, row);
-      const f = pf || cf;
+      const co = pf ? null : countOf(p.quantity, row);
+      const f = pf || (co && co.f);
       if (f) {
         p.verb = pf ? verbOf(p.quantity) : p.verb || '';
         p.quantity = relQ(row, f); p.baseFactor = f;
-        if (cf != null) p.rebase = true;   // a count is absolute: it is the new baseline
+        if (co && co.rebase) p.rebase = true;   // the same count family: absolute, the new baseline
       }
       else if (!servingsFor(p.quantity, row.quantity || '').resolved && onlyAmount(p)) {
         asks.push({ reason: 'amount', food: String(row.name) });
