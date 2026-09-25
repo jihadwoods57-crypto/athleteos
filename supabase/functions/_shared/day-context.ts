@@ -49,6 +49,22 @@ const NEVER_WRITE =
   'do NOT write day totals, targets or arithmetic into the analysis, the app states the day ' +
   'itself right after your text.';
 
+/**
+ * WHAT TIME IT IS for the athlete, and what is next on their day (2026-09-24). Both come from the
+ * athlete's own device (state.js athleteContextForAnalysis): `localTime` like "3:40 PM" and `next`
+ * like "Lunch (closes 1:30 PM)". Validated hard, because it is client text going into a prompt:
+ * a clock that is not a clock, or a label with anything but plain words, renders nothing.
+ */
+export function clockLine(a: { localTime?: unknown; next?: unknown } | null | undefined, mode: 'now' | 'logged' = 'now'): string {
+  if (!a || typeof a !== 'object') return '';
+  const t = typeof a.localTime === 'string' ? a.localTime.trim().toUpperCase() : '';
+  if (!/^(1[0-2]|[1-9]):[0-5]\d (AM|PM)$/.test(t)) return '';
+  const rawNext = typeof a.next === 'string' ? a.next.replace(/\s+/g, ' ').trim().slice(0, 80) : '';
+  const next = /^[\p{L}\p{N} .,:()'’&/+-]+$/u.test(rawNext) ? rawNext : '';
+  const when = mode === 'logged' ? `this meal was logged at ${t}, the athlete's local time.` : `it is ${t} where the athlete is.`;
+  return ` Clock: ${when}${next ? ` Next on their day: ${next}.` : ''} Let the hour shape the advice when it matters (fuel before a session, a lighter plate late at night, the next window), and never remark on the time for its own sake.`;
+}
+
 /** Render the day line, or '' when there is nothing honest to say. */
 export function dayContextLine(d: DayContextIn | null | undefined): string {
   if (!d || typeof d !== 'object') return '';

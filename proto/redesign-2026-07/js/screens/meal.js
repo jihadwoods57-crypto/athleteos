@@ -18,7 +18,7 @@ import {
 } from '../chat-attach.js';
 import { openImageViewer } from '../image-viewer.js';
 import { openMembersSheet } from '../members-sheet.js';
-import { ensureAiConsent, isConsentSkip, noteAiConsentRequired, aiMinorPending, AI_MINOR_LINE } from '../ai-consent.js';
+import { ensureAiConsent, isConsentSkip, noteAiConsentRequired, aiMinorPending, AI_MINOR_LINE, meetNiaDue, markMeetNia, MEET_NIA_TEXT } from '../ai-consent.js';
 import { openMealQuestions, autoShownFor, markAutoShown } from '../meal-questions-sheet.js';
 import { hydrateAvatars } from '../avatar.js';
 import { wireTapback } from '../tapback.js';
@@ -30,6 +30,7 @@ import { decideAiTurn } from '../ai-thread.js';
 import {
   layoutThread, visibleThread, MUTED_HIDDEN_NOTE,
   authorName, initialsFor, participantList, participantSummary, participantMeta,
+  AI_NAME, AI_TITLE, NIA_MARK, whoHtml, facesHtml, threadTitle, composerPrompt, escalationChip,
   isAnalysisOpener, isAnalysisUpdate, isEscalated, quotedFor,
   memoryOfferOf, memoryOfferChips,
   mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
@@ -223,7 +224,7 @@ export const analyzing = {
         <div class="scanline"></div>
       </div>
       ${nonLive ? `<div style="display:flex;justify-content:center;padding-top:10px">${nonLiveBadge()}</div>` : ''}
-      <div class="phase" id="an-phase" role="status">Analyzing meal<span class="dots"></span></div>
+      <div class="phase" id="an-phase" role="status">Nia is reviewing your meal<span class="dots"></span></div>
       <div class="phase-sub" id="an-sub">Detecting foods and portions</div>
     </div>`;
   },
@@ -316,7 +317,7 @@ export const analyzing = {
         if (box) box.classList.add('read');
         /* textContent, which takes the animated `.dots` span with it — the ellipsis meant "still
            working" and nothing is still working. */
-        if (phase) phase.textContent = 'Read complete';
+        if (phase) phase.textContent = 'Nia’s read is ready';
         if (sub) sub.textContent = 'Your breakdown is ready';
       };
 
@@ -374,10 +375,10 @@ export const analyzing = {
       // AI reads are off (0243): not a failure. Say so, and offer the two ways forward.
       if (r.aiOff) {
         const minor = aiMinorPending(RT.userId);
-        if (phase) phase.textContent = minor ? 'Waiting on a parent.' : 'AI reads are off.';
-        if (sub) sub.textContent = minor ? `Nothing was sent. ${AI_MINOR_LINE} Until then, log the meal with Search.` : 'Nothing was sent. Turn AI reads on to have this photo read, or log the meal with Search.';
+        if (phase) phase.textContent = minor ? 'Waiting on a parent.' : 'Nia is off.';
+        if (sub) sub.textContent = minor ? `Nothing was sent. ${AI_MINOR_LINE} Until then, log the meal with Search.` : 'Nothing was sent. Turn on Nia to have this photo read, or log the meal with Search.';
         root.querySelector('.analyzing').insertAdjacentHTML('beforeend', `<div class="aic-off an-aioff">
-          ${minor ? '' : `<button class="btn primary sm" id="an-ai-on">${icon('sparkle', 17)} Turn on AI reads</button>`}
+          ${minor ? '' : `<button class="btn primary sm" id="an-ai-on">${icon('sparkle', 17)} Turn on Nia</button>`}
           <button class="btn ghost sm" data-go="food-search">${icon('search', 17)} Log with Search</button></div>`);
         const on = root.querySelector('#an-ai-on');
         if (on) on.addEventListener('click', async () => {
@@ -490,7 +491,7 @@ export const mealQuestions = {
       busy = true;
       const go = root.querySelector('#mq-go');
       const skip = root.querySelector('#mq-skip');
-      if (go) { go.disabled = true; go.innerHTML = `${icon('sparkle', 18)} Reading your meal...`; }
+      if (go) { go.disabled = true; go.innerHTML = `${icon('sparkle', 18)} Nia is reading your meal…`; }
       if (skip) skip.style.pointerEvents = 'none';
       const r = await act.finalizeAnalysis(ans);
       if (location.hash !== '#meal-questions') return; // navigated away mid-call
@@ -575,7 +576,8 @@ function openingInputs(M) {
      still carried an fqRow() that drew chips no handler had ever read, so anything that set `fq`
      again would have shipped buttons that do nothing. Dead code that only misleads is worse than
      no code; the capability lives in followUpQuestion() (meal-intel.js) with its own tests. */
-  return { sum, fullText };
+  // Only prose the model wrote may be signed Nia; the rest of the fallback is this device's.
+  return { sum, fullText, modelProse: !!(styleSafeProse && M.analysis) };
 }
 
 /**
@@ -590,11 +592,11 @@ function openingInputs(M) {
  *   result    — the normal case: summary, optional full analysis, and one follow-up question.
  */
 /** The thread's line when the AI stays quiet because AI replies are off (0243). */
-const AI_OFF_REPLY_ON = 'AI replies are off, so the AI Nutritionist stays quiet. Your message is posted. Turn AI on in Privacy on your Profile.';
+const AI_OFF_REPLY_ON = 'Nia is off, so she stays quiet. Your message is posted. Turn on Nia in Privacy on your Profile.';
 /** I6: a minor waiting on a parent is told why, and never offered the switch. */
 const aiOffReply = () => (aiMinorPending(RT.userId) ? `Your message is posted. ${AI_MINOR_LINE}` : AI_OFF_REPLY_ON);
 
-export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, part = 'all' } = {}) {
+export function openingBlockHtml(M, { sum, fullText, modelProse = false, hasPersistedRead = false, part = 'all' } = {}) {
   /* `part` exists because these rows live at two different points in time. The lead (the read
      itself, or its pending/failed/questions state) is the OLDEST thing in the thread and paints
      above the messages; the tail (the follow-up question, the memory confirmation) is the AI
@@ -602,10 +604,13 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
      as the thread being out of order. paint() asks for each half where it belongs; 'all' keeps
      the render()-time call (no messages yet) working unchanged. */
   const wrap = (lead, tail) => (part === 'lead' ? lead : part === 'tail' ? tail : lead + tail);
+  /* The app's own notices ABOUT Nia's read (reading, failed, questions waiting, a fact to keep).
+     They wear her mark because they are about her, but they are not signed by her and they speak
+     of her in the third person: nothing scripted is ever presented as Nia talking (R3). */
   const aiRow = (inner, id) => `
-      <div class="msg ai last"${id ? ` id="${id}"` : ''}>
-        <div class="av">${icon('sparkle', 15)}</div>
-        <div class="stack"><div class="who">AI Nutritionist</div>
+      <div class="msg ai last nia-status"${id ? ` id="${id}"` : ''}>
+        <div class="av">${NIA_MARK}</div>
+        <div class="stack">
         <div class="bubble">${inner}</div></div>
       </div>`;
 
@@ -615,7 +620,7 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
     return wrap(`
       <div class="aic-off mt-aioff" id="analysis-ai-off" role="status">
         <span>${esc(aiMinorPending(RT.userId) ? `This meal has no numbers yet. It still counts as proof and for timing. ${AI_MINOR_LINE}` : AI_OFF_LINE)}</span>
-        ${aiMinorPending(RT.userId) ? '' : `<button type="button" class="btn ghost sm" id="mt-ai-on">${icon('sparkle', 15)} Turn on AI reads</button>`}
+        ${aiMinorPending(RT.userId) ? '' : `<button type="button" class="btn ghost sm" id="mt-ai-on">${icon('sparkle', 15)} Turn on Nia</button>`}
       </div>`, '');
   }
   if (M && M.analysisFailed) {
@@ -624,7 +629,7 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
     // nothing left to read, so no retry chip — offering one would be a dead button.
     const lost = M.analysisFailed === 'photo_lost';
     return wrap(aiRow(`
-          <div style="font-weight:700">${capacity ? "I couldn't get to this one today." : lost ? "I couldn't read this one." : "I couldn't read this plate."}</div>
+          <div style="font-weight:700">${capacity ? "Nia couldn't get to this one today." : lost ? "Nia couldn't read this one." : "Nia couldn't read this plate."}</div>
           <div style="margin-top:4px;color:var(--text-2)">${lost
             ? "The photo couldn't be kept on this device, so there's nothing left to read. The log still counts for timing."
             : `It's logged and counts for timing either way. Your photo is the proof.${capacity ? '' : ' Worth another try?'}`}</div>
@@ -635,14 +640,14 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
   if (M && Array.isArray(M.pendingQuestions) && M.pendingQuestions.length) {
     const qs = M.pendingQuestions.slice(0, 3);
     // Count its own questions: this bubble promised "Two" over one question as easily as three.
-    const qHead = qs.length === 1 ? 'One quick thing' : qs.length === 2 ? 'Two quick things' : `${qs.length} quick things`;
+    const qHead = qs.length === 1 ? 'Nia has one quick question' : qs.length === 2 ? 'Nia has two quick questions' : `Nia has ${qs.length} quick questions`;
     /* The bubble states the ask and hands it to the sheet; it does not re-draw the form. It used
        to carry a full copy of the inputs, which put a blocking question in a chat bubble below a
        "Back to Home" button, at the same visual weight as a message. Two forms for one answer also
        meant two places to keep in sync. The sheet (js/meal-questions-sheet.js) is the form now,
        and it comes up on its own when this meal is opened. */
     return wrap(aiRow(`
-          <div style="font-weight:700">${qHead} and your numbers are exact.</div>
+          <div style="font-weight:700">${qHead}. Answer and your numbers are exact.</div>
           <div style="margin-top:3px;color:var(--text-2)">${qs.length === 1 ? 'A photo can’t show what’s under or off the plate.' : 'A photo can’t show what’s under or off the plate. It takes a moment.'}</div>
           <div class="fq-chips">
             <button class="fx-chip" id="mq-thread-go">${icon('sparkle', 13)} ${qs.length === 1 ? 'Answer it' : 'Answer them'}</button>
@@ -652,7 +657,7 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
 
   if (M && M.pending) {
     return wrap(aiRow(`
-          <div style="font-weight:700">Reading your plate<span class="dots"></span></div>
+          <div style="font-weight:700">Nia is reading your plate<span class="dots"></span></div>
           <div style="margin-top:4px;color:var(--text-2)">Logged and counting. The breakdown lands here in a few seconds. You don't have to wait on this screen.</div>`, 'analysis-pending'), '');
   }
 
@@ -666,26 +671,27 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
   const askFact = unoffered.find((f) => f.kind === 'dislike' && plate.has(String(f.value).toLowerCase()))
     || unoffered[0] || null;
   const confirmRow = askFact ? `
-      <div class="msg ai last" id="fact-confirm">
-        <div class="av">${icon('sparkle', 15)}</div>
-        <div class="stack"><div class="who">AI Nutritionist</div>
+      <div class="msg ai last nia-status" id="fact-confirm">
+        <div class="av">${NIA_MARK}</div>
+        <div class="stack">
         <div class="bubble">
           ${esc(askFact.kind === 'dislike'
-            ? `Noted. You took ${askFact.value} off a plate. Skip it in future reads?`
-            : `Should I remember: ${askFact.kind.replace(/_/g, ' ')} (${askFact.value})?`)}
+            ? `You took ${askFact.value} off a plate. Should Nia skip it in future reads?`
+            : `Should Nia remember: ${askFact.kind.replace(/_/g, ' ')} (${askFact.value})?`)}
           <div class="fq-chips">
             <button class="fx-chip" data-fact="${esc(askFact.id)}" data-keep="1">Yes, remember</button>
             <button class="fx-chip" data-fact="${esc(askFact.id)}" data-keep="0">No, one-off</button>
           </div>
         </div></div>
       </div>` : '';
+  const tail = meetNiaRow(M) + confirmRow;
 
   // THE READ ITSELF IS NOW A REAL MESSAGE (2026-07-28). analyze-meal composes it and persists it
   // as an `ai` row, so it lives in the thread the athlete can reply to, reference tomorrow, and
   // scroll back through with their coach. This derived block only fills in when that row is not
   // there: meals logged before the change, and the rare case where the thread write did not land.
   // Without the fallback those meals would show a breakdown with nothing said about it.
-  if (hasPersistedRead) return wrap('', confirmRow);
+  if (hasPersistedRead) return wrap('', tail);
 
   // ONE VOICE (founder, 2026-08-02). This is the bubble the athlete sees the instant the read
   // lands locally, before the persisted `ai` row comes back from the server a beat later. It used
@@ -698,14 +704,44 @@ export function openingBlockHtml(M, { sum, fullText, hasPersistedRead = false, p
   const body = fullText
     ? richText(fullText, esc)
     : [sum && sum.wentWell, sum && sum.opportunity, sum && sum.next].filter(Boolean).map(esc).join(' ');
-  if (!body) return wrap('', confirmRow);
+  if (!body) return wrap('', tail);
 
+  // Nia's name goes only on words a model wrote: the read carries analyze-meal's own prose
+  // (`modelProse`, from openingInputs). Anything composed on this device alone is a "Quick read",
+  // not Nia (R3, 2026-09-24): openingMessage() always returns text, so fullText proves nothing.
+  if (!modelProse) {
+    return wrap(`
+      <div class="msg coach last quick-read">
+        <div class="av">${icon('flash', 14)}</div>
+        <div class="stack"><div class="who">Quick read</div>
+        <div class="bubble">${body}</div></div>
+      </div>`, tail);
+  }
   return wrap(`
       <div class="msg ai last">
-        <div class="av">${icon('sparkle', 15)}</div>
-        <div class="stack"><div class="who">AI Nutritionist</div>
+        <div class="av">${NIA_MARK}</div>
+        <div class="stack">${whoHtml(AI_NAME, true)}
         <div class="bubble">${body}</div></div>
-      </div>`, confirmRow);
+      </div>`, tail);
+}
+
+/* MEET NIA, for people who said yes before she had a name (ai-consent.js meetNiaDue). One short
+   message in the next meal thread with a read in it, marked shown the moment it is drawn and kept
+   on THAT meal for the rest of this session, so a repaint never makes it vanish mid-read. */
+let MEET_NIA_ON = null;
+function meetNiaRow(M) {
+  if (!M || !M.mealId) return '';
+  if (MEET_NIA_ON !== M.mealId) {
+    if (!meetNiaDue(RT.userId)) return '';
+    MEET_NIA_ON = M.mealId;
+    markMeetNia(RT.userId);
+  }
+  return `
+      <div class="msg ai last" id="meet-nia">
+        <div class="av">${NIA_MARK}</div>
+        <div class="stack">${whoHtml(AI_NAME, true)}
+        <div class="bubble">${esc(MEET_NIA_TEXT)}</div></div>
+      </div>`;
 }
 
 /* ---------- Meal Analysis (AI, pre-log) ----------
@@ -789,7 +825,7 @@ export const analysis = {
       ${rich.map((d) => `
         <div class="food-row" data-name="${esc(d.name)}">
           <span class="conf-dot ${esc(d.confidence)}"></span>
-          <span class="fr-name">${esc(d.name)}${d.confidence === 'low' ? '<span class="q" title="AI is unsure. Confirm or remove">?</span>' : ''}</span>
+          <span class="fr-name">${esc(d.name)}${d.confidence === 'low' ? '<span class="q" title="Nia is not sure. Confirm or remove">?</span>' : ''}</span>
           <span class="fr-qty">${d.quantity ? esc(d.quantity) : ''}</span>
         </div>`).join('')}
       <div class="food-row fr-add" id="food-add" hidden>
@@ -833,7 +869,10 @@ export const analysis = {
     })()}
 
     <section class="lm-sec ma-read">
-      <div class="ma-who">${icon('sparkle', 14)} AI Nutritionist</div>
+      ${/* Signed Nia only over the model's own paragraph (R3); the short fallback line is the app's. */''}
+      ${styleSafeProse && L.analysis
+        ? `<div class="ma-who"><span class="nia-av ma-av">${NIA_MARK}</span> Nia’s read<span class="who-sub">${AI_TITLE} · AI</span></div>`
+        : `<div class="ma-who ma-quick">${icon('flash', 14)} Quick read</div>`}
       <p>${esc((styleSafeProse ? L.analysis : '') || L.ai)}</p>
     </section>
 
@@ -1344,7 +1383,7 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
             to the AI Nutritionist, and every correction from the chat lands wholesale: the
             food's name, the meal title, per-item macros, totals, the score, and the coach's
             copy. This line only points at the composer. */''}
-      ${emptyRead || !you ? '' : M.mealId ? `<div class="est-note">${fromPhoto ? 'Estimated from the photo. ' : ''}Something off or left out? <span class="link" id="tell-ai" role="button" tabindex="0">Tell the AI Nutritionist below</span> and the name, numbers and score update together.</div>` : ''}
+      ${emptyRead || !you ? '' : M.mealId ? `<div class="est-note">${fromPhoto ? 'Estimated from the photo. ' : ''}Something off or left out? <span class="link" id="tell-ai" role="button" tabindex="0">Tell Nia below</span> and the name, numbers and score update together.</div>` : ''}
       ${emptyRead ? '' : aiDisclaimer()}
       ${/* WRONG MEAL? (impeccable critique 2026-09-16.)
             The chat above corrects what the plate WAS. Nothing corrected whether it should exist
@@ -1417,13 +1456,14 @@ export const thread = {
     // used to be a wall of text nobody reads. Now it's the 5-second structured summary
     // (derived, never stored) with the full openingMessage paragraph behind an expander.
     // Quick actions make it feel like a chat, not a report. ----
-    const { sum, fullText } = openingInputs(M);
+    const { sum, fullText, modelProse } = openingInputs(M);
 
     // WHO IS IN THE ROOM. A messaging surface that hides its own audience is a privacy problem
     // wearing a UI problem's clothes — an athlete typing "I skipped breakfast" deserves to know
     // their coach and their mother can both read it before they hit send. Overlapping faces
     // rather than emoji, because these are people.
     const people = participantList(PARTICIPANTS.uid === RT.userId ? PARTICIPANTS.rows : [], RT.userId);
+    const discTitle = threadTitle(people, S.coach, THREAD_CACHE.mealId === M.mealId ? THREAD_CACHE.comments : []);
     // THE CONVERSATION'S OWN HEADER (2026-09-14). One row, the way the phone names a group at
     // the top of a thread: the faces, the title, who is in it, and the way to the whole
     // conversation. The faces are the members button; "Open" carries this plate into the full
@@ -1431,15 +1471,15 @@ export const thread = {
     // text link and a separate pill that together said the same thing three ways.
     const facepile = !M.mealId ? '' : `
     <button class="facepile disc-fp" id="meal-members" aria-label="Who can see this conversation">
-      <span class="fp">${people.slice(0, 4).map((p) => `<span class="fpav ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}"${p.kind !== 'ai' && p.id ? ` data-avatar-uid="${esc(p.id)}"` : ''}>${p.kind === 'ai' ? icon('sparkle', 13) : `<span data-avatar-fallback>${esc(initialsFor(p.name))}</span>`}</span>`).join('')}</span>
-      <span class="names"><b>Team discussion</b><small>${esc(participantSummary(people))}</small></span>
+      <span class="fp">${facesHtml(people, esc)}</span>
+      <span class="names"><b>${discTitle}</b><small>${esc(participantSummary(people))}</small></span>
     </button>`;
 
     const discussion = `
     <section class="disc" id="meal-disc" aria-labelledby="disc-title">
-    <h2 class="sr-only" id="disc-title">Team discussion</h2>
+    <h2 class="sr-only" id="disc-title">${discTitle}</h2>
     <div class="disc-head">
-      ${facepile || `<div class="disc-fp"><span class="names"><b>Team discussion</b></span></div>`}
+      ${facepile || `<div class="disc-fp"><span class="names"><b>${discTitle}</b></span></div>`}
       ${M.mealId ? `<button type="button" class="disc-open" id="open-full-chat" aria-label="Open the full conversation at this meal">Open ${icon('chevron', 14)}</button>` : ''}
     </div>
     ${/* The `#rx-strip` that used to sit here is gone: paint() has cleared it on every repaint
@@ -1451,7 +1491,7 @@ export const thread = {
           The in-thread "View N earlier messages" seam (#thread-more) stays: that one carries
           information this screen truncated. */''}
     <div class="thread" id="meal-thread" role="log" aria-label="Meal conversation">
-      ${openingBlockHtml(M, { sum, fullText })}
+      ${openingBlockHtml(M, { sum, fullText, modelProse })}
       ${/* Loading is a skeleton shaped like the messages it stands in for, and only when there
             is no cached thread to paint instantly. The id stays: the mount removes it on load
             and rewrites it in place on failure. */''}
@@ -1472,7 +1512,7 @@ export const thread = {
           the screen only while the discussion is on screen, so it rides up to meet you the moment
           the conversation scrolls into view and never covers the plate or the breakdown above. */''}
     <div class="chat-dock disc-dock dock-end">
-    ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: 'Ask about this meal…', sendLabel: 'Send', attachId: 'meal-attach', atEnd: true })}
+    ${composer({ inputId: 'meal-msg', sendId: 'meal-send', placeholder: composerPrompt(S.coach.hasCoach, S.coach.noun), sendLabel: 'Send', attachId: 'meal-attach', atEnd: true })}
     <div class="composer-attach-pending" id="meal-attach-pending" hidden></div>
     <div id="chat-note" class="cmp-note"></div>
     </div>` : ''}
@@ -1798,7 +1838,8 @@ export const thread = {
        calories hides them here too — and the meal score is always shown, because it is a score
        and not calorie math. */
     const corrKey = String(M.mealId || M.slot || '');
-    const corrReceipt = () => {
+    // `first`: the live card opens a Nia run (the row above it is not hers), so it carries her name.
+    const corrReceipt = (first = true) => {
       const corrFx = corrFxFor(corrKey);
       if (!corrFx || !corrFx.rows.length) return '';
       /* The live card covers the seconds between applying a correction and its filed receipt
@@ -1807,7 +1848,8 @@ export const thread = {
       if ((comments || []).some(isCorrectionReceipt)) return '';
       return `
         <div class="msg ai" id="corr-fx">
-          <div class="av">${icon('sparkle', 15)}</div>
+          <div class="av">${NIA_MARK}</div>
+          <div class="stack rcpt-stack">${first ? whoHtml(AI_NAME, true, esc) : ''}
           <div class="corr-card" role="status">
             <div class="corr-head">${corrFx.done ? icon('check', 14) : '<span class="corr-spin" aria-hidden="true"></span>'}<span>${corrFx.done ? 'Updated' : 'Recomputing'}</span></div>
             ${corrFx.rows.map((r) => `
@@ -1820,7 +1862,7 @@ export const thread = {
                   ? `<b class="${esc(r.band)}" data-fx-from="${r.from}" data-fx-to="${r.to}" data-fx-unit="${esc(r.unit || '')}">${esc(r.fromText)}</b>`
                   : '<b class="pend" aria-hidden="true"></b>'}</span>
               </div>`).join('')}
-          </div>
+          </div></div>
         </div>`;
     };
     /* Count each figure from its old value to its new one. Text only, so nothing here animates a
@@ -1957,7 +1999,7 @@ export const thread = {
       const Noun = S.coach.noun.charAt(0).toUpperCase() + S.coach.noun.slice(1);
       if (csEl && coachSeen) csEl.textContent = `${Noun} replied`;
       const tail = [];
-      if (!msgs.length && !aiWorkingOf(M.mealId)) tail.push('No replies yet. Ask below and the AI Nutritionist answers from your plan.');
+      if (!msgs.length && !aiWorkingOf(M.mealId)) tail.push('No replies yet. Ask Nia about this meal below.');
       if (S.coach.hasCoach && !coachSeen && !dayReviewed && !daySeen) tail.push(`Your ${S.coach.noun} hasn't opened this yet.`);
 
       // The pending / clarifying / failed rows are DERIVED, because they describe a read that has
@@ -2003,7 +2045,7 @@ export const thread = {
            files a second receipt instead of overwriting the first. Historical ones land on their
            final values with no count-up: the animation belongs to the change as it happens, not
            to a record of it being re-read. */
-        if (isCorrectionReceipt(c)) return receiptCardHtml(c, esc, { fresh: fresh.has(String(c.id)) });
+        if (isCorrectionReceipt(c)) return receiptCardHtml(c, esc, { fresh: fresh.has(String(c.id)), first: item.firstOfRun });
         const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
         const who = authorName(c, participants, RT.userId, S.coach.noun);
         const update = isAnalysisUpdate(c);
@@ -2030,15 +2072,15 @@ export const thread = {
           + (fresh.has(String(c.id)) ? ' in' : '');
         return `
         <div class="${cls}" data-cid="${esc(String(c.id || ''))}">
-          ${!mine && item.lastOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
+          ${!mine && item.lastOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? NIA_MARK : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
           <div class="stack">
-            ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
+            ${item.firstOfRun && !mine ? whoHtml(who, c.role === 'ai', esc) : ''}
             ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : rq}
             ${/* The "Updated analysis" badge is gone (founder 2026-08-05: robotic) — a correction
                   reply is just the AI's next message, like a person texting back. The quote stem
                   above already shows WHAT it answers. The escalation badge stays: "this reached
                   your coach" is a fact worth labeling. */''}
-            <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : bubbleText(c)}${offerChips(c)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+            <div class="bubble">${escalated ? `<span class="esc">${escalationChip(c, S.coach)}</span>` : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : bubbleText(c)}${offerChips(c)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
             ${deliveredHtml({ mine, isLast: c === lastMsg })}
           </div>
           ${msgTimeHtml(c, fmtMsgTime, esc)}
@@ -2101,7 +2143,7 @@ export const thread = {
       const strandedRxHtml = strandedRx.length
         ? `<div class="rx-strip">${strandedRx.map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('')}</div>`
         : '';
-      threadEl.innerHTML = coachPin + openingLead + earlierBtn + rows + strandedRxHtml + openingTail + corrReceipt()
+      threadEl.innerHTML = coachPin + openingLead + earlierBtn + rows + strandedRxHtml + openingTail + corrReceipt(!(lastMsg && lastMsg.role === 'ai'))
         + (seen ? `<div class="seen">${seen}</div>` : '')
         + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
       hydrateAvatars(threadEl);   // 0206: message monograms upgrade to real faces
@@ -2362,7 +2404,7 @@ export const thread = {
         // either the pending state or an honest failure line. The old handler called a function
         // that could return without doing anything, and the button just sat there.
         t.disabled = true;
-        t.textContent = 'Reading the plate…';
+        t.textContent = 'Nia is reading the plate…';
         void act.retryAnalysis(M.slot);
         return;
       }
@@ -2381,7 +2423,7 @@ export const thread = {
         return;
       }
       // A meal that settled at zero: put it back in the queue for another read.
-      if (t.id === 'mt-reread') { t.textContent = 'Reading the plate…'; void act.rereadMeal(M.slot); return; }
+      if (t.id === 'mt-reread') { t.textContent = 'Nia is reading the plate…'; void act.rereadMeal(M.slot); return; }
       if (t.id === 'mq-thread-skip') { act.skipPendingQuestions(M.slot); return; }
       // Both remaining ids (the bubble's chip and the breakdown's button) open the same sheet.
       askPendingQuestions(M);
@@ -2492,8 +2534,8 @@ export const thread = {
           if (!parsed && error && error.context && typeof error.context.json === 'function') {
             parsed = await error.context.json().catch(() => null);
           }
-          if (parsed && parsed.error === 'limit') setNote("You've hit today's AI coaching limit. Back tomorrow. Your coach still sees this.");
-          else setNote("Couldn't reach your AI coach. Tap to try again.", true);
+          if (parsed && parsed.error === 'limit') setNote("Nia is out of replies for today. Back tomorrow. Your coach still sees this.");
+          else setNote("Couldn't reach Nia. Tap to try again.", true);
         } else {
           // THE CORRECTION LOOP CLOSES HERE (founder escalation 2026-08-06). The athlete stated
           // a fact about their own food ("the shake is the 42g bottle") and the AI called
@@ -2566,7 +2608,7 @@ export const thread = {
           }
           await refresh();
         }
-      } catch { setTyping(false); setNote("Couldn't reach your AI coach. Tap to try again.", true); }
+      } catch { setTyping(false); setNote("Couldn't reach Nia. Tap to try again.", true); }
       // The question is already in the thread — retry only re-reaches the AI (no input refill).
       const retry = root.querySelector('#chat-retry');
       if (retry) retry.addEventListener('click', async () => {

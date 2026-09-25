@@ -85,7 +85,8 @@ state, the only data leaving your device is a meal or label photo sent for AI an
 ## 4. Meal-photo and label analysis by a third-party AI (Anthropic / Claude)
 When AI meal analysis is configured for the app, a photo you take of a meal or of a Nutrition
 Facts label is sent to our AI provider, **Anthropic (the Claude API)**, to identify foods and
-estimate or transcribe nutrition information. This is the **only** path by which a photo or
+estimate or transcribe nutrition information. Nia, OnStandard's AI nutritionist, is provided by
+Anthropic. This is the **only** path by which a photo or
 meal data leaves your device to a third party.
 
 Key facts, accurate to the code:

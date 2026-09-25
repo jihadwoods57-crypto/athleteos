@@ -134,7 +134,7 @@ export const role = {
         <div class="sidebox">
           <div class="req-icon b s38">${icon('lock', 17)}</div>
           <div><div class="tt">Joining as a parent or guardian?</div>
-          <div class="ts">Open the invite your athlete or coach sent you. Parents connect from there, and only ever see scores and streaks, never photos or weight.</div></div>
+          <div class="ts">Open the invite your athlete or coach sent you. Parents connect from there, and only ever see daily scores and grades, never meals, photos or weight.</div></div>
         </div>
       </div>
       <div class="ob-foot">
@@ -1118,7 +1118,7 @@ const CP_SECTIONS = [
   { sub: 'personal',    icon: 'user',      t: 'Personal profile',       s: 'Your name and handle' },
   { sub: 'invitations', icon: 'share',     t: 'Athlete code & invites', s: 'The code athletes join with' },
   { sub: 'staff',       icon: 'users',     t: 'Staff & collaborators',  s: 'Invite staff, set their scope' },
-  { sub: 'program',     icon: 'clipboard', t: 'Program',                s: 'Standards, templates, Coach Voice, visibility' },
+  { sub: 'program',     icon: 'clipboard', t: 'Program',                s: 'Standards, templates, Nia’s voice, visibility' },
   // Insights left the tab bar when You took the fifth slot. `go` sends this row STRAIGHT there
   // rather than through coach-profile/analytics, whose whole content was a single row linking
   // to Insights — three taps from Home to reach a screen that used to be one.
@@ -1294,7 +1294,7 @@ function cpProgramBlock() {
       <div class="lrow" data-go="coach-plan"><div class="lic">${icon('clipboard', 17)}</div><div class="lm"><div class="lt">Standards</div><div class="ls">Targets, focus, publish updates</div></div>${icon('chevron', 17)}</div>
       ${/* Templates live in the team standard editor, not in Assign (review pass C-Polish 4). */''}
       <div class="lrow" data-go="coach-plan-set/team"><div class="lic">${icon('plus', 17)}</div><div class="lm"><div class="lt">Requirement templates</div><div class="ls">Start a standard from a proven draft</div></div>${icon('chevron', 17)}</div>
-      <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">Tone, length, instructions: make it coach like you</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="coach-voice"><div class="lic nia-av"><span class="nia-n" aria-hidden="true">N</span></div><div class="lm"><div class="lt">Nia · OnStandard Nutritionist</div><div class="ls">Set how Nia talks to your athletes</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="privacy"><div class="lic">${icon('lock', 17)}</div><div class="lm"><div class="lt">Visibility rules</div><div class="ls">What parents and trainers can see</div></div>${icon('chevron', 17)}</div>
     </section>`;
 }
@@ -1559,7 +1559,7 @@ function trainerSettingsSections() {
         <div class="lm"><div class="lt">Default client standard</div><div class="ls">Meals, windows, and check-ins: applied to every client</div></div>
         ${icon('chevron', 17, 'style="color:var(--text-3)"')}
       </div>
-      <div class="lrow" data-go="coach-voice"><div class="lic" style="background:rgba(var(--${S.trainerIdentity.discipline === 'nutrition' ? 'green' : 'purple'}-rgb),0.16);color:var(--${S.trainerIdentity.discipline === 'nutrition' ? 'green' : 'purple'}-bright)">${icon('sparkle', 17)}</div><div class="lm"><div class="lt">AI Nutritionist</div><div class="ls">Tone, length, instructions: make it coach like you</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="coach-voice"><div class="lic nia-av"><span class="nia-n" aria-hidden="true">N</span></div><div class="lm"><div class="lt">Nia · OnStandard Nutritionist</div><div class="ls">Set how Nia talks to your clients</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="trust-pass-policy"><div class="lic" style="background:var(--green-surface);color:var(--green-bright)">${icon('shield', 17)}</div><div class="lm"><div class="lt">Trust Pass defaults</div><div class="ls">${(RT.passPolicy || { default_credits: 3 }).default_credits}-credit default · earned after ${(RT.passPolicy || { eligibility_days: 7 }).eligibility_days} photo-logged days</div></div>${icon('chevron', 17)}</div>
     </section>
 
@@ -1733,7 +1733,7 @@ export const trainerProfile = {
           nav:'coach', so the defaults grant_pass reads were unreachable on this book. */''}
     <h2 class="eyebrow">Manage</h2>
     <section class="card" style="padding:6px 16px">
-      <div class="lrow" data-go="trainer-profile/settings"><div class="lic">${icon('gear', 17)}</div><div class="lm"><div class="lt">Practice settings</div><div class="ls">Standard, AI voice, notifications, appearance</div></div>${icon('chevron', 17)}</div>
+      <div class="lrow" data-go="trainer-profile/settings"><div class="lic">${icon('gear', 17)}</div><div class="lm"><div class="lt">Practice settings</div><div class="ls">Standard, Nia’s voice, notifications, appearance</div></div>${icon('chevron', 17)}</div>
       <div class="lrow" data-go="trainer-profile/account"><div class="lic">${icon('key', 17)}</div><div class="lm"><div class="lt">Account</div><div class="ls">Email, password, billing, delete</div></div>${icon('chevron', 17)}</div>
     </section>
 

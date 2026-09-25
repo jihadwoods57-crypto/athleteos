@@ -67,7 +67,7 @@ export const recoveryConfirm = {
         return msg ? `
       <div class="sidebox" style="margin-top:18px; text-align:left; width:100%">
         <div class="req-icon p s38">${icon('message', 17)}</div>
-        <div><div class="tt">AI Nutritionist</div>
+        <div><div class="tt">Tonight’s recovery</div>
         <div class="ts">${esc(msg)}</div></div>
       </div>` : '';
       })()}

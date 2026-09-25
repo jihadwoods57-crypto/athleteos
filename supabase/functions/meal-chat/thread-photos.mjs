@@ -1,4 +1,4 @@
-// OnStandard — what the AI Nutritionist can SEE in a meal thread, and what a coach may ask it to add.
+// OnStandard — what Nia (the AI nutritionist) can SEE in a meal thread, and what a coach may ask it to add.
 //
 // THE INCIDENT (2026-09-22, live prod). An athlete posted a photo of a protein shake, Nutrition
 // Facts panel in plain view, with "I'm also drinking this". Forty-five minutes later the coach
@@ -278,7 +278,7 @@ export function threadTranscript(rows, names, photos) {
     .reverse();
   return speech.map((r) => {
     const m = metaOf(r);
-    const who = r.role === 'ai' ? (n.aiName || 'AI Nutritionist')
+    const who = r.role === 'ai' ? (n.aiName || 'Nia')
       : `${firstName(byId[r.author_id]) || (r.role === 'athlete' ? 'Athlete' : 'Coach')} (${r.role === 'athlete' ? 'athlete' : r.role === 'ai' ? 'ai' : 'staff'})`;
     const img = typeof m.photo === 'string'
       ? (imageOf.has(m.photo) ? ` [photo: Image ${imageOf.get(m.photo)}]` : ' [photo, already counted or out of view]')

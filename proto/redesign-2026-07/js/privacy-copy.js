@@ -13,7 +13,7 @@
 export const AI_PROVIDER = 'Anthropic (Claude)';
 
 /** Meal photos: who sees them, including the AI provider, and what never happens to them. */
-export const PHOTO_PRIVACY = `Your meal photos are seen by you and the people connected to your plan, like your coach. If you turn on AI reads, our AI provider, ${AI_PROVIDER}, also reads them to work out the numbers. They are never public, never sold, and never used to train AI models.`;
+export const PHOTO_PRIVACY = `Your meal photos are seen by you and the people connected to your plan, like your coach. If you turn on Nia (AI meal reads), our AI provider, ${AI_PROVIDER}, also reads them to work out the numbers. They are never public, never sold, and never used to train AI models.`;
 
 /** The roll call board: what teammates see. The founder chose that the board names everyone
  *  (2026-09-23); this sentence is what makes that true on the Privacy screen. */

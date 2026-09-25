@@ -32,6 +32,7 @@ import { stitchNutritionChat } from '../thread-stitch.js';
 import {
   layoutThread, visibleThread, MUTED_HIDDEN_NOTE,
   authorName, initialsFor, participantList, participantSummary,
+  AI_NAME, NIA_MARK, whoHtml, facesHtml, composerPrompt, escalationChip,
   isAnalysisUpdate, quotedFor, isEscalated,
   memoryOfferOf, memoryOfferChips,
   mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
@@ -54,7 +55,7 @@ import { openMembersSheet } from '../members-sheet.js';
 import { ensureAiConsent, isConsentSkip, noteAiConsentRequired, aiMinorPending, AI_MINOR_LINE } from '../ai-consent.js';
 
 /** The line when the AI stays quiet because AI replies are off (0243). */
-const AI_OFF_REPLY_NC = 'AI replies are off, so the AI Nutritionist stays quiet. Your message is posted. Turn AI on in Privacy on your Profile.';
+const AI_OFF_REPLY_NC = 'Nia is off, so she stays quiet. Your message is posted. Turn on Nia in Privacy on your Profile.';
 import { cachedMealPhoto, warmMealPhotos } from '../photo-store.js';
 import { scrollThreadToEnd, focusComposer } from '../keyboard.js';
 
@@ -215,19 +216,19 @@ export default {
     // title would sit where the faces belong; the `.bk` markup is the router's own.)
     return `<div class="back-head nc-head">
       <div class="bk" data-back="home" role="button" aria-label="Back">${icon('back', 20)}</div>
-      <h1 class="sr-only">Nutrition chat</h1>
+      <h1 class="sr-only">Chat with ${AI_NAME}</h1>
       <button class="facepile fp-hero" id="nc-members" aria-label="Who can see this conversation">
         <span class="fp"></span>
         <span class="names">Loading the room</span>
       </button>
     </div>
-    <div class="thread nc-thread" id="nc-thread" role="log" aria-label="Nutrition chat">
+    <div class="thread nc-thread" id="nc-thread" role="log" aria-label="Chat with ${AI_NAME}">
       <div class="msg-status" id="nc-status">Loading your conversation…</div>
     </div>
     <div class="chat-dock dock-end">
       ${aiDisclaimer()}
       <div class="nc-target" id="nc-target" hidden></div>
-      ${composer({ inputId: 'nc-msg', sendId: 'nc-send', placeholder: 'Ask about this meal…', sendLabel: 'Send', atEnd: true })}
+      ${composer({ inputId: 'nc-msg', sendId: 'nc-send', placeholder: composerPrompt(S.coach.hasCoach, S.coach.noun), sendLabel: 'Send', atEnd: true })}
       <div id="nc-note" class="cmp-note"></div>
     </div>`;
   },
@@ -255,8 +256,7 @@ export default {
       const people = participantList(STATE.participants, RT.userId);
       // Real faces where they exist (meal.js's facepile pattern): the monogram stays as the
       // fallback span and hydrateAvatars upgrades it after paint. Never on 'ai'.
-      btn.querySelector('.fp').innerHTML = people.slice(0, 4).map((p) =>
-        `<span class="fpav ${esc(p.kind === 'ai' ? 'ai' : p.self ? 'self' : 'other')}"${p.kind !== 'ai' && p.id ? ` data-avatar-uid="${esc(p.id)}"` : ''}>${p.kind === 'ai' ? icon('sparkle', 13) : `<span data-avatar-fallback>${esc(initialsFor(p.name))}</span>`}</span>`).join('');
+      btn.querySelector('.fp').innerHTML = facesHtml(people, esc);
       hydrateAvatars(btn);
       // "You, Coach Brown, AI Nutritionist" with the count and a small chevron on the same
       // line, which is how the phone says "this is a group, tap for the members".
@@ -303,7 +303,7 @@ export default {
         // messages — one invites a first log, the other must not pretend the logs are gone.
         threadEl.innerHTML = STATE.mealsError
           ? `<div class="msg-status">Couldn't load your meals right now. Your logs are safe. <span class="link" id="nc-retry" role="button">Try again</span></div>`
-          : `<div class="msg-status">Nothing here yet. Log a meal and the AI Nutritionist starts the conversation.</div>`;
+          : `<div class="msg-status">Nothing here yet. Log a meal and Nia starts the conversation.</div>`;
         paintTarget();
         return;
       }
@@ -386,7 +386,7 @@ export default {
         const c = item.comment;
         /* A filed correction receipt renders as the card, not as a bubble — the same record the
            athlete sees in their own thread (chat-view isCorrectionReceipt). */
-        if (isCorrectionReceipt(c)) return receiptCardHtml(c, esc, { fresh: FRESH.has(String(c.id)) });
+        if (isCorrectionReceipt(c)) return receiptCardHtml(c, esc, { fresh: FRESH.has(String(c.id)), first: item.firstOfRun });
         const mine = c.role === 'athlete' && (!c.author_id || c.author_id === RT.userId);
         const who = authorName(c, participants, RT.userId, S.coach.noun);
         const update = isAnalysisUpdate(c);
@@ -409,14 +409,14 @@ export default {
           + (FRESH.has(String(c.id)) ? ' in' : '');
         return `
       <div class="${cls}" data-cid="${esc(String(c.id || ''))}"${c.meal_id ? ` data-meal-id="${esc(c.meal_id)}"` : ''}>
-        ${!mine && item.lastOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? icon('sparkle', 15) : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
+        ${!mine && item.lastOfRun ? `<div class="av"${c.role !== 'ai' && c.author_id ? ` data-avatar-uid="${esc(c.author_id)}"` : ''}>${c.role === 'ai' ? NIA_MARK : `<span data-avatar-fallback>${esc(initialsFor(who))}</span>`}</div>` : '<div class="av-sp"></div>'}
         <div class="stack">
-          ${item.firstOfRun && !mine ? `<div class="who">${esc(who)}</div>` : ''}
+          ${item.firstOfRun && !mine ? whoHtml(who, c.role === 'ai', esc) : ''}
           ${quoted ? `<div class="quote"><span class="stem"></span><span class="qtext">${esc(quoted.text)}</span></div>` : rq}
           ${''/* No "Updated analysis" badge (founder: robotic). The quote stem above already
                shows what a correction reply answers. The escalation badge stays: "this reached
                your coach" is a fact worth labeling, exactly as the meal thread labels it. */}
-          <div class="bubble">${escalated ? '<span class="esc">Sent to your coach</span>' : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : bubbleText(c)}${offerChips(c)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
+          <div class="bubble">${escalated ? `<span class="esc">${escalationChip(c, S.coach)}</span>` : ''}${bubblePhotoHtml(photo, esc)}${photoOnly ? '' : bubbleText(c)}${offerChips(c)}${rx.length ? `<span class="rxo">${rx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : ''}</div>
           ${deliveredHtml({ mine, isLast: c === newest })}
         </div>
         ${msgTimeHtml(c, fmtTime, esc)}
@@ -676,8 +676,8 @@ export default {
           if (!parsed && error && error.context && typeof error.context.json === 'function') {
             parsed = await error.context.json().catch(() => null);
           }
-          if (parsed && parsed.error === 'limit') setNote("You've hit today's AI coaching limit. Back tomorrow. Your coach still sees this.");
-          else setNote("Couldn't reach your AI Nutritionist. Your message was sent. Tap to try again.", true);
+          if (parsed && parsed.error === 'limit') setNote("Nia is out of replies for today. Back tomorrow. Your coach still sees this.");
+          else setNote("Couldn't reach Nia. Your message was sent. Tap to try again.", true);
           return;
         }
         setNote('');
@@ -713,7 +713,7 @@ export default {
         scrollThreadToEnd(root, { force: true });
       } catch {
         setTyping(false);
-        setNote("Couldn't reach your AI Nutritionist. Your message was sent. Tap to try again.", true);
+        setNote("Couldn't reach Nia. Your message was sent. Tap to try again.", true);
       }
     };
 

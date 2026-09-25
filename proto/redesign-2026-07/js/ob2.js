@@ -360,7 +360,7 @@ export function countStat(value, caption, math = '') {
     <div class="ck">${caption}</div>${math ? `<div class="cmath">${esc(math)}</div>` : ''}</div>`;
 }
 export function chatSim(msgs) {
-  const AV = { ai: ['ai', 'AI'], coach: ['coach', 'C'], trainer: ['coach', 'T'], me: ['me', 'You'] };
+  const AV = { ai: ['ai', 'N'], coach: ['coach', 'C'], trainer: ['coach', 'T'], me: ['me', 'You'] };
   return `<div class="ob2-chat">${msgs.map((m, i) => {
     const [cls, init] = AV[m.who] || AV.ai;
     const me = m.who === 'me';

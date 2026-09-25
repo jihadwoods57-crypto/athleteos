@@ -133,9 +133,9 @@ function trendRow(name, days, pct) {
 }
 
 const REVIEW_MODES = {
-  triage: 'AI triage: the AI reviews everything, you work the flags.',
-  skim: 'You skim everything. The AI drafts, you approve every line.',
-  observe: 'Observe first: watch how the AI reads for a week, then decide.',
+  triage: 'Nia triage: Nia reviews everything, you work the flags.',
+  skim: 'You skim everything. Nia drafts, you approve every line.',
+  observe: 'Observe first: watch how Nia reads for a week, then decide.',
 };
 
 /* ============================================================ */
@@ -161,7 +161,7 @@ const steps = [
     id: 'answer', ch: 0, cta: 'Continue',
     body: () => hero(
       'The OnStandard answer',
-      `AI does the first read. <span class="accent">You make the call.</span>`,
+      `Nia does the first read. <span class="accent">You make the call.</span>`,
       `Every meal is analyzed the moment it’s logged: foods, portions, macros, a quality score. You spend your expertise where it moves outcomes: corrections, feedback, and the clients who actually need you this week.`,
     ),
   },
@@ -300,7 +300,7 @@ const steps = [
       ${phoneCard('Detected foods', foodsList(SAMPLE_MEAL.detectedRich))}
       <div style="height:10px"></div>
       ${phoneCard('Estimated macros', macroGrid(SAMPLE_MEAL) + `
-        <div class="ob2-scan-note" style="text-align:left;margin-top:10px">AI quality read: ${esc(String(SAMPLE_MEAL.quality))}/100. Strong protein anchor, no vegetable on the plate. Scored low enough to surface near the top of your queue.</div>`)}`,
+        <div class="ob2-scan-note" style="text-align:left;margin-top:10px">Nia’s quality read: ${esc(String(SAMPLE_MEAL.quality))}/100. Strong protein anchor, no vegetable on the plate. Scored low enough to surface near the top of your queue.</div>`)}`,
   },
   {
     id: 'correct', ch: 1, cta: 'Continue',
@@ -340,12 +340,12 @@ const steps = [
   {
     id: 'feedback', ch: 1, cta: 'Continue',
     title: () => 'Feedback, in your voice.',
-    sub: () => 'The AI drafts from the analysis and your correction. You edit, and it sends under your name, not the machine’s.',
+    sub: () => 'Nia drafts from the analysis and your correction. You edit, and it sends under your name, not the machine’s.',
     body: (o) => {
       const first = (o.firstName || '').trim();
       const draft = `Good protein anchor with the steak, Devon. Keep that exactly as it is. The fries as your only carb are the issue: next dinner, swap half of them for rice or a green vegetable and this plate scores in the 80s.${first ? `\n${first}` : ''}`;
       return `
-      ${simChip('AI draft, grounded in the analysis you just reviewed')}
+      ${simChip('Nia’s draft, grounded in the analysis you just reviewed')}
       ${phoneCard('Your note to Devon · editable', `
         <textarea id="obn-fb" class="ob-input" rows="7" aria-label="Feedback draft" style="height:auto;min-height:168px;padding:14px;line-height:1.55;resize:none;font-size:14px">${esc(draft)}</textarea>
         <div class="ob2-scan-note" style="text-align:left;margin-top:8px">Edit anything; in the demo nothing sends. In your practice, one tap approves it into the client’s thread.</div>`)}`;
@@ -449,11 +449,11 @@ const steps = [
   {
     id: 'commit-q', ch: 3, cta: 'Continue',
     title: () => 'How should your review day run?',
-    sub: () => 'This sets your queue’s default sort and what the AI handles alone. Change it anytime.',
+    sub: () => 'This sets your queue’s default sort and what Nia handles alone. Change it anytime.',
     body: () => choiceGrid('reviewMode', [
-      { v: 'triage', t: 'AI triage', s: 'The AI reviews everything; I work the flags', ic: 'flash' },
-      { v: 'skim', t: 'I skim everything', s: 'I see every entry; the AI drafts my replies', ic: 'eye' },
-      { v: 'observe', t: 'Observe first', s: 'Watch how the AI reads for a week, then decide', ic: 'clock' },
+      { v: 'triage', t: 'Nia triage', s: 'Nia reviews everything; I work the flags', ic: 'flash' },
+      { v: 'skim', t: 'I skim everything', s: 'I see every entry; Nia drafts my replies', ic: 'eye' },
+      { v: 'observe', t: 'Observe first', s: 'Watch how Nia reads for a week, then decide', ic: 'clock' },
     ]),
   },
   {

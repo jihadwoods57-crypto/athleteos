@@ -379,7 +379,7 @@ const steps = [
         ${phoneCard('What runs daily', `
           <div class="comp-read">
             <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Daily standard</div><div class="cv">Your meals and check-ins, scored into one number</div></div>
-            <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">AI analysis</div><div class="cv">Every photo read in seconds: foods, portions, macros</div></div>
+            <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Nia’s read</div><div class="cv">Every photo read in seconds: foods, portions, macros</div></div>
             <div class="cr"><div class="ci ok">${icon('check', 13)}</div><div class="ck">Your circle</div><div class="cv">The people you picked see the score, so effort gets seen</div></div>
           </div>`)}`;
     },

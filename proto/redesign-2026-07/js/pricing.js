@@ -26,10 +26,10 @@
        NOT set, so Deep Dive and the recruiting card are free today.
    If either of those secrets is ever flipped, these sentences change in the SAME change, and so
    do the plan blurbs below. Every screen that says what membership buys renders these strings. */
-export const MEMBERSHIP_ADDS = 'Membership adds the written monthly report: your three biggest wins, one focus for next month, and a coach’s-voice read.';
+export const MEMBERSHIP_ADDS = 'Membership adds Nia’s monthly review: your three biggest wins, one focus for next month, and her written read of your month.';
 export const FREE_KEEPS = 'Your score, meal analysis, streaks, history and recruiting card are free, and they stay yours.';
 /** The one-line version for the foot of a screen. */
-export const ENTITLEMENT_LINE = 'Your score and stats are always free. Membership adds the written monthly report.';
+export const ENTITLEMENT_LINE = 'Your score and stats are always free. Membership adds Nia’s monthly review.';
 
 /* Blurbs are the per-plan version of MEMBERSHIP_ADDS: what paying for THIS plan adds, never a free
    feature relabelled as a paid one.
@@ -38,9 +38,9 @@ export const ENTITLEMENT_LINE = 'Your score and stats are always free. Membershi
    tier, so every paying athlete already had all three. Two plans on this paywall now, not three. */
 export const CONSUMER_PLANS = [
   { id: 'individual', name: 'Individual', monthly: 19.99, annual: 199.99, trialDays: 14, seatLimit: 0,
-    blurb: 'For one athlete: the written monthly report, on top of everything that is already free.' },
+    blurb: 'For one athlete: Nia’s monthly review (your written monthly report), on top of everything that is already free.' },
   { id: 'family', name: 'Family', monthly: 24.99, annual: 249.99, trialDays: 14, seatLimit: 4,
-    blurb: 'One household, up to 4 athletes, one bill. Each athlete gets the written monthly report.' },
+    blurb: 'One household, up to 4 athletes, one bill. Each athlete gets Nia’s monthly review (their written monthly report).' },
 ];
 
 /* Guideline 2.3.10: an iOS build never names another platform. The store is the one this build

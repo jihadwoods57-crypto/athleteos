@@ -151,6 +151,56 @@ test('the sheet names the provider, what is sent, and the training promise the p
   assert.match(op, /only if that athlete has said yes too/);
 });
 
+/* ---------------- Meet Nia (2026-09-24) ---------------- */
+
+test('the athlete sheet is Meet Nia, and the disclosure under it is intact', () => {
+  const a = C.aiConsentSheetHtml('athlete');
+  assert.match(a, />Meet Nia<\/h2>/);
+  assert.match(a, /Nia is OnStandard’s AI nutritionist\. She reads your meals, knows your targets and your coach’s standard, and helps you make the next call\./);
+  // The introduction never replaces the disclosure: provider, AI company, what is sent, no training.
+  assert.match(a, /OnStandard sends them to Anthropic \(Claude\), an AI company\./);
+  assert.match(a, /What Anthropic does with it/);
+  assert.match(a, /class="nia-n">N</, 'her mark, not the sparkle');
+  assert.doesNotMatch(a, /dietitian/i, 'Nia is never called a dietitian');
+  const op = C.aiConsentSheetHtml('coach');
+  assert.match(op, />Nia is AI, powered by Anthropic<\/h2>/);
+  assert.match(op, /Anthropic \(Claude\), an AI company/);
+});
+
+test('Meet Nia is owed once, only to an account that already said yes', async () => {
+  assert.equal(C.meetNiaDue('u1'), false, 'no answer: nothing to introduce');
+  window.sb = fakeSb({ u1: true });
+  await C.refreshAiConsent('u1');
+  assert.equal(C.meetNiaDue('u1'), true, 'said yes before she had a name');
+  C.markMeetNia('u1');
+  assert.equal(C.meetNiaDue('u1'), false, 'once');
+  window.sb = fakeSb({ u2: false });
+  await C.refreshAiConsent('u2');
+  assert.equal(C.meetNiaDue('u2'), false, 'Not now: Nia does not introduce herself');
+  assert.match(C.MEET_NIA_TEXT, /^I’m Nia, OnStandard’s AI nutritionist\./);
+});
+
+test('Meet Nia never reaches a minor still waiting on a guardian', async () => {
+  window.sb = fakeSb({ u5: true }, { minors: ['u5'] });
+  await C.refreshAiConsent('u5');
+  store.set('os.aiConsent.u5', '1');   // even with a cached yes
+  assert.equal(C.meetNiaDue('u5'), false);
+});
+
+test('a yes given on the onboarding Meet Nia sheet counts as the introduction', async () => {
+  await C.setAiConsent(null, true);            // the demo, before the account exists
+  window.sb = fakeSb({ u9: null });
+  assert.equal(await C.refreshAiConsent('u9'), true);
+  assert.equal(C.meetNiaDue('u9'), false, 'she was met on the sheet; no bubble as well');
+});
+
+test('the meal thread draws the Meet Nia bubble in the tail, never as an overlay', () => {
+  const meal = readFileSync(join(JS, 'screens', 'meal.js'), 'utf8');
+  assert.match(meal, /const tail = meetNiaRow\(M\) \+ confirmRow;/);
+  assert.match(meal, /if \(!meetNiaDue\(RT\.userId\)\) return '';/);
+  assert.match(meal, /markMeetNia\(RT\.userId\);/);
+});
+
 /* Every AI moment goes through the one door. A new caller of an AI function that skips it fails
    here, not in App Review. */
 test('every AI moment asks first', () => {
@@ -173,6 +223,7 @@ test('every AI moment asks first', () => {
 test('coach-side thread: the AI disclaimer rides the first AI reply, once', () => {
   const src = readFileSync(join(JS, 'screens', 'coach.js'), 'utf8');
   assert.match(src, /import \{[^}]*aiDisclaimer[^}]*\} from '\.\.\/components\.js'/);
-  assert.equal((src.match(/\$\{aiDisclaimer\(\)\}/g) || []).length, 1, 'under the opening');
+  // Under the opening, in each of its two forms (Nia's own read, or the app's Quick read); only one renders.
+  assert.equal((src.match(/\$\{aiDisclaimer\(\)\}/g) || []).length, 2, 'under the opening');
   assert.match(src, /it\.comment\.role === 'ai' && !isCorrectionReceipt\(it\.comment\)\) === item \? aiDisclaimer\(\) : ''/);
 });

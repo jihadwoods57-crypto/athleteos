@@ -65,6 +65,27 @@ const listen = `const mic = document.querySelector('.chat-dock .composer .cmp-mi
     const sid = (await import('./js/dictation.js')).currentDictationSid();
     window.__onDictation({ sid, type: 'text', text: 'two eggs, turkey bacon and a bowl of oatmeal with', final: false });
     window.__onDictation({ sid, type: 'level', value: 0.55 }); }`;
+/* Nia shots (2026-09-24). niaSolo: an athlete with no coach, so the thread is just them and Nia.
+   niaMeet: an account that said yes to AI before she had a name, so the Meet Nia bubble is owed.
+   niaSummary: the coach's Overview read, as athlete-summary would return it. niaAnalyzing: the
+   read in flight (the analyze call never answers), so the screen holds its first state. */
+const niaRpc = (name, data) => `if (window.sb) { const r0 = window.sb.rpc.bind(window.sb);
+    const prev = window.sb.rpc; window.sb.rpc = (n, p) => (n === '${name}' ? Promise.resolve({ data: ${data}, error: null }) : prev.call(window.sb, n, p)); void r0; }`;
+const niaSolo = `const st = await import('./js/state.js'); st.RT.myCoach = null; st.RT.myTrainer = null;
+  window.__STUB_ROWS = (t, rows) => (t === 'meal_comments' ? rows.filter((r) => r.role !== 'coach' && !/coach/i.test(String((r.meta && r.meta.note) || ''))) : rows);
+  ${niaRpc('meal_thread_participants', "[{ id: 'seed-athlete', name: 'Marcus Reed', kind: 'athlete' }]")}`;
+const niaMeet = `localStorage.setItem('os.aiConsent.seed-athlete', '1'); localStorage.removeItem('os.meetNia.seed-athlete');
+  ${niaRpc('my_ai_consent', '{ ai_consent: true, minor_pending: false }')}`;
+const niaSummary = `if (window.sb) { const inv = window.sb.functions.invoke.bind(window.sb.functions);
+  window.sb.functions.invoke = (fn, o) => (fn === 'athlete-summary' ? Promise.resolve({ data: { row: {
+    headline: 'Protein holds, dinner slips late',
+    summary: 'Two weeks in, Jaylen hits protein on training days and misses it on the two rest days. Dinner lands after 9 PM four times, which is where the late logs come from. Breakfast is the strongest meal of the day.',
+    watch: 'Ask about a rest-day protein anchor: one planned snack closes most of the gap.', cadence_days: 6,
+    generated_at: new Date(Date.now() - 2 * 3600e3).toISOString() } }, error: null }) : inv(fn, o)); }`;
+const niaAnalyzing = `const st = await import('./js/state.js'); st.RT.camPrimed = true;
+  localStorage.setItem('os.aiConsent.seed-athlete', '1');
+  ${niaRpc('my_ai_consent', '{ ai_consent: true, minor_pending: false }')}
+  if (window.sb) { const inv = window.sb.functions.invoke.bind(window.sb.functions); window.sb.functions.invoke = (fn, o) => (fn === 'analyze-meal' ? new Promise(() => {}) : inv(fn, o)); }`;
 const typed = `const box = document.querySelector('.chat-dock .composer textarea');
   if (box) { box.value = 'Was the rice portion right?'; box.dispatchEvent(new Event('input', { bubbles: true })); }`;
 /** The team board (roll call rebuilt, 2026-09-23), seeded through the harness seams on the frozen
@@ -692,8 +713,30 @@ const SHOTS = [
     pre: `window.OnStandardNative = Object.assign(window.OnStandardNative || {}, { apple: { available: async () => true, signIn: async () => null }, google: { available: async () => true, signIn: async () => null } });
       const st = await import('./js/state.js'); st.act.captureOb({ firstName: 'Jay', name: 'Jay Cole', dob: '2001-05-01' });` },
   { g: 'review-b', name: 'b-members-sheet', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9],
-    act: `(await import('./js/members-sheet.js')).openMembersSheet([{ kind: 'athlete', self: true, id: 'seed-athlete', name: 'Marcus Reed' }, { kind: 'coach', id: 'c-reed', name: 'Coach Reed' }, { kind: 'parent', id: 'p-1', name: 'Dana Reed' }, { kind: 'ai', name: 'AI Nutritionist' }]);`, actMs: 900 },
+    act: `(await import('./js/members-sheet.js')).openMembersSheet([{ kind: 'athlete', self: true, id: 'seed-athlete', name: 'Marcus Reed' }, { kind: 'coach', id: 'c-reed', name: 'Coach Reed' }, { kind: 'parent', id: 'p-1', name: 'Dana Reed' }, { kind: 'ai', name: 'Nia' }]);`, actMs: 900 },
   { g: 'review-b', name: 'b-coach-meal', seed: 'coachIdentity', route: 'coach-meal/meal-seed-lunch', at: [20, 10], book: 'team' },
+
+  // NIA (2026-09-24): every surface where the AI nutritionist has her name, mark and voice.
+  // Run: `node scripts/qc-capture.mjs nia --themes dark,light --out nia`.
+  { g: 'nia', name: 'nia-thread-coach', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9], act: toEnd },
+  { g: 'nia', name: 'nia-thread-solo', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9], pre: niaSolo, act: toEnd },
+  { g: 'nia', name: 'nia-meet-bubble', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9], pre: niaMeet, act: toEnd, actMs: 900 },
+  { g: 'nia', name: 'nia-chat', seed: 'dayMidday', route: 'nutrition-chat', at: [13, 30], act: toEnd, actMs: 1200 },
+  { g: 'nia', name: 'nia-coach-meal', seed: 'coachIdentity', route: 'coach-meal/meal-seed-lunch', at: [20, 10], book: 'team', act: toEnd },
+  { g: 'nia', name: 'nia-coach-summary', seed: 'coachIdentity', route: 'coach-athlete/ath-4', at: [20, 10], book: 'team', pre: niaSummary,
+    act: `const b = document.getElementById('coach-ath-retry'); if (b) b.click();`, actMs: 2500 },
+  { g: 'nia', name: 'nia-sheet', seed: 'dayMorning', route: 'camera/lunch', at: [12, 40], pre: `const st = await import('./js/state.js'); st.RT.camPrimed = true;`,
+    act: `(await import('./js/ai-consent.js')).openAiConsentSheet('athlete');`, actMs: 700 },
+  { g: 'nia', name: 'nia-sheet-coach', seed: 'coachIdentity', route: 'coach-meal/meal-seed-lunch', at: [20, 10], book: 'team',
+    act: `(await import('./js/ai-consent.js')).openAiConsentSheet('coach');`, actMs: 700 },
+  { g: 'nia', name: 'nia-members', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9],
+    act: `const cv = await import('./js/chat-view.js'); (await import('./js/members-sheet.js')).openMembersSheet(cv.participantList([{ id: 'p-1', name: 'Dana Reed', kind: 'guardian' }, { id: 'n-1', name: 'Priya Shah', kind: 'nutritionist' }, { id: 'seed-coach', name: 'James Brooks', kind: 'head_coach' }, { id: 'seed-athlete', name: 'Marcus Reed', kind: 'athlete' }], 'seed-athlete'));`, actMs: 900 },
+  { g: 'nia', name: 'nia-coach-voice', seed: 'coachIdentity', route: 'coach-voice', at: [20, 10], book: 'team' },
+  { g: 'nia', name: 'nia-home-nudge', seed: 'dayMorning', route: 'home', at: [16, 10],
+    act: `const st = await import('./js/state.js'); const cn = await import('./js/coach-nudge.js'); const d = await import('./js/day.js');
+      st.RT.voiceNudge = { sig: cn.nudgeSignature(String(d.DAY.date), st.S.exec), text: 'Lunch is past its window. Get the plate in now and it still counts toward today.' }; window.__render();`, actMs: 900 },
+  { g: 'nia', name: 'nia-analyzing', seed: 'stagedCapture', route: 'analyzing/lunch', at: [13, 5], pre: niaAnalyzing, actMs: 300 },
+  { g: 'nia', name: 'nia-privacy', seed: 'dayComplete', route: 'privacy', at: [21, 57] },
 ];
 
 /* ---------------- page-side defect audit ----------------

@@ -64,7 +64,7 @@ const ATHLETE_STEPS = [
     title: 'Everything starts here',
     // The dot line is phrased as WHEN, not IS: on a complete day the FAB correctly carries no dot,
     // and the old copy described a signal that wasn't on screen while pointing straight at it.
-    body: 'Photograph a meal and the AI reads the plate; the breakdown lands in seconds. Training, weight, and check-ins live behind this button too. When something is closing or late, an amber dot appears here. Red means missed.',
+    body: 'Photograph a meal and Nia reads the plate; the breakdown lands in seconds. Training, weight, and check-ins live behind this button too. When something is closing or late, an amber dot appears here. Red means missed.',
   },
   {
     key: 'plan', anchor: 'plan',

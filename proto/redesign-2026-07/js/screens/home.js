@@ -429,9 +429,9 @@ function paintStandards(root) {
 let nudgeInFlight = null;
 function coachNudgeHtml(text) {
   return `
-  <div class="trust" style="margin:12px 0 10px;background:linear-gradient(100deg, rgba(var(--purple-rgb), 0.12), rgba(var(--blue-rgb), 0.05));border-color:var(--purple-border, rgba(var(--purple-rgb), 0.35))">
-    <div class="ic" style="background:rgba(var(--purple-rgb), 0.18);color:var(--purple-bright)">${icon('sparkle', 20)}</div>
-    <div style="flex:1"><div class="tt" style="display:flex;align-items:center;gap:6px">Your coach<span class="status-pill muted" style="font-size:var(--t-eyebrow);padding:1px 6px">AI</span></div>
+  <div class="trust nia-card" style="margin:12px 0 10px">
+    <div class="ic nia-av"><span class="nia-n" aria-hidden="true">N</span></div>
+    <div style="flex:1"><div class="tt" style="display:flex;align-items:center;gap:6px">Nia · for ${esc(S.coach.nameMid)}<span class="status-pill muted" style="font-size:var(--t-eyebrow);padding:1px 6px">AI</span></div>
     <div class="ts">${esc(text)}</div></div>
   </div>`;
 }

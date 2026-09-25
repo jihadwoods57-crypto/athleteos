@@ -59,7 +59,7 @@ export function aiMinorPending(uid) {
 }
 
 /** The plain line for a person the AI is not reading. */
-export const AI_MINOR_LINE = 'AI reads start once a parent or guardian approves your account.';
+export const AI_MINOR_LINE = 'Nia starts once a parent or guardian approves your account.';
 
 /** A server reply said the AI was skipped for lack of consent. Forget a stale yes on this device,
  *  so the next AI moment asks instead of silently failing. */
@@ -76,8 +76,8 @@ export function isConsentSkip(data) {
  *  has not said yes (nothing about their meal may go), 'you' when the coach has not. */
 export function aiOffForCoach(who) {
   return who === 'athlete'
-    ? 'This athlete has not turned on AI reads, so the AI can’t look at their meal. Your question was posted.'
-    : 'AI is off for you, so the AI Nutritionist stays quiet. Your question was posted. Turn AI on in Privacy on your Profile.';
+    ? 'This athlete has not turned on Nia, so she can’t look at their meal. Your question was posted.'
+    : 'Nia is off for you, so she stays quiet. Your question was posted. Turn on Nia in Privacy on your Profile.';
 }
 
 async function writeServer(value) {
@@ -116,7 +116,11 @@ export async function refreshAiConsent(uid) {
   // answer only fills an EMPTY record, so it can never undo a choice made later on another phone.
   const want = pending !== null ? pending : (server === null ? local : null);
   if (want !== null && want !== server && (await writeServer(want))) server = want;
-  if (want !== null && server === want) { put(PENDING(uid), null); put(LOCAL, null); }
+  if (want !== null && server === want) {
+    // An onboarding yes came through the Meet Nia sheet: she has been introduced.
+    if (want === true && pending === null) markMeetNia(uid);
+    put(PENDING(uid), null); put(LOCAL, null);
+  }
   put(CACHE(uid), toStr(server));
   return server;
 }
@@ -139,20 +143,24 @@ export async function setAiConsent(uid, value) {
 export function aiConsentCopy(role = 'athlete') {
   const operator = role && role !== 'athlete' && role !== 'client';
   return operator ? {
-    title: 'The AI Nutritionist uses Anthropic',
-    lead: `When you ask the AI Nutritionist about a meal, OnStandard sends your question and that meal’s conversation to ${AI_PROVIDER}, an AI company, so it can answer.`,
+    title: 'Nia is AI, powered by Anthropic',
+    lead: `When you ask Nia, OnStandard’s AI nutritionist, about a meal, OnStandard sends your question and that meal’s conversation to ${AI_PROVIDER}, an AI company, so she can answer.`,
+    note: '',
     rows: [
-      ['share', 'What is sent', 'Your question, the meal’s photos and messages, and the profile facts the AI coaches from. An athlete’s data is sent only if that athlete has said yes too.'],
+      ['share', 'What is sent', 'Your question, the meal’s photos and messages, and the profile facts Nia coaches from. An athlete’s data is sent only if that athlete has said yes too.'],
       ['shield', 'What Anthropic does with it', 'Reads it to answer. It does not use it to train its models, and keeps it only briefly for safety checks.'],
-      ['toggle', 'If you choose Not now', 'Everything else works. The AI Nutritionist stays quiet for you. You can change this any time in Privacy on your Profile.'],
+      ['toggle', 'If you choose Not now', 'Everything else works. Nia stays quiet for you. You can change this any time in Privacy on your Profile.'],
     ],
   } : {
-    title: 'Your meals are read by AI',
-    lead: `To read your meal photos and answer you in your meal conversations, OnStandard sends them to ${AI_PROVIDER}, an AI company.`,
+    // MEET NIA (2026-09-24): the first AI moment is also the introduction, in ONE sheet. The
+    // disclosure below it is unchanged: provider named, what is sent, no training, Not now.
+    title: 'Meet Nia',
+    lead: 'Nia is OnStandard’s AI nutritionist. She reads your meals, knows your targets and your coach’s standard, and helps you make the next call.',
+    note: `To read your meal photos and answer you in your meal conversations, OnStandard sends them to ${AI_PROVIDER}, an AI company.`,
     rows: [
-      ['share', 'What is sent', 'Your meal photos, what you write in a meal conversation, and the facts the AI coaches from: your goal, weight goal, position, allergies and your coach’s standard.'],
+      ['share', 'What is sent', 'Your meal photos, what you write in a meal conversation, and the facts Nia coaches from: your goal, weight goal, position, allergies and your coach’s standard.'],
       ['shield', 'What Anthropic does with it', 'Reads it to answer you. It does not use it to train its models, and keeps it only briefly for safety checks.'],
-      ['toggle', 'If you choose Not now', 'Everything else works. A photo still counts as proof, you can type your numbers with Search, and the AI stays quiet. You can change this any time in Privacy on your Profile.'],
+      ['toggle', 'If you choose Not now', 'Everything else works. A photo still counts as proof, you can type your numbers with Search, and Nia stays quiet. You can change this any time in Privacy on your Profile.'],
     ],
   };
 }
@@ -163,9 +171,10 @@ export function aiConsentSheetHtml(role = 'athlete') {
   return `
     <div class="aic-card" role="dialog" aria-modal="true" aria-labelledby="aic-t" tabindex="-1">
       <div class="aic-grab" aria-hidden="true"></div>
-      <div class="aic-ic" aria-hidden="true">${icon('sparkle', 22)}</div>
+      <div class="aic-ic aic-nia" aria-hidden="true"><span class="nia-n">N</span></div>
       <h2 class="aic-title" id="aic-t">${c.title}</h2>
-      <p class="aic-lead">${c.lead}</p>
+      <p class="aic-lead">${c.lead}</p>${c.note ? `
+      <p class="aic-lead">${c.note}</p>` : ''}
       <div class="aic-rows" role="list">
         ${c.rows.map(([ic, t, s]) => `
         <div class="aic-row" role="listitem">
@@ -245,5 +254,27 @@ export async function ensureAiConsent(uid, { role = 'athlete', ask = false } = {
   const answer = await openAiConsentSheet(role);
   if (answer === null) return false;
   await setAiConsent(uid || null, answer);
+  // The sheet WAS the introduction, so the one-time Meet Nia bubble is not owed as well.
+  if (answer === true && uid) markMeetNia(uid);
   return answer === true;
 }
+
+/* ------------------------------------------------------------------ Meet Nia
+   People who said yes before the AI had a name never saw the Meet Nia sheet. They get ONE short
+   message from her in their next meal thread (meal.js), never an overlay. Once per account on
+   this device: the key carries the uid, like every other answer this module keeps. */
+const MET = (uid) => `os.meetNia.${uid}`;
+
+/** True when this account has said yes to AI and has not been introduced to Nia yet. */
+export function meetNiaDue(uid) {
+  // Never to a minor still waiting on a guardian: Nia is not on for them yet.
+  return !!uid && aiConsentCached(uid) === true && get(MET(uid)) !== '1' && !aiMinorPending(uid);
+}
+
+/** Nia has been introduced to this account (by the sheet or by the bubble). */
+export function markMeetNia(uid) {
+  if (uid) put(MET(uid), '1');
+}
+
+/** Her introduction, in her own voice. */
+export const MEET_NIA_TEXT = 'I’m Nia, OnStandard’s AI nutritionist. Same reads, now with a name. Ask me anything about your meals, your targets or what to eat next.';

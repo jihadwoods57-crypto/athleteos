@@ -42,6 +42,9 @@ test('the past-meal screen renders the same four blocks through the same functio
   // The old twin's own blocks are gone.
   assert.doesNotMatch(trust, /<h2 class="eyebrow">Nutrition<\/h2>/);
   assert.doesNotMatch(trust, /<h2 class="eyebrow">Conversation<\/h2>/);
-  assert.doesNotMatch(trust, /class="ai-note"/);
+  // The old AI-analysis card: its prose never reaches the markup, and its class is retired from the
+  // stylesheet entirely (2026-09-24), so bringing it back anywhere fails here too.
+  assert.doesNotMatch(trust, /\$\{[^}]*\b(m|meal|M)\.analysis\b/);
+  assert.doesNotMatch(src('../css/screens.css'), /\.ai-note\b(?![^{]*\*\/)/);
   assert.doesNotMatch(trust, /miniDial/);
 });

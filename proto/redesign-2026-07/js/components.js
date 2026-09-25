@@ -662,7 +662,7 @@ export function composer({
   inputId = '', sendId = '', placeholder = '', inputLabel = placeholder, sendLabel = 'Send',
   sendIcon = 'arrowUp', sendIconSize = 17, sendStyle = '', wrapStyle = '',
   autocompleteOff = true, decorativeSend = false, attachId = '', attachLabel = 'Attach a photo',
-  aiId = '', aiLabel = 'Ask the AI Nutritionist', atEnd = false, dictate = atEnd,
+  aiId = '', aiLabel = 'Ask Nia', atEnd = false, dictate = atEnd,
 } = {}) {
   const sendAttrs = `class="send"${sendId ? ` id="${sendId}"` : ''}${sendStyle ? ` style="${sendStyle}"` : ''}`;
   const sendEl = decorativeSend
@@ -850,5 +850,5 @@ export function wireEmailVerifyBanner(root) {
    src/core/coaching.ts medicalDisclaimer() has always carried for the legacy engine; the proto is
    what ships, and until now it never said it anywhere the advice was read. */
 export function aiDisclaimer() {
-  return '<div class="ai-note" role="note">Nutrition education, not medical advice. Talk to a doctor or registered dietitian before making big changes to how you eat.</div>';
+  return '<div class="ai-disc" role="note">Nia is an AI. Nutrition education, not medical advice. Talk to a doctor or registered dietitian before making big changes to how you eat.</div>';
 }

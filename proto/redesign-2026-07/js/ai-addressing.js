@@ -1,4 +1,4 @@
-/* OnStandard — WHO IS THIS MESSAGE FOR, and should the AI Nutritionist say anything?
+/* OnStandard — WHO IS THIS MESSAGE FOR, and should Nia (the AI nutritionist) say anything?
  *
  * THE BUG THIS REPLACES (founder 2026-09-18). Every athlete message in every shared thread called
  * the AI. All three athlete composers ended in an unconditional `askAI(text)`, so the model was
@@ -7,7 +7,7 @@
  *
  *     Coach Alex:      Good job
  *     Athlete:         Thank you Coach
- *     AI Nutritionist: <answers, about protein>
+ *     Nia:             <answers, about protein>
  *
  * Nobody asked it anything. It answered because answering was the only thing it could do.
  *
@@ -30,9 +30,30 @@
  * `npm run lint:mirror` fails the build if the two ever drift.
  */
 
-/** What the AI answers to. `nutritionist` is here because the product calls it "AI Nutritionist" —
- *  but see nutritionistIsAmbiguous() below: a human on staff can hold that title too. */
-const AI_WORDS = ['ai', 'a.i', 'ai nutritionist', 'nutritionist', 'onstandard'];
+/** What the AI answers to. Its name is Nia (2026-09-24); the older words stay because people keep
+ *  typing them. `nutritionist` can also be a human's title (nutritionistIsAmbiguous), and "Nia" can
+ *  be a human's first name (niaAddressed). */
+const AI_WORDS = ['ai', 'a.i', 'ai nutritionist', 'nutritionist', 'onstandard', 'nia'];
+const AI_NAME_WORD = 'nia';
+
+/* "Nia" is a first name, so the bare word only counts when it is used to ADDRESS her: at the start
+   ("Nia, ...", "Nia what should I eat", "hey nia ..."), set off at the end (", nia?"), or @nia.
+   "Nia said the hall closes early" is about a person, not to the AI. When a HUMAN in the room is
+   also called Nia, only a leading "@nia", "Nia," or "Nia:" is clear enough; anything else is
+   ambiguous, and ambiguous means quiet. */
+const NIA_LEAD = /^(@nia\b|nia\s*[,:])/;
+/* Only words that open a request TO someone. "Nia is coming", "Nia will drive", "Nia did it"
+   are sentences ABOUT a person, and "did you see Nia?" asks about one: none of them wake her. */
+const NIA_VOCATIVE = [
+  NIA_LEAD,
+  /^(hey|hi|hello|yo|ok|okay|so|thanks|thank you)[,!]?\s+nia\b/,
+  /^nia\s*[!?]/,
+  /^nia\s+(what|how|can|could|should|would|why|when|where|which|who|any|give|tell|help|check)\b/,
+  /,\s*nia\s*[?.!]*$/,
+];
+/* The word after a leading "@nia" / "nia,": when it is the rest of a HUMAN Nia's name
+   ("@Nia Johnson ..."), the message is to that person. */
+const NIA_LEAD_NEXT = /^@?nia[\s,:]+([a-z][a-z'-]*)/;
 
 /** Words that name a HUMAN in the room. Matching one of these means the message is for a person,
  *  and the AI stays out of it. */
@@ -180,6 +201,17 @@ function nutritionistIsAmbiguous(participants) {
     && ['nutritionist', 'dietitian'].indexOf(norm(p.role)) !== -1);
 }
 
+/** A human in the room who also answers to "Nia". */
+function niaIsAmbiguous(participants) {
+  return (participants || []).some((p) => p && !isAiRole(p.role) && namesOf(p).indexOf(AI_NAME_WORD) !== -1);
+}
+
+/** Is this message calling Nia by name? `clash` = a human is also called Nia. */
+function niaAddressed(low, clash) {
+  if (clash) return NIA_LEAD.test(low);
+  return NIA_VOCATIVE.some((re) => re.test(low));
+}
+
 const recipient = (kind, who, how) => ({
   kind,
   id: (who && who.id) || null,
@@ -192,7 +224,7 @@ const verdict = (shouldRespond, intendedRecipient, confidence, reason) =>
   ({ shouldRespond, intendedRecipient, confidence, reason });
 
 /**
- * Decide whether the AI Nutritionist should answer this message.
+ * Decide whether Nia, the AI nutritionist, should answer this message.
  *
  * @param message {{ id?, senderId?, senderName?, senderRole?, text?, replyToMessageId?, replyToSender? }}
  * @param context {{
@@ -246,11 +278,24 @@ export function shouldAiRespond(message, context) {
   }
 
   const humans = participants.filter((p) => p && !isAiRole(p.role));
-  const aiParticipant = participants.find((p) => p && isAiRole(p.role)) || { id: null, name: ctx.aiName || 'AI Nutritionist', role: 'ai' };
+  const aiParticipant = participants.find((p) => p && isAiRole(p.role)) || { id: null, name: ctx.aiName || 'Nia', role: 'ai' };
+  const niaClash = niaIsAmbiguous(participants);
+  const niaLeads = NIA_LEAD.test(low);
+  if (niaClash) {
+    // "@Nia Johnson, see you at lunch": the rest of a human Nia's name follows, so it is to them.
+    const next = (NIA_LEAD_NEXT.exec(low) || [])[1];
+    const human = next && next !== AI_NAME_WORD
+      ? participants.find((p) => p && !isAiRole(p.role) && namesOf(p).indexOf(AI_NAME_WORD) !== -1 && namesOf(p).indexOf(next) !== -1)
+      : null;
+    if (human) return verdict(false, recipient('human', human, 'mention'), 0.95, 'the message is to ' + (human.name || 'a person') + ', a person named Nia');
+  }
 
   /* ---------------- 1. explicit @mention ---------------- */
   const mentions = mentionsIn(text);
   if (mentions.length) {
+    if (niaClash && !niaLeads && mentions.indexOf(AI_NAME_WORD) !== -1) {
+      return verdict(false, recipient('unknown', null, 'mention'), 0.5, '@nia could be the AI or a person named Nia: staying out');
+    }
     const aiMentioned = mentions.some((m) => AI_WORDS.indexOf(m) !== -1);
     if (aiMentioned) return verdict(true, recipient('ai', aiParticipant, 'mention'), 0.99, 'the message @mentions the AI');
     for (const p of humans) {
@@ -282,13 +327,16 @@ export function shouldAiRespond(message, context) {
      Placed above "named person" on purpose. "Thanks AI" is still a nod, not a question, and the
      room does not need the model to say "you're welcome". The one exception is a nod that also
      carries a real question, which is not an acknowledgement by the test below. */
-  const isAck = ACK_PATTERNS.some((re) => re.test(flat));
+  // "thanks nia" / "ok ai" is the same nod with a name on it.
+  const unnamed = flat.replace(/^(nia|ai)\s+/, '').replace(/\s+(nia|ai)$/, '');
+  const isAck = ACK_PATTERNS.some((re) => re.test(flat) || re.test(unnamed));
 
   /* ---------------- 3. a person or role named in the text ---------------- */
   // "Thank you Coach" / "Yeah coach I'll get it done" / "tell mom I ate" — the founder's case.
   let namedHuman = null;
   for (const p of humans) {
-    if (namesOf(p).some((n) => hasWord(low, n))) { namedHuman = p; break; }
+    // A message led by "Nia," is to the AI even when a human is also called Nia (niaAddressed).
+    if (namesOf(p).some((n) => !(niaLeads && n === AI_NAME_WORD) && hasWord(low, n))) { namedHuman = p; break; }
   }
   if (!namedHuman) {
     for (const w of HUMAN_WORDS) {
@@ -298,10 +346,12 @@ export function shouldAiRespond(message, context) {
       }
     }
   }
+  const aiNameWord = norm(ctx.aiName || AI_NAME_WORD);
   const aiNamed = AI_WORDS.some((w) => {
     if (w === 'nutritionist' && nutritionistIsAmbiguous(participants)) return false;
+    if (w === AI_NAME_WORD) return niaAddressed(low, niaClash);
     return hasWord(low, w);
-  }) || hasWord(low, norm(ctx.aiName || 'ai nutritionist'));
+  }) || (aiNameWord === AI_NAME_WORD ? niaAddressed(low, niaClash) : hasWord(low, aiNameWord));
 
   if (aiNamed && !namedHuman) {
     if (isAck) return verdict(false, recipient('ai', aiParticipant, 'named'), 0.8, 'an acknowledgement to the AI needs no answer');

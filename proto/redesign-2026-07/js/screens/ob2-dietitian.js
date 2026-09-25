@@ -137,7 +137,7 @@ const steps = [
     body: () => hero(
       'The OnStandard answer',
       `Every plate photographed. <span class="accent">Every plate read.</span>`,
-      `Athletes shoot their meals in seconds. The AI reads each plate the moment it lands: foods, portions, macros, a quality score. You work a ranked queue of flags and corrections instead of chasing 300 meals you never saw.`,
+      `Athletes shoot their meals in seconds. Nia, our AI nutritionist, reads each plate the moment it lands: foods, portions, macros, a quality score. You work a ranked queue of flags and corrections instead of chasing 300 meals you never saw.`,
     ),
   },
   {
@@ -262,7 +262,7 @@ const steps = [
         plates.toLocaleString(),
         'plates a week your roster puts on tables you are answerable for.',
         `${mid} athletes × about 25 photographed meals a week`,
-      ) + `<div class="ob2-gap-verdict">No professional reads ${plates.toLocaleString()} plates. The AI reads <b>every one</b> within a minute, and your expertise goes where it changes an outcome.</div>`;
+      ) + `<div class="ob2-gap-verdict">No professional reads ${plates.toLocaleString()} plates. Nia reads <b>every one</b> within a minute, and your expertise goes where it changes an outcome.</div>`;
     },
   },
   {
@@ -283,7 +283,7 @@ const steps = [
   {
     id: 'correct', ch: 1, cta: 'Continue',
     title: () => 'Your correction is the record.',
-    sub: () => 'The AI reads the plate. You make the call. Try it.',
+    sub: () => 'Nia reads the plate. You make the call. Try it.',
     body: () => `
       ${simChip('Simulated plate')}
       ${/* phoneCard escapes its own label; pre-escaping double-encoded the ampersand. */''}
@@ -294,7 +294,7 @@ const steps = [
           <div class="chip${FIX.pick === 'right' ? ' on' : ''}" data-fix="right" role="button">Looks right</div>
           <div class="chip${FIX.pick === 'smaller' ? ' on' : ''}" data-fix="smaller" role="button">Smaller than it reads</div>
         </div>
-        <div class="ob2-fine" id="obd-fix-note">${FIX.pick ? 'Correction logged under your name. The athlete’s numbers update instantly.' : 'The AI estimated this plate. Correct the portion and watch the numbers move.'}</div>`)}`,
+        <div class="ob2-fine" id="obd-fix-note">${FIX.pick ? 'Correction logged under your name. The athlete’s numbers update instantly.' : 'Nia estimated this plate. Correct the portion and watch the numbers move.'}</div>`)}`,
     mount(root) {
       /* Fresh demo on re-entry: the module scratch survives navigation, so a previous
          visit's pick stayed applied. Reset, then repaint once so body() renders clean. */

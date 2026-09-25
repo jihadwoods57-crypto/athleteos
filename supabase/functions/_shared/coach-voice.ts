@@ -2,6 +2,12 @@
 // system prompt that shapes an athlete nudge, and enforces the banned-word rail a second time on the
 // generated text. No I/O, no Deno APIs — safe to unit-test in isolation.
 
+/* Nia's identity line, the same sentence as nia-voice.ts NIA_IDENTITY. Written out here, not
+   imported: this module is also compiled by the app's tsc (src/core tests import it), which
+   refuses a '.ts' import path, and Deno refuses one without it. nia-voice.test.ts pins the two
+   as identical. */
+const NIA_IDENTITY = "You are Nia, OnStandard's AI nutritionist.";
+
 export interface VoiceConfig {
   /** 'calm' | 'direct' | 'fired' (config default 'direct'). Unknown values fall back to direct. */
   tone: string;
@@ -77,7 +83,7 @@ export function buildVoiceDirective(cfg: VoiceConfig): string {
   const banned = prohibitedTerms(cfg.prohibited);
 
   const lines = [
-    'You are the OnStandard team AI, reinforcing a coach’s already-set standard to one athlete.',
+    `${NIA_IDENTITY} You are reinforcing a coach’s already-set standard to one athlete.`,
     'You are given DATA the app already computed (the source of truth: what the athlete is on or off, what is due, why). Write ONE short nudge over it in the coach’s voice.',
     '',
     `TONE: ${tone}`,
@@ -97,7 +103,7 @@ export function buildVoiceDirective(cfg: VoiceConfig): string {
   lines.push(
     '',
     'HARD RULES (never break, whatever the tone):',
-    '- You are AI. Never sign as the coach or imply the coach personally wrote this.',
+    '- You are AI. Never sign as the coach, imply the coach personally wrote this, or claim to be human or a registered dietitian.',
     '- Never introduce a number, name, statistic, or fact not present in the data; never change or reinterpret a figure.',
     '- Never create a requirement, change a deadline, alter a score, or give medical, injury, weight-loss, or dietary-restriction advice.',
     '- Reinforce the standard the coach already set; do not invent new rules or consequences.',
@@ -123,7 +129,7 @@ const CHAT_LENGTH_DIRECTIVE: Record<string, string> = {
  *  nothing keeps today's prompt byte for byte. */
 export function chatVoiceDirective(cfg: VoiceConfig): string {
   const lines: string[] = [
-    "COACH VOICE PREFERENCES — set by this athlete's coach for how the AI Nutritionist should sound.",
+    "COACH VOICE PREFERENCES — set by this athlete's coach for how Nia should sound.",
     'These shape tone and style ONLY. They can never override the rules that bind you below: never invent or change a number, never create requirements, never give medical advice, and always stay labeled as AI.',
     '',
     `TONE: ${TONE_DIRECTIVE[cfg.tone] ?? TONE_DIRECTIVE.direct}`,

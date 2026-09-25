@@ -9,6 +9,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   participantMeta, initialsFor, participantList, participantSummary, authorName,
+  AI_NAME, AI_TITLE, NIA_MARK, whoHtml, facesHtml, threadTitle, composerPrompt, typingRowHtml,
+  receiptCardHtml, escalationChip,
   layoutThread, visibleThread, MUTED_HIDDEN_NOTE, isAnalysisUpdate, isAnalysisOpener, quotedFor, GROUP_GAP_MS, dayLabelOf,
 } from './chat-view.js';
 
@@ -27,11 +29,115 @@ test('everyone in the room has a name and a face', () => {
     [{ id: ATHLETE, name: 'Jordan Woods', kind: 'athlete' }, { id: COACH, name: 'Coach Brown', kind: 'head_coach' }],
     ATHLETE,
   );
-  assert.equal(participantSummary(list), 'You, Coach Brown, AI Nutritionist');
+  assert.equal(participantSummary(list), 'You, Coach Brown, Nia');
   assert.equal(list[0].self, true);
   assert.equal(initialsFor('Coach Brown'), 'CB');
   assert.equal(initialsFor('Jordan'), 'J');
   assert.equal(initialsFor(''), '?');
+});
+
+/* ---------------- Nia (2026-09-24) ---------------- */
+
+const escT = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+test('Nia has one name, one title, and a mark that is not the sparkle', () => {
+  assert.equal(AI_NAME, 'Nia');
+  assert.equal(AI_TITLE, 'OnStandard Nutritionist');
+  assert.match(NIA_MARK, />N</);
+  assert.doesNotMatch(NIA_MARK, /svg/);
+  const meta = participantMeta('ai');
+  assert.equal(meta.noun, 'OnStandard Nutritionist');
+  assert.equal(meta.access, 'AI. Reads every meal and answers questions');
+});
+
+test('the sender block names Nia and discloses AI; a person is just their name', () => {
+  const nia = whoHtml('Nia', true, escT);
+  assert.match(nia, /Nia<span class="who-sub">OnStandard Nutritionist · AI<\/span>/);
+  assert.equal(whoHtml('Coach <B>', false, escT), '<div class="who">Coach &lt;B&gt;</div>');
+  assert.match(whoHtml('Nia', true, escT, 'What the athlete was told'), /What the athlete was told · AI/);
+  assert.match(typingRowHtml(escT), /Nia is typing/);
+  assert.match(typingRowHtml(escT), /class="nia-n"/);
+});
+
+test('the room is introduced athlete first, then coaches, then a human nutritionist, then Nia (no guardian)', () => {
+  const list = participantList([
+    { id: 'n1', name: 'Priya Shah', kind: 'nutritionist' },
+    { id: 'g1', name: 'Dana Woods', kind: 'guardian' },
+    { id: COACH, name: 'Coach Brown', kind: 'head_coach' },
+    { id: ATHLETE, name: 'Jordan Woods', kind: 'athlete' },
+  ], ATHLETE);
+  assert.deepEqual(list.map((p) => p.name), ['You', 'Coach Brown', 'Priya Shah', 'Nia']);
+  assert.equal(participantMeta('nutritionist').noun, 'Team nutritionist', 'a human on staff is never confused with Nia');
+});
+
+test('a coach opening the room keeps their own role, and the athlete still leads', () => {
+  const list = participantList([{ id: COACH, name: 'Coach Brown', kind: 'head_coach' }, { id: ATHLETE, name: 'Jordan Woods', kind: 'athlete' }], COACH);
+  assert.deepEqual(list.map((p) => [p.name, p.kind]), [['Jordan Woods', 'athlete'], ['You', 'head_coach'], ['Nia', 'ai']]);
+});
+
+test('Nia wears her mark in the facepile; people wear their initials', () => {
+  const html = facesHtml(participantList([{ id: COACH, name: 'Coach Brown', kind: 'head_coach' }], ATHLETE), escT);
+  assert.match(html, /class="fpav ai"><span class="nia-n"/);
+  assert.match(html, /data-avatar-uid="ccc-coach"/);
+  assert.doesNotMatch(html, /svg/);
+});
+
+test('the conversation is named for who is in it', () => {
+  assert.equal(threadTitle(participantList([], ATHLETE)), 'Chat with Nia');
+  assert.equal(threadTitle(participantList([{ id: COACH, name: 'B', kind: 'head_coach' }], ATHLETE)), 'Team discussion');
+  assert.equal(threadTitle(participantList([{ id: 't', name: 'Dana', kind: 'trainer' }], ATHLETE)), 'Discussion');
+  // Before the participants land, the athlete's own coach link decides, so a coached thread never
+  // reads as solo for a beat.
+  assert.equal(threadTitle(participantList([], ATHLETE), { hasCoach: true, noun: 'coach' }), 'Team discussion');
+  assert.equal(threadTitle(participantList([], ATHLETE), { hasCoach: true, noun: 'trainer' }), 'Discussion');
+});
+
+test('a receipt that opens Nia\'s run carries her name; the reply after it does not repeat it', () => {
+  const receipt = { id: 'r1', role: 'ai', author_id: ATHLETE, text: 'Updated', created_at: at(1),
+    meta: { t: 'correction_receipt', rows: [{ label: 'Protein', from: 52, to: 78, unit: 'g' }] } };
+  const reply = { id: 'r2', role: 'ai', author_id: ATHLETE, text: 'Got it, double chicken.', created_at: at(2) };
+  const items = layoutThread([msg('athlete', ATHLETE, 0), receipt, reply], { fmtTime: clock }).filter((i) => i.type === 'msg');
+  const [, rItem, aItem] = items;
+  assert.equal(rItem.firstOfRun, true, 'the receipt opens the run');
+  assert.equal(aItem.firstOfRun, false, 'the reply is in the same run, so it shows no name');
+  const html = receiptCardHtml(receipt, escT, { first: rItem.firstOfRun });
+  assert.equal((html.match(/who-sub">OnStandard Nutritionist · AI/g) || []).length, 1, 'named once, on the receipt');
+  assert.doesNotMatch(receiptCardHtml(receipt, escT, { first: false }), /class="who"/, 'mid-run: no second name');
+});
+
+test('the escalation chip never claims a coach who was not told', () => {
+  const row = (meta) => ({ role: 'ai', meta: { t: 'escalated', ...meta } });
+  assert.equal(escalationChip(row({ coach: true }), { hasCoach: false }), 'Nia sent this to your coach');
+  assert.equal(escalationChip(row({ coach: false }), { hasCoach: true, kind: 'coach' }), 'Nia can’t answer this one');
+  // Older rows carry no stamp: a team athlete had a coach told, a solo athlete or a trainer's client did not.
+  assert.equal(escalationChip(row({}), { hasCoach: true, kind: 'coach' }), 'Nia sent this to your coach');
+  assert.equal(escalationChip(row({}), { hasCoach: false }), 'Nia can’t answer this one');
+  assert.equal(escalationChip(row({}), { hasCoach: true, kind: 'trainer' }), 'Nia can’t answer this one');
+});
+
+test('a guardian is never shown as someone in the meal conversation (0081)', () => {
+  const list = participantList([
+    { id: ATHLETE, name: 'Jordan Woods', kind: 'athlete' }, { id: COACH, name: 'Coach Brown', kind: 'head_coach' },
+    { id: 'g1', name: 'Dana Woods', kind: 'guardian' },
+  ], ATHLETE);
+  assert.deepEqual(list.map((p) => p.name), ['You', 'Coach Brown', 'Nia']);
+  assert.equal(participantSummary(list), 'You, Coach Brown, Nia');
+  assert.doesNotMatch(facesHtml(list, escT), /g1/);
+  // Where a guardian IS described, it is only what 0081's scoped summary returns.
+  assert.equal(participantMeta('guardian').access, 'Sees daily scores and grades only, never meals or photos');
+  // A parent alone does not make a meal thread a discussion.
+  assert.equal(threadTitle(participantList([{ id: 'g1', name: 'Dana', kind: 'guardian' }], ATHLETE)), 'Chat with Nia');
+});
+
+test('a thread with a past coach\'s messages is a discussion, not a chat with Nia', () => {
+  assert.equal(threadTitle(participantList([], ATHLETE), null, [msg('coach', COACH, 1)]), 'Discussion');
+  assert.equal(threadTitle(participantList([], ATHLETE), null, [msg('ai', ATHLETE, 1)]), 'Chat with Nia');
+});
+
+test('the message box says who is listening', () => {
+  assert.equal(composerPrompt(false), 'Ask Nia about this meal…');
+  assert.equal(composerPrompt(true, 'coach'), 'Message your coach or ask Nia…');
+  assert.equal(composerPrompt(true, 'trainer'), 'Message your trainer or ask Nia…');
 });
 
 test('the AI is always in the room, even before anyone else is resolved', () => {
@@ -51,7 +157,7 @@ test('a message is attributed to the person who wrote it', () => {
   const parts = [{ id: COACH, name: 'Coach Brown', kind: 'head_coach' }];
   assert.equal(authorName(msg('coach', COACH, 1), parts, ATHLETE), 'Coach Brown');
   assert.equal(authorName(msg('athlete', ATHLETE, 1), parts, ATHLETE), 'You');
-  assert.equal(authorName(msg('ai', ATHLETE, 1), parts, ATHLETE), 'AI Nutritionist');
+  assert.equal(authorName(msg('ai', ATHLETE, 1), parts, ATHLETE), 'Nia');
 });
 
 test('an author we cannot resolve degrades to their role, never to nothing', () => {

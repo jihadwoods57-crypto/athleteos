@@ -9,7 +9,7 @@ import { shouldAiRespond, mentionsIn } from './ai-addressing.js';
 const ALEX = { id: 'u-coach', name: 'Alex Grinch', role: 'coach' };
 const JIHAD = { id: 'u-ath', name: 'Jihad Woods', role: 'athlete' };
 const TRAINER = { id: 'u-tr', name: 'Dana Reyes', role: 'trainer' };
-const AI = { id: null, name: 'AI Nutritionist', role: 'ai' };
+const AI = { id: null, name: 'Nia', role: 'ai' };
 const ROOM = [ALEX, JIHAD, TRAINER, AI];
 
 const from = (who, text, extra) => ({
@@ -178,4 +178,79 @@ test('every verdict carries a recipient, a confidence and a reason', () => {
 test('mentionsIn pulls @handles and ignores plain text', () => {
   assert.deepEqual(mentionsIn('@ai and @Alex, not email a@b.com'), ['ai', 'alex']);
   assert.deepEqual(mentionsIn('no mentions here'), []);
+});
+
+/* ============================ Nia, by name (2026-09-24) ============================ */
+
+test('"Nia, what should I eat" is for Nia', () => {
+  const d = decide(from(JIHAD, 'Nia, what should I eat before practice?'));
+  assert.equal(d.shouldRespond, true);
+  assert.equal(d.intendedRecipient.kind, 'ai');
+  assert.equal(d.intendedRecipient.name, 'Nia');
+});
+
+test('@nia is an explicit mention of Nia', () => {
+  const d = decide(from(JIHAD, '@nia coach said to ask you about my carbs'));
+  assert.equal(d.shouldRespond, true);
+  assert.equal(d.intendedRecipient.via, 'mention');
+});
+
+test('"hey nia" with a question is for Nia', () => {
+  const d = decide(from(JIHAD, 'hey nia how much protein do I have left'));
+  assert.equal(d.shouldRespond, true);
+  assert.equal(d.intendedRecipient.kind, 'ai');
+});
+
+test('"thanks nia" is a nod, not a question', () => {
+  assert.equal(decide(from(JIHAD, 'thanks nia'), [from(AI, 'Solid plate.')]).shouldRespond, false);
+});
+
+test('"Nia" mid-sentence about a person is not addressing the AI', () => {
+  for (const text of ['Nia said the dining hall closes early tonight', 'I sat with Nia at lunch']) {
+    const d = decide(from(JIHAD, text));
+    assert.equal(d.shouldRespond, false, text);
+    assert.notEqual(d.intendedRecipient.kind, 'ai', text);
+  }
+});
+
+test('a coach named Nia in the thread makes a bare "nia" ambiguous', () => {
+  const coachNia = { id: 'u-nia', name: 'Nia Brooks', role: 'coach' };
+  const room = [coachNia, JIHAD, AI];
+  for (const text of ['hey nia how much protein is left', 'what do you think nia?', 'thanks for the plan nia, @nia see you']) {
+    assert.equal(decide(from(JIHAD, text), [], room).shouldRespond, false, text);
+  }
+  // A leading "Nia," / "Nia:" / "@nia" is clear enough to be the AI.
+  for (const text of ['Nia, how much protein is left?', 'Nia: is this enough before practice?', '@nia how many carbs?']) {
+    const d = decide(from(JIHAD, text), [], room);
+    assert.equal(d.shouldRespond, true, text);
+    assert.equal(d.intendedRecipient.kind, 'ai', text);
+  }
+});
+
+test('the default AI name is Nia', () => {
+  const d = shouldAiRespond(from(JIHAD, 'Nia, is this enough protein?'), { participants: [JIHAD], history: [] });
+  assert.equal(d.intendedRecipient.name, 'Nia');
+});
+
+test('@mentioning a human coach named Nia goes to the person, not the AI', () => {
+  const coachNia = { id: 'u-nj', name: 'Nia Johnson', role: 'coach' };
+  const room = [coachNia, JIHAD, AI];
+  for (const text of ['@Nia Johnson can we talk after practice?', 'Nia Johnson, what time is lift', '@nia johnson how much protein should I get']) {
+    const d = decide(from(JIHAD, text), [], room);
+    assert.equal(d.shouldRespond, false, text);
+    assert.equal(d.intendedRecipient.kind, 'human', text);
+    assert.equal(d.intendedRecipient.name, 'Nia Johnson', text);
+  }
+  // A leading "@nia" followed by anything but the rest of her name is still the AI.
+  const ai = decide(from(JIHAD, '@nia how many carbs are left?'), [], room);
+  assert.equal(ai.shouldRespond, true);
+  assert.equal(ai.intendedRecipient.kind, 'ai');
+});
+
+test('sentences ABOUT someone called Nia never wake her, even right after a coach speaks', () => {
+  const texts = ['Nia is coming to lunch', 'Nia will drive us', 'did you see Nia?', 'Nia did the grocery run'];
+  for (const text of texts) {
+    assert.equal(decide(from(JIHAD, text)).shouldRespond, false, text);
+    assert.equal(decide(from(JIHAD, text), [from(ALEX, 'Good lift today')]).shouldRespond, false, `${text} (after a coach)`);
+  }
 });

@@ -277,16 +277,16 @@ export const coachVoice = {
     const approved = Array.isArray(cv.approved) ? cv.approved : CV_PHRASES;
     const chip = (on, label, key, val) => `<span class="chip ${on ? 'on' : ''}" data-cv="${key}:${val}">${label}</span>`;
     return `
-    ${backHead('AI Nutritionist', 'Make it coach the way you coach.', roleProfileRoute())}
+    ${backHead('Nia · OnStandard Nutritionist', 'Make Nia coach the way you coach.', roleProfileRoute())}
 
     <section class="card" style="padding:6px 16px">
       <div class="lrow" style="cursor:default">
-        <div class="lic" style="background:rgba(var(--purple-rgb),0.16);color:var(--purple-bright)">${icon('sparkle', 17)}</div>
-        <div class="lm"><div class="lt">Coach your AI</div><div class="ls">${enabled ? 'On: always labeled as AI, never signed as you' : 'Off: the AI uses its neutral default voice'}</div></div>
-        <div class="seg" style="width:104px" id="cv-enabled" role="radiogroup" aria-label="Coach your AI"><button role="radio" aria-checked="${enabled}" class="${enabled ? 'on' : ''}">On</button><button role="radio" aria-checked="${!enabled}" class="${enabled ? '' : 'on'}">Off</button></div>
+        <div class="lic nia-av"><span class="nia-n" aria-hidden="true">N</span></div>
+        <div class="lm"><div class="lt">Set Nia’s voice</div><div class="ls">${enabled ? 'On: always labeled as AI, never signed as you' : 'Off: Nia uses her default voice'}</div></div>
+        <div class="seg" style="width:104px" id="cv-enabled" role="radiogroup" aria-label="Set Nia’s voice"><button role="radio" aria-checked="${enabled}" class="${enabled ? 'on' : ''}">On</button><button role="radio" aria-checked="${!enabled}" class="${enabled ? '' : 'on'}">Off</button></div>
       </div>
     </section>
-    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Shapes every AI Nutritionist surface: meal analyses, thread replies, answers to your questions, and nudges.</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-3);margin:8px 2px 0;line-height:1.45">Shapes everything Nia says: meal reads, thread replies, answers to your questions, and nudges.</div>
 
     <h2 class="eyebrow">Tone</h2>
     <div class="chip-row" id="cv-tone">${chip(tone === 'calm', 'Calm', 'tone', 'calm')}${chip(tone === 'direct', 'Direct', 'tone', 'direct')}${chip(tone === 'fired', 'Fired up', 'tone', 'fired')}</div>
@@ -298,10 +298,10 @@ export const coachVoice = {
     <div class="chip-row" id="cv-length">${chip(length === 'brief', 'Brief', 'length', 'brief')}${chip(length === 'standard', 'Standard', 'length', 'standard')}${chip(length === 'detailed', 'Detailed', 'length', 'detailed')}</div>
 
     <h2 class="eyebrow">Your instructions · optional</h2>
-    <textarea id="cv-instructions" class="ob-input" maxlength="500" rows="3" style="min-height:76px;resize:vertical" aria-label="Your instructions for the AI Nutritionist" placeholder="e.g. Always push vegetables. Keep advice tied to our 4-meal structure. Talk like a strength coach, not a dietitian.">${esc(cv.instructions || '')}</textarea>
+    <textarea id="cv-instructions" class="ob-input" maxlength="500" rows="3" style="min-height:76px;resize:vertical" aria-label="Your instructions for Nia" placeholder="e.g. Always push vegetables. Keep advice tied to our 4-meal structure. Talk like a strength coach, not a dietitian.">${esc(cv.instructions || '')}</textarea>
     <div style="font-size:11.5px;font-weight:600;color:var(--text-3);margin:6px 2px 0;line-height:1.4">Style guidance only. It can never change numbers, add requirements, or unlock medical advice.</div>
 
-    <h2 class="eyebrow">Phrases the AI may echo · tap to approve</h2>
+    <h2 class="eyebrow">Phrases Nia may echo · tap to approve</h2>
     <section class="card" style="padding:6px 16px" id="cv-approved">
       ${CV_PHRASES.map((p, i) => { const on = approved.includes(p); return `
         <div class="lrow" data-cvphrase="${i}" style="cursor:pointer">
@@ -311,13 +311,13 @@ export const coachVoice = {
     </section>
 
     <h2 class="eyebrow">Never say · comma-separated</h2>
-    <input id="cv-prohibited" class="ob-input" maxlength="200" placeholder="e.g. skinny, fat, lazy" aria-label="Words the AI must never say, comma-separated" value="${esc(cv.prohibited || '')}" />
+    <input id="cv-prohibited" class="ob-input" maxlength="200" placeholder="e.g. skinny, fat, lazy" aria-label="Words Nia must never say, comma-separated" value="${esc(cv.prohibited || '')}" />
 
     <div style="height:14px"></div>
     <div class="sidebox">
       <div class="req-icon b s38">${icon('shield', 17)}</div>
       <div><div class="tt">Hard limits</div>
-      <div class="ts">Every AI message is labeled as AI and never signed as you. It reinforces rulings you already made, in your tone. It never creates requirements, changes deadlines, alters scores, or gives medical advice. New coaching always comes from you.</div></div>
+      <div class="ts">Every message from Nia is labeled as AI and never signed as you. It reinforces rulings you already made, in your tone. It never creates requirements, changes deadlines, alters scores, or gives medical advice. New coaching always comes from you.</div></div>
     </div>
     <div id="cv-status" style="text-align:center;font-size:12px;font-weight:600;color:var(--text-3);min-height:16px;margin-top:8px"></div>
     <div style="height:10px"></div>
