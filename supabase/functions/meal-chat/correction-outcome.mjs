@@ -114,11 +114,12 @@ export function stripName(v, cap = 60) {
     .replace(/<[^>]*>?/g, ' ')                                   // a tag goes whole, never as "b ... /b"
     .replace(/(?:https?:\/\/|www\.)\S*/gi, ' ')
     .replace(/\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}\b\S*/gi, ' ')   // any domain
-    .replace(/[^A-Za-z0-9' &,.%-]+/g, ' ')                          // markup, symbols, control characters
-    .replace(/(^|\s)[^A-Za-z0-9\s]+(?=\s|$)/g, ' ')                  // stray punctuation between words
+    .replace(/[^\p{L}\p{M}\p{N}' &,.%-]+/gu, ' ')                   // markup, symbols, control characters
+    .replace(/(^|\s)[^\p{L}\p{M}\p{N}\s&]+(?=\s|$)/gu, ' ')           // stray punctuation between words
     .replace(/\s+/g, ' ').trim().slice(0, cap).replace(/[\s,.&-]+$/, '').trim();
 }
-const lowerWords = (s) => String(s || '').toLowerCase().split(/[^a-z0-9']+/).map((w) => w.replace(/'/g, '').replace(/s$/, '')).filter((w) => w.length >= 2);
+// Words compared letter for letter, accents and all ("jalapeño" is not "jalapeno", and never "jalape o").
+const lowerWords = (s) => String(s || '').normalize('NFC').toLowerCase().split(/[^\p{L}\p{M}\p{N}']+/u).map((w) => w.replace(/'/g, '').replace(/s$/, '')).filter((w) => w.length >= 2);
 
 /** Every food name this turn may put in a sentence: the signed correction's and the meal row's.
  *  @param {any} correction  the hash-checked correction
@@ -151,7 +152,10 @@ function nameGate(allowed) {
    per unit (a sane plate, not a typo or a joke); anything outside it is not said at all. */
 const UNIT_CAP = { oz: 64, 'fl oz': 64, ounce: 64, g: 2000, gram: 2000, ml: 3000, cup: 10, tbsp: 30, tablespoon: 30,
   tsp: 60, teaspoon: 60, lb: 4, pound: 4, slice: 12, piece: 12, serving: 12, portion: 12, bowl: 12, scoop: 12,
-  egg: 12, strip: 12, patty: 12, can: 12, bottle: 12, glass: 12, wing: 20, nugget: 20 };
+  egg: 12, strip: 12, patty: 12, can: 12, bottle: 12, glass: 12, wing: 20, nugget: 20, sandwich: 12, tortilla: 12,
+  taco: 12, burrito: 6, bar: 12, cookie: 12, pancake: 12, waffle: 12, banana: 12, apple: 12, fillet: 6, breast: 6, thigh: 12 };
+/** The singular a unit table knows: "slices" slice, "sandwiches" sandwich, "fl oz" as is. */
+const unitOf = (u) => [u, u.replace(/es$/, ''), u.replace(/s$/, '')].find((x) => UNIT_CAP[x]) || '';
 const SIZE = /^(?:large|medium|small|whole|big|jumbo|mini)$/;
 const FRAC = [[0.25, '1/4'], [1 / 3, '1/3'], [0.5, '1/2'], [2 / 3, '2/3'], [0.75, '3/4']];
 /** 0.5 -> "1/2", 1.5 -> "1 1/2", 4.5 -> "4 1/2"; metric stays decimal. */
@@ -167,21 +171,23 @@ function asFraction(n, unit) {
 function amountGate(allowed) {
   const sets = (Array.isArray(allowed) ? allowed : []).map((n) => new Set(lowerWords(n)));
   return (v) => {
-    const s = stripName(v, 30).toLowerCase();
-    const m = s.match(/^(\d+(?:\.\d+)?|\d+\/\d+|\d+ \d+\/\d+)\s+(fl oz|[a-z]+)(?:\s([a-z]+))?$/);
+    // Its own cleaning, not stripName's: "/" is part of an amount ("1 1/2 cups"). The pattern below
+    // is the whole grammar, so nothing else can ride along.
+    const s = String(v == null ? '' : v).replace(/<[^>]*>?/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 30);
+    const m = s.match(/^(\d+(?:\.\d+)?|\d+ ?\/ ?\d+|\d+ \d+ ?\/ ?\d+)\s+(fl oz|[a-z]+)(?:\s([a-z]+))?$/);
     if (!m) return '';
-    const parts = m[1].match(/^(\d+) (\d+)\/(\d+)$/) || m[1].match(/^()(\d+)\/(\d+)$/);
+    const parts = m[1].match(/^(\d+) (\d+) ?\/ ?(\d+)$/) || m[1].match(/^()(\d+) ?\/ ?(\d+)$/);
     const n = parts ? (Number(parts[1]) || 0) + Number(parts[2]) / Number(parts[3]) : Number(m[1]);
     if (!(n > 0) || !isFinite(n)) return '';                         // zero is a removal; x/0 is nothing
-    let unit = m[2] === 'fl oz' ? 'fl oz' : m[2].replace(/(?:es|s)$/, '').replace(/^ounc$/, 'ounce');
+    let unit = m[2] === 'fl oz' ? 'fl oz' : unitOf(m[2]);
     let food = m[3] || '';
-    if (SIZE.test(unit) && food) { unit = ''; }                      // "2 medium bananas": size + food
-    const cap = unit ? UNIT_CAP[unit] || UNIT_CAP[m[2]] : 12;
-    if (unit && !cap) {                                               // "3 eggs" as a count of a food
+    if (SIZE.test(m[2]) && food) { unit = ''; }                      // "2 medium bananas": size + food
+    else if (!unit) {                                                 // "3 eggs", "20 nuggets": a count of a food
       if (food) return '';
-      food = m[2]; unit = '';
+      food = m[2];
     }
-    if (food && !sets.some((set) => set.has(lowerWords(food)[0]))) return '';
+    const cap = unit ? UNIT_CAP[unit] : UNIT_CAP[unitOf(food)] || 12;
+    if (food && !UNIT_CAP[unitOf(food)] && !sets.some((set) => set.has(lowerWords(food)[0]))) return '';
     if (n > (cap || 12)) return '';
     return `${asFraction(n, unit)} ${m[2]}${m[3] ? ` ${m[3]}` : ''}`;
   };
@@ -225,16 +231,31 @@ export function sanitizeOutcome(raw, allowed) {
   return { applied, exact, done, unpriced, asks, ask: asks[0] || null };
 }
 
-/** Does what landed account for every part of the correction the model sent? */
+/* Does what landed account for every part of the correction the model sent (review round 3)? Each
+   part is checked for the operation it asked for, on the same food: a removal is covered only by a
+   removal of that food, an amount only by a scale or amount of it, a rename only by that rename.
+   "Doubled the grilled chicken" says nothing about the chicken salad the model also took off. */
+const ZERO = /^\s*(?:0+(?:\.0+)?(?:\s*[a-z]+)?|zero|none|nothing|no\b.*|removed?|drop(?:ped)?|took (?:it )?off|taken off|did(?:n't| not) .*)\s*$/i;
 function covers(done, correction) {
   const c = correction && typeof correction === 'object' ? correction : {};
-  const said = (d) => lowerWords(`${d.food} ${d.newName || ''}`);
-  const hit = (name, ops) => done.some((d) => ops.includes(d.op) && lowerWords(name).some((w) => said(d).includes(w)));
+  const same = (a, b) => {
+    const x = lowerWords(a), y = lowerWords(b);
+    return x.length > 0 && y.length > 0 && (x.every((w) => y.includes(w)) || y.every((w) => x.includes(w)));
+  };
+  const hit = (name, ops) => done.some((d) => ops.includes(d.op) && same(name, d.food));
   const items = [c, ...(Array.isArray(c.more) ? c.more : [])].filter((p) => p && typeof p === 'object' && p.item);
   const missed = (Array.isArray(c.missed) ? c.missed : []).filter((f) => f && f.name);
   if (!done.length || (!items.length && !missed.length)) return false;
-  return items.every((p) => hit(p.item, ['scale', 'amount', 'remove', 'rename', 'ingredients', 'macros']) || (p.newName && hit(p.newName, ['rename'])))
-    && missed.every((f) => hit(f.name, ['add']));
+  const perGiven = (p) => p.per && typeof p.per === 'object' && Object.values(p.per).some((v) => v != null);
+  return items.every((p) => {
+    if (p.quantity && ZERO.test(String(p.quantity))) return hit(p.item, ['remove']);
+    const need = [];
+    if (p.quantity) need.push(['scale', 'amount']);
+    if (p.newName) need.push(['rename', 'scale', 'amount']);        // a "Double chicken" rename lands as a scale
+    if (Array.isArray(p.add) && p.add.length) need.push(['ingredients']);
+    if (perGiven(p) && !p.newName) need.push(['macros', 'scale', 'amount']);
+    return need.length > 0 && need.every((ops) => hit(p.item, ops) || (p.newName && ops.includes('rename') && done.some((d) => d.op === 'rename' && same(p.newName, d.newName))));
+  }) && missed.every((f) => hit(f.name, ['add']));
 }
 
 /* ---------------- the words Nia files ---------------- */
@@ -331,7 +352,7 @@ export function composeDone(done) {
  *  filed AFTER the change, so such an ack is never filed or rewritten word by word (review round 2:
  *  "Got it. Recalculating now." became "Got it. updated."). The server's own lead replaces it. */
 export function stillHappening(ack) {
-  return /\b(?:updating|recalculating|recomputing|refreshing|changing)\b|\b(?:will|'ll|going to|about to)\s+(?:update|recalculate|change|refresh)\b|\bupdat\w*\s+(?:right\s+)?now\b/i.test(String(ack || ''));
+  return /\b(?:updating|recalculating|recomputing|refreshing)\b|\b(?:is|are)\s+(?:changing|moving)\b|\b(?:will|'ll|going to|about to)\s+(?:update|recalculate|change|refresh)\b|\bupdat\w*\s+(?:right\s+)?now\b/i.test(String(ack || ''));
 }
 
 /**

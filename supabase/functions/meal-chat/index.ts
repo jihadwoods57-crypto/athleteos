@@ -673,9 +673,6 @@ Deno.serve(async (req) => {
       if ((await correctionHash(outcomeIn.correction ?? null)) !== pending.hash) return bad(403, 'unauthorized', cors);
       const ok = (extra: Record<string, unknown> = {}) =>
         new Response(JSON.stringify({ ok: true, ...extra }), { headers: { ...cors, 'Content-Type': 'application/json' } });
-      const { data: dup } = await service.from('meal_comments').select('id')
-        .eq('meal_id', mealId).eq('role', 'ai').eq('meta->>ct', pending.nonce).limit(1);
-      if (Array.isArray(dup) && dup.length) return ok({ duplicate: true });
       // Names Nia may say: the signed correction's, and the meal row's own detected list.
       const { data: detRow } = await service.from('meals').select('detected').eq('id', mealId).maybeSingle();
       const outcome = sanitizeOutcome(outcomeIn, allowedNames(outcomeIn.correction, detRow?.detected));
@@ -687,20 +684,31 @@ Deno.serve(async (req) => {
       // without it would be the one that could be filed twice.
       const file = async (row: { text: string; meta: Record<string, unknown> }) =>
         (await service.from('meal_comments').insert({ ...base, text: row.text, meta: row.meta })).error;
-      const leadErr = await file(lead);
-      // 23505: a concurrent report filed this turn first (the dup read above raced it). Already done.
-      if (leadErr) return leadErr.code === '23505' ? ok({ duplicate: true }) : bad(503, 'unavailable', cors);
-      // `receipt`: whether the receipt row is in (or was already). false tells the device to file its
-      // own plain one (ct nonce:f), so moved numbers are never left without a record.
-      let receipt = !(outcome.applied && receiptRows);
-      if (outcome.applied && receiptRows) {
-        const rErr = await file({ text: correctionReceiptText(receiptRows), meta: { t: 'correction_receipt', rows: receiptRows, ct: `${pending.nonce}:r` } });
-        receipt = !rErr || rErr.code === '23505';
+      const put = async (row: { text: string; meta: Record<string, unknown> }) => { const e = await file(row); return !e || e.code === '23505'; };
+      /* A RETRY FILLS THE GAPS (review round 3). Each row is looked up by its own ct, so a report
+         whose response was lost, or whose receipt or follow-up failed to insert, files only what is
+         missing and says what it still could not: `receipt: false` has the device file its plain one
+         (nonce:f), `question: false` keeps the job in the device's outbox to try again. */
+      const has = async (ct: string) => {
+        const { data } = await service.from('meal_comments').select('id').eq('meal_id', mealId).eq('role', 'ai').eq('meta->>ct', ct).limit(1);
+        return Array.isArray(data) && data.length > 0;
+      };
+      const duplicate = await has(pending.nonce);
+      if (!duplicate) {
+        const leadErr = await file(lead);
+        // 23505: a concurrent report filed this turn first (the read above raced it). Already done.
+        if (leadErr && leadErr.code !== '23505') return bad(503, 'unavailable', cors);
       }
-      if (follow) await file(follow);
+      let receipt = true;
+      if (outcome.applied && receiptRows) {
+        receipt = (await has(`${pending.nonce}:r`)) || (await has(`${pending.nonce}:f`))
+          || await put({ text: correctionReceiptText(receiptRows), meta: { t: 'correction_receipt', rows: receiptRows, ct: `${pending.nonce}:r` } });
+      }
+      let question = true;
+      if (follow) question = (await has(`${pending.nonce}:q`)) || await put(follow);
       // No ai_calls row: this mode makes no model call, and ai_calls is one row per paid call
       // (ai-telemetry.ts). The turn that produced the ack already recorded its own.
-      return ok({ reply: lead.text, receipt });
+      return ok({ reply: lead.text, receipt, question, ...(duplicate ? { duplicate } : {}) });
     }
     if (receiptRows) {
       let rows = receiptRows;

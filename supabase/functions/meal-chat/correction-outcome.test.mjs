@@ -258,17 +258,17 @@ test('the outcome mode spends nothing, checks the token and its correction befor
   assert.ok(i > 0);
   assert.ok(i < SRC.indexOf('await missingConsent('), 'before the consent read and the model');
   assert.ok(i < SRC.indexOf('withinKeyCap(`meal_draft:'), 'and before any daily cap');
-  const block = SRC.slice(i, SRC.indexOf('return ok({ reply: lead.text, receipt });', i));
+  const block = SRC.slice(i, SRC.indexOf('return ok({ reply: lead.text, receipt, question', i));
   assert.ok(block.indexOf('readPending(') < block.indexOf('.insert('), 'token first');
   assert.ok(block.indexOf('correctionHash(outcomeIn.correction') < block.indexOf('.insert('), 'bound to its turn\'s correction');
   assert.match(block, /allowedNames\(outcomeIn\.correction, detRow\?\.detected\)/, 'names from the signed correction and the meal row');
   assert.match(block, /meta->>ct/, 'and a token files once');
   assert.match(block, /outcome\.applied && receiptRows/, 'a receipt only follows words that say the numbers moved');
   assert.match(block, /ct: `\$\{pending\.nonce\}:r`/, 'the receipt has a ct of its own');
-  assert.match(block, /leadErr\.code === '23505' \? ok\(\{ duplicate: true \}\)/, 'a lost race is "already filed", not an error');
+  assert.match(block, /if \(leadErr && leadErr\.code !== '23505'\) return bad\(503/, 'a lost race is "already filed", not an error');
   assert.doesNotMatch(block, /insert\(\{ \.\.\.base, text: row\.text \}\)/, 'never a fallback insert without meta');
   assert.doesNotMatch(block, /recordAiCall\(/, 'no zero-token ai_calls row: ai_calls is one row per paid call');
-  assert.match(block, /receipt = !rErr \|\| rErr\.code === '23505'/, 'the device is told when its receipt did not land (R2)');
+  assert.match(block, /const put = async .*return !e \|\| e\.code === '23505'; \};/, 'the device is told when its receipt did not land (R2)');
   assert.match(SRC, /receiptCt = !coachReceiptIn && typeof body\?\.receiptCt === 'string' && \/\^\[A-Za-z0-9_-\]\{8,40\}:f\$\/\.test/, 'a fallback receipt files under nonce:f');
   assert.match(SRC, /recErr && recErr\.code === '23505' && receiptCt/, 'and a second copy of it is "already filed"');
   assert.match(SRC, /!receiptRows && !outcomeIn && !context/, 'an outcome needs no context');
@@ -278,4 +278,61 @@ test('0249 closes the one-time race: a unique partial index on meta->>ct, additi
   const sql = MIGRATION.replace(/--.*$/gm, '');
   assert.match(sql, /create unique index if not exists meal_comments_ct_once\s+on public\.meal_comments \(\(meta->>'ct'\)\)\s+where meta \? 'ct';/);
   assert.doesNotMatch(sql, /\bdrop\b|\balter table\b|\bdelete\b|\bupdate\b/i, 'additive only');
+});
+
+/* ============================ REVIEW ROUND 3 (2026-09-25) ============================
+ * rr/i3.mjs and rr/i4.mjs, pinned. */
+
+test('R3 I3: accented names are kept whole (jalapeño, açaí, crème brûlée)', () => {
+  const det = [{ name: 'Jalapeño poppers' }, { name: 'Açaí bowl' }, { name: 'Crème brûlée' }, { name: 'Pão de queijo' }];
+  const allowed = allowedNames({ item: 'Jalapeño poppers', quantity: '0' }, det);
+  assert.deepEqual(allowed.slice(1), ['Jalapeño poppers', 'Açaí bowl', 'Crème brûlée', 'Pão de queijo']);
+  const said = (food) => composeDone(sanitizeOutcome({ applied: true, done: [{ op: 'remove', food }] }, allowed).done);
+  assert.equal(said('Jalapeño poppers'), 'Took the jalapeño poppers off.');
+  assert.equal(said('Açaí bowl'), 'Took the açaí bowl off.');
+  assert.equal(said('Crème brûlée'), 'Took the crème brûlée off.');
+  assert.equal(said('Grilled chícken'), 'Took that item off.', 'an accent does not smuggle in a word the turn never signed');
+});
+
+test('R3: "&" stays in a name ("mac & cheese")', () => {
+  const allowed = allowedNames({}, [{ name: 'Mac & cheese' }]);
+  assert.deepEqual(allowed, ['Mac & cheese']);
+  assert.equal(composeDone(sanitizeOutcome({ applied: true, done: [{ op: 'remove', food: 'Mac & cheese' }] }, allowed).done), 'Took the mac & cheese off.');
+});
+
+test('R3: fractions and plural units and counts are amounts', () => {
+  const allowed = allowedNames({}, [{ name: 'Rice' }, { name: 'Breakfast sandwich' }, { name: 'Protein shake' }, { name: 'Flour tortillas' }]);
+  const to = (v) => sanitizeOutcome({ applied: true, done: [{ op: 'amount', food: 'Rice', to: v }] }, allowed).done[0].to;
+  for (const [v, want] of [['1/2 cup', '1/2 cup'], ['3/4 cup', '3/4 cup'], ['1 1/2 cups', '1 1/2 cups'], ['2 bottles', '2 bottles'], ['2 pieces', '2 pieces'],
+    ['2 slices', '2 slices'], ['2 scoops', '2 scoops'], ['2 sandwiches', '2 sandwiches'], ['3 eggs', '3 eggs'], ['2 tortillas', '2 tortillas'], ['8 fl oz', '8 fl oz']]) {
+    assert.equal(to(v), want, v);
+  }
+  for (const bad of ['1/0 cup', '0/4 cup', '1 1/0 cups', '13 slices', '6 of lies']) assert.equal(to(bad), '', bad);
+  assert.equal(composeDone([{ op: 'scale', verb: 'half', food: 'Rice', to: to('1/2 cup') }]), 'Halved the rice to 1/2 cup.');
+});
+
+test('R3: covers() checks the operation on the same food, not a shared word', () => {
+  const corr = { item: 'Grilled chicken', newName: null, quantity: 'double', per: { protein: null }, perBasis: 'stated', add: [], more: [{ item: 'Chicken salad', quantity: '0' }], missed: [] };
+  const allowed = allowedNames(corr, [{ name: 'Grilled chicken' }, { name: 'Chicken salad' }]);
+  const exact = (done) => sanitizeOutcome({ applied: true, exact: true, correction: corr, done }, allowed).exact;
+  const dbl = { op: 'scale', verb: 'double', food: 'Grilled chicken', to: '6 oz' };
+  const off = { op: 'remove', food: 'Chicken salad' };
+  assert.equal(exact([dbl, off]), true, 'both parts landed as described');
+  assert.equal(exact([dbl]), false, 'the chicken salad was never taken off');
+  assert.equal(exact([off]), false, 'the chicken was never doubled');
+  assert.equal(exact([{ op: 'remove', food: 'Grilled chicken' }, off]), false, 'the chicken was removed, not doubled');
+});
+
+test('R3: stillHappening() is about an update in progress, not the word "changing"', () => {
+  for (const t of ['Changing the chicken to steak was the right call.', 'Keep changing it up.', 'Your numbers are updated.']) assert.equal(stillHappening(t), false, t);
+  for (const t of ['Updating your numbers now.', 'Your score is changing now.', 'Your macros are recalculating.']) assert.equal(stillHappening(t), true, t);
+});
+
+test('R3: a retried report fills in whatever of its rows is missing, and says what it could not file', () => {
+  const i = SRC.indexOf('if (outcomeIn) {');
+  const block = SRC.slice(i, SRC.indexOf('return ok({ reply: lead.text, receipt, question });', i));
+  assert.match(block, /const has = async \(ct: string\)/, 'each row looked up by its own ct');
+  assert.match(block, /await has\(`\$\{pending\.nonce\}:r`\)\) \|\| \(await has\(`\$\{pending\.nonce\}:f`\)\)/, 'a receipt is the server\'s or the device\'s fallback');
+  assert.match(block, /question = \(await has\(`\$\{pending\.nonce\}:q`\)\) \|\| await put\(follow\)/, 'a follow-up that failed to file is reported (question: false)');
+  assert.doesNotMatch(block, /duplicate: true \}\);\s*\/\/ Names/, 'a duplicate no longer returns before checking the receipt');
 });
