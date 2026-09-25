@@ -17,7 +17,8 @@ import {
 } from './correction-outcome.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SRC = readFileSync(join(HERE, 'index.ts'), 'utf8');
+// CRLF-normalised: a Windows checkout (autocrlf) otherwise misses every '\n'-anchored slice below.
+const SRC = readFileSync(join(HERE, 'index.ts'), 'utf8').replace(/\r\n/g, '\n');
 const MIGRATION = readFileSync(join(HERE, '..', '..', 'migrations', '0249_meal_comment_ct_unique.sql'), 'utf8');
 const KEY = 'service-role-key-for-tests';
 const MEAL = 'f4c982bb-4b2c-464c-930a-d14f168c3b5b';
