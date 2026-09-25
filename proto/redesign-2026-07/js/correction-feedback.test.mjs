@@ -67,7 +67,7 @@ test('the outcome is reported with the token, and the receipt goes with it', () 
   assert.ok(TURN.indexOf('SQ.putJob(job)') < TURN.indexOf('await sendOutcome(job, sb)'), 'queued in the outbox before the first try (I4)');
   assert.match(STATE, /job\.kind === 'correction-outcome'\) return \(await import\('\.\/correction-turn\.js'\)\)\.sendOutcome\(job, sbc\)/, 'and the outbox drain knows it, lazily');
   // R2: an exhausted receipt job is never abandoned: a launch or a foreground tries it again.
-  assert.match(STATE, /if \(revive\) for \(const j of SQ\.readQueue\(\)\) if \(j\.kind === 'correction-outcome' && j\.tries >= SQ\.MAX_TRIES\) SQ\.patchJob\(SQ\.keyOf\(j\), \{ tries: 0, lastTryAt: 0 \}\);/);
+  assert.match(STATE, /if \(revive\) for \(const j of SQ\.readQueue\(\)\) if \(j\.kind === 'correction-outcome' && !j\.noRevive && j\.tries >= SQ\.MAX_TRIES\) SQ\.patchJob\(SQ\.keyOf\(j\), \{ tries: 0, lastTryAt: 0 \}\);/);
   assert.equal((STATE.match(/drainSyncQueue\(true\)/g) || []).length, 2, 'boot and foreground revive; reconnect and the timer do not');
   assert.match(TURN, /correctionReceipt: rows/);
   assert.match(TURN, /noReceipt: !!token/, 'so the reducer does not file a second, earlier receipt');

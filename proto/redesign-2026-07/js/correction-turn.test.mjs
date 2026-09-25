@@ -30,12 +30,16 @@ const PLATE = {
 
 /** A Supabase stand-in: `invoke` answers from a script; `from().select()` finds rows by meta->>ct
  *  in `filed` (a list of the cts already in the thread). */
-function fakeSb({ invoke, filed = [] }) {
+function fakeSb({ invoke, filed = [], meal = true }) {
   const calls = [];
   const reads = [];
-  const from = () => {
+  const from = (table) => {
     let ct = null;
-    const q = { select: () => q, eq: (col, v) => { if (col === 'meta->>ct') ct = v; return q; }, limit: async () => { reads.push(ct); return { data: filed.includes(ct) ? [{ id: ct }] : [], error: null }; } };
+    const q = {
+      select: () => q, eq: (col, v) => { if (col === 'meta->>ct') ct = v; return q; },
+      limit: async () => { reads.push(ct); return { data: filed.includes(ct) ? [{ id: ct }] : [], error: null }; },
+      maybeSingle: async () => { reads.push(table); return { data: table === 'meals' && meal ? { id: 'meal-1' } : null, error: null }; },
+    };
     return q;
   };
   return { calls, reads, functions: { invoke: async (fn, { body }) => { calls.push(body); return invoke(body); } }, from };
@@ -122,4 +126,28 @@ test('I4: nothing moved, nothing owed: a spent question-only report leaves the o
   const sb = fakeSb({ invoke: net });
   assert.equal(await sendOutcome({ mealId: 'm', ct: 'n', body: {}, receipt: [], expiresAt: T0 }, sb, T0 + 1), true);
   assert.equal(sb.calls.length, 0);
+});
+
+/* ---- review round 3 ---- */
+
+test('R3 I4: a follow-up question the server could not file keeps the job (question: false)', async () => {
+  const job = { ...SQ.readQueue()[0], fallback: false };
+  const sb = fakeSb({ invoke: () => ({ data: { ok: true, receipt: true, question: false }, error: null }) });
+  assert.equal(await sendOutcome(job, sb, T0 + 1000), false, 'not done: the retry asks the server to file it again');
+});
+
+test('R3 I4: a 403 on a meal that is gone drops the job without filing anything', async () => {
+  const job = { ...SQ.readQueue()[0], fallback: false };
+  const sb = fakeSb({ invoke: forbidden, meal: false });
+  assert.equal(await sendOutcome(job, sb, T0 + 1000), true);
+  assert.equal(sb.calls.length, 1, 'only the refused report, no receipt for a meal that is gone');
+});
+
+test('R3 I4: a 403 on a meal that still exists files the plain receipt once and is never revived', async () => {
+  const job = { ...SQ.readQueue()[0], fallback: false };
+  const sb = fakeSb({ invoke: (b) => (b.correctionOutcome ? forbidden() : net()) });
+  assert.equal(await sendOutcome(job, sb, T0 + 1000), false, 'the receipt did not land yet');
+  assert.equal(job.noRevive, true, 'a refused token is not retried on every foreground');
+  const gone = fakeSb({ invoke: forbidden });
+  assert.equal(await sendOutcome({ ...job, fallback: true }, gone, T0 + 2000), true, 'the receipt refused too (meal gone): done');
 });

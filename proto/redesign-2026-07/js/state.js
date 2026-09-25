@@ -1279,7 +1279,7 @@ export const act = {
     this._sqDraining = true;
     try {
       // A correction's receipt is never given up on: a launch or a foreground tries it again.
-      if (revive) for (const j of SQ.readQueue()) if (j.kind === 'correction-outcome' && j.tries >= SQ.MAX_TRIES) SQ.patchJob(SQ.keyOf(j), { tries: 0, lastTryAt: 0 });
+      if (revive) for (const j of SQ.readQueue()) if (j.kind === 'correction-outcome' && !j.noRevive && j.tries >= SQ.MAX_TRIES) SQ.patchJob(SQ.keyOf(j), { tries: 0, lastTryAt: 0 });
       for (const job of SQ.due(SQ.readQueue(), Date.now())) {
         if (!job.uid || job.uid !== RT.userId) continue;   // another account's queue — leave it
         const ok = await this._runSyncJob(job);

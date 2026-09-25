@@ -58,12 +58,25 @@ export async function sendOutcome(job, sb, now = Date.now()) {
   if (!job.fallback && now < job.expiresAt) {
     try {
       const { data, error } = await sb.functions.invoke('meal-chat', { body: job.body });
-      // Nia's words are in; the server says whether its receipt made it too.
-      if (!error) return data && data.receipt === false ? plainReceipt(job, sb) : true;
-      // 403 is the server refusing the token (spent or out of date): no retry will change that.
+      if (!error) {
+        // Nia's words are in; the server says whether its receipt and follow-up made it too. A
+        // missing follow-up is not done: the retry has the server file just that (review round 3).
+        if (data && data.receipt === false && !(await plainReceipt(job, sb))) return false;
+        return !(data && data.question === false);
+      }
+      // 403 is the server refusing the token (spent, out of date) or the meal (gone): no retry of
+      // the report will change that.
       const status = error.context && error.context.status;
       if (status !== 403) return false;
     } catch { return false; }
+    // A meal that is gone needs no record: drop the job. One that is still there gets the plain
+    // receipt, and is never revived on a foreground (no endless retries of a refused token).
+    try {
+      const { data, error } = await sb.from('meals').select('id').eq('id', job.mealId).maybeSingle();
+      if (!error && !data) return true;
+    } catch { return false; }
+    job.noRevive = true;
+    SQ.patchJob(SQ.keyOf(job), { noRevive: true });
   }
   if (!job.fallback) {
     // From here the job is the fallback, with its own fresh tries (the outbox caps at 5, and a
@@ -95,7 +108,8 @@ async function plainReceipt(job, sb) {
     const { error } = await sb.functions.invoke('meal-chat', {
       body: { mealId: job.mealId, correctionReceipt: job.receipt, ...(job.ct ? { receiptCt: `${job.ct}:f` } : {}) },
     });
-    return !error;
+    // 403 here is the meal refused (gone, or no longer this athlete's): nothing left to record.
+    return !error || (error.context && error.context.status) === 403;
   } catch { return false; }
 }
 
