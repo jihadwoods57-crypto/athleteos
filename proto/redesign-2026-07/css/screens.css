@@ -4571,11 +4571,22 @@ html[data-layout] .aicsheet { place-items: center; }
 .msg.tp-askrow { margin-top: calc(-1 * var(--s1)); }
 .tp-ask { flex-wrap: wrap; }
 /* The starters above the box: one row that scrolls sideways when it runs past the phone, with room
-   above and below for each chip's hit expander. Gone while the box has words in it or the keyboard
-   is up (keyboard.js sets .has-text and body.kb-open); the mount also sets [hidden]. */
+   above and below for each chip's hit expander. Gone while the box has words in it (keyboard.js
+   .has-text; the mount also sets .tp-off). With the keyboard up (body.kb-open) the row FOLDS
+   rather than vanishing: over the keyboard's own duration and curve, the same motion the dock's
+   padding uses, so the bar arrives on the keys in one move instead of stepping 44px first. */
 .tp-cmp {
   margin: calc(-1 * var(--s1)) calc(-1 * var(--pad-screen, 16px)) var(--s1); padding: var(--s1) var(--pad-screen, 16px);
-  overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  max-height: 56px;
+  transition: max-height var(--kb-ms, 250ms) var(--kb-ease, ease-out), opacity var(--kb-ms, 250ms) var(--kb-ease, ease-out),
+    padding var(--kb-ms, 250ms) var(--kb-ease, ease-out), margin var(--kb-ms, 250ms) var(--kb-ease, ease-out);
 }
 .tp-cmp::-webkit-scrollbar { display: none; }
-.tp-cmp[hidden], body.kb-open .tp-cmp, .chat-dock:has(.composer.has-text) .tp-cmp { display: none; }
+/* Words in the box fold it the same way: "It was more" fills the box as the keyboard rises. */
+body.kb-open .tp-cmp, .tp-cmp.tp-off, .chat-dock:has(.composer.has-text) .tp-cmp {
+  max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; margin-top: 0; margin-bottom: 0; pointer-events: none; visibility: hidden;
+  transition-property: max-height, opacity, padding, margin, visibility; transition-delay: 0s, 0s, 0s, 0s, var(--kb-ms, 250ms);
+}
+.tp-cmp[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .tp-cmp { transition: none; } }

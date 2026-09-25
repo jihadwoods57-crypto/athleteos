@@ -3397,7 +3397,7 @@ export const coachMeal = {
         <div class="msg ai last">
           <div class="av">${NIA_MARK}</div>
           <div class="stack">${whoHtml(AI_NAME, true, esc, `What the ${esc(CD.noun)} was told`)}
-          <div class="bubble">${esc(opening)}</div>${aiDisclaimer()}</div>
+          ${bubblesHtml({ role: 'ai', text: opening, meta: { t: 'analysis' } }, esc, { body: esc(opening), moveLabel: 'Their move' })}${aiDisclaimer()}</div>
         </div>` : `
         <div class="msg coach last quick-read">
           <div class="av">${icon('flash', 14)}</div>
@@ -3439,6 +3439,7 @@ export const coachMeal = {
                     thread already dropped it). The quote above still marks what changed. */''}
               ${bubblesHtml(c, esc, {
                 photo: !!photo,
+                moveLabel: 'Their move',   // the coach reads the athlete's move, not their own
                 head: `${escalated ? `<span class="esc">${AI_NAME} flagged this for you</span>` : ''}${bubblePhotoHtml(photo, esc)}`,
                 body: photoOnly ? '' : c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc),
                 after: bubbleRx.length ? `<span class="rxo">${bubbleRx.map((r) => `${esc(r.emoji)} ${r.count}`).join(' ')}</span>` : '',

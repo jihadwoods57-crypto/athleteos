@@ -67,7 +67,7 @@ function liftBubble(bubble) {
 /** The text a bubble would put on the clipboard: its words, not its chrome (badges, chips). */
 function bubbleText(bubble) {
   const c = bubble.cloneNode(true);
-  for (const n of c.querySelectorAll('.esc, .upd, .fq-chips, .mo-ask, .rxo, img, .sr-only')) n.remove();
+  for (const n of c.querySelectorAll('.esc, .upd, .fq-chips, .mo-ask, .rxo, img, .sr-only, .tp-lbl')) n.remove();
   return String(c.textContent || '').replace(/\s+/g, ' ').trim();
 }
 

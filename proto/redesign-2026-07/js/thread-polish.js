@@ -13,7 +13,8 @@
  *      athlete's own meal thread gets three starters above the box. Every chip either sends or
  *      fills a message that opens by addressing her ("@Nia" or "Nia,"), so the addressing gate routes it.
  *
- * Pure: no DOM, no clock, no state. Loaded only by the thread screens, never at boot. */
+ * Pure: no DOM and no clock (the views cache takes its clock and its fetch from the caller).
+ * Loaded only by the thread screens, never at boot. */
 
 import { richText, isAnalysisOpener, isMealSuggest } from './chat-view.js';
 
@@ -33,14 +34,12 @@ const marksClosed = (s) => (String(s).match(/==/g) || []).length % 2 === 0;
 const SENTENCES = /[\s\S]*?[.!?…]+(?=\s|$)|[\s\S]+$/g;
 /* The uncertainty line's openers, every branch meal-opener.ts uncertaintyLine can write. */
 const UNSURE = /^(?:I['’]m (?:least sure|not sure|estimating)\b|If anything was cooked or portioned)/;
-/* "One meal left." belongs to the move that follows it, not to the read before it. */
-const LEAD_IN_MAX = 20;
-
 /**
- * An old opener (one paragraph, no breaks) split the way the server now sends it: before the first
- * sentence carrying a ==highlight== (the move), and before the uncertainty line. Anything the rule
- * cannot place cleanly (a highlight spanning sentences, a read that is only the move) stays whole:
- * one bubble is never wrong, a bad split is.
+ * An old opener (one paragraph, no breaks) split the way the server now sends it: the sentence
+ * carrying the ==highlight== is the move and stands alone (from its start to its own end, never a
+ * short sentence pulled in beside it), whatever follows it (the pattern line) is its own text, and
+ * the uncertainty line is the last. A cut that would fall inside a mark leaves the row whole: one
+ * bubble is never wrong, a bad split is.
  */
 export function splitOldRead(text) {
   const s = String(text == null ? '' : text).trim();
@@ -48,9 +47,14 @@ export function splitOldRead(text) {
   const sentences = (s.match(SENTENCES) || [s]).map((x) => x.trim()).filter(Boolean);
   if (sentences.length < 2) return [s];
   const cuts = new Set();
-  let moveAt = sentences.findIndex((x) => x.includes('=='));
-  if (moveAt > 1 && sentences[moveAt - 1].length <= LEAD_IN_MAX) moveAt -= 1;
-  if (moveAt > 0) cuts.add(moveAt);
+  const moveAt = sentences.findIndex((x) => x.includes('=='));
+  if (moveAt !== -1) {
+    // The move runs to the end of the sentence that closes its highlight.
+    let end = moveAt;
+    while (end < sentences.length - 1 && !marksClosed(sentences.slice(moveAt, end + 1).join(' '))) end += 1;
+    if (moveAt > 0) cuts.add(moveAt);
+    if (end + 1 < sentences.length) cuts.add(end + 1);
+  }
   const unsureAt = sentences.findIndex((x, i) => i > 0 && UNSURE.test(x));
   if (unsureAt > 0) cuts.add(unsureAt);
   if (!cuts.size) return [s];
@@ -79,9 +83,12 @@ export function splitAiText(text, { opener = false } = {}) {
   return opener ? splitOldRead(s) : [s];
 }
 
-/** Does this text carry the move (the one ==highlight== the opener writes)? */
+/** Does this text carry the move (the one ==highlight== the opener writes)? The day line's
+ *  "==That closes out your protein for the day==" is highlighted too, but it is news, not a thing
+ *  to do, so it is not a move and wears no label. */
 export function isMovePart(part) {
-  return /==[^=\n]+?==/.test(String(part || ''));
+  const m = /==([^=\n]+?)==/.exec(String(part || ''));
+  return !!m && !/^\s*that closes out\b/i.test(m[1]);
 }
 
 /** The texts a row draws, or null when it is one ordinary bubble. Only Nia's plain rows split:
@@ -100,7 +107,7 @@ export function partsOf(comment, { photo = false } = {}) {
  * labels the first part carrying the highlight, on Nia's READ only (her chat replies use the same
  * mark for emphasis and are not a move).
  */
-export function bubblesHtml(comment, esc, { body = '', head = '', after = '', photo = false } = {}) {
+export function bubblesHtml(comment, esc, { body = '', head = '', after = '', photo = false, moveLabel = 'Your move' } = {}) {
   const parts = partsOf(comment, { photo });
   if (!parts) return `<div class="bubble">${head}${body}${after}</div>`;
   const opener = isAnalysisOpener(comment);
@@ -110,7 +117,7 @@ export function bubblesHtml(comment, esc, { body = '', head = '', after = '', ph
     const move = opener && !moved && isMovePart(p);
     if (move) moved = true;
     const cls = `bubble tp-b${i < n - 1 ? ' tp-mid' : ''}${move ? ' tp-move' : ''}`;
-    return `<div class="${cls}">${i === 0 ? head : ''}${move ? '<span class="tp-lbl">Your move</span>' : ''}${richText(p, esc)}${i === n - 1 ? after : ''}</div>`;
+    return `<div class="${cls}">${i === 0 ? head : ''}${move ? `<span class="tp-lbl">${esc(moveLabel)}</span>` : ''}${richText(p, esc)}${i === n - 1 ? after : ''}</div>`;
   }).join('');
 }
 
@@ -125,35 +132,28 @@ const NOT_STAFF = new Set(['athlete', 'guardian', 'parent', 'ai', 'teammate']);
  *   views        0229 meal_views rows for this meal ({viewer_id, seen_at}); the athlete's own is
  *                skipped
  *   participants meal_thread_participants rows ({id, name, kind}); a viewer is named as the
- *                thread names them. Once the room is known, a viewer who is not staff in it (a
- *                guardian, someone who has left) is not claimed as a coach. With no room at all
- *                (the read failed) a viewer is the caller's noun ("Coach"), as authorName does.
+ *                thread names them, and a viewer who is not staff in the room (a guardian,
+ *                someone who has left) is never claimed as a coach.
+ *   participantsReady  false until the room has loaded. The line WAITS for it: it never says
+ *                "Seen by Coach" for want of a name, and an empty room names nobody.
  *   lastMineAt   ms of the athlete's newest own message. A view older than it is not shown: a
  *                receipt must never sit under words the coach could not have read (the 2026-08-06
  *                rule the day-level line already keeps).
  *   fmtTime      the screen's own clock formatter (local time)
  */
-export function seenByLine({ views, selfId = null, participants = [], lastMineAt = 0, fmtTime = () => '', fallbackNoun = 'Coach' } = {}) {
+export function seenByLine({ views, selfId = null, participants = [], participantsReady = true, lastMineAt = 0, fmtTime = () => '' } = {}) {
   const room = Array.isArray(participants) ? participants.filter(Boolean) : [];
+  if (!participantsReady || !room.length) return '';
   const byId = new Map(room.map((p) => [String(p.id || ''), p]));
-  const noun = String(fallbackNoun || 'Coach');
-  const Noun = noun.charAt(0).toUpperCase() + noun.slice(1);
   const seen = new Map();
   for (const v of Array.isArray(views) ? views : []) {
     const id = v && v.viewer_id ? String(v.viewer_id) : '';
     if (!id || (selfId && id === String(selfId))) continue;
     const at = Date.parse(v.seen_at || '');
     if (!Number.isFinite(at) || at < (Number(lastMineAt) || 0)) continue;
-    let name = '';
     const p = byId.get(id);
-    if (p) {
-      if (NOT_STAFF.has(String(p.kind || ''))) continue;
-      name = String(p.name || '').trim() || Noun;
-    } else if (room.length) {
-      continue;
-    } else {
-      name = Noun;
-    }
+    const name = p && !NOT_STAFF.has(String(p.kind || '')) ? String(p.name || '').trim() : '';
+    if (!name) continue;
     const prev = seen.get(id);
     if (!prev || at > prev.at) seen.set(id, { name, at, iso: v.seen_at });
   }
@@ -189,8 +189,10 @@ export function askOf(comment) {
  * The size chips, or null. They show only while Nia's question is the newest thing in the thread:
  * the latest painted message is her opener carrying an ask, the athlete has not written since
  * (nothing of theirs is sending either), and they have not already answered it this session.
+ * The same Nia gate as the starters: her consent is yes and no guardian approval is pending.
  */
-export function askChipsFor(visible, { sending = false, answered = null } = {}) {
+export function askChipsFor(visible, { sending = false, answered = null, consent = null, minorPending = false } = {}) {
+  if (consent !== true || minorPending) return null;
   const list = Array.isArray(visible) ? visible.filter(Boolean) : [];
   const last = list[list.length - 1];
   if (!last || sending) return null;
@@ -239,4 +241,61 @@ export function composerChipsVisible({ authRole = null, ownMeal = false, mealId 
 export function composerChipsHtml(esc, { hidden = false } = {}) {
   return `<div class="tp-chips tp-cmp" id="tp-cmp" role="group" aria-label="Quick messages to Nia"${hidden ? ' hidden' : ''}>${COMPOSER_CHIPS.map((c) =>
     `<button type="button" class="fx-chip tp-chip" data-tp-cmp="${c.id}">${esc(c.label)}</button>`).join('')}</div>`;
+}
+
+/**
+ * One tap, one message, through the screen's own send path (chat-live.js beginSend, then the
+ * screen's deliver). The chip is spent (`onAccepted`) only once the send is accepted: with a send
+ * already in flight nothing happens and the chips stay; a repeat of what just went says so
+ * (`onDuplicate`). Returns true when the message went.
+ */
+export async function quickSend(key, text, { beginSend, deliver, onAccepted = null, onDuplicate = null } = {}) {
+  const claim = beginSend(key, { text, photo: null, replyTo: null });
+  if (!claim || !claim.ok) {
+    if (claim && claim.reason === 'duplicate' && typeof onDuplicate === 'function') onDuplicate();
+    return false;
+  }
+  if (typeof onAccepted === 'function') onAccepted();
+  await deliver(claim.item);
+  return true;
+}
+
+/* ---------------- who has seen this meal, read once and painted where it lives ----------------
+   The meal page mounts again on every render, so two mounts can race one read. The rows live in
+   one cache per screen module (one read in flight, shared, 30s fresh); what each THREAD last
+   painted lives on that thread element. A mount whose thread was replaced never repaints, and the
+   live one repaints whenever what it shows differs from what the cache now holds. */
+export function makeViewsCache({ ttl = 30000, now = () => Date.now() } = {}) {
+  let st = { mealId: null, rows: undefined, at: 0 };
+  let inflight = null;
+  return {
+    /** undefined = not read yet; null = the read failed; [] or rows = the answer. */
+    rowsFor(mealId) { return st.mealId === mealId ? st.rows : undefined; },
+    warm(fetchViews, mealId) {
+      if (!mealId || typeof fetchViews !== 'function') return Promise.resolve();
+      if (st.mealId === mealId && st.rows !== undefined && now() - st.at < ttl) return Promise.resolve();
+      if (inflight && inflight.mealId === mealId) return inflight.p;
+      const p = Promise.resolve()
+        .then(() => fetchViews([mealId]))
+        .catch(() => null)
+        .then((rows) => {
+          st = { mealId, rows: Array.isArray(rows) ? rows : null, at: now() };
+          inflight = null;
+        });
+      inflight = { mealId, p };
+      return p;
+    },
+  };
+}
+
+/** A comparable key for what a thread shows of the views. */
+export function viewsKey(rows) {
+  return rows === undefined ? 'unread' : rows === null ? 'failed' : JSON.stringify(rows);
+}
+/** True when this thread is on screen and shows something other than `key`. */
+export function needsSeenRepaint(el, key) {
+  return !!el && el.isConnected === true && el.__tpSeen !== key;
+}
+export function markSeenPainted(el, key) {
+  if (el) el.__tpSeen = key;
 }

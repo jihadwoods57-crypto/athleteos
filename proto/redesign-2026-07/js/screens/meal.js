@@ -47,6 +47,7 @@ import {
 import {
   bubblesHtml, askChipsFor, askChipsHtml, askReplyText, seenByLine,
   composerChipsVisible, composerChipsHtml, composerChipOf,
+  quickSend, makeViewsCache, viewsKey, needsSeenRepaint, markSeenPainted,
 } from '../thread-polish.js';
 
 /* The meal score chip's ring, drawn as the brand dial (docs/brand/LOGO.md): a 300° gauge with
@@ -140,17 +141,10 @@ async function warmReceipt(rolesMod, uid, dateISO) {
    idiom, keyed to the meal, 30s fresh: a coach opening the plate while the athlete watches shows up
    on the next poll tick. `rows` is null when the read FAILED (offline, a pre-0229 server), which is
    the one case the day-level receipt is allowed to stand in; undefined means not read yet, and
-   shows nothing rather than a line that is about to change. */
-let MEAL_VIEWS = { mealId: null, rows: undefined, at: 0 };
-/** True when the rows changed, so the caller repaints only then. */
-async function warmMealViews(rolesMod, mealId) {
-  if (!mealId || typeof rolesMod.fetchMealViews !== 'function') return false;
-  if (MEAL_VIEWS.mealId === mealId && Date.now() - MEAL_VIEWS.at < 30000) return false;
-  const rows = await rolesMod.fetchMealViews([mealId]).catch(() => null);
-  const before = MEAL_VIEWS.mealId === mealId ? JSON.stringify(MEAL_VIEWS.rows) : null;
-  MEAL_VIEWS = { mealId, rows, at: Date.now() };
-  return JSON.stringify(rows) !== before;
-}
+   shows nothing rather than a line that is about to change. One read in flight is shared by every
+   mount; what each THREAD last painted is kept on that thread (thread-polish.js), so a mount whose
+   thread the router replaced can neither paint nor use up the change the live one needs. */
+const VIEWS = makeViewsCache();
 /* Nia's portion questions answered this session: the size chips go at the tap, before the refetch
    brings the athlete's message back. */
 const ASKED = new Set();
@@ -1883,7 +1877,7 @@ export const thread = {
     };
 
     const paint = () => {
-      if (!threadEl) return;
+      if (!threadEl || !threadEl.isConnected) return;   // a replaced mount writes nothing, anywhere
       const msgs = threadMessages(comments);
       OFFERED_IN_THREAD.clear();
       for (const c of msgs) { const o = memoryOfferOf(c); if (o) OFFERED_IN_THREAD.add(o.id); }
@@ -1942,7 +1936,10 @@ export const thread = {
       const rxAt = reactionAnchor(visible);
       // Nia's portion question, answerable with one tap while it is the newest thing said and the
       // athlete has not written since (thread-polish.js askChipsFor). Never on a staff account.
-      const askAt = staffAccount() ? null : askChipsFor(visible, { sending: pendingOf(M.mealId).length > 0, answered: ASKED });
+      const askAt = staffAccount() ? null : askChipsFor(visible, {
+        sending: pendingOf(M.mealId).length > 0, answered: ASKED,
+        consent: aiConsentCached(RT.userId || null), minorPending: aiMinorPending(RT.userId),
+      });
       const nameOfRow = (x) => (x.role === 'athlete' && (!x.author_id || x.author_id === RT.userId) ? 'You' : authorName(x, participants, RT.userId, S.coach.noun));
       const rows = layoutThread(shown, { muted: RT.mutedUsers, fmtTime: fmtMsgTime, fmtDay: dayKey, fmtDayLabel: dayLabelOf }).map((item) => {
         if (item.type === 'time') return timeSepHtml(item, esc);
@@ -2032,7 +2029,7 @@ export const thread = {
          thread names them; "and 1 other" for more. Nothing before that. A view older than the
          athlete's own newest message is not shown (the rule above, pointed at a meal). The day
          line stands in ONLY when the per-meal read failed. A solo athlete never sees a coach line. */
-      const mealViews = MEAL_VIEWS.mealId === M.mealId ? MEAL_VIEWS.rows : undefined;
+      const mealViews = VIEWS.rowsFor(M.mealId);
       const lastMineAt = visible.reduce((t, c) => {
         if (!c || c.role !== 'athlete' || (c.author_id && c.author_id !== RT.userId)) return t;
         const at = Date.parse(c.created_at || '');
@@ -2041,8 +2038,8 @@ export const thread = {
       const seen = !S.coach.hasCoach ? ''
         : mealViews === null ? dayLine
         : esc(seenByLine({
-          views: mealViews, selfId: RT.userId, participants, lastMineAt, fmtTime: fmtMsgTime,
-          fallbackNoun: S.coach.noun,
+          views: mealViews, selfId: RT.userId, participants, participantsReady: PARTICIPANTS.uid === RT.userId,
+          lastMineAt, fmtTime: fmtMsgTime,
         }));
 
       // COACH LEADS, AI ASSISTS (founder 2026-08-04): when a coach has spoken on this meal,
@@ -2083,6 +2080,7 @@ export const thread = {
         // (chat-live.js syncLive), so Nia's dots never open up under "your coach hasn't opened this".
         + (seen ? `<div class="seen th-foot">${seen}</div>` : '')
         + (tail.length ? `<div class="msg-status th-foot">${tail.join(' ')}</div>` : '');
+      markSeenPainted(threadEl, viewsKey(mealViews));
       hydrateAvatars(threadEl);   // 0206: message monograms upgrade to real faces
       // FULL MESSAGES, ALWAYS (founder 2026-09-22). The Read more clamp is gone from every
       // renderer: the AI's read is long on purpose (2026-09-07 ruling) and a message you have to
@@ -2117,10 +2115,12 @@ export const thread = {
     // truth right now and calls refresh() with no args, which always does the full fetch.
     const refresh = async (opts = {}) => {
       const myGen = ++gen;
-      // Who has opened this meal rides every tick at its own 30s pace (warmMealViews), and repaints
+      // Who has opened this meal rides every tick at its own 30s pace (VIEWS.warm), and repaints
       // the foot only when it changed. Only for an athlete with a coach: nobody else sees the line.
       if (S.coach.hasCoach) {
-        void warmMealViews(roles, M.mealId).then((changed) => { if (changed && threadLoaded && root.isConnected) paint(); }).catch(() => {});
+        void VIEWS.warm(roles.fetchMealViews, M.mealId).then(() => {
+          if (threadLoaded && needsSeenRepaint(threadEl, viewsKey(VIEWS.rowsFor(M.mealId)))) paint();
+        }).catch(() => {});
       }
       const probeSince = opts.probe && lastKnownAt ? lastKnownAt : null;
       const fetched = await roles.fetchMealComments(M.mealId, probeSince);
@@ -2318,7 +2318,7 @@ export const thread = {
     const syncStarters = () => {
       const row = root.querySelector('#tp-cmp');
       const box = root.querySelector('#meal-msg');
-      if (row) row.hidden = !!(box && box.value.trim());
+      if (row) row.classList.toggle('tp-off', !!(box && box.value.trim()));   // folds (screens.css), never steps
     };
     if (input) input.addEventListener('input', syncStarters);
     syncStarters();
@@ -2332,10 +2332,11 @@ export const thread = {
       const sz = ev.target && ev.target.closest ? ev.target.closest('[data-tp-size]') : null;
       if (sz) {
         const id = sz.getAttribute('data-tp-ask') || '';
-        if (id) ASKED.add(id);
         const row = sz.closest('.tp-ask');
-        if (row) row.remove();
-        void sendQuick(askReplyText(sz.getAttribute('data-tp-food') || '', sz.getAttribute('data-tp-size') || 'regular'));
+        // Spent only once the send is accepted: with one already in flight, the chips stay.
+        void sendQuick(askReplyText(sz.getAttribute('data-tp-food') || '', sz.getAttribute('data-tp-size') || 'regular'), {
+          onAccepted: () => { if (id) ASKED.add(id); if (row) row.remove(); },
+        });
         return;
       }
       // A starter above the box: "What should I eat next?" sends; the other two fill the box.
@@ -2661,12 +2662,11 @@ export const thread = {
        outbox bubble, the one-intent lock, the post, the coach's notification, and the addressing
        gate, which routes it to Nia because every chip opens with "@Nia" or "Nia,". The box is left alone:
        a chip is its own message, not the one being typed. */
-    const sendQuick = async (text) => {
-      const claim = beginSend(M.mealId, { text, photo: null, replyTo: null });
-      if (!claim.ok) { if (claim.reason === 'duplicate') setNote('You just sent that.'); return; }
-      setNote('');
-      await deliver(claim.item);
-    };
+    const sendQuick = (text, { onAccepted = null } = {}) => quickSend(M.mealId, text, {
+      beginSend, deliver,
+      onAccepted: () => { setNote(''); if (onAccepted) onAccepted(); },
+      onDuplicate: () => setNote('You just sent that.'),
+    });
     /** A starter that waits: the words go in the box, the caret at their end, the keyboard up. */
     const fillComposer = (text) => {
       const box = root.querySelector('#meal-msg') || input;
