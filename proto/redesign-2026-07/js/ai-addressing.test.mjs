@@ -287,3 +287,70 @@ test('an answer to Nia\'s question reaches her, even "yes" or a bare food name',
   assert.equal(decide(from(JIHAD, 'yes'), [from(AI, 'Solid plate.')]).shouldRespond, false);
   assert.equal(decide(from(JIHAD, 'yes'), [...asked, from(ALEX, 'Did you eat the rice?')]).shouldRespond, false);
 });
+
+/* ============================ I3: THE COACH ASKED, THE ATHLETE ANSWERED (review 2026-09-24) ============================
+ * Widening the gate for "double chicken" let Nia answer the athlete's reply to a HUMAN's question.
+ * The reviewer's repros (the addr script), pinned: adjacency to a person runs before the
+ * amount/food rules, and "answers Nia's question" needs her question to be the latest word from
+ * anyone but the athlete, recent, and answered in an answer's shape. */
+
+const NOW = Date.parse('2026-09-24T21:30:00Z');
+const at = (min) => new Date(NOW - min * 60000).toISOString();
+const decideAt = (msg, history) => shouldAiRespond(msg, { participants: ROOM, history, now: NOW });
+
+test('I3: an amount answering the coach\'s question goes to the coach, not Nia', () => {
+  const cases = [
+    ['double chicken', 'How much chicken did you get?'],
+    ['I had double chicken', 'That bowl looks light. What did you get?'],
+    ['no dessert today', 'Did you have dessert?'],
+    ['extra rice and no beans', 'Why is the carb number so high?'],
+    ['I also had a roll', 'What else was on the plate?'],
+  ];
+  for (const [text, coach] of cases) {
+    const d = decideAt(from(JIHAD, text), [from(AI, 'Solid plate, 29g protein.', { at: at(40) }), from(ALEX, coach, { at: at(2) })]);
+    assert.equal(d.shouldRespond, false, `${coach} -> ${text}`);
+    assert.equal(d.intendedRecipient.kind, 'human', text);
+    assert.equal(d.intendedRecipient.name, 'Alex Grinch', text);
+  }
+  // The athlete's own earlier line in between does not hand the turn to Nia.
+  const d = decideAt(from(JIHAD, 'double chicken'), [from(ALEX, 'How much chicken did you get?', { at: at(3) }), from(JIHAD, 'hmm', { at: at(2) })]);
+  assert.equal(d.shouldRespond, false);
+});
+
+test('I3: a coach who spoke long ago does not own the next amount the athlete states', () => {
+  const d = decideAt(from(JIHAD, 'I had double chicken'), [from(ALEX, 'Good lift today', { at: at(180) })]);
+  assert.equal(d.shouldRespond, true);
+  assert.equal(d.intendedRecipient.kind, 'ai');
+});
+
+test('I3: the founder\'s sequence still wakes Nia', () => {
+  const history = [
+    from(AI, "Protein, carbs, and fat are in balance on this plate. I'm least sure on the sour cream portion.", { at: at(20) }),
+    from(JIHAD, 'What should i have for breakfast tomorrow', { at: at(19) }),
+    from(AI, 'Breakfast resets the count, so aim for a plate around 45-50g protein.', { at: at(18) }),
+  ];
+  for (const text of ['I had double chicken', 'Nia in my meal i had double chicken. This from chipotle', 'Double chicken']) {
+    const d = decideAt(from(JIHAD, text), history);
+    assert.equal(d.shouldRespond, true, text);
+    assert.equal(d.intendedRecipient.kind, 'ai', text);
+  }
+});
+
+test('I3: "yes" straight after Nia\'s question still wakes her', () => {
+  const asked = [from(AI, 'Which one should I double: the grilled chicken or the chicken salad?', { at: at(1) })];
+  for (const text of ['yes', 'the grilled one', 'Grilled chicken', 'both', '6 oz', 'no', 'the first one']) {
+    assert.equal(decideAt(from(JIHAD, text), asked).shouldRespond, true, text);
+  }
+});
+
+test('I3: an answer to Nia counts only when it is answer-shaped, recent, and hers was the last word', () => {
+  const asked = (min) => [from(AI, 'Want me to count a shake with it?', { at: at(min) })];
+  // Not an answer: small talk after her question.
+  for (const text of ['see you at practice', 'lol', 'ok']) assert.equal(decideAt(from(JIHAD, text), asked(1)).shouldRespond, false, text);
+  // Too long ago.
+  assert.equal(decideAt(from(JIHAD, 'yes'), asked(45)).shouldRespond, false, 'her question was 45 minutes ago');
+  assert.equal(decideAt(from(JIHAD, 'yes'), asked(10)).shouldRespond, true, 'ten minutes is still the same exchange');
+  // Someone else spoke after her.
+  const d = decideAt(from(JIHAD, 'yes'), [...asked(3), from(ALEX, 'You lifting today?', { at: at(1) })]);
+  assert.equal(d.shouldRespond, false, "a person spoke after her question");
+});

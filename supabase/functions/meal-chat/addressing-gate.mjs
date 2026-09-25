@@ -71,6 +71,8 @@ export function gateVerdict(body, context, modes) {
         ? body.participants
         : participantsFromThread(thread),
       history: thread,
+      // Rows carry `at`; an answer is judged against how recently its question was asked.
+      now: Date.now(),
     },
   );
 }

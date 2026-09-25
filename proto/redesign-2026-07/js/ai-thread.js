@@ -182,6 +182,7 @@ export function decideAiTurn(opts) {
   };
   const thread = buildAiThread(o.comments, buildOpts, o.limit);
   const outgoing = describeOutgoing(o.text, { ...(o.self || { role: 'athlete' }), photo: o.photo === true });
-  const decision = shouldAiRespond(outgoing, { participants: people, history: thread, aiName: o.aiName });
+  // `now`: an answer to Nia, or to a coach, is judged against how recently they spoke (30 min).
+  const decision = shouldAiRespond(outgoing, { participants: people, history: thread, aiName: o.aiName, now: o.now || Date.now() });
   return { decision, thread, outgoing, participants: people };
 }

@@ -155,8 +155,23 @@ export function changesAmountOnThisMeal(low) {
   return false;
 }
 
-/* A thank-you or a laugh is a nod even straight after Nia asked something. */
-const NOD_ONLY = /^(thanks?|thank you|thx|ty|tysm|appreciate (it|you|that)|much appreciated|lol|lmao|haha+|hehe+|ha|bye|later|good night|night|goodnight)$/;
+/* THE SHAPE OF AN ANSWER (review 2026-09-24). After Nia asks "Which one should I double: the grilled
+   chicken or the chicken salad?", the reply that is FOR her is a yes or a no, a pick, a number, an
+   amount or a food. "see you at practice", "lol" and "ok" are not, even straight after her question. */
+const YES_NO = /^(yes|yeah|yep|yup|ya|yea|yessir|yes sir|sure|correct|right|exactly|no|nope|nah|neither|both|none|all of it|first|second|the first|the second|that one|this one|the other)\b/;
+const AMOUNT_WORD = /\b(double|triple|half|extra|twice|oz|ounces?|cups?|grams?|tbsp|tsp|slices?|pieces?|servings?|portions?|scoops?|bowls?)\b/;
+const PLAIN = ['which', 'what', 'should', 'would', 'could', 'want', 'that', 'this', 'with', 'have', 'your', 'about', 'there', 'then', 'than', 'from', 'were', 'like', 'need', 'just'];
+/** Is this reply shaped like an answer to `question`? Both take bare() text. */
+function answerShaped(flat, question) {
+  if (!flat) return false;
+  if (YES_NO.test(flat) || /\d/.test(flat) || AMOUNT_WORD.test(flat)) return true;
+  if (FOOD_WORDS.some((w) => hasWord(flat, w))) return true;
+  // A word from her own question: "the grilled one" after "the grilled chicken or the chicken salad?".
+  const asked = String(question || '').split(' ').filter((w) => w.length >= 4 && PLAIN.indexOf(w) === -1);
+  return flat.split(' ').some((w) => asked.indexOf(w) !== -1);
+}
+/** How long a question or a remark stays the thing the athlete's next line answers. */
+const ADJACENT_MS = 30 * 60 * 1000;
 
 /** Is the athlete telling the room something ELSE went into this meal? Takes normalised text. */
 export function addsFoodToThisMeal(low) {
@@ -256,6 +271,7 @@ const verdict = (shouldRespond, intendedRecipient, confidence, reason) =>
  *   participants?: Array<{id,name,role}>,   // everyone who can read the thread, the AI included
  *   history?: Array<message>,               // oldest -> newest, NOT including `message`
  *   aiName?: string,
+ *   now?: number,                           // ms; history rows carry `at`. The module reads no clock.
  * }}
  * @returns {{ shouldRespond:boolean, intendedRecipient:object, confidence:number, reason:string }}
  *
@@ -399,15 +415,29 @@ export function shouldAiRespond(message, context) {
   if (fromAthlete && photo) {
     return verdict(true, recipient('ai', aiParticipant, 'semantic'), 0.85, 'the athlete posted a photo on their own meal thread');
   }
-  /* ANSWERING NIA'S QUESTION (2026-09-24). When her last word was a question ("Which one should I
-     double: the grilled chicken or the chicken salad?"), the athlete's next line is the answer,
-     even "yes" or "the grilled chicken", which name nobody and ask nothing. Above the nod rule on
-     purpose: "yes" to a question is an answer, not a nod. A thank-you or a laugh still is one. */
-  const prevTurn = lastHumanOrAi(history);
-  if (fromAthlete && prevTurn && isAiRole(prevTurn.senderRole) && /\?["')\s]*$/.test(String(prevTurn.text || '').trim()) && !NOD_ONLY.test(flat)) {
+  /* ANSWERING NIA'S QUESTION (2026-09-24, narrowed after review the same night). When the latest
+     word from anyone but the athlete is Nia's question, asked in the last 30 minutes, an answer-
+     shaped reply is hers: "yes", "the grilled one", "6 oz", which name nobody and ask nothing.
+     Above the nod rule on purpose: "yes" to a question is an answer, not a nod. "see you at
+     practice" is not an answer, and neither is anything once a person has spoken since. */
+  const now = Number(ctx.now) || 0;
+  const recent = (h) => { const t = Date.parse(h && h.at); return !(now > 0) || !isFinite(t) || now - t <= ADJACENT_MS; };
+  const other = lastOther(history, msg);
+  if (fromAthlete && other && isAiRole(other.senderRole) && /\?["')\s]*$/.test(String(other.text || '').trim())
+    && recent(other) && answerShaped(flat, bare(other.text))) {
     return verdict(true, recipient('ai', aiParticipant, 'adjacency'), 0.85, 'answers the question the AI just asked');
   }
   if (isAck) return verdict(false, recipient('human', null, 'adjacency'), 0.9, 'an acknowledgement, not a question');
+  /* THE COACH ASKED FIRST (review 2026-09-24). Coach: "How much chicken did you get?" Athlete:
+     "double chicken". That is the other half of the COACH's exchange, and Nia answering it is the
+     barging-in this module exists to stop. So adjacency to a person runs BEFORE the amount and
+     food rules below: when the latest word from anyone else is a person's, and recent, a statement
+     about the plate is for them. The founder's own sequence (Nia spoke last) still reaches her. */
+  const aboutPlate = fromAthlete && (changesAmountOnThisMeal(low) || addsFoodToThisMeal(low));
+  if (aboutPlate && other && isHumanRole(other.senderRole) && recent(other)) {
+    return verdict(false, recipient('human', { id: other.senderId, name: other.senderName, role: other.senderRole }, 'adjacency'), 0.85,
+      'answering ' + (other.senderName || other.senderRole) + ', who spoke last');
+  }
   if (fromAthlete && changesAmountOnThisMeal(low)) {
     return verdict(true, recipient('ai', aiParticipant, 'semantic'), 0.8, 'the athlete changed an amount on this meal');
   }
@@ -455,6 +485,19 @@ export function shouldAiRespond(message, context) {
 
   /* ---------------- 6. default ---------------- */
   return verdict(false, NOBODY, 0.6, 'nothing addressed to the AI, staying quiet');
+}
+
+/** The most recent speech from anyone OTHER than the sender of `msg` (their own earlier lines do
+ *  not change who they are answering). */
+function lastOther(history, msg) {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const h = history[i];
+    if (!h || (!h.text && h.photo !== true) || h.system === true) continue;
+    const same = h.senderId && msg.senderId ? String(h.senderId) === String(msg.senderId)
+      : norm(h.senderRole) === norm(msg.senderRole) && norm(h.senderName) === norm(msg.senderName);
+    if (!same) return h;
+  }
+  return null;
 }
 
 /** The most recent message from a person or the AI, skipping rows that are not speech (receipts,
