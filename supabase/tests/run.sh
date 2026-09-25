@@ -70,6 +70,9 @@ SUITES=(
   # path answers nothing while verified_commitments is killed, an athlete's tap is still recorded,
   # and releasing the switch brings each 0248 path back.
   "roll call off (0217, 0248)|rollcall_off_test.sql"
+  # 0250 food preferences + the plan-ideas cache: the owner writes their own prefs, linked staff
+  # read them, a teammate, an outsider and a guardian see nothing; only the function writes ideas.
+  "food prefs + plan ideas (0250)|food_prefs_test.sql"
 )
 
 echo "==> SQL suites against: ${DB%%\?*}"
