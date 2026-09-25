@@ -125,6 +125,10 @@ const FOOD_WORDS = NUTRITION_WORDS.concat([
   'fruit', 'apple', 'banana', 'orange', 'chips', 'fries', 'cookie', 'cookies', 'dessert', 'side',
   'salad', 'egg', 'eggs', 'cheese', 'chicken', 'beef', 'steak', 'fish', 'sandwich', 'wrap',
   'burger', 'pizza', 'oatmeal', 'cereal', 'peanut butter', 'nuts', 'granola', 'bottle', 'can',
+  // A burrito bowl's parts (2026-09-24, "double chicken" at Chipotle): what an amount is said about.
+  'meat', 'bean', 'beans', 'corn', 'salsa', 'guac', 'guacamole', 'sour cream', 'cream', 'queso',
+  'avocado', 'tortilla', 'lettuce', 'veggies', 'vegetables', 'potato', 'potatoes', 'bacon',
+  'sausage', 'turkey', 'pork', 'shrimp', 'salmon', 'tuna', 'sauce', 'dressing', 'ranch', 'mayo',
 ]);
 const EAT_VERB = /\b(eat|eats|eating|ate|drink|drinks|drinking|drank|sip|sips|sipping|sipped|chug|chugged|chugging)\b/;
 const HAD_VERB = /\b(had|having|grabbed)\b/;
@@ -132,6 +136,27 @@ const ADDITIVE = /\b(also|too|as well|plus|with it|with this|with that|on the si
 const LEFT_OUT = /\b(forgot|forgot to (log|add)|left out|left off|didn't (log|add|include)|did not (log|add|include)|missed)\b/;
 const DEICTIC = /\b(this|that|these|those)\b/;
 const FUTURE = /\b(i'll|ill|i will|gonna|going to|next time|tomorrow|later)\b/;
+
+/* AN AMOUNT ON THIS PLATE (2026-09-24). "I had double chicken", then "Double chicken", went
+   unanswered on the founder's own Chipotle bowl: a statement, no name, no question, no additive
+   word. It is the plainest correction a meal thread gets, and only Nia can put it in the numbers.
+   An edit word followed by a food ("double chicken", "no sour cream", "half the rice", "extra
+   guac") is about this plate unless it is about later. */
+const AMOUNT_EDIT = /\b(?:double|doubled|triple|tripled|twice|extra|half|2x|x2|3x|x3|no|without)\s+(?:(?:the|a|of|my|portion|portions|serving|servings)\s+)*([a-z]+(?:\s[a-z]+)?)/g;
+/** Is the athlete changing how much of a food was on this meal? Takes normalised text. */
+export function changesAmountOnThisMeal(low) {
+  const t = String(low || '');
+  if (!t || FUTURE.test(t)) return false;
+  for (const m of t.matchAll(AMOUNT_EDIT)) {
+    const two = m[1];
+    const one = two.split(' ')[0];
+    if (FOOD_WORDS.indexOf(two) !== -1 || FOOD_WORDS.indexOf(one) !== -1 || FOOD_WORDS.indexOf(one.replace(/s$/, '')) !== -1) return true;
+  }
+  return false;
+}
+
+/* A thank-you or a laugh is a nod even straight after Nia asked something. */
+const NOD_ONLY = /^(thanks?|thank you|thx|ty|tysm|appreciate (it|you|that)|much appreciated|lol|lmao|haha+|hehe+|ha|bye|later|good night|night|goodnight)$/;
 
 /** Is the athlete telling the room something ELSE went into this meal? Takes normalised text. */
 export function addsFoodToThisMeal(low) {
@@ -374,7 +399,18 @@ export function shouldAiRespond(message, context) {
   if (fromAthlete && photo) {
     return verdict(true, recipient('ai', aiParticipant, 'semantic'), 0.85, 'the athlete posted a photo on their own meal thread');
   }
+  /* ANSWERING NIA'S QUESTION (2026-09-24). When her last word was a question ("Which one should I
+     double: the grilled chicken or the chicken salad?"), the athlete's next line is the answer,
+     even "yes" or "the grilled chicken", which name nobody and ask nothing. Above the nod rule on
+     purpose: "yes" to a question is an answer, not a nod. A thank-you or a laugh still is one. */
+  const prevTurn = lastHumanOrAi(history);
+  if (fromAthlete && prevTurn && isAiRole(prevTurn.senderRole) && /\?["')\s]*$/.test(String(prevTurn.text || '').trim()) && !NOD_ONLY.test(flat)) {
+    return verdict(true, recipient('ai', aiParticipant, 'adjacency'), 0.85, 'answers the question the AI just asked');
+  }
   if (isAck) return verdict(false, recipient('human', null, 'adjacency'), 0.9, 'an acknowledgement, not a question');
+  if (fromAthlete && changesAmountOnThisMeal(low)) {
+    return verdict(true, recipient('ai', aiParticipant, 'semantic'), 0.8, 'the athlete changed an amount on this meal');
+  }
   if (fromAthlete && addsFoodToThisMeal(low)) {
     return verdict(true, recipient('ai', aiParticipant, 'semantic'), 0.8, 'the athlete added food or drink to this meal');
   }

@@ -1568,6 +1568,10 @@ export const act = {
       const fields = {
         protein: r.protein || 0, carbs: keepN(r.carbs), fat: keepN(r.fat), kcal: r.kcal || 0,
         quality: r.quality, note: r.note || null,
+        // The dish and its foods too (2026-09-24): a read that landed after the log left the
+        // coach's row titled "Dinner" with no foods under it, forever.
+        ...(r.name ? { name: String(r.name).slice(0, 120) } : {}),
+        ...(Array.isArray(r.detectedRich) && r.detectedRich.length ? { detected: r.detectedRich } : {}),
       };
       try {
         window.sb.from('meals').update(fields).eq('id', mealId).eq('athlete_id', RT.userId)
@@ -2655,7 +2659,8 @@ export const act = {
        message: it outlives all three, the coach reads it in their copy, and a second correction
        adds a second receipt rather than erasing the first. Fire-and-forget and last, so a failed
        write can never undo a correction that has already applied. */
-    void this._postCorrectionReceipt(r, opts.additionId || null);
+    // noReceipt: a chat correction files its receipt WITH Nia's reply (correction-turn.js).
+    if (!opts.noReceipt) void this._postCorrectionReceipt(r, opts.additionId || null);
     // A correction that moved the numbers meaningfully is worth a coach look — once per meal.
     // (Not for a pro-sourced one: the professional made the correction; notifying them of
     // their own change would be a circular ping.)

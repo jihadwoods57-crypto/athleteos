@@ -55,6 +55,9 @@ import {
 import { sendExpoPush } from '../_shared/expo-push.mjs';
 import { missingConsent, consentSkipBody, loadConsentRows, consentedIds } from '../_shared/ai-consent.mjs';
 import { authorIds, scrubContext, scrubRows } from './consent-scrub.mjs';
+// THE PROMISE WAITS FOR THE PLATE (2026-09-24, "double chicken"): the ack is signed and handed to
+// the client, and filed only once the client reports the correction actually landed.
+import { signPending, readPending, sanitizeOutcome, outcomeRows } from './correction-outcome.mjs';
 
 // Per-surface override first: one shared ANTHROPIC_MODEL meant chat could not move tiers
 // without dragging vision with it. Unset -> unchanged.
@@ -213,7 +216,7 @@ const CORRECTION_TOOL = {
          numbers never come from prose. The app now rescales the item from ITS OWN logged
          numbers by comparing this string to the quantity already on the item, unit-aware, so
          "8 oz" over a logged "4 oz" doubles it rather than octupling it. */
-      quantity: { type: 'string', description: 'The corrected amount in plain kitchen units, e.g. "2 cups", "8 oz", "3 eggs". Use this WHENEVER the athlete corrects how MUCH of an item there was rather than what it was. Phrase it in the SAME kind of unit the item already carries so the app can compare them (if the item reads "1 cup", answer in cups). Do NOT also restate protein/kcal/carbs/fat for a pure portion correction: the app rescales the item from its own numbers, and your estimate would replace a measurement with a guess. Omit when the amount is unchanged.' },
+      quantity: { type: 'string', description: 'The corrected amount in plain kitchen units, e.g. "2 cups", "8 oz", "3 eggs". Use this WHENEVER the athlete corrects how MUCH of an item there was rather than what it was. Phrase it in the SAME kind of unit the item already carries so the app can compare them (if the item reads "1 cup", answer in cups); "double", "half" or "2x" is fine when that is exactly what the athlete said. Do NOT also restate protein/kcal/carbs/fat for a pure portion correction: the app rescales the item from its own numbers, and your estimate would replace a measurement with a guess. Omit when the amount is unchanged.' },
       protein: { type: 'integer', description: 'Corrected grams of protein for THIS item, exactly as the athlete stated or their packaging prints. Omit when unchanged.' },
       kcal: { type: 'integer', description: 'Corrected calories for THIS item, only when the athlete stated them. Omit when unchanged.' },
       carbs: { type: 'integer', description: 'Corrected grams of carbohydrate for THIS item. Omit when unchanged.' },
@@ -565,6 +568,11 @@ Deno.serve(async (req) => {
     const additionId = uuidish(coachReceiptIn ? coachReceiptIn.additionId : body?.additionId);
     const receiptRows = correctionReceiptRows(coachReceiptIn ? (additionId ? coachReceiptIn.rows : null) : body?.correctionReceipt);
     const coachReceipt = !!(coachReceiptIn && additionId && receiptRows);
+    // What happened to a correction this function handed out with a pending token: applied (file
+    // Nia's ack, then the receipt) or not (file her one precise question). See correction-outcome.mjs.
+    const outcomeIn = body?.correctionOutcome && typeof body.correctionOutcome === 'object' ? body.correctionOutcome : null;
+    // "I apply first and report back": the ack is not filed until the plate has changed.
+    const canConfirmCorrection = body?.canConfirmCorrection === true;
     // Capability flag (2026-08-06): "I know how to apply a structured correction returned by
     // apply_correction". Only a client that can actually recompute + resync every surface gets
     // the tool offered — an older build keeps today's reply-only contract (with the never-argue
@@ -584,7 +592,7 @@ Deno.serve(async (req) => {
     // and only after the key is proven to sit inside the meal owner's own folder. That means a
     // caller cannot point the model at an arbitrary image, and cannot inflate the request body.
     const photoPathRaw = typeof body?.photoPath === 'string' ? body.photoPath.trim() : '';
-    if (!mealId || (!receiptRows && !context) || (!draftMode && !correctionUpdate && !receiptRows && !question)) return bad(400, 'bad_request', cors);
+    if (!mealId || (!receiptRows && !outcomeIn && !context) || (!draftMode && !correctionUpdate && !receiptRows && !outcomeIn && !question)) return bad(400, 'bad_request', cors);
     // `?? null`: a receipt request carries no context, and JSON.stringify(undefined) is undefined,
     // whose .length THREW into the outer catch. Every correction receipt came back 503 and was
     // never written (found 2026-09-22; the receipt path swallows its own failure by design).
@@ -627,6 +635,35 @@ Deno.serve(async (req) => {
        ownership check above (mealRow.athlete_id === callerId for the athlete path) has already
        run, so only the meal's own athlete can file one. */
     if (coachReceiptIn && !coachReceipt) return bad(400, 'bad_request', cors);
+    /* THE OUTCOME OF A CORRECTION (2026-09-24). Same shape as the receipt below: no model, no
+       tokens, before the cap and the consent read (the words were produced by a turn that already
+       passed both). The token is the authority: it names this meal and this caller, carries the
+       model's own ack, and is good once. */
+    if (outcomeIn) {
+      const pending = await readPending(outcomeIn.token, { mealId, userId: callerId }, SUPABASE_SERVICE_ROLE_KEY);
+      if (!pending || !pending.nonce) return bad(403, 'unauthorized', cors);
+      const { data: dup } = await service.from('meal_comments').select('id')
+        .eq('meal_id', mealId).eq('role', 'ai').eq('meta->>ct', pending.nonce).limit(1);
+      if (Array.isArray(dup) && dup.length) {
+        return new Response(JSON.stringify({ ok: true, duplicate: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+      }
+      const outcome = sanitizeOutcome(outcomeIn);
+      const { lead, follow } = outcomeRows(outcome, pending.ack, { nonce: pending.nonce, photos: pending.photos });
+      const base = { meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai', kind: 'message' };
+      // In thread order, one insert each so created_at keeps that order: Nia's words, the receipt
+      // (only after words that say the numbers moved, only with figures that did), what is owed.
+      const file = async (row: { text: string; meta: Record<string, unknown> }) => {
+        const { error } = await service.from('meal_comments').insert({ ...base, text: row.text, meta: row.meta });
+        if (error) await service.from('meal_comments').insert({ ...base, text: row.text });
+      };
+      await file(lead);
+      if (outcome.applied && receiptRows) {
+        await file({ text: correctionReceiptText(receiptRows), meta: { t: 'correction_receipt', rows: receiptRows, ct: pending.nonce } });
+      }
+      if (follow) await file(follow);
+      await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: 'correction_outcome', userId: callerId, model: MODEL, latencyMs: 0, ok: true, outcome: outcome.applied ? 'correction_applied' : `correction_ask:${outcome.ask?.reason ?? 'nothing'}` });
+      return new Response(JSON.stringify({ ok: true, reply: lead.text }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+    }
     if (receiptRows) {
       let rows = receiptRows;
       let note: string | null = null;
@@ -1265,6 +1302,18 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
         ? `${ack}${askLine}`
         : "I want to get that into your numbers, but I didn't catch enough to change them. Tell me what to fix, like the protein on the label or what else was in it, and I'll put it straight in.";
       const ackRow = { meal_id: mealId, athlete_id: mealRow.athlete_id, author_id: callerId, role: 'ai', text };
+      /* A CLIENT THAT APPLIES FIRST GETS THE PROMISE TO HOLD, NOT TO FILE (2026-09-24). hasChange
+         proves the model SAID something applicable; only the client, which holds the plate, can
+         prove the plate took it. So nothing is written here: the ack travels back signed, and the
+         client files it (or Nia's follow-up question instead) through correctionOutcome. */
+      if (hasChange && canConfirmCorrection) {
+        const pending = await signPending({ mealId, userId: callerId, ack: text, photos: photoKeys }, SUPABASE_SERVICE_ROLE_KEY);
+        await recordAiCall({ fn: 'meal-chat', mode: 'reply', phase: 'correction_tool', userId: callerId, model: msg.model ?? MODEL, latencyMs: 0, ok: true, outcome: 'correction_pending' });
+        return new Response(
+          JSON.stringify({ reply: text, pending, correction: { item, newName: newName || null, quantity: quantity || null, per, perBasis: top.perBasis, add, more, missed } }),
+          { headers: { ...cors, 'Content-Type': 'application/json' } },
+        );
+      }
       // `photos`: the images this turn looked at are now in the numbers, so no later turn is shown
       // them again as something still to add (thread-photos.mjs appliedPhotoKeys).
       const { error: ackErr } = await service.from('meal_comments')

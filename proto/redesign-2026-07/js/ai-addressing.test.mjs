@@ -254,3 +254,36 @@ test('sentences ABOUT someone called Nia never wake her, even right after a coac
     assert.equal(decide(from(JIHAD, text), [from(ALEX, 'Good lift today')]).shouldRespond, false, `${text} (after a coach)`);
   }
 });
+
+/* ============================ "I HAD DOUBLE CHICKEN" (2026-09-24) ============================ */
+// The founder's own thread: Nia's last word was a meal suggestion; "I had double chicken" and,
+// later, "Double chicken" got no reply at all. An amount on this plate is the plainest correction
+// a meal thread gets, and only Nia can count it.
+
+test('an amount on this meal wakes Nia, with or without her name', () => {
+  const history = [from(AI, 'Breakfast resets the count, so aim for a plate around 45-50g protein.')];
+  for (const text of ['I had double chicken', 'Double chicken', 'no sour cream on mine', 'half the rice', 'extra guac', '2x chicken']) {
+    const d = decide(from(JIHAD, text), history);
+    assert.equal(d.shouldRespond, true, text);
+    assert.equal(d.intendedRecipient.kind, 'ai', text);
+  }
+});
+
+test('an amount said to the coach, about later, or by the coach is not a correction for Nia', () => {
+  assert.equal(decide(from(JIHAD, 'Coach I had double chicken')).shouldRespond, false);
+  assert.equal(decide(from(JIHAD, "I'll get double chicken next time")).shouldRespond, false);
+  assert.equal(decide(from(ALEX, 'Double chicken next time')).shouldRespond, false);
+  assert.equal(decide(from(JIHAD, 'no problem')).shouldRespond, false);
+});
+
+test('an answer to Nia\'s question reaches her, even "yes" or a bare food name', () => {
+  const asked = [from(AI, 'Which one should I double: the chicken or the chicken salad?')];
+  for (const text of ['the chicken', 'yes', 'Grilled chicken', 'both']) {
+    assert.equal(decide(from(JIHAD, text), asked).shouldRespond, true, text);
+  }
+  // A nod is still a nod.
+  for (const text of ['thanks', 'lol']) assert.equal(decide(from(JIHAD, text), asked).shouldRespond, false, text);
+  // Not after a statement, and not when someone else spoke in between.
+  assert.equal(decide(from(JIHAD, 'yes'), [from(AI, 'Solid plate.')]).shouldRespond, false);
+  assert.equal(decide(from(JIHAD, 'yes'), [...asked, from(ALEX, 'Did you eat the rice?')]).shouldRespond, false);
+});

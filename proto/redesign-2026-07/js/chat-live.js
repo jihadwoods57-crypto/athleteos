@@ -192,7 +192,9 @@ export function syncLive(threadEl, key, { esc, imgSrc, label = '' } = {}) {
   const now = Date.now();
   const html = s.items.map((it) => pendingRowHtml(it, esc, imgSrc, { fresh: now - it.at < ARRIVE_MS })).join('')
     + (s.working ? typingRowHtml(esc, { label: s.working.label || label }) : '');
-  if (html) threadEl.insertAdjacentHTML('beforeend', html);
+  // Conversation first, the thread's small print (.th-foot) last: a live row goes above the foot.
+  const foot = threadEl.querySelector(':scope > .th-foot');
+  if (html) { if (foot) foot.insertAdjacentHTML('beforebegin', html); else threadEl.insertAdjacentHTML('beforeend', html); }
   return s.items.length > 0;
 }
 
@@ -309,9 +311,22 @@ const NEAR_PX = 120;
 /** How long a smooth follow counts as still at the end: its own scroll events pass through
  *  positions short of the end, and a paint landing mid-glide must follow too. */
 const GLIDE_MS = 700;
-const PINS = new Map();        // thread key -> { vp, end, top }: where the reader last rested
+/* WHERE THE READER RESTED, per thread. Bounded and DOM-free (review 2026-09-24): this was a Map
+   holding each thread's viewport element, which kept every detached viewport alive for the life of
+   the app. A viewport is now named by a number (VP_IDS, a WeakMap, so the element itself can go),
+   and only the last PIN_MAX threads are remembered, least recently touched first out. */
+const PIN_MAX = 20;
+const PINS = new Map();        // thread key -> { vpId, end, top }
+const VP_IDS = new WeakMap();  // viewport -> its number
+let VP_SEQ = 0;
 const GLIDES = new WeakMap();  // viewport -> clock deadline of a follow in flight
 const WATCHED = new WeakMap(); // viewport -> thread key its scroll listener records under
+const vpIdOf = (vp) => { let n = VP_IDS.get(vp); if (!n) { n = ++VP_SEQ; VP_IDS.set(vp, n); } return n; };
+function pin(key, v) {
+  PINS.delete(key);
+  PINS.set(key, v);
+  while (PINS.size > PIN_MAX) PINS.delete(PINS.keys().next().value);
+}
 
 const clock = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
 const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -329,7 +344,7 @@ function glideToEnd(vp, smooth) {
 }
 
 function record(vp, key) {
-  PINS.set(key, { vp, end: gliding(vp) || gapOf(vp) <= NEAR_PX, top: vp.scrollTop });
+  pin(key, { vpId: vpIdOf(vp), end: gliding(vp) || gapOf(vp) <= NEAR_PX, top: vp.scrollTop });
 }
 
 /** One passive scroll listener per viewport: it keeps the pin true to where the reader actually
@@ -360,8 +375,8 @@ export function holdThread(anchor, key) {
   const vp = vpOf(anchor);
   if (!vp) return null;
   const k = String(key == null ? '' : key);
-  const pin = PINS.get(k);
-  if (pin && pin.vp !== vp && vp.scrollTop > 0) return { vp, key: k, end: pin.end, top: pin.top, restore: true };
+  const was = PINS.get(k);
+  if (was && was.vpId !== vpIdOf(vp) && vp.scrollTop > 0) return { vp, key: k, end: was.end, top: was.top, restore: true };
   return { vp, key: k, end: gliding(vp) || gapOf(vp) <= NEAR_PX, top: vp.scrollTop, restore: false };
 }
 
@@ -377,7 +392,7 @@ export function followThread(hold, { force = false, smooth = false } = {}) {
   const follow = force || hold.end;
   if (follow) glideToEnd(vp, smooth);
   else if (hold.restore && vp.scrollTop < hold.top) vp.scrollTo({ top: hold.top, behavior: 'instant' });
-  if (follow && !gliding(vp)) PINS.set(hold.key, { vp, end: true, top: vp.scrollTop });
+  if (follow && !gliding(vp)) pin(hold.key, { vpId: vpIdOf(vp), end: true, top: vp.scrollTop });
   else record(vp, hold.key);
   watch(vp, hold.key);
   return follow;
@@ -444,3 +459,5 @@ export function syncJump(anchor, key, { dock = null, added = 0, always = false }
 
 /** Test seam: forget every thread. */
 export function __resetChatLive() { THREADS.clear(); PINS.clear(); }
+/** Test seam: what is remembered about where readers rested (sizes and shapes, never elements). */
+export function __pinsForTest() { return [...PINS.entries()]; }

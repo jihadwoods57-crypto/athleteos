@@ -1,15 +1,16 @@
 /* WHAT THE ATHLETE SEES WHEN THEY CORRECT A MEAL.
  *
- * Founder, 2026-09-14, looking at a real thread: he typed "I had core power with this", the AI
- * answered "Good add, Core Power counts. Your numbers and score for this meal are updating now",
- * and nothing visibly happened. He asked for a better animation. The animation already existed
- * (corrReceipt, shipped 2026-09-07 for the same complaint) and was correctly wired to this path.
- * It showed nothing because there was nothing to show: "Core Power" was not in the curated
- * reference, and applyMealCorrection returned NULL when no named food could be priced, throwing
- * the unpriced names away with it. The AI promised; the client silently did nothing.
+ * 2026-09-14: "I had core power with this" -> the AI said the numbers were updating, and nothing
+ * visibly happened. 2026-09-24: "double chicken" -> the AI said the numbers were updating, nothing
+ * changed, and an amber line under the message box contradicted it.
  *
- * So two things are pinned here. The receipt has to be worth looking at, and it must never be
- * asked to animate a change that did not happen.
+ * The rule both taught: Nia may only say the numbers moved once they have. So a correction is
+ * applied first (correction-turn.js), and meal-chat then files what Nia says about it: her ack and
+ * the receipt when it landed, her one precise question when it did not. Nothing about a correction
+ * is ever said under the box, and nothing is animated that did not happen. The receipt that proves
+ * the change counts from the old figures to the new ones as it ARRIVES, on every screen that shows
+ * the thread, because it is the filed row (chat-view.js playFreshReceipts); the meal screen's
+ * private live card, which could only ever play on one screen, is gone.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,112 +20,104 @@ import { dirname, join } from 'node:path';
 import { stripComments } from '../tools/strip-comments.mjs';
 
 const JS = dirname(fileURLToPath(import.meta.url));
-const MEAL = stripComments(readFileSync(join(JS, 'screens', 'meal.js'), 'utf8'));
+const read = (...p) => stripComments(readFileSync(join(JS, ...p), 'utf8'));
+const MEAL = read('screens', 'meal.js');
+const CHAT = read('screens', 'nutrition-chat.js');
+const TURN = read('correction-turn.js');
+const VIEW = read('chat-view.js');
+const STATE = read('state.js');
 const CSS = readFileSync(join(JS, '..', 'css', 'screens.css'), 'utf8');
 
-/* ---- a correction that priced nothing never reaches the receipt ---------------------------- */
+/* ---- the order: apply, then speak --------------------------------------------------------- */
 
-test('a no-op correction is spoken, not animated', () => {
-  const i = MEAL.indexOf('applied.nothingPriced');
-  assert.ok(i > 0, 'the thread must handle the case where nothing could be priced');
-  const branch = MEAL.slice(i, i + 700);
-  assert.match(branch, /setNote\(/, 'it says what it could not count');
-  assert.match(branch, /have nothing on file for/, 'and names the food, because the athlete named it correctly');
-  assert.match(branch, /return;/, 'and stops: there is no change to draw');
-  // The receipt must be set only AFTER that early return, or it would be handed a pair of
-  // identical records and asked to animate the difference between a number and itself.
-  assert.ok(i < MEAL.indexOf('setCorrFx('),
-    'the no-op branch has to return before the receipt is built');
+test('both athlete surfaces close the loop through the one shared module', () => {
+  for (const src of [MEAL, CHAT]) {
+    assert.match(src, /await import\('\.\.\/correction-turn\.js'\)/, 'lazily: nothing new at boot');
+    assert.match(src, /runChatCorrection\(\{/);
+    assert.match(src, /canConfirmCorrection: true/, 'Nia\'s ack waits for the plate');
+  }
 });
 
-test('the promise the AI already made is answered either way', () => {
-  // Three outcomes, three sentences: it could not find the food, it found it but cannot price it,
-  // or it worked. Silence is the one thing that is not allowed, because the AI has already said
-  // "your numbers and score are updating now" by the time any of this runs.
-  for (const phrase of [
-    /didn't line up with anything/,      // the named food is not in this meal's read
-    /have nothing on file for/,          // named fine, no numbers for it
-    /Added what I could price/,          // some priced, some not
-  ]) assert.match(MEAL, phrase, `missing the branch for ${phrase}`);
+test('nothing about a correction is said under the box', () => {
+  for (const src of [MEAL, CHAT]) {
+    for (const phrase of [/didn't line up with anything/, /have nothing on file for/, /Added what I could price/, /No numbers on file/]) {
+      assert.doesNotMatch(src, phrase, `${phrase} belongs to Nia, in the thread`);
+    }
+  }
 });
 
-/* ---- the score is the answer, so the score is what turns ----------------------------------- */
-
-test('the meal score is the last row and carries its band', () => {
-  assert.match(MEAL, /score: label === 'Meal score'/, 'the score row is marked');
-  assert.match(MEAL, /rows\.sort\(\(x, y\) => \(x\.score \? 1 : 0\) - \(y\.score \? 1 : 0\)\)/,
-    'macros are the cause and the score is the consequence; the consequence goes last');
-  assert.match(MEAL, /qualityBand\(Math\.round\(\+b\)\)/,
-    'the score lands in the colour of the band it now belongs to, not in plain ink');
+test('the typing row stays up until Nia has said what happened', () => {
+  const i = MEAL.indexOf('runChatCorrection({');
+  const before = MEAL.slice(i - 300, i).replace(/\s+/g, ' ');
+  const after = MEAL.slice(i, i + 700).replace(/\s+/g, ' ');
+  assert.match(before, /setTyping\(true\)/);
+  assert.match(after, /setTyping\(false\)/);
+  assert.ok(after.indexOf('setTyping(false)') < after.indexOf('await refresh()'), 'then the thread refetches her words');
 });
 
-test('the turn fires once the counting has finished, never during it', () => {
-  const i = MEAL.indexOf("card.classList.add('landed')");
-  assert.ok(i > 0);
-  // stripComments blanks comments to SPACES so byte offsets stay put; collapse them or a window
-  // measured in characters is mostly whitespace.
-  const after = MEAL.slice(i, i + 900).replace(/\s+/g, ' ');
-  assert.match(after, /\.corr-score b'\)/);
-  assert.match(after, /classList\.add\('turn'\)/);
-  assert.match(after, /buzz\('reveal'\)/, 'the haptic lands with the turn, not before it');
+test('the outcome is reported with the token, and the receipt goes with it', () => {
+  assert.match(TURN, /correctionOutcome: \{ token, \.\.\.outcome \}/);
+  assert.match(TURN, /correctionReceipt: rows/);
+  assert.match(TURN, /noReceipt: !!token/, 'so the reducer does not file a second, earlier receipt');
+  assert.match(TURN, /resolveChatCorrection\(meta, correction, said/, 'the athlete\'s own words decide first');
 });
 
-/* ---- the motion itself, and the two rules it has to keep ----------------------------------- */
+/* ---- the receipt: only real moves, score last, counted as it arrives ------------------------ */
+
+test('only figures that moved are listed, and the meal score is last and carries its band', () => {
+  const i = STATE.indexOf('_correctionReceiptRows(before, after) {');
+  const body = STATE.slice(i, i + 1400).replace(/\s+/g, ' ');
+  assert.match(body, /Math\.round\(\+a\) !== Math\.round\(\+b\)/, 'a number that did not move is not a row');
+  assert.match(body, /qualityBand\(Math\.round\(\+b\)\)/);
+  assert.match(body, /\.sort\(\(x, y\) => \(x\.score \? 1 : 0\) - \(y\.score \? 1 : 0\)\)/);
+});
+
+test('an arriving receipt counts from the old figures to the new; a re-read one does not', () => {
+  const i = VIEW.indexOf('export function receiptCardHtml(');
+  const body = VIEW.slice(i, i + 2200);
+  assert.match(body, /data-fx-from="\$\{r\.from\}" data-fx-to="\$\{r\.to\}"/);
+  assert.match(body, /fresh \? ' counting' : ' landed'/);
+  for (const src of [MEAL, CHAT]) assert.match(src, /playFreshReceipts\(/, 'every athlete surface plays it');
+});
+
+test('the turn and the haptic land after the count, never during it', () => {
+  const i = VIEW.indexOf('export function playFreshReceipts(');
+  const body = VIEW.slice(i, i + 2400).replace(/\s+/g, ' ');
+  const land = body.indexOf('const land = () =>');
+  assert.ok(land > 0);
+  const landBody = body.slice(land, land + 400);
+  assert.match(landBody, /classList\.add\('landed', 'just-landed'\)/);
+  assert.match(landBody, /classList\.add\('turn'\)/);
+  assert.match(landBody, /onLand\(\)/);
+  assert.match(body, /if \(p < 1\) requestAnimationFrame\(step\); else land\(\);/);
+  assert.match(body, /if \(reduce \|\| typeof requestAnimationFrame !== 'function'\) \{ land\(\); continue; \}/, 'reduced motion lands at once');
+});
+
+/* ---- the motion keeps its two rules --------------------------------------------------------- */
 
 test('the card arrives with depth, using transforms only', () => {
-  assert.match(CSS, /#corr-fx\{perspective:900px\}/, 'the perspective belongs to the row, not the card');
   assert.match(CSS, /\.corr-card:not\(\.in\)\{transform:translateY\(6px\) rotateX\(-14deg\)\}/);
-  assert.match(CSS, /@keyframes corr-turn\{/);
-  // DESIGN.md: never animate a layout property. Everything here has to be transform or opacity.
-  const block = CSS.slice(CSS.indexOf('@keyframes corr-turn{'), CSS.indexOf('@keyframes corr-turn{') + 220);
-  assert.doesNotMatch(block, /\b(width|height|top|left|margin|padding)\s*:/,
-    'a keyframe that moves layout would jank the whole thread');
+  for (const kf of ['@keyframes corr-turn{', '@keyframes corr-exhale{']) {
+    const block = CSS.slice(CSS.indexOf(kf), CSS.indexOf(kf) + 240);
+    assert.doesNotMatch(block, /\b(width|height|top|left|margin|padding)\s*:/, `${kf} must not move layout`);
+  }
 });
 
-test('green is the verdict, so nothing is green until it has landed', () => {
-  assert.match(CSS, /\.corr-card:not\(\.landed\) \.corr-head\{color:var\(--text-3\)\}/,
-    'the heading announced the result during the wait and left "Updated" nothing to become');
-  const spin = CSS.slice(CSS.indexOf('.corr-spin{'), CSS.indexOf('.corr-spin{') + 220);
-  assert.doesNotMatch(spin, /green/, 'the working spinner wears the working colour');
+test('green is the verdict: nothing is green until it lands, and nothing glows after', () => {
+  assert.match(CSS, /\.corr-card:not\(\.landed\) \.corr-head\{color:var\(--text-3\)\}/);
+  assert.match(CSS, /\.corr-card\.just-landed\{animation:corr-exhale/, 'the glow is the landing, once');
+  assert.doesNotMatch(CSS, /\.corr-card\.landed\{box-shadow/, 'a record read back later does not glow');
 });
 
 test('every beat is switched off under prefers-reduced-motion', () => {
   const i = CSS.indexOf('@media (prefers-reduced-motion: reduce){', CSS.indexOf('.corr-card{'));
-  const block = CSS.slice(i, i + 460);
-  for (const sel of ['.corr-card', '.corr-spin', 'b.pend', 'b.turn']) {
-    assert.ok(block.includes(sel), `${sel} must be neutralised for reduced motion`);
-  }
+  const block = CSS.slice(i, i + 420);
+  for (const sel of ['.corr-card', 'b.turn', '.corr-card.just-landed']) assert.ok(block.includes(sel), `${sel} must be neutralised`);
 });
 
-/* ---- the three bugs that only an end-to-end run could find --------------------------------- */
-/* Driving the shipped app (seeded meal, real composer, meal-chat stubbed to answer with an
-   apply_correction) showed the numbers moving correctly and the receipt never appearing. Three
-   separate causes, all of them "state that does not survive the repaint that reveals it". None
-   was reachable from a unit test, and all three were shipped. */
-
-test('the receipt state outlives the render that paints it', () => {
-  // router.js calls mod.mount() on EVERY render, and the correction handler's own __render() is
-  // what paints the card. A `let corrFx` inside mount was therefore reset to null before the
-  // paint that would have drawn it, every single time.
-  assert.match(MEAL, /^let CORR_FX = null;$/m, 'the receipt cannot live in the mount closure');
-  const mountAt = MEAL.indexOf('mount(root');
-  assert.ok(MEAL.indexOf('let CORR_FX') < mountAt, 'and it has to be declared above mount');
-  assert.match(MEAL, /CORR_FX = rows\.length \? \{ key: corrKey/, 'keyed to its meal');
-  assert.match(MEAL, /CORR_FX_TTL_MS/, 'and stamped, so it cannot replay an hour later');
-});
-
-test('the note outlives it too, and is restored on the next paint', () => {
+test('the note outlives the render that paints it, and is restored on the next paint', () => {
   assert.match(MEAL, /^let CHAT_NOTE = null;$/m);
   assert.match(MEAL, /CHAT_NOTE = t \? \{ key: corrKey/, 'setNote records as well as writes');
-  assert.match(MEAL, /writeNote\(CHAT_NOTE\.text, CHAT_NOTE\.retry\)/,
-    'every branch that sets a note also calls __render() a line later, which erases it');
-});
-
-test('the animation classes land on the card, not on its message row', () => {
-  // #corr-fx is the .msg wrapper; the stylesheet targets .corr-card.in / .corr-card.landed, and
-  // .corr-card starts at opacity:0. Selecting the wrapper meant the receipt painted invisible.
-  assert.match(MEAL, /root\.querySelector\('#corr-fx \.corr-card'\)/,
-    'classList.add on the wrapper leaves .corr-card at opacity 0 forever');
-  assert.match(CSS, /\.corr-card\{[^}]*opacity:0/, 'which is only safe because .in turns it on');
-  assert.match(CSS, /#corr-fx\{perspective:900px\}/, 'the wrapper keeps only the perspective');
+  assert.match(MEAL, /writeNote\(CHAT_NOTE\.text, CHAT_NOTE\.retry\)/);
+  assert.doesNotMatch(MEAL, /CORR_FX|corrReceipt|playCorrReceipt|setCorrFx/, 'the private live card is gone');
 });
