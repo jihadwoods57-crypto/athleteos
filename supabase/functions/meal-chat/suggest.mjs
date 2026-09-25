@@ -21,14 +21,17 @@ export const SUGGEST_MEAL_TOOL = {
     properties: {
       protein_gap_g: { type: 'integer', description: 'Grams of protein still to eat today, taken EXACTLY from the context (proteinTarget minus proteinSoFar). 0 when the context has no target.' },
       kcal_gap: { type: 'integer', description: 'Calories still to eat today, only when both a calorie target and today\'s total are in the context. Omit otherwise.' },
-      framing: { type: 'string', description: 'ONE short sentence the athlete reads above the suggestions, in your coach voice, e.g. "You are 40g short with dinner still open, so here is what usually gets you there." Numbers only from the context. No em dashes.' },
-      fallback: { type: 'string', description: 'ONE sentence shown INSTEAD of suggestions when none of their saved meals fit: a concrete, doable move using only what the context supports (a protein-forward plate at the open meal, a size to aim for). Never name a specific food they have not logged. No em dashes.' },
+      framing: { type: 'string', description: 'ONE short sentence the athlete reads above the suggestions, in your coach voice, e.g. "You are 40g short with dinner still open, so here is what usually gets you there." Numbers only from the context. Plain text: no asterisks or other markdown. No em dashes.' },
+      fallback: { type: 'string', description: 'ONE sentence shown INSTEAD of suggestions when none of their saved meals fit: a concrete, doable move using only what the context supports (a protein-forward plate at the open meal, a size to aim for). Never name a specific food they have not logged. Plain text: no asterisks or other markdown. No em dashes.' },
     },
     required: ['protein_gap_g', 'framing', 'fallback'],
   },
 };
 
-const noDash = (s) => String(s ?? '').replace(/—/g, ',').replace(/[<>]/g, '').replace(/\s+/g, ' ').trim();
+/* Plain text by contract: the row text is what coach.js and trust.js print. The reply prompt lets
+   Nia bold one figure and she carried the habit into these fields, so the founder's what-to-eat
+   bubble read "**180g**" (2026-09-24). The marks are dropped here and the words kept. */
+const noDash = (s) => String(s ?? '').replace(/—/g, ',').replace(/[<>]/g, '').replace(/\*\*|__|==/g, '').replace(/\s+/g, ' ').trim();
 const gnum = (v, cap) => {
   const n = Math.round(Number(v));
   return Number.isFinite(n) && n >= 0 && n <= cap ? n : null;

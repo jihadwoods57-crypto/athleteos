@@ -21,11 +21,11 @@ import { layoutThread, visibleThread, MUTED_HIDDEN_NOTE, authorName, initialsFor
   participantList, participantSummary, AI_NAME, NIA_MARK, whoHtml, facesHtml, threadTitle,
 } from '../chat-view.js';
 import { wireChatTimes } from '../chat-times.js';
-import { focusComposer, scrollThreadToEnd } from '../keyboard.js';
+import { focusComposer } from '../keyboard.js';
 import {
   beginSend, endSend, takeFailed, justSent, noteSent, isSending, setAiWorking,
   setReply, replyOf, clearReply, paintReplyChip, noteArrivals, syncLive, syncJump,
-  bindLive, wireThreadTaps,
+  bindLive, wireThreadTaps, holdThread, followThread,
 } from '../chat-live.js';
 import { openImageViewer } from '../image-viewer.js';
 import { overlayOpen } from '../overlay-guard.js';
@@ -3659,11 +3659,16 @@ export const coachMeal = {
     const cmThread = () => root.querySelector('#cm-thread');
     // The live rows (chat-live.js): the bubble being sent and the AI at work, placed by DOM so
     // the coach's half-typed next comment is never rebuilt out from under them.
-    const placeLive = () => {
+    /* FOLLOWING THE CONVERSATION (2026-09-24). This thread is part of render(), so a new row is a
+       whole new screen: router.js puts the old scrollTop back, which left a coach resting on the
+       newest message one message short of it, every time. holdThread reads where they rested on
+       the screen before (chat-live.js keeps it per thread); a coach reading back stays put. */
+    const placeLive = (arrived = true) => {
       const el = cmThread();
       if (!el) return;
+      const hold = holdThread(el, sub);
       const sending = syncLive(el, sub, { esc, imgSrc: safeImg });
-      if (sending) scrollThreadToEnd(el, { force: true });
+      followThread(hold, { force: sending, smooth: arrived });
     };
     const resolveAthlete = () => {
       const meal = mealById(sub);
@@ -3748,7 +3753,7 @@ export const coachMeal = {
       if (claim.ok) await deliver(claim.item);
     };
     bindLive(sub, { sync: placeLive, onRetry: retryItem });
-    placeLive();
+    placeLive(CM_ADDED > 0);
     paintReplyChip(cmDock(), sub, esc);
     syncJump(cmThread(), sub, { dock: cmDock(), added: CM_ADDED });
     CM_ADDED = 0;

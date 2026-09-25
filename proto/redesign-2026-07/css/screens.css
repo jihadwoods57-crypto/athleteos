@@ -767,7 +767,10 @@
 .tsep b { font-weight: 700; }
 /* "Delivered", under the newest bubble when it is yours. The one receipt this app can state as a
    fact (the row came back from the database); nothing here claims it was read. */
-.dlv { align-self: flex-end; font-size: var(--t-xs); font-weight: 500; color: var(--text-3); margin: calc(-1 * var(--s1h)) var(--s1) 0 0; }
+/* Below the bubble, never under it (founder's iPhone 2026-09-24: only the bottom half of the word
+   showed). The margin was -6px, and .bubble is position:relative, so it paints over a static
+   sibling: the bubble and its tail covered the top of the line. Messages sets it just clear. */
+.dlv { align-self: flex-end; font-size: var(--t-xs); font-weight: 500; line-height: 1.3; color: var(--text-3); margin: var(--s1) var(--s1) 0 0; }
 /* The per-message clock the drag reveals (chat-times.js). Parked just past the thread's right
    edge, where the viewport clips it, and slid into view together with the thread. */
 .msg .mt {
@@ -2452,7 +2455,11 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
   background: var(--surface-2); color: var(--text); box-shadow: var(--sh-thumb); cursor: pointer;
   font-family: var(--font); animation: msg-in calc(var(--dur-1) + 40ms) var(--ease-out) both;
 }
-.jump-latest .jl-n { font-size: var(--t-xs); font-weight: 800; color: var(--blue-bright); font-variant-numeric: tabular-nums; }
+/* "New message ↓" (2026-09-24): with something new it says so in words and sits centred over the
+   box, where Messages puts it; with nothing new (far back in the full chat) it is the bare arrow
+   at the right. Centred by auto margins, not a transform, which the entrance animation owns. */
+.jump-latest.has-new { left: 0; right: 0; margin: 0 auto; width: max-content; padding: 0 var(--s3); color: var(--blue-bright); }
+.jump-latest .jl-t { font-size: var(--t-sm); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 @media (prefers-reduced-motion: reduce) {
   .msg.sw-settle { transition: none; }
   .msg.flash .bubble, .msg.flash .corr-card, .reply-chip, .jump-latest { animation: none; }

@@ -20,7 +20,7 @@ import { wireChatTimes } from '../chat-times.js';
 import {
   beginSend, endSend, takeFailed, setAiWorking,
   setReply, replyOf, clearReply, paintReplyChip, noteArrivals, syncLive, syncJump,
-  bindLive, wireThreadTaps,
+  bindLive, wireThreadTaps, holdThread, followThread,
 } from '../chat-live.js';
 import { openMembersSheet } from '../members-sheet.js';
 import { ensureAiConsent, aiMinorPending, AI_MINOR_LINE } from '../ai-consent.js';
@@ -42,7 +42,7 @@ const mvClock = (iso) => {
 const mvDay = (ms) => { const d = new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
 import { composer } from '../components.js';
 import { openImageViewer } from '../image-viewer.js';
-import { focusComposer, scrollThreadToEnd } from '../keyboard.js';
+import { focusComposer } from '../keyboard.js';
 
 /* ---------- Trust Pass detail: the earned camera-free reward, rules visible (0196) ----------
    Two active shapes (credits / window) plus a not-earned state with real progress. The old decay
@@ -388,6 +388,8 @@ function mountThread(root, mealId, meal) {
     const visible = msgItems.map((i) => i.comment);
     const { fresh, added } = noteArrivals(mealId, visible, RT.userId);
     const rxAt = reactionAnchor(visible);
+    // Where the reader is, read BEFORE the new rows land (chat-live.js holdThread).
+    const hold = holdThread(threadEl, mealId);
     threadEl.innerHTML = items.map((item) => {
       if (item.type === 'time') return timeSepHtml(item, esc);
       const c = item.comment;
@@ -424,13 +426,14 @@ function mountThread(root, mealId, meal) {
     void hydrateThreadPhotos(threadEl, { signedMealPhotoUrl, signedMealPhotoUrls });
     hydrateAvatars(threadEl);   // 0206: message monograms upgrade to real faces, as on the meal thread
     // Full messages, always (founder 2026-09-22): no Read more here or anywhere.
-    placeLive();
+    placeLive(hold, fresh.size > 0 || added > 0);
     syncJump(threadEl, mealId, { dock: root.querySelector('#meal-disc .chat-dock'), added });
   };
-  const placeLive = () => {
+  const placeLive = (hold = null, arrived = true) => {
     if (!threadEl.isConnected) return;
+    const h = hold || holdThread(threadEl, mealId);
     const sending = syncLive(threadEl, mealId, { esc, imgSrc: safeImg });
-    if (sending) scrollThreadToEnd(threadEl, { force: true });
+    followThread(h, { force: sending, smooth: arrived });
   };
 
   // Tap an attached photo to open it full-screen. Delegated: every repaint replaces the <img>.

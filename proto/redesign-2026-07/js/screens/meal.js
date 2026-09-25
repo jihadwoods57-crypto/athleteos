@@ -42,7 +42,7 @@ import { wireChatTimes } from '../chat-times.js';
 import {
   beginSend, endSend, takeFailed, setAiWorking, aiWorkingOf,
   setReply, replyOf, clearReply, paintReplyChip, noteArrivals, syncLive, syncJump,
-  bindLive, wireThreadTaps,
+  bindLive, wireThreadTaps, holdThread, followThread,
 } from '../chat-live.js';
 
 /* The meal score chip's ring, drawn as the brand dial (docs/brand/LOGO.md): a 300° gauge with
@@ -2143,6 +2143,9 @@ export const thread = {
       const strandedRxHtml = strandedRx.length
         ? `<div class="rx-strip">${strandedRx.map((r) => `<span class="rx">${esc(r.emoji)}<span class="n">${r.count}</span></span>`).join('')}</div>`
         : '';
+      // Where the reader is, read BEFORE the new rows land (chat-live.js holdThread): measured
+      // after, a reader resting on the newest message is one Nia reply short of the end.
+      const hold = holdThread(threadEl, M.mealId);
       threadEl.innerHTML = coachPin + openingLead + earlierBtn + rows + strandedRxHtml + openingTail + corrReceipt(!(lastMsg && lastMsg.role === 'ai'))
         + (seen ? `<div class="seen">${seen}</div>` : '')
         + (tail.length ? `<div class="msg-status">${tail.join(' ')}</div>` : '');
@@ -2151,12 +2154,10 @@ export const thread = {
       // renderer: the AI's read is long on purpose (2026-09-07 ruling) and a message you have to
       // open is a message half-sent. Line length is held by the bubble's own measure (screens.css).
       // The outbox bubble and the typing row, placed after the paint that just wiped them.
-      placeLive();
-      // `.thread` is a flex column, not a scroller — this line used to set scrollTop on an element
-      // that has never had any, so a repaint moved nothing. The screen's scroller is #viewport.
-      // Unforced, so the 15s poll can only re-pin a reader who was already at the end of the
-      // conversation; someone scrolled up reading the breakdown stays where they put themselves.
-      scrollThreadToEnd(threadEl);
+      // The live rows go back in and the reader who was at the end follows the newest message
+      // (gliding when something arrived); someone scrolled up reading the breakdown stays where
+      // they put themselves, and the pill tells them what came in.
+      placeLive(hold, fresh.size > 0 || added > 0);
       syncJump(threadEl, M.mealId, { dock: root.querySelector('#meal-disc .chat-dock'), added });
       void hydrateThreadPhotos(threadEl, roles);
       playCorrReceipt(threadEl);
@@ -2164,11 +2165,12 @@ export const thread = {
     // The live rows (chat-live.js): the bubble being sent and the AI at work. Re-placed after
     // every paint and on every change of that state, never by a re-render (it would rebuild the
     // box someone may be typing in).
-    const placeLive = () => {
+    const placeLive = (hold = null, arrived = true) => {
       const el = root.querySelector('#meal-thread');
       if (!el) return;
+      const h = hold || holdThread(el, M.mealId);
       const sending = syncLive(el, M.mealId, { esc, imgSrc: safeImg });
-      scrollThreadToEnd(el, { force: sending });
+      followThread(h, { force: sending, smooth: arrived });
     };
 
     // The AI-at-work hook, labelled from the thread: a photo nobody has answered yet means the
