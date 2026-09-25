@@ -167,3 +167,15 @@ test('R4 I2: a 503 (the server could not read the meal) is retried, never taken 
   assert.equal(await sendOutcome({ ...job }, fakeSb({ invoke: unavailable }), T0 + 1000), false, 'the report');
   assert.equal(await sendOutcome({ ...job, fallback: true }, fakeSb({ invoke: unavailable }), T0 + 1000), false, 'the plain receipt');
 });
+
+test('R5.4: a correction job older than 24 hours is dropped, fallback or not', async () => {
+  const job = { uid: 'ath-1', kind: 'correction-outcome', ref: 'n9', ct: 'n9', mealId: 'meal-1', body: { correctionOutcome: { token: TOKEN } },
+    receipt: [{ label: 'Protein', unit: 'g', from: 29, to: 50 }], expiresAt: T0 + 14 * 60000, queuedAt: T0 };
+  for (const fallback of [false, true]) {
+    const sb = fakeSb({ invoke: net });
+    assert.equal(await sendOutcome({ ...job, fallback }, sb, T0 + 25 * 3600000), true, `fallback ${fallback}`);
+    assert.equal(sb.calls.length, 0, 'nothing sent a day later');
+  }
+  const young = fakeSb({ invoke: net });
+  assert.equal(await sendOutcome({ ...job, fallback: true }, young, T0 + 23 * 3600000), false, 'a day is the limit, not less');
+});

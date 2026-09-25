@@ -626,3 +626,51 @@ test('R4: a question is never an edit ("can you tell me if I should...", "would 
   }
   assert.deepEqual(readPlateEdits('could you double the chicken?').map((e) => e.verb), ['double'], 'a request is still an edit');
 });
+
+/* ============================ REVIEW ROUND 5 (2026-09-25) ============================
+ * rr/r4.mjs and rr/r4b.mjs, pinned. */
+
+test('R5.1: "N pieces" against a counted row is absolute: 6 wings, "3 pieces" is 3 wings; 6 nuggets, "2 pieces" is 2', () => {
+  const wings = say(plate([{ name: 'Chicken wings', quantity: '6 wings', per: { protein: 36, kcal: 480, carbs: 0, fat: 32 } }]), [
+    ['I only had 3 pieces', { item: 'Chicken wings', quantity: '3 pieces' }],
+    ['I only had 3 pieces', { item: 'Chicken wings', quantity: '3 pieces' }],
+  ]);
+  assert.deepEqual([wings[0].meta.detectedRich[0].quantity, wings[0].meta.detectedRich[0].per.kcal], ['3 wings', 240]);
+  assert.equal(wings[1].r.asks[0].reason, 'counted', 'and it rebased');
+  const nug = say(plate([{ name: 'Chicken nuggets', quantity: '6 nuggets', per: { protein: 15, kcal: 280, carbs: 16, fat: 17 } }]), [
+    ['it was 2 pieces', { item: 'Chicken nuggets', quantity: '2 pieces' }],
+  ]);
+  assert.equal(nug[0].meta.detectedRich[0].quantity, '2 nuggets');
+  // A measure or no amount keeps round 4: N x the baseline.
+  const oz = say(plate([{ name: 'Grilled chicken', quantity: '3 oz', per: CH }]), [['2 pieces of chicken', { item: 'Grilled chicken', quantity: '2 pieces' }]]);
+  assert.equal(chickenOf(oz[0].meta).quantity, '6 oz');
+});
+
+test('R5.2: mixed-number baselines are read whole', () => {
+  const a = say(plate([{ name: 'Grilled chicken', quantity: '2 1/2 servings', per: CH }]), [['it was 2 servings', { item: 'Grilled chicken', quantity: '2 servings' }]]);
+  assert.deepEqual([chickenOf(a[0].meta).quantity, chickenOf(a[0].meta).per.kcal], ['2 servings', 112], 'down, not 5 servings');
+  const b = say(plate([{ name: 'Grilled chicken', quantity: '1 serving', per: CH }]), [
+    ['one and a half servings', { item: 'Grilled chicken', quantity: '1.5 servings' }],
+    ['actually 2 servings', { item: 'Grilled chicken', quantity: '2 servings' }],
+  ]);
+  assert.equal(chickenOf(b[0].meta).quantity, '1 1/2 servings');
+  assert.deepEqual([chickenOf(b[1].meta).quantity, chickenOf(b[1].meta).per.kcal], ['2 servings', 280]);
+});
+
+test('R5.3: a dish that holds more than one food is never taken off for one word; Nia asks whole or part', () => {
+  for (const dish of ['Chicken and rice', 'Teriyaki chicken with rice', 'Chicken fried rice', 'Rice and beans', 'Chicken, rice']) {
+    const r = resolveChatCorrection(plate([{ name: dish, quantity: '1 plate', per: { protein: 35, kcal: 600, carbs: 60, fat: 12 } }, { name: 'Soda', quantity: '12 oz', per: { protein: 0, kcal: 150, carbs: 39, fat: 0 } }]), {}, 'take the rice off');
+    assert.deepEqual(r.parts, [], dish);
+    assert.deepEqual([r.asks[0].reason, r.asks[0].verb, r.asks[0].dish], ['composite', 'remove', dish], dish);
+  }
+});
+
+test('R5.5: the athlete names one removal and the model zeroes another: only the athlete\'s, and only on its full name', () => {
+  const rows = [{ name: 'Grilled chicken', quantity: '3 oz', per: CH }, { name: 'Rice', quantity: '1 cup', per: { protein: 4, kcal: 200, carbs: 45, fat: 0 } }];
+  const loose = resolveChatCorrection(plate(rows), { item: 'Rice', quantity: '0' }, 'take the chicken off');
+  assert.deepEqual(loose.parts, [], 'never the rice the athlete did not name, and not the chicken on one word');
+  assert.deepEqual(loose.asks.map((a) => [a.reason, a.candidates]), [['confirm', ['Grilled chicken']]]);
+  const full = resolveChatCorrection(plate(rows), { item: 'Rice', quantity: '0' }, 'take the grilled chicken off');
+  assert.deepEqual(full.parts.map((p) => [p.kind, p.item]), [['remove', 'Grilled chicken']]);
+  assert.equal(full.exact, false);
+});

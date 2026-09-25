@@ -33,6 +33,8 @@ import * as SQ from './sync-queue.js';
 export const LEGACY_MISS = "Your numbers didn't change. Tell Nia which food you mean and how much.";
 
 const TOKEN_TTL_MS = 15 * 60 * 1000;
+/** A correction's report or receipt is owed for a day at most: past that the outbox lets it go. */
+const DAY_MS = 24 * 3600 * 1000;
 
 /** The token's nonce, read off its (signed, not secret) body, and when to stop trying it. The
  *  clock is this device's own, from the moment the token arrived (it was issued a moment ago), so
@@ -54,7 +56,8 @@ export function tokenInfo(token, now = Date.now()) {
  * asks "is it there?" by that ct first, and 0249's unique index refuses a second copy anyway.
  */
 export async function sendOutcome(job, sb, now = Date.now()) {
-  if (!sb || !job) return false;
+  if (!job || (job.queuedAt && now - job.queuedAt > DAY_MS)) return true;   // a day on, it is history
+  if (!sb) return false;
   if (!job.fallback && now < job.expiresAt) {
     try {
       const { data, error } = await sb.functions.invoke('meal-chat', { body: job.body });

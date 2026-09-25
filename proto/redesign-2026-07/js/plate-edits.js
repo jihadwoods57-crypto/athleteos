@@ -374,15 +374,20 @@ function atFactor(row, f) {
    model rendering the athlete's "double" as "2 servings") is already counted. */
 const servingsWord = (q) => { const m = fold(q).trim().match(/^(\d+(?:\.\d+)?)\s*(?:servings?|portions?|scoops?|pieces?)$/); return m ? Number(m[1]) : null; };
 const nounOf = (u) => { const w = singular(u); return w === 'portion' ? 'serving' : w; };
+const MEASURE = /^(?:oz|ounces?|g|gm|grams?|kg|ml|l|cups?|tbsp|tsp|tablespoons?|teaspoons?|lbs?|pounds?|fl)$/;
+/** "2 1/2", "1/2", "1.5" as a number. */
+const numOf = (t) => { const mx = t.match(/^(\d+)\s+(\d+)\s*\/\s*(\d+)$/) || t.match(/^()(\d+)\s*\/\s*(\d+)$/); return mx ? (Number(mx[1]) || 0) + Number(mx[2]) / Number(mx[3]) : Number(t); };
 /** A count's factor on the baseline and whether it is absolute (rebases), or null for a non-count. */
 function countOf(q, row) {
   const m = fold(q).trim().match(/^(\d+(?:\.\d+)?)\s*([a-z]+)$/);
   const n = servingsWord(q);
   if (n == null || !m) return null;
-  const b = fold(baseOf(row).q).trim().match(/^(\d+(?:\.\d+)?|\d+\s*\/\s*\d+)\s+([a-z]+)/);
-  if (b && nounOf(b[2]) === nounOf(m[2])) {
-    const fr = b[1].match(/^(\d+)\s*\/\s*(\d+)$/);
-    const bn = fr ? Number(fr[1]) / Number(fr[2]) : Number(b[1]);
+  const b = fold(baseOf(row).q).trim().match(/^(\d+\s+\d+\s*\/\s*\d+|\d+\s*\/\s*\d+|\d+(?:\.\d+)?)\s+([a-z]+)/);
+  // "pieces" counts whatever the row is counted in, when that is not a measure or a serving:
+  // 6 wings, "3 pieces" is 3 wings (round 5).
+  const pieceOf = b && nounOf(m[2]) === 'piece' && !MEASURE.test(b[2]) && !SIZES.has(b[2]) && nounOf(b[2]) !== 'serving';
+  if (b && (nounOf(b[2]) === nounOf(m[2]) || pieceOf)) {
+    const bn = numOf(b[1]);
     if (bn > 0) return { f: n / bn, rebase: true };
   }
   return { f: n, rebase: false };
@@ -424,6 +429,10 @@ function rowFor(rich, item) {
   }
   return idx;
 }
+
+/** A name that holds more than one food ("Chicken and rice", "Teriyaki chicken with rice", "Chicken
+ *  fried rice"): one of its words never takes the whole plate off (round 5). */
+const COMBINED = /\s(?:and|with)\s|&|,|fried rice/i;
 
 /** The one row a take/remove form may take off without its full name: every word said is a word of
  *  that row, and no other row shares any of them ("take the rice off" over one Brown rice). */
@@ -480,7 +489,13 @@ export function resolveChatCorrection(meta, correction, said, { minutesLate } = 
   const modelHas = (ws) => modelFoods.some((mw) => ws.some((w) => mw.some((x) => sameWord(w, x))));
   const claimed = new Set();
 
-  for (const e of readPlateEdits(said)) {
+  const edits = readPlateEdits(said);
+  /* THE ATHLETE'S REMOVAL IS THE ONE THAT HAPPENS (round 5). "take the chicken off" while the model
+     zeroes the rice: only a food the athlete named comes off, and then only on its full name. */
+  const saysRemove = !renaming && edits.some((e) => e.op === 'remove');
+  const zeroRows = new Set(model.filter((x) => x.idx >= 0 && onlyAmount(x.p0) && isZero(x.p0.quantity)).map((x) => x.idx));
+  const namedRows = new Set();
+  for (const e of edits) {
     if (e.op === 'add') {
       if (modelHas(e.words)) continue;                       // the model is adding it, with its amount
       const m = matchPlateFood(rich, e.words);
@@ -517,12 +532,21 @@ export function resolveChatCorrection(meta, correction, said, { minutesLate } = 
     const row = rich[idx];
     const mdl = onRow(idx);
     if (e.op === 'remove') {
+      namedRows.add(idx);
       const zeroed = mdl && onlyAmount(mdl.p0) && isZero(mdl.p0.quantity);
+      const disagree = zeroRows.size > 0 && !zeroRows.has(idx);
+      // A dish of several foods, named by one of them: whole or part is a question, never a guess.
+      if (!m.strict && COMBINED.test(row.name) && words(row.name).length > 1) {
+        asks.push({ reason: 'composite', verb: 'remove', food: e.food, dish: String(row.name) });
+        if (mdl) mdl.done = true;
+        exact = false;
+        continue;
+      }
       // The model says something else about this food (a rename, an amount, a label): its part stands.
       if (mdl && !zeroed && !(onlyAmount(mdl.p0) && !mdl.p0.quantity)) continue;
       // Certain enough to take food off: the whole name, the model naming this very row, or (for an
       // explicit take/remove) the one row that alone holds every word said (review round 4).
-      if (m.strict || (zeroed && mdl.exactName) || (e.take && soleHolder(rich, e.words) === idx)) {
+      if (m.strict || (zeroed && mdl.exactName) || (e.take && !disagree && soleHolder(rich, e.words) === idx)) {
         claimed.add(idx);
         if (mdl) mdl.done = true; else exact = false;
         parts.push({ kind: 'remove', item: row.name, from: mdl ? 'model' : 'athlete', ...base });
@@ -585,8 +609,13 @@ export function resolveChatCorrection(meta, correction, said, { minutesLate } = 
     // A part with nothing in it (no amount, name, ingredient or figure) has nothing to apply.
     if (onlyAmount(p) && !p.quantity) { exact = false; continue; }
     if (!row) { asks.push({ reason: 'no_match', food: String(p0.item), candidates: names(rich.map((_, i) => i)) }); exact = false; continue; }
-    // "0" for a food with nothing else said is the model taking it off the plate.
-    if (onlyAmount(p) && isZero(p.quantity)) { parts.push({ kind: 'remove', item: row.name, from: 'model', ...base }); continue; }
+    // "0" for a food with nothing else said is the model taking it off the plate, unless the athlete
+    // named a different food to take off: never remove one they did not name.
+    if (onlyAmount(p) && isZero(p.quantity)) {
+      if (saysRemove && !namedRows.has(idx)) { exact = false; continue; }
+      parts.push({ kind: 'remove', item: row.name, from: 'model', ...base });
+      continue;
+    }
     if (p.newName) {
       const r = renameIsAmount(p.newName, row);
       if (r) { p.newName = undefined; if (!x.q) { p.quantity = relQ(row, r.factor); p.verb = r.verb; p.baseFactor = r.factor; } }
