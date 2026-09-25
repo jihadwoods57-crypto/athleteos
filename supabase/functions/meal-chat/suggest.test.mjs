@@ -49,6 +49,23 @@ test('a bad gap becomes 0, a missing kcal gap is omitted, and markup is stripped
   assert.equal('kcalGap' in suggestRowMeta(s), false);
 });
 
+test('framing and fallback are plain text: emphasis marks never reach the row (founder 2026-09-24)', () => {
+  // The founder's bubble, verbatim: the reply prompt's one-bolded-figure habit leaked into here.
+  const s = parseSuggestMeal({
+    protein_gap_g: 25,
+    framing: "Jihad, you're at 155g with all required meals done, so a snack tonight gets you to your **180g** target.",
+    fallback: 'Go with a __protein-forward__ option like a shake to close the last ==25g==.',
+  });
+  assert.equal(s.framing, "Jihad, you're at 155g with all required meals done, so a snack tonight gets you to your 180g target.");
+  assert.equal(s.fallback, 'Go with a protein-forward option like a shake to close the last 25g.');
+  assert.doesNotMatch(suggestRowText(s), /\*|__|==/);
+  // And the model is told so, on both fields.
+  const p = SUGGEST_MEAL_TOOL.input_schema.properties;
+  assert.match(p.framing.description, /no asterisks/);
+  assert.match(p.fallback.description, /no asterisks/);
+  assert.match(SRC, /That mark is for the\s+reply message only/);
+});
+
 test('framing and fallback cover for each other, and nothing at all is a refusal', () => {
   const only = parseSuggestMeal({ protein_gap_g: 10, framing: '', fallback: 'One plate closes it.' });
   assert.equal(only.framing, 'One plate closes it.');
