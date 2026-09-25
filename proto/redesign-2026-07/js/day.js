@@ -644,9 +644,14 @@ export const DAY = {
      device happens to hold. null = never fetched (offline); the passEligibleDays getter then
      falls back to the history proxy rather than showing a fabricated 0. */
   photoDays: null,
+  // Plan > Today (A1): { slot: {name, protein, kcal, source, at} | null }. Plans a meal, never logs
+  // one; rides checkin jsonb and no scoring path reads it. null = cleared on this device.
+  plans: {},
 };
 
 export function dayScore() { return scoreFor(DAY); }
+/** analyze-meal's naming hint for a planned slot: the NAME only, never its figures. */
+export const plannedHint = (k) => { const p = DAY.plans && DAY.plans[k]; return p && p.name ? { plannedMeal: { name: String(p.name).slice(0, 60) } } : {}; };
 
 /** Reconstruct a past day object from a scoreHistory row (its meals + checkin jsonb) so the
  *  SAME computeComponents that scores today can grade history — real category trends, no
@@ -892,6 +897,7 @@ function projectRowToDay(row) {
   // Plate meta merges per-slot: local slots win (they carry the freshest AI meta), server
   // fills the slots this device doesn't have.
   DAY.slotMacros = { ...(ck.slotMacros || {}), ...DAY.slotMacros };
+  DAY.plans = { ...(ck.plans && typeof ck.plans === 'object' ? ck.plans : {}), ...DAY.plans };
   return localAhead;
 }
 
@@ -1202,7 +1208,7 @@ export function pushDay(userId, immediate) {
       // `excluded.` — with it in the row, the ENTIRE upsert 42501s and nothing ever syncs
       // (the 2026-08-05 "Waiting to sync" bug). Weight goes through the log_my_weight door
       // (dayLogWeight below), the write mirror of the weight_series read door.
-      checkin: { ...DAY.ci, submitted: DAY.ciSubmitted, ciLast: DAY.ciLast, commitment: DAY.dailyCommitment, focus: DAY.commitmentFocus, mealLoggedAt: DAY.mealLoggedAt, slotMacros: DAY.slotMacros, wakeup: DAY.wakeup || null, arrival: DAY.arrival || null },
+      checkin: { ...DAY.ci, submitted: DAY.ciSubmitted, ciLast: DAY.ciLast, commitment: DAY.dailyCommitment, focus: DAY.commitmentFocus, mealLoggedAt: DAY.mealLoggedAt, slotMacros: DAY.slotMacros, wakeup: DAY.wakeup || null, arrival: DAY.arrival || null, plans: DAY.plans || {} },
       score: s, grade: gradeFor(s),
       // The per-day STAMP: which style graded this day. Written every push so a style change
       // takes effect going forward and never rewrites a settled day. Null until a style resolves
@@ -1239,6 +1245,7 @@ export function dayResetLocal() {
   DAY.ciSubmitted = false; DAY.ciLast = null; DAY.currentWeight = null; DAY.scoreHistory = []; DAY.passes = []; DAY.passSpends = [];
   DAY.wakeup = null;
   DAY.arrival = null;
+  DAY.plans = {};
   // The resolved style/knobs SURVIVE a local reset (they describe the athlete, not the day) —
   // state.js re-applies them on hydrate anyway. Today's captured signals do not.
   DAY.signals = {}; DAY.signalWeekRate = null;

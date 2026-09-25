@@ -60,6 +60,12 @@ const AI_OFF_REPLY_NC = 'Nia is off, so she stays quiet. Your message is posted.
 import { cachedMealPhoto, warmMealPhotos } from '../photo-store.js';
 import { scrollThreadToEnd, focusComposer } from '../keyboard.js';
 
+/* A question another screen typed for the athlete (Plan > Today's "Ask Nia for other ideas",
+   2026-09-25). It lands in the composer, NOT sent: the athlete reads it, edits it if they like,
+   and sends it themselves. Consumed by the next mount. */
+let SEED = null;
+export function seedComposer(text) { SEED = String(text || '').trim().slice(0, 200) || null; }
+
 /** How far back the stream reaches on open. A season is long; a fortnight is what a person
  *  actually scrolls, and "Load earlier" walks back from there. */
 const WINDOW_DAYS = 14;
@@ -778,6 +784,8 @@ export default {
     const input = root.querySelector('#nc-msg');
     const send = root.querySelector('#nc-send');
     const dockEl = () => root.querySelector('.chat-dock');
+    if (SEED && input && !input.value) { input.value = SEED; input.dispatchEvent(new Event('input', { bubbles: true })); }
+    SEED = null;
     /* ONE SEND IS ONE INTENT (2026-09-22): lock, outbox bubble and duplicate window in
        chat-live.js, so the bubble shows the instant Send is tapped and a failed one stays as
        "Not delivered" with a retry. The post goes through postChatMessage, the same door the

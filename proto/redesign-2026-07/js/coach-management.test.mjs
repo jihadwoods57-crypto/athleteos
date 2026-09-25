@@ -149,7 +149,8 @@ test('the sweep: no DB names, no fake counts, no orphan headings, no "Soon"', ()
   assert.doesNotMatch(read('screens/coach.js'), /four honest components/);
   assert.doesNotMatch(read('plan-ask.js'), /is four parts/);
   assert.doesNotMatch(read('screens/plan.js'), /" s38">/, 'the s38 class sits INSIDE the class attribute');
-  assert.equal((read('screens/plan.js').match(/ s38">/g) || []).length, 7);
+  // 6 since 2026-09-25: Today's rows moved to js/plan-today.js (lazy, off the boot graph).
+  assert.equal((read('screens/plan.js').match(/ s38">/g) || []).length, 6);
   assert.doesNotMatch(read('screens/coach-home.js'), />Soon</);
   assert.doesNotMatch(read('screens/coach-home.js'), /What fills in next/);
   assert.doesNotMatch(read('screens/coach-home.js'), /data-tour="followups"/);

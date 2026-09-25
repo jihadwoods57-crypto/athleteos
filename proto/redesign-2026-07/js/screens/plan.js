@@ -43,8 +43,7 @@ import { accentVar } from '../score-band.js';
 import { foodMemory } from '../food-memory-data.js';
 import { shortDateYear } from '../fmt-date.js';
 import { recentRows } from '../recent-meals.js';
-import { findRepeats, mealSignature, rankForRemaining, remainingToday } from '../food-memory.js';
-import { askSuggestions } from '../plan-ask.js';
+import { findRepeats, mealSignature } from '../food-memory.js';
 
 /* Learned facts (athlete_memory_facts) for Food Memory — module cache, loaded in mount. */
 let FACTS = { uid: null, rows: null };
@@ -197,95 +196,14 @@ const offlineCard = () => errorState({
 });
 
 /* ---------------- Today ----------------
-   S.exec is the engine Home's ladder runs on: same items, same states, same deadlines. Plan shows
-   the WHOLE day at a glance (Home shows the next move), and tapping a row goes exactly where Home
-   would send you.
-
-   This list IS the standard, which is why the prose summary that used to sit above it is gone: it
-   named the same meals, the same check-in and the same weigh-in days the rows state with their
-   real deadlines and live status, three lines earlier and with less information.
-
-   Score v2 note: this used to append a separate "weekly check-in" row from the catalog. That
-   component no longer exists — the nightly recovery check-in is the only check-in in the product,
-   and it is an ordinary exec item like every other row here. See the score v2 spec. */
-/* exec.js still names item colours by hue (green / red / gold / gray); the one pill vocabulary
-   is .status-pill with accent letters, so the hue is mapped at the render site. */
-const PILL_ACCENT = { green: 'g', red: 'r', gold: 'a', gray: 'muted', blue: 'b', purple: 'p' };
-function todayRows() {
-  let e;
-  try { e = S.exec; } catch { return null; }
-  // The icon wears the hue of the THING (green meal, purple recovery) — the same semantic accents
-  // the Requirements tab and Home use. Only a real miss goes amber.
-  return e.items.map((i) => ({
-    id: i.id, title: i.title, icon: i.icon, color: i.color, pill: i.pill, accent: i.accent || 'b',
-    sub: i.sub || i.dueLabel, route: i.route, done: i.state === 'done' || i.state === 'done_late',
-  }));
-}
-
-function todaySection() {
-  const rows = todayRows();
-  if (!rows || !rows.length) return '';
-  const done = rows.filter((r) => r.done).length;
-  // The count rides the section label. It used to be its own grey sentence under the eyebrow,
-  // which made a two-word fact take a third line and put body copy between a heading and its list.
-  return `
-  <h2 class="eyebrow">Today · ${done} of ${rows.length} done <span class="link" data-go="plan/requirements">All rules</span></h2>
-  <div class="pl-list">
-    ${/* data-vt-row so opening the goal panel above pushes this list DOWN rather than teleporting
-          it. Keyed on the requirement's route, which is what identifies a row here. */''}
-    ${rows.map((r) => `
-    <div class="pl-row tap" data-vt-row="req-${esc(r.route.replace(/[^A-Za-z0-9:_.-]/g, '_'))}" data-go="${esc(r.route)}">
-      <div class="req-icon ${r.done ? 'g' : r.color === 'red' ? 'a' : esc(r.accent === 'muted' ? 'muted' : r.accent)} s38">${icon(r.icon, 18)}</div>
-      <div class="plb">
-        <div class="plt"><span class="nm">${esc(r.title)}</span></div>
-        <div class="pls">${esc(r.sub)}</div>
-      </div>
-      <div class="plend"><span class="status-pill ${PILL_ACCENT[r.color] || 'muted'}">${esc(r.pill)}</span></div>
-    </div>`).join('')}
-  </div>`;
-}
-
-/* ---------------- Today · what's left ----------------
-   ONE number per macro, and it is the one that decides the next meal. This was three tiles of
-   consumed-of-target followed by a sentence stating the remainder, which is the same arithmetic
-   printed twice, plus a meals-in tile duplicating the count in the section label above it.
-   With no numeric targets it says so in a line and stops: an Intuitive athlete must never be
-   shown a number their plan does not set. */
-function nutritionSummary() {
-  const state = S.planTargetsState;
-  if (state === 'loading') return `<h2 class="eyebrow">Nutrition today</h2>${loadingCard()}`;
-  if (state === 'offline') return `<h2 class="eyebrow">Nutrition today</h2>${offlineCard()}`;
-  const PS = S.planStyle;
-  const T = S.planTargets || {};
-  const c = S.dayConsumed;
-  const rem = remainingToday({
-    proteinSoFar: c.protein, kcalSoFar: c.kcal,
-    proteinTarget: PS.showMacros ? T.protein : null,
-    kcalTarget: PS.showCalories ? T.calories : null,
-  });
-  const cells = [];
-  if (rem.kcal != null) cells.push([String(rem.kcal), 'Calories left']);
-  // A met protein target is a fact, not "0g left" (audit 2026-09-22): the same words the meal
-  // page's day bars already use. The third slot marks the cell as a met target.
-  if (rem.protein != null) cells.push(rem.protein > 0 ? [`${rem.protein}g`, 'Protein left'] : ['Met', 'Protein', true]);
-  const eyebrow = `<h2 class="eyebrow">What's left <span class="link" data-go="plan/nutrition">Targets</span></h2>`;
-  // A lone tile stretches to the full width and turns one number into the biggest object on the
-  // tab. Below two, it is a sentence.
-  if (cells.length < 2) {
-    const line = cells.length
-      ? (cells[0][2] ? 'Protein target met today.' : `<b>${cells[0][0]}</b> ${cells[0][1].toLowerCase()} today.`)
-      : (PS.showMacros || PS.showCalories
-        ? `No calorie or protein target set, so nothing is graded against a number.`
-        : `Your plan tracks ${esc((S.trackedSignalLabels || []).join(' · ') || 'your check-in signals')} instead of numbers.`);
-    return `${eyebrow}<div class="pl-standard" style="margin-top:0">${line}</div>`;
-  }
-  return `${eyebrow}
-  <div class="macro-row">
-    ${cells.map(([v, k, met]) => met
-      ? `<div class="macro met"><div class="mv">${icon('check', 22)}</div><div class="mk">${esc(k)} met</div></div>`
-      : `<div class="macro"><div class="mv">${esc(v)}</div><div class="mk">${esc(k)}</div></div>`).join('')}
-  </div>`;
-}
+   The next decision, not a list of the past (goals and eating plan A1, 2026-09-25): where the day
+   stands, which meal is up, three ideas for it and one button that plans it. It lives in
+   js/plan-today.js and arrives by dynamic import, because this file is in the eager boot graph
+   and the boot budget has under a kilobyte left (tools/boot-closure-ratchet.mjs). Until it lands
+   (one frame, the first time Plan opens) the tab shows a skeleton, and mount() repaints once. */
+let TODAY = null;
+let PREFS_SYNCED = false;
+const loadToday = () => import('../plan-today.js').then((m) => { TODAY = m; return m; });
 
 /* ---------------- Food Memory plumbing (render-time reads of the shared caches) ---------------- */
 const activeItems = () => {
@@ -314,10 +232,6 @@ function suggestions() {
   };
   return SUG.val;
 }
-const placeName = (id) => {
-  const p = placesList().find((x) => x.id === id);
-  return p ? p.name : null;
-};
 const macroLine = (it) => {
   // INTUITIVE (0142): saved-meal rows carry no macro or calorie figures — per-figure, each
   // number behind its own surface flag (a pro can turn off calories alone). The numbers stay
@@ -329,30 +243,25 @@ const macroLine = (it) => {
   return bits.join(' · ') || '—';
 };
 
-/* One saved item.
-   `log` variant: it exists to be RE-LOGGED — name, macros, one button.
-   `manage` variant: the WHOLE ROW opens the edit sheet (Forget lives inside it). Two buttons per
-   row crushed names into an ellipsis. */
-function itemRow(it, { manage = false } = {}) {
-  const pl = it.place_id ? placeName(it.place_id) : null;
+/* One saved item. The WHOLE ROW opens the edit sheet (Forget lives inside it). The `log` variant
+   that sat on Today with a one-tap Log button is gone (A1, 2026-09-25): a usual can only PLAN a
+   meal now, and the camera is the only way to log one. */
+function itemRow(it) {
   const check = it.verified_at
     ? `<span style="color:var(--green-bright);flex:none;display:inline-flex" title="Verified by your ${esc(S.coach.noun)}">${icon('check', 13)}</span>` : '';
   const meta = [
     esc(macroLine(it)) || null,
-    pl && !manage ? esc(pl) : null,
-    manage && it.times_logged > 1 ? `logged ${it.times_logged}×` : null,
+    it.times_logged > 1 ? `logged ${it.times_logged}×` : null,
   ].filter(Boolean).join(' · ');
   const ic = it.kind === 'supplement' ? 'bolt' : it.kind === 'food' ? 'grid' : it.kind === 'order' ? 'pin' : 'utensils';
   return `
-  <div class="pl-row${manage ? ' tap' : ''}"${manage ? ` data-fm-edit="${esc(it.id)}"` : ''}>
+  <div class="pl-row tap" data-fm-edit="${esc(it.id)}">
     <div class="req-icon b s38">${icon(ic, 17)}</div>
     <div class="plb">
       <div class="plt"><span class="nm">${esc(it.name)}</span>${check}</div>
       <div class="pls">${meta}</div>
     </div>
-    <div class="plend">${manage
-    ? icon('chevron', 16, 'style="color:var(--text-3)"')
-    : `<button class="btn primary xs" data-fm-log="${esc(it.id)}" style="width:auto">Log</button>`}</div>
+    <div class="plend">${icon('chevron', 16, 'style="color:var(--text-3)"')}</div>
   </div>`;
 }
 
@@ -379,48 +288,7 @@ function suggestionCard() {
   </div>`;
 }
 
-/* Overview's usuals: the four best fits for what's LEFT of the day, because on Overview the
-   question is "what do I log next", not "what do I own". The full library is one tap away. */
-function usualsSection() {
-  const items = activeItems();
-  if (items === null) return ''; // not loaded — show nothing rather than a false empty state
-  const sug = suggestionCard();
-  if (!items.length) {
-    return `<h2 class="eyebrow">Food Memory</h2>${sug}
-    ${sug ? '' : `<div class="pl-standard" style="margin-top:0">Log like normal. When a meal repeats, OnStandard offers to remember it, then it's one tap to log.
-      <span class="link" data-go="memory-edit/new" style="cursor:pointer">Add one yourself</span></div>`}`;
-  }
-  const rem = remainingToday({
-    proteinSoFar: S.dayConsumed.protein, kcalSoFar: S.dayConsumed.kcal,
-    proteinTarget: S.planStyle.showMacros ? (S.planTargets || {}).protein : null,
-    kcalTarget: S.planStyle.showCalories ? (S.planTargets || {}).calories : null,
-  });
-  const top = rankForRemaining(items, rem, 3).map((r) => r.item);
-  return `
-  <h2 class="eyebrow">Food Memory${items.length > top.length ? ` <span class="link" data-go="plan/memory">See all ${items.length}</span>` : ''}</h2>
-  ${sug}
-  <div class="pl-list">${top.map((it) => itemRow(it)).join('')}</div>`;
-}
-
 /* ---------------- Ask OnStandard — on every tab ---------------- */
-function askContext() {
-  const T = S.planTargets || {};
-  const PS = S.planStyle;
-  return {
-    hasCoach: S.coach.hasCoach,
-    coachNoun: S.coach.noun,
-    hasTargets: !!(PS.showMacros && T.protein != null) || !!(PS.showCalories && T.calories != null),
-    places: placesList().map((p) => ({ name: p.name })),
-    requirements: (S.scheduleCatalog || []).map((r) => ({ id: r.id, title: r.title, scored: r.impact.kind === 'component' })),
-    nextSlot: (() => {
-      const slot = S.currentSlot;
-      if (!slot) return null;
-      const r = (S.scheduleCatalog || []).find((x) => x.id === slot);
-      return r ? r.title : null;
-    })(),
-  };
-}
-
 /* ONE row, identical on all four tabs. It was an eyebrow, three suggestion chips, a two-line
    card and a full-width coach button: five elements repeated four times, ~180px of secondary
    navigation under every tab's real content. The suggestions were the worst of it, because they
@@ -460,11 +328,10 @@ function legacyStylePrompt() {
   </div>`;
 }
 
+/* data-vt-row: opening the goal panel above pushes Today DOWN rather than teleporting it. */
 const overview = () => `
   ${legacyStylePrompt()}
-  ${todaySection()}
-  ${nutritionSummary()}
-  ${usualsSection()}
+  <div data-vt-row="plan-today">${TODAY ? TODAY.todayHtml() : skeletonRows(3, 'Loading your plan')}</div>
   ${askSection('overview')}`;
 
 /* ---------------- Nutrition tab ---------------- */
@@ -603,6 +470,7 @@ const nutrition = () => `
   ${nutritionScoring()}
   ${planStyleRow()}
   ${nutritionRules()}
+  ${TODAY ? TODAY.prefsHtml() : ''}
   ${askSection('nutrition')}`;
 
 /* ---------------- Requirements tab ----------------
@@ -770,10 +638,10 @@ function memoryTab() {
     const mine = orders.filter((o) => o.place_id === p.id);
     if (!mine.length) continue;
     orderRows.push(`<div class="pl-row" style="padding-bottom:4px;min-height:0"><div class="pl-gp-k">${esc(p.name)}</div></div>`);
-    for (const o of mine) orderRows.push(itemRow(o, { manage: true }));
+    for (const o of mine) orderRows.push(itemRow(o));
   }
   for (const o of orders.filter((x) => !x.place_id || !places.some((p) => p.id === x.place_id))) {
-    orderRows.push(itemRow(o, { manage: true }));
+    orderRows.push(itemRow(o));
   }
   // Places with nothing saved belong INSIDE this group, as one muted row. As a floating sentence
   // between two groups they broke the list rhythm to say something about the list.
@@ -793,9 +661,9 @@ function memoryTab() {
   ${nothingAtAll ? `<div class="pl-standard" style="margin-top:0">Nothing learned yet. Log a meal three times and OnStandard offers to remember it${S.planStyle.showMacros ? ', numbers and all,' : ''} so logging it drops to one tap.</div>` : ''}
   ${/* RAW ampersand: memoryGroup runs esc() on the label, so a pre-escaped "&amp;" rendered as
         "&AMP;" on screen. Escape at exactly one layer. */''}
-  ${memoryGroup('Frequent meals', meals.map((it) => itemRow(it, { manage: true })))}
+  ${memoryGroup('Frequent meals', meals.map((it) => itemRow(it)))}
   ${memoryGroup('Restaurants & orders', orderRows)}
-  ${memoryGroup('Packaged foods', packaged.map((it) => itemRow(it, { manage: true })))}
+  ${memoryGroup('Packaged foods', packaged.map((it) => itemRow(it)))}
   ${facts.length ? `<div class="pl-grp">Corrections</div>
     <div class="pl-list">${facts.slice(0, 10).map((f) => `
       <div class="pl-row" style="min-height:0;padding:11px 0">
@@ -896,6 +764,25 @@ export default {
     const goalBtn = root.querySelector('#pl-goal');
     if (goalBtn) goalBtn.addEventListener('click', () => { GOAL_OPEN = !GOAL_OPEN; window.__restate(); });
 
+    // Today and the food preferences arrive lazily (loadToday). The first mount loads them and
+    // repaints once; every later mount just wires them. "Why these numbers" opens the goal panel.
+    if (!TODAY) {
+      await loadToday().catch(() => null);
+      if (TODAY && root.isConnected && /^#plan(\/|$)/.test(location.hash)) { window.__render(); return; }
+    }
+    if (TODAY) {
+      TODAY.wireToday(root, { openGoal: () => {
+        GOAL_OPEN = true; window.__restate();
+        const vp = root.closest('.viewport');
+        if (vp) vp.scrollTo({ top: 0, behavior: 'smooth' });
+      } });
+      TODAY.wirePrefs(root);
+      if (!PREFS_SYNCED) {
+        PREFS_SYNCED = true;
+        void TODAY.loadPrefs().then((changed) => { if (changed && /^#plan(\/|$)/.test(location.hash)) window.__render(); });
+      }
+    }
+
     const explore = root.querySelector('#ps-intro-explore');
     const dismiss = root.querySelector('#ps-intro-dismiss');
     if (explore) explore.addEventListener('click', () => { act.dismissPlanStylePrompt(); window.__navigate('plan-style'); });
@@ -903,16 +790,12 @@ export default {
 
     // Food Memory + ask actions (the router only wires data-go/data-act; these need delegation).
     root.addEventListener('click', async (e) => {
-      const el = e.target && e.target.closest && e.target.closest('[data-fm-log],[data-fm-edit],[data-fm-save-sug],[data-fm-dismiss-sug],[data-ask]');
+      const el = e.target && e.target.closest && e.target.closest('[data-fm-edit],[data-fm-save-sug],[data-fm-dismiss-sug],[data-ask]');
       if (!el) return;
       if (el.dataset.ask) {
         const { seedAsk } = await import('./plan-ask.js');
         seedAsk(el.dataset.ask);
         window.__go('plan-ask/' + planSub(sub));
-        return;
-      }
-      if (el.dataset.fmLog) {
-        if (act.stageSavedMeal(el.dataset.fmLog)) location.hash = '#meal-analysis';
         return;
       }
       // The whole row navigates to the edit sheet (Forget lives inside it, behind its own two-tap

@@ -21,7 +21,7 @@ import {
   dayUnlogMeal, dayMoveMeal,
   insertMeal, MEAL_KEYS, minutesNow, mealScored,
   setDayStandard, slotDeadline, slotGrace, slotLateCredit, slotOpen, setDayGoalConfig,
-  setDayPlanStyle, weightsForDay, DAY_SELECT_COLS, PROFILE_WEIGHTS, dayRev, HISTORY_DAYS, CI_INVERSE,
+  setDayPlanStyle, weightsForDay, DAY_SELECT_COLS, PROFILE_WEIGHTS, dayRev, HISTORY_DAYS, plannedHint, CI_INVERSE,
 } from './day.js';
 import { MONTHS_SHORT, DAYS_SHORT, DAYS_LONG } from './fmt-date.js';
 import { creditsLeft } from './pass.js';
@@ -1434,6 +1434,7 @@ export const act = {
       photoBase64: job.base64, ...(timing ? { timing } : {}),
       ...athleteContextForAnalysis({ atMin: job.capturedAtMin }),
       ...earlierMealsForAnalysis(job.slot),
+      ...(job.date === DAY.date ? plannedHint(job.slot) : {}),
       // The thread this read belongs to. The meals row is inserted before the analysis runs, so
       // by the time a job is drained it has one — that is what lets the finished read be posted
       // into the athlete's conversation instead of being derived and forgotten.
@@ -2333,6 +2334,7 @@ export const act = {
       photoBase64: MEAL.photoBase64, ...(timing ? { timing } : {}),
       ...athleteContextForAnalysis({ atMin: capturedAt }),
       ...earlierMealsForAnalysis(MEAL.key || 'dinner'),
+      ...plannedHint(MEAL.key || 'dinner'),
       dayContext,
       ...(avoid.length ? { avoid } : {}),
       ...(memory.length ? { foodMemory: memory } : {}),

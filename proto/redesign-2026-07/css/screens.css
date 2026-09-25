@@ -4360,6 +4360,112 @@ html[data-layout] .rhb-body, html[data-layout] .rhb-acts { max-width: 720px; }
 .lc-state { display: flex; align-items: center; justify-content: center; gap: var(--s2); margin: 0; font-size: var(--t-sm); font-weight: 700; color: var(--text-2); }
 .lc-state svg { color: var(--green-bright); flex: none; }
 
+/* ===== Plan > Today (goals and eating plan A1, 2026-09-25) =====
+   One clear focus: the next meal. The hero sits on the page with no box of its own, the up-next
+   card is the ONE surface on the tab, and everything after it is a quiet hairline row. Blue is the
+   action colour (the Plan button, the camera, the selected idea); teal is only the goal (the
+   ring's sweep, the planned ghost, the goal line); green is only "done". Classes are pt-/ptd-
+   prefixed because this stylesheet is one flat namespace (.pt is the tab strip's own item). */
+.ptd { display: block; }
+.pt-hero { display: flex; align-items: center; gap: var(--s5); padding: var(--s4) 2px var(--s1); }
+.pt-hero-art { position: relative; flex: none; width: 112px; height: 112px; display: grid; place-items: center; }
+.pt-ring-svg, .pt-plate-svg { position: absolute; inset: 0; }
+.pt-ring-svg { transform: rotate(-90deg); }
+.pt-ring-track { fill: none; stroke: var(--ring-track); stroke-width: 10; }
+.pt-ring-fill { fill: none; stroke: url(#pt-rg); stroke-width: 10; stroke-linecap: round; }
+.pt-ring-ghost { fill: none; stroke: rgba(var(--teal-rgb), 0.30); stroke-width: 10; stroke-linecap: round; }
+.pt-ring-c { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; line-height: 1.05; }
+.pt-ring-c b, .pt-big b { font-size: var(--t-2xl); font-weight: 800; letter-spacing: var(--num-tight); font-variant-numeric: tabular-nums; color: var(--text); }
+.pt-ring-u { font-size: var(--t-micro); font-weight: 800; letter-spacing: var(--track-key); text-transform: uppercase; color: var(--text-3); margin-top: var(--s1); max-width: 78px; }
+.pt-met { color: var(--green-bright); display: inline-flex; }
+.pt-big { flex-direction: column; text-align: center; }
+.pt-hero-b { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--s1h); }
+.pt-cal { font-size: var(--t-md); font-weight: 700; color: var(--text-2); }
+.pt-cal b { color: var(--text); font-weight: 800; font-variant-numeric: tabular-nums; }
+.pt-planned { display: inline-flex; align-items: center; gap: var(--s1h); font-size: var(--t-sm); font-weight: 700; color: var(--text-2); }
+.pt-planned i { width: 10px; height: 10px; border-radius: var(--r-pill); background: rgba(var(--teal-rgb), 0.40); }
+.pt-goal { font-size: var(--t-sm); font-weight: 800; color: var(--pt-goal-ink); }
+.pt-why { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 0; margin-top: calc(-1 * var(--s1h)); background: none; border: none; cursor: pointer;
+  font-family: var(--font); font-size: var(--t-sm); font-weight: 700; color: var(--blue-bright); }
+.pt-hero-t { font-size: var(--t-md); font-weight: 800; color: var(--text); }
+.pt-rules { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s1h); }
+.pt-rules li { display: flex; align-items: baseline; gap: var(--s2); font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.35; }
+.pt-rules i { flex: none; width: 10px; height: 10px; border-radius: var(--r-pill); transform: translateY(1px); }
+.pt-rules i.pr { background: rgba(var(--teal-rgb), 0.85); }
+.pt-rules i.cb { background: rgba(var(--teal-rgb), 0.50); }
+.pt-rules i.vg { background: rgba(var(--teal-rgb), 0.24); }
+.pt-pl-pr { fill: rgba(var(--teal-rgb), 0.85); }
+.pt-pl-cb { fill: rgba(var(--teal-rgb), 0.50); }
+.pt-pl-vg { fill: rgba(var(--teal-rgb), 0.24); }
+.pt-pl-pr, .pt-pl-cb, .pt-pl-vg { stroke: var(--bg); stroke-width: 3; }
+.pt-plate-rim { fill: var(--surface-2); stroke: var(--hairline); stroke-width: 1; }
+
+/* The one card: the next meal. */
+.pt-next { background: var(--surface-1); border-radius: var(--r-card); box-shadow: var(--sh-card); padding: var(--s4); }
+.pt-next-h { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s3); }
+.pt-slot { font-size: var(--t-lg); font-weight: 800; color: var(--text); min-width: 0; }
+.pt-due { flex: none; font-size: var(--t-sm); font-weight: 700; color: var(--text-3); }
+.pt-due.warn { color: var(--amber-bright); }
+.pt-due.late { color: var(--red-bright); }
+.pt-target { margin-top: var(--s1); font-size: var(--t-base); font-weight: 700; color: var(--text-2); }
+.pt-ideas { margin-top: var(--s3); display: flex; flex-direction: column; }
+.pt-idea { display: flex; align-items: center; gap: var(--s3); width: 100%; min-height: 56px; padding: var(--s2h) 0; text-align: left;
+  background: none; border: none; border-top: 1px solid var(--hairline-soft); cursor: pointer; font-family: var(--font); color: var(--text); }
+.pt-idea:first-child { border-top: none; }
+.pt-idea:active { opacity: 0.72; }
+.pt-dot { flex: none; width: 20px; height: 20px; border-radius: var(--r-pill); border: 2px solid var(--text-3); display: grid; place-items: center;
+  transition: border-color var(--dur-1) var(--ease-out); }
+.pt-idea.on .pt-dot { border-color: var(--blue-bright); }
+.pt-idea.on .pt-dot::before { content: ""; width: 10px; height: 10px; border-radius: var(--r-pill); background: var(--blue-bright); }
+.pt-idea-b { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pt-idea-n { font-size: var(--t-md); font-weight: 800; line-height: 1.3; overflow-wrap: anywhere; }
+.pt-idea-m { font-size: var(--t-sm); font-weight: 600; color: var(--text-2); }
+.pt-idea.sk { cursor: default; }
+.pt-idea.sk .pt-dot { border-style: dashed; }
+.pt-idea.sk .pt-idea-n { color: var(--text-3); font-weight: 700; }
+.pt-tag { flex: none; font-size: var(--t-micro); font-weight: 800; letter-spacing: var(--track-key); text-transform: uppercase; color: var(--text-2);
+  padding: var(--s1) var(--s2); border-radius: var(--r-pill); background: var(--surface-2); }
+.pt-tag.nia { color: var(--pt-goal-ink); background: rgba(var(--teal-rgb), 0.10); }
+.pt-cta { margin-top: var(--s4); height: 52px; }
+.pt-ask { display: flex; align-items: center; justify-content: center; gap: var(--s1h); width: 100%; min-height: 44px; margin-top: var(--s1);
+  background: none; border: none; cursor: pointer; font-family: var(--font); font-size: var(--t-sm); font-weight: 700; color: var(--blue-bright); }
+.pt-empty { margin-top: var(--s3); font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.5; }
+.pt-change { flex: none; min-height: 44px; min-width: 44px; padding: 0 var(--s1); background: none; border: none; cursor: pointer;
+  font-family: var(--font); font-size: var(--t-sm); font-weight: 700; color: var(--blue-bright); }
+.pt-next.planned .pt-next-h { align-items: center; margin-top: calc(-1 * var(--s2)); }
+.pt-next.planned .pt-slot { font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--pt-goal-ink); }
+.pt-plan-n { font-size: var(--t-xl); font-weight: 800; letter-spacing: var(--title-tight); color: var(--text); line-height: 1.2; }
+.pt-next.planned .pt-idea-m { margin-top: var(--s1); }
+.pt-alldone { display: flex; align-items: center; gap: var(--s2h); padding: var(--s2) 2px; font-size: var(--t-base); font-weight: 700; color: var(--text-2); line-height: 1.45; }
+.pt-alldone svg { flex: none; color: var(--green-bright); }
+.pt-row .pls { white-space: normal; line-height: 1.4; }
+.pt-later .pls { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pt-alldone { margin-top: var(--s4); }
+
+/* Plan > Nutrition: food preferences. */
+.pt-prefs { padding: 0 2px; }
+.pt-flags { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.pt-flag { display: inline-flex; align-items: center; gap: var(--s1h); min-height: 44px; padding: 0 var(--s4); border-radius: var(--r-pill);
+  background: var(--surface-2); border: 1px solid var(--hairline); color: var(--text-2); cursor: pointer;
+  font-family: var(--font); font-size: var(--t-sm); font-weight: 700; }
+.pt-flag.on { background: var(--blue-surface); border-color: var(--blue-border); color: var(--text); }
+.pt-flag.on svg { color: var(--blue-bright); }
+.pt-pref-k { margin-top: var(--s4); font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-key); text-transform: uppercase; color: var(--text-3); }
+.pt-chips { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s2); }
+.pt-chips:empty { display: none; }
+.pt-chip { display: inline-flex; align-items: center; gap: 2px; min-height: 36px; padding: 0 0 0 var(--s3); border-radius: var(--r-pill);
+  background: var(--surface-2); font-size: var(--t-sm); font-weight: 700; color: var(--text); }
+.pt-chip-x { display: grid; place-items: center; width: 44px; height: 44px; margin: calc(-1 * var(--s1)) 0; background: none; border: none; cursor: pointer; color: var(--text-3); }
+.pt-add { display: flex; gap: var(--s2); margin-top: var(--s2); }
+.pt-add-in { flex: 1; min-width: 0; height: 44px; padding: 0 var(--s3); border-radius: var(--r-card-sm); border: 1px solid var(--hairline);
+  background: var(--surface-1); color: var(--text); font-family: var(--font); font-size: var(--t-base); }
+.pt-add-b { flex: none; width: auto; height: 44px; padding: 0 var(--s4); }
+.pt-pref-note { margin-top: var(--s3); font-size: var(--t-sm); font-weight: 600; color: var(--text-3); line-height: 1.45; }
+
+:root { --pt-goal-ink: var(--ring-b); }
+:root[data-theme="light"] { --pt-goal-ink: var(--teal-deep); }
+@media (prefers-reduced-motion: reduce) { .pt-dot { transition: none; } }
+
 /* ===== Sleep (#sleep) — evidence, never a score =====
    Purple is recovery and a short night is a recovery signal, so `under` carries it. Amber is
    warning ONLY and a night below your own average is a fact, not an alarm; red is missed and this
