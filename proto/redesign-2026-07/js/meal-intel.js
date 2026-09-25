@@ -28,8 +28,9 @@ export function normalizeDetected(detected) {
     const out = { name: clean(d && d.name), confidence: c === 'low' || c === 'medium' ? c : 'high' };
     const q = d && d.quantity;
     if (typeof q === 'string' && q.trim()) out.quantity = clean(q).slice(0, 40);
-    // The read's own amount, kept once a correction changes it: "double" is twice THIS (plate-edits).
-    if (d && typeof d.origQuantity === 'string' && d.origQuantity.trim()) out.origQuantity = clean(d.origQuantity).slice(0, 40);
+    // The row's baseline (amount + macros) that "double" / "triple" scale from (plate-edits.js).
+    const b = d && d.base;
+    if (b && b.per && typeof b.per === 'object') out.base = { q: clean(b.q).slice(0, 40), per: { protein: num(b.per.protein), kcal: num(b.per.kcal), carbs: num(b.per.carbs), fat: num(b.per.fat) } };
     const src = d && (d.per && typeof d.per === 'object' ? d.per : d);
     if (src && ['protein', 'kcal', 'carbs', 'fat'].some((k) => num(src[k]) > 0)) {
       out.per = { protein: num(src.protein), kcal: num(src.kcal), carbs: num(src.carbs), fat: num(src.fat) };
@@ -1395,7 +1396,7 @@ export function retitleMeal(title, oldName, newName, rich) {
   return `${names.slice(0, -1).join(', ')} & ${names[names.length - 1]}`.slice(0, 80);
 }
 
-export function applyMealCorrection(meta, { kind, value, detail, item, newName, quantity, per, perBasis, add, foods, minutesLate, said } = {}) {
+export function applyMealCorrection(meta, { kind, value, detail, item, newName, quantity, per, perBasis, add, foods, minutesLate, said, baseFactor } = {}) {
   const src = meta || {};
   /* "No sour cream" (2026-09-24): the athlete took a food off the plate. Same removal math the
      professional lane uses, so it exists once; `item` is the exact row name plate-edits.js chose. */
@@ -1527,12 +1528,17 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     const qty = clean(quantity).trim().slice(0, 40);
     const oldQty = row.quantity == null ? '' : clean(row.quantity).trim();
     // `qty` alone is enough for "2 servings": servingsFor reads a serving count without a label.
-    const portion = qty ? servingsFor(qty, oldQty) : { servings: 1, resolved: false };
-    const scaled = portion.resolved && portion.servings !== 1;
+    // baseFactor: a RELATIVE word ("double"), applied to the row's baseline, never to its current
+    // numbers, so saying it twice cannot compound (review 2026-09-24).
+    const bf = Number(baseFactor) > 0 ? Number(baseFactor) : 0;
+    const portion = bf ? { servings: bf, resolved: true } : qty ? servingsFor(qty, oldQty) : { servings: 1, resolved: false };
+    const scaled = portion.resolved && (!!bf || portion.servings !== 1);
 
     const nn2 = clean(newName).slice(0, 80);
     if (!statedAny && !applied.length && !nn2 && !scaled) return null;
     const basePer = row.per && typeof row.per === 'object' ? row.per : { protein: 0, kcal: 0, carbs: 0, fat: 0 };
+    const base0 = row.base || { q: oldQty, per: { ...basePer } };
+    const sp = bf ? base0.per : basePer;
 
     /* ── A DIFFERENT FOOD IS DIFFERENT NUMBERS (2026-09-02) ───────────────────────────────────
        "It's actually well done salmon." Until now a rename with no stated macro renamed the row
@@ -1565,10 +1571,10 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     // amount already, so it is never scaled a second time.
     const oldPer = repriced ? repriced : scaled
       ? {
-        protein: Math.max(0, Math.round((Number(basePer.protein) || 0) * portion.servings)),
-        kcal: Math.max(0, Math.round((Number(basePer.kcal) || 0) * portion.servings)),
-        carbs: Math.max(0, Math.round((Number(basePer.carbs) || 0) * portion.servings)),
-        fat: Math.max(0, Math.round((Number(basePer.fat) || 0) * portion.servings)),
+        protein: Math.max(0, Math.round((Number(sp.protein) || 0) * portion.servings)),
+        kcal: Math.max(0, Math.round((Number(sp.kcal) || 0) * portion.servings)),
+        carbs: Math.max(0, Math.round((Number(sp.carbs) || 0) * portion.servings)),
+        fat: Math.max(0, Math.round((Number(sp.fat) || 0) * portion.servings)),
       }
       : basePer;
     const numOr = (v, fallback) => { const n = Math.round(Number(v)); return isFinite(n) && n >= 0 ? n : fallback; };
@@ -1601,7 +1607,9 @@ export function applyMealCorrection(meta, { kind, value, detail, item, newName, 
     else if (repriced) row.confidence = estimated ? 'medium' : 'high';
     // The corrected amount rides on the row, so the breakdown shows what the athlete said and
     // grounding bounds the item against that portion rather than the one the photo guessed.
-    if (qty) { if (!row.origQuantity && oldQty && qty !== oldQty) row.origQuantity = oldQty; row.quantity = qty; }
+    if (qty) row.quantity = qty;
+    // A relative edit keeps the baseline; anything absolute (an amount, a label, a new food) IS one.
+    row.base = bf ? base0 : { q: row.quantity || '', per: { ...merged } };
     // edited vs portionEdited, the same distinction applyFoodEdit draws. `edited` means the
     // curated reference for this food's NAME no longer describes it, which is true when they
     // renamed it, stated a label macro, or added an ingredient, and grounding must stop clamping
