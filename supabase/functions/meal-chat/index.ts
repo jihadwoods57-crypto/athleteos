@@ -19,6 +19,7 @@
 // against a monthly tier-budget SIGNAL (trackAuthedAiSpend) that never blocks.
 import Anthropic from 'npm:@anthropic-ai/sdk@0.65.0';
 import { recordAiCall, usageFrom } from '../_shared/ai-telemetry.ts';
+import { scrubToolLeak } from '../_shared/tool-leak.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import {
   composeSystem, violatesStyleLanguage, styleCorrectionMessage, SAFE_INTUITIVE, type PlanStyle,
@@ -1171,7 +1172,7 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
       }
       const fromPhoto = !!ok.source.photoKey;
       const receipt = additionReceiptText({ athleteFirst, requester, foods: ok.foods, fromPhoto });
-      const ack = styleSafe(String(tool.input?.ack ?? '').replace(/—/g, ',').trim().slice(0, 300));
+      const ack = styleSafe(scrubToolLeak(String(tool.input?.ack ?? '')).replace(/—/g, ',').trim().slice(0, 300));
       // The label figure the model could not read is asked for in the same breath, of the athlete.
       const missing = [...new Set(ok.foods.flatMap((f: unknown) => (f as { unreadable?: string[] }).unreadable ?? []))];
       const ask = missing.length
@@ -1225,7 +1226,7 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
     // yes this row changes nothing about how they are read. Said twice, the same fact accrues
     // evidence on its one row instead of producing a second offer.
     if (tool?.name === 'remember') {
-      let message = String(tool.input?.message ?? '').replace(/—/g, ',').trim().slice(0, 1000);
+      let message = scrubToolLeak(String(tool.input?.message ?? '')).replace(/—/g, ',').trim().slice(0, 1000);
       const fact = chatFactCandidate(tool.input?.kind, tool.input?.value);
       if (!message) return bad(502, 'unavailable', cors);
       message = styleSafe(message);
@@ -1333,7 +1334,7 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
         })
         .filter(Boolean);
 
-      let ack = String(tool.input?.ack ?? '').replace(/—/g, ',').trim().slice(0, 500);
+      let ack = scrubToolLeak(String(tool.input?.ack ?? '')).replace(/—/g, ',').trim().slice(0, 500);
       if (!ack) ack = 'Good catch. Updating your numbers and score now.';
       ack = styleSafe(ack);
       const hasChange = (!!item && (!!newName || !!quantity || add.length > 0 || Object.values(per).some((v) => v != null)))
@@ -1466,7 +1467,7 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
       return new Response(JSON.stringify({ reply: declineText, flagged: reason, notified }), { headers: { ...cors, 'Content-Type': 'application/json' } });
     }
 
-    let reply = String(tool?.input?.message ?? '').replace(/—/g, ',').trim().slice(0, 1000);
+    let reply = scrubToolLeak(String(tool?.input?.message ?? '')).replace(/—/g, ',').trim().slice(0, 1000);
     if (!reply) return bad(502, 'unavailable', cors);
 
     // Plan-style rail (0142) — the INVERTED fallback (see _shared/plan-style.ts's header): correct
@@ -1498,7 +1499,7 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
           ...usageFrom(retry.usage), latencyMs: Date.now() - t0s, ok: true, outcome: `style_${v.kind}_retry`,
         });
         const rtool = retry.content.find((b) => b.type === 'tool_use') as { input?: { message?: string } } | undefined;
-        const candidate = String(rtool?.input?.message ?? '').replace(/—/g, ',').trim().slice(0, 1000);
+        const candidate = scrubToolLeak(String(rtool?.input?.message ?? '')).replace(/—/g, ',').trim().slice(0, 1000);
         // styleSafe is the final rail: a corrected retry that STILL breaches falls to safe copy
         // rather than persisting a violation into the athlete's permanent thread.
         reply = candidate ? styleSafe(candidate) : SAFE_INTUITIVE.reply;

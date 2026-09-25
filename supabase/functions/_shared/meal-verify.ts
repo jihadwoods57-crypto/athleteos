@@ -25,6 +25,11 @@
 //
 // Pure and jest-tested; never throws on junk input (vision output is untrusted data).
 
+import { scrubToolLeak, leakedEnum } from './tool-leak.ts';
+
+/** analyze-meal's descriptionSignal enum (index.ts MEAL_TOOL). */
+const DESCRIPTION_SIGNALS = ['match', 'photo_heavier', 'photo_lighter', 'no_photo'] as const as readonly string[];
+
 export type ItemBasis = 'label' | 'database' | 'estimate';
 
 export interface LabelClaims {
@@ -219,6 +224,22 @@ export function repairMealReport(raw: Record<string, unknown>, mealType?: string
     ? (raw.detected as ReportItem[]).map((it) => (it && typeof it === 'object' ? { ...it } : it))
     : [];
   if (items.length) input.detected = items;
+
+  // (0) Tool syntax leaked into prose (tool-leak.ts): cut it before anything reads or speaks it,
+  // and keep a descriptionSignal the model wrote inside the leak instead of in its own field.
+  for (const k of ['name', 'note', 'analysis'] as const) {
+    if (typeof input[k] !== 'string') continue;
+    const clean = scrubToolLeak(input[k] as string);
+    if (clean !== input[k]) { input[k] = clean; repaired.push(`tool_leak:${k}`); }
+  }
+  if (Array.isArray(input.highlights)) {
+    const hl = (input.highlights as unknown[]).map((h) => (typeof h === 'string' ? scrubToolLeak(h) : h));
+    if (hl.some((h, i) => h !== (input.highlights as unknown[])[i])) { input.highlights = hl; repaired.push('tool_leak:highlights'); }
+  }
+  if (!DESCRIPTION_SIGNALS.includes(input.descriptionSignal as string)) {
+    const v = leakedEnum(raw.analysis, 'descriptionSignal', DESCRIPTION_SIGNALS) ?? leakedEnum(raw.note, 'descriptionSignal', DESCRIPTION_SIGNALS);
+    if (v) input.descriptionSignal = v;
+  }
 
   // (1) claims override estimates, per item.
   for (const it of items) {

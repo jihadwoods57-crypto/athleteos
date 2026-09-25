@@ -28,6 +28,7 @@
 // boundary; a message that ends mid-word reads like a bug, not a voice.
 
 import { violatesStyleLanguage, type PlanStyle } from './plan-style.ts';
+import { scrubToolLeak } from './tool-leak.ts';
 
 const MAX = 1000;
 
@@ -38,7 +39,9 @@ type MealInput = {
   substitution?: unknown;
 };
 
-const text = (v: unknown): string => (typeof v === 'string' ? v.replace(/[<>]/g, '').trim() : '');
+// scrubToolLeak BEFORE the bracket strip: stripping first is what turned a leaked
+// "</analysis><parameter ...>" into words (tool-leak.ts). An older client can still hand one back.
+const text = (v: unknown): string => (typeof v === 'string' ? scrubToolLeak(v).replace(/[<>]/g, '').trim() : '');
 const int = (v: unknown): number | null => {
   const n = Number(v);
   return Number.isFinite(n) ? Math.round(n) : null;
