@@ -420,12 +420,11 @@ test('R2 I3: a row with no time, or no clock, is not recent', () => {
   assert.equal(noNow.shouldRespond, false, 'no clock: Nia\'s question is not known to be recent');
 });
 
-/* ============================ A NIA LEAD OUTRANKS A FOOD THAT SOUNDS LIKE A NAME (2026-09-25) ============================ */
-// "Nia, the white rice was small" in a room with Coach White read as naming both the coach and Nia,
-// and ambiguous means silent: the athlete answered Nia's question and nobody replied. A message that
-// STARTS by addressing Nia is hers. A bare word elsewhere that happens to be part of a person's name
-// (white rice, brown rice, green beans, an athlete surnamed Rice) is not that person being named.
-// Only an @mention of the person, or their full name / "Coach <Surname>", still counts.
+/* ============================ THE SIZE CHIPS REACH NIA IN ANY ROOM (2026-09-25) ============================ */
+// The portion chips send "@Nia the <food> portion was <size>." An @mention is rule 1, so a food that shares a word
+// with a person's name (white rice / Coach White, an athlete surnamed Rice) cannot silence it. The gate itself was
+// NOT widened: letting any Nia lead outrank a named person made "Nia, tell Mike I'm sick" wake Nia (review
+// 2026-09-25). KNOWN EDGE, unchanged: a TYPED "Nia, the white rice was small" with Coach White stays ambiguous.
 const FOOD_ROOMS = [
   { coach: { id: 'u-w', name: 'Marcus White', role: 'coach' }, food: 'white rice' },
   { coach: { id: 'u-b', name: 'Derek Brown', role: 'coach' }, food: 'brown rice' },
@@ -433,23 +432,22 @@ const FOOD_ROOMS = [
 ];
 const JAY_RICE = { id: 'u-jr', name: 'Jay Rice', role: 'athlete' };
 
-test('a Nia lead wakes her even when the food shares a word with a coach’s name', () => {
+test('the size chip text wakes Nia even when the food shares a word with someone’s name', () => {
   for (const { coach, food } of FOOD_ROOMS) {
-    const room = [coach, JIHAD, AI];
-    for (const text of [`@Nia the ${food} portion was small.`, `Nia, the ${food} was small`, `Nia the ${food} portion was large.`]) {
-      const d = decide(from(JIHAD, text), [], room);
-      assert.equal(d.shouldRespond, true, `${coach.name}: ${text}`);
-      assert.equal(d.intendedRecipient.kind, 'ai', `${coach.name}: ${text}`);
+    for (const size of ['small', 'regular', 'large']) {
+      const d = decide(from(JIHAD, `@Nia the ${food} portion was ${size}.`), [], [coach, JIHAD, AI]);
+      assert.equal(d.shouldRespond, true, `${coach.name}: ${food} ${size}`);
+      assert.equal(d.intendedRecipient.kind, 'ai');
     }
   }
+  const d = decide(from(JAY_RICE, '@Nia the rice portion was regular.'), [], [ALEX, JAY_RICE, AI]);
+  assert.equal(d.shouldRespond, true, 'an athlete surnamed Rice');
 });
 
-test('an athlete surnamed Rice can still tell Nia about the rice', () => {
-  const room = [ALEX, JAY_RICE, AI];
-  for (const text of ['@Nia the rice portion was regular.', 'Nia, the rice was small', 'Nia: rice was more like 2 cups']) {
-    const d = decide(from(JAY_RICE, text), [], room);
-    assert.equal(d.shouldRespond, true, text);
-    assert.equal(d.intendedRecipient.kind, 'ai', text);
+test('a Nia lead does not outrank a person the message names (the widening that was reverted)', () => {
+  const mike = { id: 'u-m', name: 'Mike Jones', role: 'coach' };
+  for (const text of ['Nia, tell Mike I’m sick', 'hey nia, did Mike see this']) {
+    assert.equal(decide(from(JIHAD, text), [], [mike, JIHAD, AI]).shouldRespond, false, text);
   }
 });
 
