@@ -3,6 +3,12 @@
    off the result. This is the regression net for the generalization — it proves the coach path
    is unchanged and the trainer path produces the same row shape rather than a degraded one. */
 import assert from 'node:assert';
+import { mock } from 'node:test';
+
+/* Pinned to 9 PM local. Since 2026-09-24 a day that is under the bar with windows still open reads
+   'in_progress' and is not a priority, so before dinner the Home queue can be honestly empty and
+   the priority-card assertions below would depend on when the suite ran. */
+{ const t = new Date(); t.setHours(21, 0, 0, 0); mock.timers.enable({ apis: ['Date'], now: t.getTime() }); }
 
 /* ---- DOM + storage stubs (module-eval only; no screen is mounted) ---- */
 const el = () => ({
@@ -188,7 +194,7 @@ for (const kind of ['team', 'practice']) {
   }
 
   /* ---- the status engine runs on either book ---- */
-  const KNOWN = ['excused', 'overdue', 'needs_review', 'below_standard', 'due_soon', 'no_activity', 'on_standard'];
+  const KNOWN = ['excused', 'overdue', 'needs_review', 'below_standard', 'due_soon', 'no_activity', 'in_progress', 'on_standard'];
   const entries = entriesFor(getScope());
   assert.ok(Array.isArray(entries) && entries.length === 2, `${kind}: entriesFor must resolve both athletes`);
   for (const e of entries) {
