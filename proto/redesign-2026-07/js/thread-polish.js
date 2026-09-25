@@ -11,7 +11,7 @@
  *      nothing until someone on staff has opened THIS meal (0229 meal_views), then one quiet line.
  *   3. TAP TO ANSWER. Nia's question about a portion gets Small / Regular / Large under it, and the
  *      athlete's own meal thread gets three starters above the box. Every chip either sends or
- *      fills a message that starts "Nia,", so the addressing gate (ai-addressing.js) routes it.
+ *      fills a message that opens by addressing her ("@Nia" or "Nia,"), so the addressing gate routes it.
  *
  * Pure: no DOM, no clock, no state. Loaded only by the thread screens, never at boot. */
 
@@ -200,9 +200,11 @@ export function askChipsFor(visible, { sending = false, answered = null } = {}) 
   return ask;
 }
 
-/** What a size chip sends. Starts "Nia," so the addressing gate hands it to her in any room. */
+/** What a size chip sends: "@Nia the oats portion was regular." An @mention of her, so the
+ *  addressing gate hands it to her in any room, and "the <food> portion was" reads right for a
+ *  plural food ("the oats was" did not). */
 export function askReplyText(food, size) {
-  return `Nia, the ${String(food || 'food').trim()} was a ${size} portion.`;
+  return `@Nia the ${String(food || 'food').trim()} portion was ${size}.`;
 }
 
 export function askChipsHtml(ask, esc) {

@@ -419,3 +419,55 @@ test('R2 I3: a row with no time, or no clock, is not recent', () => {
   const noNow = shouldAiRespond(from(JIHAD, 'yes'), { participants: ROOM, history: [from(AI, 'Want me to count a shake with it?', { at: at(1) })] });
   assert.equal(noNow.shouldRespond, false, 'no clock: Nia\'s question is not known to be recent');
 });
+
+/* ============================ A NIA LEAD OUTRANKS A FOOD THAT SOUNDS LIKE A NAME (2026-09-25) ============================ */
+// "Nia, the white rice was small" in a room with Coach White read as naming both the coach and Nia,
+// and ambiguous means silent: the athlete answered Nia's question and nobody replied. A message that
+// STARTS by addressing Nia is hers. A bare word elsewhere that happens to be part of a person's name
+// (white rice, brown rice, green beans, an athlete surnamed Rice) is not that person being named.
+// Only an @mention of the person, or their full name / "Coach <Surname>", still counts.
+const FOOD_ROOMS = [
+  { coach: { id: 'u-w', name: 'Marcus White', role: 'coach' }, food: 'white rice' },
+  { coach: { id: 'u-b', name: 'Derek Brown', role: 'coach' }, food: 'brown rice' },
+  { coach: { id: 'u-g', name: 'Sam Green', role: 'coach' }, food: 'green beans' },
+];
+const JAY_RICE = { id: 'u-jr', name: 'Jay Rice', role: 'athlete' };
+
+test('a Nia lead wakes her even when the food shares a word with a coach’s name', () => {
+  for (const { coach, food } of FOOD_ROOMS) {
+    const room = [coach, JIHAD, AI];
+    for (const text of [`@Nia the ${food} portion was small.`, `Nia, the ${food} was small`, `Nia the ${food} portion was large.`]) {
+      const d = decide(from(JIHAD, text), [], room);
+      assert.equal(d.shouldRespond, true, `${coach.name}: ${text}`);
+      assert.equal(d.intendedRecipient.kind, 'ai', `${coach.name}: ${text}`);
+    }
+  }
+});
+
+test('an athlete surnamed Rice can still tell Nia about the rice', () => {
+  const room = [ALEX, JAY_RICE, AI];
+  for (const text of ['@Nia the rice portion was regular.', 'Nia, the rice was small', 'Nia: rice was more like 2 cups']) {
+    const d = decide(from(JAY_RICE, text), [], room);
+    assert.equal(d.shouldRespond, true, text);
+    assert.equal(d.intendedRecipient.kind, 'ai', text);
+  }
+});
+
+test('with a Nia lead, the person is still named by an @mention, their full name, or "Coach <Surname>"', () => {
+  const white = FOOD_ROOMS[0].coach;
+  const room = [white, JIHAD, AI];
+  for (const text of ['Nia, tell Coach White I’m sick', 'Nia, @White wants the plan', 'Nia, Marcus White said to ask about rice']) {
+    assert.equal(decide(from(JIHAD, text), [], room).shouldRespond, false, text);
+  }
+  // Whatever the gate did before for an explicit "Coach <Surname>" after a Nia lead, it still does.
+  assert.equal(decide(from(JIHAD, 'Nia, tell Coach White I’m sick'), [], room).intendedRecipient.kind, 'unknown');
+});
+
+test('without a Nia lead, a coach’s surname still names the coach', () => {
+  const white = FOOD_ROOMS[0].coach;
+  const d = decide(from(JIHAD, 'thanks White, see you at lift'), [], [white, JIHAD, AI]);
+  assert.equal(d.shouldRespond, false);
+  assert.equal(d.intendedRecipient.name, 'Marcus White');
+  // And a Nia mention at the END is not a lead: the surname still counts, so it stays ambiguous.
+  assert.equal(decide(from(JIHAD, 'White said the white rice was fine, right nia?'), [], [white, JIHAD, AI]).shouldRespond, false);
+});

@@ -2659,7 +2659,7 @@ export const thread = {
     };
     /* TAP TO ANSWER (thread-polish.js). A chip that sends goes through the SAME path as Send: the
        outbox bubble, the one-intent lock, the post, the coach's notification, and the addressing
-       gate, which routes it to Nia because every chip's words start "Nia,". The box is left alone:
+       gate, which routes it to Nia because every chip opens with "@Nia" or "Nia,". The box is left alone:
        a chip is its own message, not the one being typed. */
     const sendQuick = async (text) => {
       const claim = beginSend(M.mealId, { text, photo: null, replyTo: null });

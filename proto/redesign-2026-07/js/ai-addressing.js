@@ -262,6 +262,15 @@ function niaAddressed(low, clash) {
   return NIA_VOCATIVE.some((re) => (typeof re === 'function' ? re(low) : re.test(low)));
 }
 
+/** Does the message OPEN by addressing Nia? "@Nia", "Nia,", "Nia:", or "Nia" as the first word under
+ *  the vocative rules above (after hey/yo/ok). Not the ", nia?" tail: that one comes last. With a
+ *  human also called Nia in the room, only the explicit lead counts, as in niaAddressed. */
+function niaLeadsOff(low, clash) {
+  if (NIA_LEAD.test(low)) return true;
+  if (clash) return false;
+  return NIA_VOCATIVE.slice(1, -1).some((re) => (typeof re === 'function' ? re(low) : re.test(low)));
+}
+
 const recipient = (kind, who, how) => ({
   kind,
   id: (who && who.id) || null,
@@ -384,10 +393,22 @@ export function shouldAiRespond(message, context) {
 
   /* ---------------- 3. a person or role named in the text ---------------- */
   // "Thank you Coach" / "Yeah coach I'll get it done" / "tell mom I ate" — the founder's case.
+  /* A NIA LEAD OUTRANKS A WORD THAT SOUNDS LIKE A NAME (2026-09-25). "Nia, the white rice was
+     small" in a room with Coach White named both, and both means silent. When the message OPENS by
+     addressing Nia, a bare part of someone's name elsewhere in it (white rice, green beans, an
+     athlete surnamed Rice) is food, not that person. Their full name or "Coach <Surname>" still
+     names them, as an @mention already did above. */
+  const niaFirst = niaLeadsOff(low, niaClash);
+  const namedBy = (p) => {
+    const names = namesOf(p);
+    if (!niaFirst) return names.some((n) => !(niaLeads && n === AI_NAME_WORD) && hasWord(low, n));
+    return (names[0] !== AI_NAME_WORD && hasWord(low, names[0]))
+      || names.some((n) => n !== AI_NAME_WORD && n.indexOf(' ') === -1 && hasWord(low, 'coach ' + n));
+  };
   let namedHuman = null;
   for (const p of humans) {
     // A message led by "Nia," is to the AI even when a human is also called Nia (niaAddressed).
-    if (namesOf(p).some((n) => !(niaLeads && n === AI_NAME_WORD) && hasWord(low, n))) { namedHuman = p; break; }
+    if (namesOf(p).length && namedBy(p)) { namedHuman = p; break; }
   }
   if (!namedHuman) {
     for (const w of HUMAN_WORDS) {

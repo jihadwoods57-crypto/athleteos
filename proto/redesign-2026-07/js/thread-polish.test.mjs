@@ -230,10 +230,11 @@ test('only Nia\'s opener carries an ask, and only a PORTION question gets size c
   assert.equal(askOf(opener('x', { ask: 'rice' })), null);
 });
 
-test('a chip sends "Nia, the <food> was a <size> portion."', () => {
+test('a chip sends "@Nia the <food> portion was <size>." (no "the oats was")', () => {
   assert.deepEqual(SIZE_CHIPS.map((c) => c.label), ['Small', 'Regular', 'Large']);
-  assert.equal(askReplyText('white rice', 'small'), 'Nia, the white rice was a small portion.');
-  assert.equal(askReplyText('white rice', 'large'), 'Nia, the white rice was a large portion.');
+  assert.equal(askReplyText('white rice', 'small'), '@Nia the white rice portion was small.');
+  assert.equal(askReplyText('oats', 'regular'), '@Nia the oats portion was regular.');
+  assert.equal(askReplyText('white rice', 'large'), '@Nia the white rice portion was large.');
   const html = askChipsHtml({ id: 'op1', food: 'rice <b>' }, esc);
   assert.equal((html.match(/<button type="button" class="fx-chip tp-chip"/g) || []).length, 3);
   assert.doesNotMatch(html, /<b>/);
@@ -272,7 +273,13 @@ test('starters show only on the athlete\'s own meal, with Nia on, and an empty b
 /* Every chip's words start "Nia," so the addressing gate hands them to her even with a coach in the
    room, where an unaddressed message would be left between the people. */
 test('every chip message is routed to Nia by the addressing gate, coach in the room', () => {
-  const participants = [{ id: 'ath', name: 'Jihad', kind: 'athlete' }, { id: 'c1', name: 'Coach Grinch', kind: 'head_coach' }];
+  for (const participants of [
+    [{ id: 'ath', name: 'Jihad', kind: 'athlete' }, { id: 'c1', name: 'Coach Grinch', kind: 'head_coach' }],
+    // A coach whose surname is a food word the chip carries ("white rice").
+    [{ id: 'ath', name: 'Jihad', kind: 'athlete' }, { id: 'c1', name: 'Marcus White', kind: 'head_coach' }],
+  ]) routesToNia(participants);
+});
+function routesToNia(participants) {
   const comments = [{ id: 'k', role: 'coach', author_id: 'c1', text: 'Good lunch', created_at: new Date().toISOString() }];
   const texts = [
     ...SIZE_CHIPS.map((c) => askReplyText('white rice', c.size)),
@@ -284,7 +291,7 @@ test('every chip message is routed to Nia by the addressing gate, coach in the r
     const turn = decideAiTurn({ text, comments, participants, self: { id: 'ath', name: 'Jihad', role: 'athlete' }, athleteName: 'Jihad', fallbackNoun: 'coach' });
     assert.equal(turn.decision.shouldRespond, true, text);
   }
-});
+}
 
 /* ---------------- the wiring ---------------- */
 
