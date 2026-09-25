@@ -143,11 +143,27 @@ test('R3 I4: a 403 on a meal that is gone drops the job without filing anything'
   assert.equal(sb.calls.length, 1, 'only the refused report, no receipt for a meal that is gone');
 });
 
-test('R3 I4: a 403 on a meal that still exists files the plain receipt once and is never revived', async () => {
-  const job = { ...SQ.readQueue()[0], fallback: false };
-  const sb = fakeSb({ invoke: (b) => (b.correctionOutcome ? forbidden() : net()) });
-  assert.equal(await sendOutcome(job, sb, T0 + 1000), false, 'the receipt did not land yet');
-  assert.equal(job.noRevive, true, 'a refused token is not retried on every foreground');
-  const gone = fakeSb({ invoke: forbidden });
-  assert.equal(await sendOutcome({ ...job, fallback: true }, gone, T0 + 2000), true, 'the receipt refused too (meal gone): done');
+test('R4 I1: a 403 with the meal still there becomes the fallback, which a later launch still files', async () => {
+  store.clear();
+  const job = { uid: 'ath-1', kind: 'correction-outcome', ref: 'nonce-1', ct: 'nonce-1', mealId: 'meal-1', body: { correctionOutcome: { token: TOKEN } },
+    receipt: [{ label: 'Protein', unit: 'g', from: 29, to: 50 }], expiresAt: T0 + 14 * 60000, queuedAt: T0 };
+  SQ.putJob(job);
+  // Refused, then offline: the receipt does not land.
+  const refused = fakeSb({ invoke: (b) => (b.correctionOutcome ? forbidden() : net()) });
+  assert.equal(await sendOutcome(job, refused, T0 + 1000), false);
+  assert.equal(job.fallback, true);
+  assert.equal('noRevive' in job, false, 'nothing stops a launch from reviving it');
+  // Exhausted, then (after the token's life) back online: revived and filed.
+  SQ.patchJob(SQ.keyOf(job), { tries: SQ.MAX_TRIES });
+  const back = fakeSb({ invoke: () => ({ data: { ok: true }, error: null }) });
+  assert.equal(await sendOutcome({ ...SQ.readQueue()[0] }, back, T0 + 17 * 60000), true);
+  assert.deepEqual(back.calls.map((b) => b.receiptCt), ['nonce-1:f'], 'the receipt is filed');
+});
+
+test('R4 I2: a 503 (the server could not read the meal) is retried, never taken as done', async () => {
+  const unavailable = () => ({ data: null, error: { message: 'non-2xx', context: { status: 503 } } });
+  const job = { uid: 'ath-1', kind: 'correction-outcome', ref: 'n5', ct: 'n5', mealId: 'meal-1', body: { correctionOutcome: { token: TOKEN } },
+    receipt: [{ label: 'Protein', unit: 'g', from: 29, to: 50 }], expiresAt: T0 + 14 * 60000, queuedAt: T0 };
+  assert.equal(await sendOutcome({ ...job }, fakeSb({ invoke: unavailable }), T0 + 1000), false, 'the report');
+  assert.equal(await sendOutcome({ ...job, fallback: true }, fakeSb({ invoke: unavailable }), T0 + 1000), false, 'the plain receipt');
 });

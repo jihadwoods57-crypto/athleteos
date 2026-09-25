@@ -644,7 +644,10 @@ Deno.serve(async (req) => {
     const callerId = userData?.user?.id;
     if (!callerId) return bad(401, 'unauthorized', cors);
     telemUserId = callerId;
-    const { data: mealRow } = await userClient.from('meals').select('id, athlete_id, day_date').eq('id', mealId).maybeSingle();
+    const { data: mealRow, error: mealErr } = await userClient.from('meals').select('id, athlete_id, day_date').eq('id', mealId).maybeSingle();
+    // A read that FAILED is not a meal that is not yours (review round 4): 503, so a device retries
+    // instead of treating its correction's report as refused. 403 only when the read found nothing.
+    if (mealErr) return bad(503, 'unavailable', cors);
     if (!mealRow) return bad(403, 'unauthorized', cors);
     // Coach modes (coachSupport + coachAsk + draft): the RLS-scoped select above succeeding for a
     // NON-owner proves can_view (linked coach/staff), so a coach must NOT own the meal. Athlete

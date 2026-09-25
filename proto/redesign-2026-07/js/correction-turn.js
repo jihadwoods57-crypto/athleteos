@@ -70,13 +70,12 @@ export async function sendOutcome(job, sb, now = Date.now()) {
       if (status !== 403) return false;
     } catch { return false; }
     // A meal that is gone needs no record: drop the job. One that is still there gets the plain
-    // receipt, and is never revived on a foreground (no endless retries of a refused token).
+    // receipt below. That fallback ends on a 403 of its own, so a refused token cannot loop; a
+    // fallback that only failed for want of a network IS revived on the next launch or foreground.
     try {
       const { data, error } = await sb.from('meals').select('id').eq('id', job.mealId).maybeSingle();
       if (!error && !data) return true;
     } catch { return false; }
-    job.noRevive = true;
-    SQ.patchJob(SQ.keyOf(job), { noRevive: true });
   }
   if (!job.fallback) {
     // From here the job is the fallback, with its own fresh tries (the outbox caps at 5, and a
@@ -108,7 +107,8 @@ async function plainReceipt(job, sb) {
     const { error } = await sb.functions.invoke('meal-chat', {
       body: { mealId: job.mealId, correctionReceipt: job.receipt, ...(job.ct ? { receiptCt: `${job.ct}:f` } : {}) },
     });
-    // 403 here is the meal refused (gone, or no longer this athlete's): nothing left to record.
+    // 403 here is the meal refused (gone, or no longer this athlete's): nothing left to record. A
+    // 503 (the server could not read the meal) is a retry, never done.
     return !error || (error.context && error.context.status) === 403;
   } catch { return false; }
 }

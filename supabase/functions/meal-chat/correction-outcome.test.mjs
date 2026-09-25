@@ -336,3 +336,10 @@ test('R3: a retried report fills in whatever of its rows is missing, and says wh
   assert.match(block, /question = \(await has\(`\$\{pending\.nonce\}:q`\)\) \|\| await put\(follow\)/, 'a follow-up that failed to file is reported (question: false)');
   assert.doesNotMatch(block, /duplicate: true \}\);\s*\/\/ Names/, 'a duplicate no longer returns before checking the receipt');
 });
+
+test('R4 I2: a meal read that failed is a 503 (retry), not a 403 (refused)', () => {
+  const i = SRC.indexOf("const { data: mealRow, error: mealErr } = await userClient.from('meals')");
+  assert.ok(i > 0);
+  const next = SRC.slice(i, i + 700);
+  assert.ok(next.indexOf("if (mealErr) return bad(503, 'unavailable', cors);") < next.indexOf("if (!mealRow) return bad(403, 'unauthorized', cors);"));
+});
