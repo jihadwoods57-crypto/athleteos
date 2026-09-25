@@ -3506,9 +3506,10 @@ export const coachMeal = {
     </div>`;
     })()}
     <div class="chat-dock disc-dock dock-end">
+    ${/* The note sits ABOVE the box, as on the meal thread (screens.css .cmp-note). */''}
+    <div id="cm-note" class="cmp-note cmp-err" role="status"></div>
     ${composer({ inputId: 'cm-input', sendId: 'cm-send', placeholder: 'Comment on this meal…', sendLabel: 'Send comment', attachId: 'cm-attach', aiId: 'cm-ai', atEnd: true })}
     <div class="composer-attach-pending" id="cm-attach-pending" hidden></div>
-    <div id="cm-note" class="cmp-note cmp-err"></div>
     </div>
     </section>
     ${/* Private notes sit AFTER the discussion (fix round 1, 2026-09-23). Inside it, the sticky

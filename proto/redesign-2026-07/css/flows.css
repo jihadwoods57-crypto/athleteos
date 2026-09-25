@@ -737,12 +737,19 @@ input.ob-input[type="date"]::-webkit-calendar-picker-indicator { display: none; 
    roster. The letter is the information; the container was six rounded outlines of nothing. */
 .roster-row .ros-style { flex: none; width: 12px; text-align: center; font-size: var(--t-micro); font-weight: 800; letter-spacing: 0.03em; color: var(--text-3); }
 
-/* What the thread says about itself ("Your coach hasn't opened this yet.", "Loading your
-   conversation..."): the phone's system small print, centred, no pill. It was a bordered capsule in
-   bold, which made a status read like a button and shouted over the conversation (2026-09-24). */
+/* honest delivery status line in threads */
 .msg-status {
-  align-self: center; font-family: var(--font-chat); font-size: var(--t-xs); font-weight: 500; line-height: 1.35;
-  color: var(--text-3); text-align: center; padding: var(--s1) var(--s3) 0; margin-top: 2px;
+  align-self: center; font-size: var(--t-xs); font-weight: 700; color: var(--text-3);
+  padding:var(--s1h) var(--s3); border-radius: var(--r-pill); background: var(--surface-1);
+  border: 1px solid var(--hairline-soft); margin-top:2px;
+}
+/* What a MEAL thread says about itself ("Your coach hasn't opened this yet."): the phone's system
+   small print, centred, no pill. The capsule in bold made a status read like a button and shouted
+   over the conversation (2026-09-24). Scoped to the three meal threads (the athlete's meal page,
+   the coach's review, a past meal), so the settings, plan-answer and full-chat lines keep theirs. */
+:is(#meal-thread, #cm-thread, #mv-thread) .msg-status {
+  font-family: var(--font-chat); font-weight: 500; line-height: 1.35; text-align: center;
+  padding: var(--s1) var(--s3) 0; border: 0; border-radius: 0; background: none;
 }
 
 /* ----- Finish Today v2 ----- */
