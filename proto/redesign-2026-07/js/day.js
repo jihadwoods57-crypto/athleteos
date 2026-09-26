@@ -647,6 +647,7 @@ export const DAY = {
   // Plan > Today (A1): { slot: {name, protein, kcal, source, at} | null }. Plans a meal, never logs
   // one; rides checkin jsonb and no scoring path reads it. null = cleared on this device.
   plans: {},
+  seasonPhase: null,     // the season phase that graded this day (checkin.seasonPhase), phase B
 };
 
 export function dayScore() { return scoreFor(DAY); }
@@ -1210,7 +1211,7 @@ export function pushDay(userId, immediate) {
       // `excluded.` — with it in the row, the ENTIRE upsert 42501s and nothing ever syncs
       // (the 2026-08-05 "Waiting to sync" bug). Weight goes through the log_my_weight door
       // (dayLogWeight below), the write mirror of the weight_series read door.
-      checkin: { ...DAY.ci, submitted: DAY.ciSubmitted, ciLast: DAY.ciLast, commitment: DAY.dailyCommitment, focus: DAY.commitmentFocus, mealLoggedAt: DAY.mealLoggedAt, slotMacros: DAY.slotMacros, wakeup: DAY.wakeup || null, arrival: DAY.arrival || null, plans: DAY.plans || {} },
+      checkin: { ...DAY.ci, submitted: DAY.ciSubmitted, ciLast: DAY.ciLast, commitment: DAY.dailyCommitment, focus: DAY.commitmentFocus, mealLoggedAt: DAY.mealLoggedAt, slotMacros: DAY.slotMacros, wakeup: DAY.wakeup || null, arrival: DAY.arrival || null, plans: DAY.plans || {}, seasonPhase: DAY.seasonPhase || null },
       score: s, grade: gradeFor(s),
       // The per-day STAMP: which style graded this day. Written every push so a style change
       // takes effect going forward and never rewrites a settled day. Null until a style resolves

@@ -95,17 +95,6 @@ const proteinAt = (family, lb) => Math.max(PROTEIN_FLOOR, Math.round((lb * PLAN[
 /** Days since an ISO timestamp or date, on the caller's today. */
 const daysSince = (iso, todayISO) => dayNum(todayISO) - dayNum(iso);
 
-function reasonText(family, perWeek, calDelta, proteinDelta) {
-  const plan = PLAN[family];
-  const moving = perWeek > 0 ? `Gaining ${fmt1(perWeek)} lb a week` : perWeek < 0 ? `Losing ${fmt1(perWeek)} lb a week` : 'Holding steady';
-  const sameWay = (perWeek > 0 && plan.rate > 0) || (perWeek < 0 && plan.rate < 0);
-  const planText = sameWay ? `a plan of ${fmt1(plan.rate)}` : `a plan of ${plan.rate > 0 ? 'gaining' : 'losing'} ${fmt1(plan.rate)}`;
-  const asks = [];
-  if (calDelta) asks.push(`${calDelta > 0 ? '+' : '-'}${Math.abs(calDelta)} calories`);
-  if (proteinDelta) asks.push(`${proteinDelta > 0 ? '+' : '-'}${Math.abs(proteinDelta)}g protein for the new bodyweight`);
-  return `${moving} against ${planText}. Suggest ${asks.join(' and ')}.`;
-}
-
 /**
  * The suggestion for today, or null. Every input is plain data:
  *   goal        the athlete's base goal (any stored spelling)
@@ -116,7 +105,8 @@ function reasonText(family, perWeek, calDelta, proteinDelta) {
  *   lastAt      ISO of the later of the last suggestion's created_at / decided_at, or null
  *   todayISO    'YYYY-MM-DD'
  * Returns { currentProtein, currentKcal, proposedProtein, proposedKcal, calDelta, proteinDelta,
- *           perWeek, planRate, reason } or null.
+ *           perWeek, planRate } or null. Numbers only: the server (0253) re-derives the pace itself and
+ *           the sentence is composed on the reader's device from the stored numbers (composeReason).
  */
 export function suggestTargets({ goal, minor = false, rows = [], current = {}, basisLb = null, lastAt = null, todayISO } = {}) {
   if (minor) return null;
@@ -146,7 +136,6 @@ export function suggestTargets({ goal, minor = false, rows = [], current = {}, b
   return {
     currentProtein: cp, currentKcal: ck, proposedProtein, proposedKcal, calDelta, proteinDelta,
     perWeek: pace.perWeek, planRate: PLAN[family].rate,
-    reason: reasonText(family, pace.perWeek, calDelta, proteinDelta),
   };
 }
 
@@ -164,24 +153,65 @@ export function lastMoment(row) {
   return Date.parse(d) > Date.parse(c) ? d : c;
 }
 
-/** The compact headline a coach reads: "+200 cal", "+200 cal · +10g protein". */
+const fmtInt = (n) => Number(n).toLocaleString('en-US');
+const isNum = (v) => typeof v === 'number' ? Number.isFinite(v) : (typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v));
+const PLANS = [PLAN.gain.rate, PLAN.lose.rate];
+
+/** The headline a coach reads, both numbers: "3,000 to 3,200 cal", plus protein when it changes. */
 export function changeHeadline(row) {
   const bits = [];
-  const dk = Number(row.proposed_kcal) - Number(row.current_kcal);
-  const dp = Number(row.proposed_protein) - Number(row.current_protein);
-  if (dk) bits.push(`${dk > 0 ? '+' : '-'}${Math.abs(dk)} cal`);
-  if (dp) bits.push(`${dp > 0 ? '+' : '-'}${Math.abs(dp)}g protein`);
+  const ck = Number(row.current_kcal), pk = Number(row.proposed_kcal);
+  const cp = Number(row.current_protein), pp = Number(row.proposed_protein);
+  if (pk !== ck) bits.push(`${fmtInt(ck)} to ${fmtInt(pk)} cal`);
+  if (pp !== cp) bits.push(`${cp}g to ${pp}g protein`);
   return bits.join(' · ');
 }
 
-/** What approval writes through coach_set_goals: the athlete's CURRENT targets (plan style,
- *  overrides, weight all kept) with the two numbers replaced. coach_set_goals replaces the whole
- *  JSON, so starting from anything less would wipe what the coach set before. A self-accepted
- *  marker is dropped: once a coach approves, the numbers are theirs. */
-export function approvedTargets(existing, row) {
-  const next = { ...(existing && typeof existing === 'object' ? existing : {}) };
-  delete next.source;
-  next.protein = Number(row.proposed_protein);
-  next.calories = Number(row.proposed_kcal);
-  return next;
+/** Every sentence composeReason can produce. Nothing else is ever shown for a suggestion. */
+export const REASON_RE = /^((Gaining|Losing) \d+(\.\d)? lb a week|Holding steady) against a plan of (gaining |losing )?\d+(\.\d)?\. Suggest ([+-]\d+ calories|[+-]\d+g protein for the new bodyweight)( and [+-]\d+g protein for the new bodyweight)?\.$/;
+
+/** The sentence, composed from the ROW's numbers (0253 stores numbers, never text). '' when any
+ *  field is not a plain number or the plan is not one of ours: a tampered or stale row says nothing. */
+export function composeReason(row) {
+  const f = ['current_protein', 'proposed_protein', 'current_kcal', 'proposed_kcal', 'pace_lb_wk', 'plan_lb_wk'];
+  if (!row || f.some((k) => !isNum(row[k]))) return '';
+  const pace = Number(row.pace_lb_wk), plan = Number(row.plan_lb_wk);
+  if (!PLANS.includes(plan)) return '';
+  const dk = Math.round(Number(row.proposed_kcal) - Number(row.current_kcal));
+  const dp = Math.round(Number(row.proposed_protein) - Number(row.current_protein));
+  if (!dk && !dp) return '';
+  const moving = pace > 0 ? `Gaining ${fmt1(pace)} lb a week` : pace < 0 ? `Losing ${fmt1(pace)} lb a week` : 'Holding steady';
+  const sameWay = (pace > 0 && plan > 0) || (pace < 0 && plan < 0);
+  const planText = sameWay ? `a plan of ${fmt1(plan)}` : `a plan of ${plan > 0 ? 'gaining' : 'losing'} ${fmt1(plan)}`;
+  const asks = [];
+  if (dk) asks.push(`${dk > 0 ? '+' : '-'}${Math.abs(dk)} calories`);
+  if (dp) asks.push(`${dp > 0 ? '+' : '-'}${Math.abs(dp)}g protein for the new bodyweight`);
+  const out = `${moving} against ${planText}. Suggest ${asks.join(' and ')}.`;
+  return REASON_RE.test(out) ? out : '';
+}
+
+/** The same change for an Intuitive athlete: no figures, and worded by what actually changes. A
+ *  protein-only change is about protein, never "more food" or "less food". */
+export function composeIntuitive(row) {
+  if (!row) return '';
+  const dk = Number(row.proposed_kcal) - Number(row.current_kcal);
+  const dp = Number(row.proposed_protein) - Number(row.current_protein);
+  const pace = Number(row.pace_lb_wk), plan = Number(row.plan_lb_wk);
+  const parts = [];
+  if (dk) {
+    const slower = pace < plan ? plan > 0 : pace > plan && plan < 0;
+    parts.push(`Your weight is moving ${slower ? 'slower' : 'faster'} than your plan.`);
+    parts.push(dk > 0 ? 'A little more food each day would help.' : 'A little less food each day would help.');
+  }
+  if (dp) parts.push(dp > 0 ? 'Your body has changed, so a bit more protein at each meal would help.' : 'Your body has changed, so a little less protein at each meal is enough.');
+  return parts.join(' ');
+}
+
+/** True when the row's current numbers are still the athlete's live targets, for every live figure
+ *  the reader knows ({ protein?, kcal? }). A figure the reader cannot know is left to the server. */
+export function liveMatches(row, live) {
+  const L = live || {};
+  if (L.protein != null && Math.round(Number(L.protein)) !== Number(row.current_protein)) return false;
+  if (L.kcal != null && Math.round(Number(L.kcal)) !== Number(row.current_kcal)) return false;
+  return true;
 }

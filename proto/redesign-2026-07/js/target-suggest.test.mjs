@@ -38,6 +38,9 @@ const line = (perWeek, end = 200, span = 14, every = 7) => {
   for (let d = span; d >= 0; d -= every) rows.push({ date: iso(d), weight: +(end - (perWeek / 7) * d).toFixed(2) });
   return rows;
 };
+/** The row the server stores for a proposal: the numbers only (0253 fills pace and plan itself). */
+const rowOf = (s) => ({ current_protein: s.currentProtein, current_kcal: s.currentKcal, proposed_protein: s.proposedProtein,
+  proposed_kcal: s.proposedKcal, pace_lb_wk: s.perWeek, plan_lb_wk: s.planRate });
 const base = { goal: 'gain', rows: line(0.2), current: { protein: 200, kcal: 3400 }, basisLb: 200, todayISO: TODAY };
 
 test('the spec example: gaining 0.2 a week against 0.5 suggests +200', () => {
@@ -46,7 +49,8 @@ test('the spec example: gaining 0.2 a week against 0.5 suggests +200', () => {
   assert.equal(s.calDelta, 200);
   assert.equal(s.proposedKcal, 3600);
   assert.equal(s.proteinDelta, 0);
-  assert.equal(s.reason, 'Gaining 0.2 lb a week against a plan of 0.5. Suggest +200 calories.');
+  assert.equal(M.composeReason(rowOf(s)), 'Gaining 0.2 lb a week against a plan of 0.5. Suggest +200 calories.');
+  assert.equal(s.reason, undefined, 'no free text travels to the server');
 });
 
 test('on plan: nothing', () => {
@@ -81,8 +85,8 @@ test('direction: gaining slower +, losing slower -, too fast goes toward the pla
   const lose = { ...base, goal: 'lose', current: { protein: 180, kcal: 2400 } };
   assert.ok(M.suggestTargets({ ...lose, rows: line(-0.3) }).calDelta < 0);
   assert.ok(M.suggestTargets({ ...lose, rows: line(-2.0) }).calDelta > 0);
-  assert.match(M.suggestTargets({ ...lose, rows: line(-0.3) }).reason, /^Losing 0\.3 lb a week against a plan of 1\. Suggest -250 calories\.$/);
-  assert.match(M.suggestTargets({ ...lose, rows: line(0.3) }).reason, /^Gaining 0\.3 lb a week against a plan of losing 1\./);
+  assert.match(M.composeReason(rowOf(M.suggestTargets({ ...lose, rows: line(-0.3) }))), /^Losing 0\.3 lb a week against a plan of 1\. Suggest -250 calories\.$/);
+  assert.match(M.composeReason(rowOf(M.suggestTargets({ ...lose, rows: line(0.3) }))), /^Gaining 0\.3 lb a week against a plan of losing 1\./);
 });
 
 test('the 1500 floor: never below it, and a number already under it is left alone', () => {
@@ -100,7 +104,7 @@ test('protein moves only when the bodyweight moved the per-pound target by 10g o
   const big = M.suggestTargets({ ...base, rows: line(0.2, 210), basisLb: 200 });
   assert.equal(big.proteinDelta, 10);
   assert.equal(big.proposedProtein, 210);
-  assert.match(big.reason, /\+10g protein for the new bodyweight/);
+  assert.match(M.composeReason(rowOf(big)), /\+10g protein for the new bodyweight/);
   // A coach-set protein moves by the same per-pound delta, never to the formula.
   assert.equal(M.suggestTargets({ ...base, rows: line(0.2, 210), basisLb: 200, current: { protein: 240, kcal: 3400 } }).proposedProtein, 250);
   // On pace but 10g heavier: a protein-only suggestion.
@@ -146,8 +150,7 @@ test('the proposal always fits the database bounds (0253)', () => {
         assert.ok(s.proposedKcal >= 1500 && Math.abs(s.proposedKcal - s.currentKcal) <= 250, `${goal} ${r} ${kcal}`);
         assert.ok(Math.abs(s.proposedProtein - s.currentProtein) <= 60);
         assert.ok(s.proposedKcal !== s.currentKcal || s.proposedProtein !== s.currentProtein);
-        assert.ok(s.reason.length <= 240);
-        assert.doesNotMatch(s.reason, /[—–]|Nia/);
+        assert.match(M.composeReason(rowOf(s)), M.REASON_RE);
       }
     }
   }
@@ -159,49 +162,84 @@ test('live = pending and younger than 14 days', () => {
   assert.equal(M.isLive({ status: 'declined', created_at: `${iso(1)}T09:00:00Z` }, TODAY), false);
 });
 
-test('the coach headline', () => {
-  assert.equal(M.changeHeadline({ current_kcal: 3400, proposed_kcal: 3600, current_protein: 200, proposed_protein: 200 }), '+200 cal');
-  assert.equal(M.changeHeadline({ current_kcal: 2400, proposed_kcal: 2150, current_protein: 180, proposed_protein: 190 }), '-250 cal · +10g protein');
+test('the coach headline shows both numbers', () => {
+  assert.equal(M.changeHeadline({ current_kcal: 3400, proposed_kcal: 3600, current_protein: 200, proposed_protein: 200 }), '3,400 to 3,600 cal');
+  assert.equal(M.changeHeadline({ current_kcal: 2400, proposed_kcal: 2150, current_protein: 180, proposed_protein: 190 }), '2,400 to 2,150 cal · 180g to 190g protein');
+  assert.equal(M.changeHeadline({ current_kcal: 3000, proposed_kcal: 3000, current_protein: 180, proposed_protein: 190 }), '180g to 190g protein');
 });
 
-/* ---------------- the approve path goes through coachSetGoals ---------------- */
-function stubs({ targets = { protein: 200, calories: 3400, style: 'guided', styleOverrides: { protein: 'range' }, weight: 210 }, setOk = true, metaError = null } = {}) {
+test('the sentence is composed from numbers only, inside a strict pattern', () => {
+  const r = { current_protein: 200, proposed_protein: 200, current_kcal: 3000, proposed_kcal: 3200, pace_lb_wk: 0.2, plan_lb_wk: 0.5 };
+  assert.equal(M.composeReason(r), 'Gaining 0.2 lb a week against a plan of 0.5. Suggest +200 calories.');
+  assert.match(M.composeReason(r), M.REASON_RE);
+  assert.equal(M.composeReason({ ...r, pace_lb_wk: 0, plan_lb_wk: -1, proposed_kcal: 2800 }), 'Holding steady against a plan of losing 1. Suggest -200 calories.');
+  // Anything that is not a number (a tampered row, a stale cache) composes nothing.
+  for (const bad of [{ pace_lb_wk: '<b>0.2</b>' }, { plan_lb_wk: 0.7 }, { proposed_kcal: 'lots' }, { pace_lb_wk: null }]) {
+    assert.equal(M.composeReason({ ...r, ...bad }), '', JSON.stringify(bad));
+  }
+});
+
+test('Intuitive wording follows what actually changes (never "less food" for a protein-only change)', () => {
+  const r = { current_protein: 180, current_kcal: 3000, pace_lb_wk: 0.2, plan_lb_wk: 0.5 };
+  assert.match(M.composeIntuitive({ ...r, proposed_protein: 180, proposed_kcal: 3200 }), /slower than your plan.*a little more food/i);
+  assert.match(M.composeIntuitive({ ...r, proposed_protein: 180, proposed_kcal: 2800, pace_lb_wk: 0.9 }), /faster than your plan.*a little less food/i);
+  const p = M.composeIntuitive({ ...r, proposed_protein: 190, proposed_kcal: 3000, pace_lb_wk: 0.5 });
+  assert.match(p, /protein/i);
+  assert.doesNotMatch(p, /less food|more food|\d/);
+  assert.doesNotMatch(M.composeIntuitive({ ...r, proposed_protein: 180, proposed_kcal: 3200 }), /\d/);
+});
+
+test('a row whose current numbers are not the live targets is stale', () => {
+  const row = { current_protein: 200, current_kcal: 3400 };
+  assert.equal(M.liveMatches(row, { protein: 200, kcal: 3400 }), true);
+  assert.equal(M.liveMatches(row, { kcal: 3000 }), false);
+  assert.equal(M.liveMatches(row, { protein: 205 }), false);
+  assert.equal(M.liveMatches(row, {}), true);   // nothing known: the server re-checks
+});
+
+test('the device plan is the database plan (0253 parity)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const sql = readFileSync(new URL('../../../supabase/migrations/0253_target_suggestions.sql', import.meta.url), 'utf8');
+  assert.match(sql, new RegExp(`then ${M.PLAN.gain.rate} else ${M.PLAN.lose.rate.toFixed(1)} end`));
+  assert.match(sql, new RegExp(`then ${M.PLAN.gain.tolerance} else ${M.PLAN.lose.tolerance} end`));
+  assert.match(sql, new RegExp(`then ${M.PLAN.gain.perLb.toFixed(1)} else ${M.PLAN.lose.perLb} end`));
+  assert.match(sql, /greatest\(80,/);
+});
+
+/* ---------------- approve is ONE server call (0253 applies it through coach_set_goals) ---------------- */
+function stubs(decideAnswer = null) {
   const calls = [];
-  const roles = { coachSetGoals: async (id, t) => { calls.push(['coachSetGoals', id, t]); return setOk; } };
+  const roles = { coachSetGoals: async (...a) => { calls.push(['coachSetGoals', ...a]); return true; } };
   const sb = {
     rpc: async (fn, args) => {
       calls.push([fn, args]);
-      if (fn === 'athlete_plan_meta') return metaError ? { data: null, error: metaError } : { data: [{ base_weight: 205, targets }], error: null };
-      if (fn === 'decide_target_suggestion') return { data: args.p_decision, error: null };
+      if (fn === 'decide_target_suggestion') return { data: decideAnswer || (args.p_decision === 'expire' ? 'expired' : args.p_decision), error: null };
       return { data: null, error: { message: 'unexpected' } };
     },
   };
   return { calls, roles, sb };
 }
-const ROW = { id: 's1', athlete_id: 'a1', current_protein: 200, current_kcal: 3400, proposed_protein: 200, proposed_kcal: 3600, reason: 'x' };
+const ROW = { id: 's1', athlete_id: 'a1', current_protein: 200, current_kcal: 3400, proposed_protein: 200, proposed_kcal: 3600 };
 
-test('approve: coach_set_goals FIRST, with every other target kept, THEN the mark', async () => {
+test('approve: one decide call; the client never writes the targets itself', async () => {
   const { calls, roles, sb } = stubs();
-  const r = await approveSuggestion(ROW, { roles, sb });
+  const r = await approveSuggestion(ROW, { roles, sb, live: { protein: 200, kcal: 3400 } });
   assert.deepEqual(r, { ok: true, status: 'approved' });
-  assert.deepEqual(calls.map((c) => c[0]), ['athlete_plan_meta', 'coachSetGoals', 'decide_target_suggestion']);
-  assert.deepEqual(calls[1][2], { protein: 200, calories: 3600, style: 'guided', styleOverrides: { protein: 'range' }, weight: 210 });
-  assert.deepEqual(calls[2][1], { p_id: 's1', p_decision: 'approved' });
+  assert.deepEqual(calls, [['decide_target_suggestion', { p_id: 's1', p_decision: 'approved' }]]);
 });
 
-test('approve: a self-accepted marker is dropped, since the numbers become the coach\'s', async () => {
-  const { calls, roles, sb } = stubs({ targets: { protein: 200, calories: 3400, source: 'self' } });
-  await approveSuggestion(ROW, { roles, sb });
-  assert.deepEqual(calls[1][2], { protein: 200, calories: 3600 });
+test('approve: live targets that moved refuse on the device and close the row', async () => {
+  const { calls, roles, sb } = stubs();
+  const r = await approveSuggestion(ROW, { roles, sb, live: { protein: 200, kcal: 3000 } });
+  assert.deepEqual(r, { ok: false, status: 'stale' });
+  assert.deepEqual(calls, [['decide_target_suggestion', { p_id: 's1', p_decision: 'expire' }]]);
 });
 
-test('approve: a failed targets read or write never marks it approved', async () => {
-  let s = stubs({ metaError: { message: 'offline' } });
-  assert.equal((await approveSuggestion(ROW, s)).ok, false);
-  assert.deepEqual(s.calls.map((c) => c[0]), ['athlete_plan_meta']);
-  s = stubs({ setOk: false });
-  assert.deepEqual(await approveSuggestion(ROW, s), { ok: false, error: 'targets' });
-  assert.ok(!s.calls.some((c) => c[0] === 'decide_target_suggestion'));
+test('approve: the server\'s own stale / expired answer is reported as it is', async () => {
+  for (const ans of ['stale', 'expired']) {
+    const { roles, sb } = stubs(ans);
+    assert.deepEqual(await approveSuggestion(ROW, { roles, sb, live: {} }), { ok: false, status: ans });
+  }
 });
 
 test('decline: marks it and never touches the targets', async () => {

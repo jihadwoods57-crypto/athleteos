@@ -891,12 +891,15 @@ export function goalBodyweight() {
 function applyGoalToDay() {
   const p = RT.profile || {};
   const goal = p.baseGoal || (RT.ob && RT.ob.goal) || null;
-  if (!goal) { setDayGoalConfig('athlete', 0, 0); return; } // no goal yet → shipped athlete default
+  if (!goal) { setDayGoalConfig('athlete', 0, 0); DAY.seasonPhase = null; return; } // no goal yet → shipped athlete default (no season applies)
   const bw = goalBodyweight().bw;
   // ONE derivation, shared with the coach breakdown (nutritionConfigForGoal) so they never drift.
   // The season phase is season_phase_for's answer (0252), the same resolution the coach reads.
   const cfg = nutritionConfigForGoal(goal, bw, p.targets, seasonPhase());
   setDayGoalConfig(cfg.scoringProfile, cfg.proteinTarget, cfg.calTarget);
+  // The stamp: which season graded this day (checkin.seasonPhase), so a phase-caused change in the
+  // score can be explained later. Cheap: one key in the jsonb the push already writes.
+  DAY.seasonPhase = seasonPhase();
 }
 
 /* Who is eating, for the meal read (2026-09-02). analyze-meal was asked to coach "THIS athlete"
@@ -3220,7 +3223,7 @@ export const act = {
     }
     if (role === 'trainer') await this._loadPracticeIntoRt(RT.userId);
     if (role === 'coach') { await this._loadTeamIntoRt(RT.userId); await this._loadCoachHandleIntoRt(); }
-    if (role === 'athlete') { await this._loadCoachIntoRt(RT.userId); await this._loadTrainerIntoRt(RT.userId); await this._loadSeasonIntoRt(RT.userId); await this._loadConsentIntoRt(RT.userId); await this._loadAssignmentsIntoRt(); }
+    if (role === 'athlete') { await this._loadCoachIntoRt(RT.userId); await this._loadTrainerIntoRt(RT.userId); void this._loadSeasonIntoRt(RT.userId); await this._loadConsentIntoRt(RT.userId); await this._loadAssignmentsIntoRt(); }
     await loadDay(RT.userId);
     await this._afterDayLoad();
     syncRtFromDay();
@@ -3549,7 +3552,9 @@ export const act = {
     save();
   },
   /* The season phase that applies (0252 season_phase_for: team > practice client (none) > self),
-     then re-grade the day. A failed read keeps the last-known phase; a pre-0252 server is none. */
+     then re-grade the day. A failed read keeps the last-known phase; a pre-0252 server is none.
+     NOT awaited by the launch chain (review 2026-09-26): the cached phase grades the first paint,
+     and when the server's answer differs the day is re-graded, re-pushed and repainted. */
   async _loadSeasonIntoRt(userId) {
     const sb = window.sb;
     if (!sb || !userId) return;
@@ -3557,8 +3562,13 @@ export const act = {
       const { data, error } = await sb.rpc('season_phase_for', { p_athlete: userId });
       if (error) { if (error.code === 'PGRST202') RT.season = null; return; }
       const d = data && typeof data === 'object' ? data : {};
+      const before = seasonPhase();
       RT.season = { phase: d.phase || null, source: d.source || null, canSetSelf: d.can_set_self === true };
       applyGoalToDay(); save();
+      if (before !== seasonPhase() && RT.userId === userId) {
+        pushDay(userId);
+        if (typeof window.__render === 'function') window.__render();
+      }
     } catch { /* offline: keep last-known */ }
   },
   /** A solo athlete sets their own phase (set_my_season_phase refuses a team athlete). */

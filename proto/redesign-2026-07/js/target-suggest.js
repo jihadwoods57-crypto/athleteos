@@ -8,11 +8,11 @@
  * The rules live in target-suggest-model.js (tested in Node). Deterministic, labelled "Suggested
  * change", never signed as Nia. Lazy: nothing here is in the boot graph.
  */
-import { S, RT, act, goalBodyweight } from './state.js';
+import { S, RT, act } from './state.js';
 import { DAY } from './day.js';
 import { icon } from './icons.js';
 import { esc } from './components.js';
-import { suggestTargets, suggestFamily, isLive, lastMoment } from './target-suggest-model.js';
+import { suggestTargets, suggestFamily, isLive, lastMoment, composeReason, composeIntuitive, liveMatches } from './target-suggest-model.js';
 
 const store = () => { try { return window.localStorage; } catch { return null; } };
 const CHECK_KEY = (uid) => `os.tsCheck.${uid}`;
@@ -20,9 +20,9 @@ const ROW_KEY = (uid) => `os.tsRow.${uid}`;
 const todayISO = () => String(DAY.date);
 
 /** The latest suggestion this athlete has, as last read. undefined = not read this session. */
-let MINE = { uid: null, row: undefined, note: '', busy: false };
+let MINE = { uid: null, row: undefined, note: '', busy: false, flash: '' };
 
-const cols = 'id,status,created_at,decided_at,current_protein,current_kcal,proposed_protein,proposed_kcal,reason';
+const cols = 'id,status,created_at,decided_at,current_protein,current_kcal,proposed_protein,proposed_kcal,pace_lb_wk,plan_lb_wk';
 
 /** Who decides: 'self' for a solo athlete, 'coach' on a team, 'trainer' for a practice client. */
 export function decider() {
@@ -42,7 +42,7 @@ export function mySuggestion() {
   if (MINE.uid === uid && MINE.row !== undefined) return MINE.row;
   let row = null;
   try { row = JSON.parse((store() && store().getItem(ROW_KEY(uid))) || 'null'); } catch { row = null; }
-  MINE = { uid, row: row || null, note: '', busy: false };
+  MINE = { uid, row: row || null, note: '', busy: false, flash: '' };
   return MINE.row;
 }
 
@@ -76,11 +76,13 @@ export async function maybeFileSuggestion() {
   if (!(await readLatest()).ok) return null;
   const rows = [...(DAY.scoreHistory || []).map((h) => ({ date: h.date, weight: h.weight }))];
   if (DAY.currentWeight != null) rows.push({ date: todayISO(), weight: DAY.currentWeight });
-  const g = goalBodyweight();
+  // The protein basis is the STORED bodyweight (athlete_profiles.base_weight), the one 0253 checks
+  // the per-pound rule against; with none stored, protein is never proposed.
+  const base = RT.profile && RT.profile.baseWeight != null ? Number(RT.profile.baseWeight) : null;
   const sug = suggestTargets({
     goal, minor, rows, todayISO: todayISO(),
     current: { protein: DAY.proteinTarget, kcal: DAY.calTarget },
-    basisLb: g.known ? g.bw : null,
+    basisLb: base > 0 ? base : null,
     lastAt: lastMoment(mySuggestion()),
   });
   try { s && s.setItem(CHECK_KEY(uid), todayISO()); } catch { /* quota */ }
@@ -90,7 +92,6 @@ export async function maybeFileSuggestion() {
       athlete_id: uid,
       current_protein: sug.currentProtein, current_kcal: sug.currentKcal,
       proposed_protein: sug.proposedProtein, proposed_kcal: sug.proposedKcal,
-      reason: sug.reason,
     }).select(cols).maybeSingle();
     if (error) return null;
     remember(uid, data || null);
@@ -101,7 +102,10 @@ export async function maybeFileSuggestion() {
 /** Plan > Today's card. '' when there is nothing live to show. */
 export function suggestionHtml() {
   const row = mySuggestion();
-  if (!row || !isLive(row, todayISO())) return '';
+  if (!row || !isLive(row, todayISO())) {
+    // A row this visit just closed (stale or expired) says so once, instead of vanishing.
+    return MINE.flash ? `<div class="ts-wait" role="status">${icon('info', 16)}<span>${esc(MINE.flash)}</span></div>` : '';
+  }
   const who = decider();
   if (who !== 'self') {
     return `<div class="ts-wait" role="status">${icon('clock', 16)}<span>Your ${who} is reviewing a target change.</span></div>`;
@@ -111,12 +115,13 @@ export function suggestionHtml() {
   const bits = [];
   if (PS.showCalories && row.proposed_kcal !== row.current_kcal) bits.push(`${Number(row.current_kcal).toLocaleString('en-US')} to ${Number(row.proposed_kcal).toLocaleString('en-US')} calories`);
   if (PS.showMacros && row.proposed_protein !== row.current_protein) bits.push(`${row.current_protein}g to ${row.proposed_protein}g protein`);
-  // An Intuitive athlete sees no figure: the change is described, never quoted.
-  const reason = numbers ? row.reason : (row.proposed_kcal > row.current_kcal ? 'Your weight is moving slower than your plan. A little more food each day would help.' : 'Your weight is moving faster than your plan. A little less food each day would help.');
+  // Composed from the row's numbers (0253 stores no text). An Intuitive athlete sees no figure: the
+  // change is described by what actually changes, never quoted.
+  const reason = numbers ? composeReason(row) : composeIntuitive(row);
   return `<section class="ts-card" aria-label="Suggested change">
     <div class="ts-eb">Suggested change</div>
     ${bits.length ? `<div class="ts-t">${esc(bits.join(' · '))}</div>` : ''}
-    <p class="ts-why">${esc(reason)}</p>
+    ${reason ? `<p class="ts-why">${esc(reason)}</p>` : ''}
     <div class="ts-acts">
       <button type="button" class="btn ghost ts-no" id="ts-no"${MINE.busy ? ' disabled' : ''}>Not now</button>
       <button type="button" class="btn primary ts-yes" id="ts-yes"${MINE.busy ? ' disabled' : ''}>Use these</button>
@@ -133,14 +138,19 @@ export function wireSuggestion(root) {
     const row = mySuggestion();
     if (!row || MINE.busy) return;
     MINE.busy = true; MINE.note = ''; window.__render();
+    // Accepting a row whose numbers are no longer today's targets would apply a change to numbers
+    // this athlete is not on: close it instead (the server re-checks the same thing).
+    const stale = decision === 'approved' && !liveMatches(row, { protein: DAY.proteinTarget, kcal: DAY.calTarget });
     let status = null;
     try {
-      const { data, error } = await window.sb.rpc('decide_target_suggestion', { p_id: row.id, p_decision: decision });
-      status = error ? null : data;
+      const { data, error } = await window.sb.rpc('decide_target_suggestion', { p_id: row.id, p_decision: stale ? 'expire' : decision });
+      status = error ? null : (stale ? 'stale' : data);
     } catch { status = null; }
     MINE.busy = false;
     if (!status) { MINE.note = 'Could not save that. Check your connection and try again.'; window.__render(); return; }
-    remember(RT.userId, { ...row, status, decided_at: new Date().toISOString() });
+    MINE.flash = status === 'stale' ? 'Your targets changed since this was suggested, so nothing was changed.'
+      : status === 'expired' ? 'That suggestion ran out after 14 days. Nothing was changed.' : '';
+    remember(RT.userId, { ...row, status: status === 'stale' ? 'expired' : status, decided_at: new Date().toISOString() });
     // Accepted: the two numbers are now this athlete's own targets. Re-read them so the day is
     // graded on them at once (applyGoalToDay runs inside the profile hydrate).
     if (status === 'approved') { try { await act._loadProfileIntoRt(RT.userId); } catch { /* next launch */ } }

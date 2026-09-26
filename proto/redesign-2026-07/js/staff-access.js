@@ -66,6 +66,16 @@ export function allowedCreateKeys(role) {
   return CREATE_CAPS[r];
 }
 
+/* Who owns an athlete's nutrition NUMBERS (their targets, a suggested change, the team's season):
+   the standards editors. The database holds the same list twice, in 0252 can_set_team_phase and
+   0253 can_decide_targets_for (which gates coach_set_goals since 0254); season-phase.test.mjs pins
+   all three. Unlike the create menu this fails CLOSED: an unknown or loading role gets no Save, so
+   nobody taps a button the server would refuse. A practice's trainer is decided by the caller. */
+export const TARGET_ROLES = ['head_coach', 'coordinator', 'assistant', 'nutritionist', 's_and_c', 'team_admin'];
+export function canSetTargets(role) {
+  return !!role && TARGET_ROLES.includes(role);
+}
+
 export function canEditStandards(role) {
   return allowedCreateKeys(role).includes('standards');
 }

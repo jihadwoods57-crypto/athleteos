@@ -41,7 +41,7 @@ import { STYLE_KEYS, styleLabel, knobsFor, resolveStyleKey } from '../plan-style
 import { dayFromHistoryRow, minutesNow, MEAL_KEYS } from '../day.js';
 import { explainCategories } from '../breakdown-model.js';
 import { seedTemplates, templateLabel } from '../templates.js';
-import { canEditStandards, canViewWeight } from '../staff-access.js';
+import { canEditStandards, canViewWeight, canSetTargets } from '../staff-access.js';
 import { categorizeInbox, inboxAlerts, countLabel, pageRows } from '../inbox.js';
 import { fmtWhen } from '../notif-feed.js';
 import { presetForStatus, tierForStatus, nudgeResultCopy, nudgedTodayFromInterventions } from '../nudge-presets.js';
@@ -718,6 +718,10 @@ export const coachPlan = {
     // can_view_weight (0103:56) grants a TRAINER unconditionally — is_trainer_of is checked
     // BEFORE the team_staff role branch, unlike a coach whose visibility depends on their scope.
     const seeWeight = CD.kind === 'practice' || canViewWeight(CD.extras && CD.extras.myRole);
+    // 0254: coach_set_goals now refuses staff who do not edit the standard (view-only, position
+    // coach, athletic trainer). They still SEE the targets; they never get a Save the server would
+    // bounce. Closed while the role loads (canSetTargets fails closed); a trainer owns the practice.
+    const canSave = CD.kind === 'practice' || (CD.extras && canSetTargets(CD.extras.myRole));
     // Distinguish "no targets set yet" (starter defaults shown as a starting point) from real
     // saved values — a coach shouldn't think targets already exist when they're just placeholders.
     const unset = t.protein == null && t.calories == null && (!seeWeight || t.weight == null);
@@ -729,7 +733,7 @@ export const coachPlan = {
     ${planStyleCard}
 
     <h2 class="eyebrow">Targets${unset ? ' · not set yet' : ''}</h2>
-    ${unset ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Starting points, not saved. Adjust and Save to set ${esc(who.name.split(' ')[0])}'s real targets.</div>` : ''}
+    ${unset ? `<div style="font-size:12px;font-weight:600;color:var(--text-3);margin:-4px 2px 8px;line-height:1.4">Starting points, not saved.${canSave ? ` Adjust and Save to set ${esc(who.name.split(' ')[0])}'s real targets.` : ''}</div>` : ''}
     <section class="card" style="padding:6px 16px">
       ${/* Real buttons and a real number input. The old − / + were bare spans with no CSS
             class behind them, no role, and no keyboard path, and the value lived in
@@ -764,18 +768,18 @@ export const coachPlan = {
     <div class="sidebox">
       <div class="req-icon s38">${icon('lock', 17)}</div>
       <div><div class="tt">Weight targets are managed by allowed roles</div>
-      <div class="ts">Your role sets protein and calorie targets. Body-weight data and the weight target are visible to the head coach, athletic trainer, and S&amp;C coach.</div></div>
+      <div class="ts">${canSave ? 'Your role sets protein and calorie targets. ' : ''}Body-weight data and the weight target are visible to the head coach, athletic trainer, and S&amp;C coach.</div></div>
     </div>`}
 
     <div style="height:14px"></div>
     <div class="sidebox">
-      <div class="req-icon b s38">${icon('shield', 17)}</div>
-      <div><div class="tt">${cap(noun)} owns the numbers</div>
-      <div class="ts">Saving sets their targets. Their score is unaffected.</div></div>
+      <div class="req-icon b s38">${icon(canSave ? 'shield' : 'eye', 17)}</div>
+      <div><div class="tt">${canSave ? `${cap(noun)} owns the numbers` : 'View only'}</div>
+      <div class="ts">${canSave ? 'Saving sets their targets. Their score is unaffected.' : 'Targets are set by the head coach, coordinators, the nutritionist and S&amp;C. Ask the head coach if your role should change.'}</div></div>
     </div>
 
     <div style="height:16px"></div>
-    <button class="btn primary" id="save-targets">${icon('check', 19)} Save targets</button>
+    ${canSave ? `<button class="btn primary" id="save-targets">${icon('check', 19)} Save targets</button>` : ''}
     <div id="tg-status" style="text-align:center;font-size:13px;font-weight:600;color:var(--text-3);min-height:18px;margin-top:10px"></div>
     <div style="height:10px"></div>
     `;

@@ -9,9 +9,10 @@
  * canSetSeason, mirrored by 0252 can_set_team_phase) on a team book whose plan is live. It fails
  * CLOSED while the role loads: view-only staff never see it, not even for a frame.
  *
- * A SUGGESTION is approved through the existing coach_set_goals door (roles.coachSetGoals), with
- * the athlete's current targets kept whole, and only then marked approved (0253 refuses the mark
- * otherwise). Declining marks it and buys 14 quiet days.
+ * A SUGGESTION is approved in ONE server call: decide_target_suggestion re-checks it against the
+ * athlete's live targets and applies it through the same gated coach_set_goals door, atomically
+ * (0253/0254). The device first refuses a row whose numbers are no longer the athlete's live
+ * targets and closes it. Declining marks it and buys 14 quiet days.
  */
 import * as roles from './roles.js';
 import { CD, bookId, loadBook } from './coach-data.js';
@@ -19,7 +20,8 @@ import { icon } from './icons.js';
 import { esc } from './components.js';
 import { overlayOpen } from './overlay-guard.js';
 import { PHASES, phaseLabel, canSetSeason, confirmLine } from './season-phase.js';
-import { changeHeadline, approvedTargets, isLive } from './target-suggest-model.js';
+import { changeHeadline, composeReason, liveMatches, isLive } from './target-suggest-model.js';
+import { nutritionConfigForGoal } from './state.js';
 
 const TTL = 60000;
 let SEASON = { teamId: null, phase: undefined, at: 0, err: false };
@@ -178,7 +180,7 @@ export function paintSeason(root) {
 
 /* ---------------------------------------------------------------- suggestions */
 
-const COLS = 'id,athlete_id,status,created_at,current_protein,current_kcal,proposed_protein,proposed_kcal,reason';
+const COLS = 'id,athlete_id,team_id,status,created_at,current_protein,current_kcal,proposed_protein,proposed_kcal,pace_lb_wk,plan_lb_wk';
 
 async function readSuggestions(force) {
   const key = `${CD.kind}|${bookId()}`;
@@ -187,8 +189,17 @@ async function readSuggestions(force) {
   if (!sb || !bookId()) return false;
   const since = new Date(Date.now() - 14 * 86400000).toISOString();
   try {
-    const { data, error } = await sb.from('target_suggestions').select(COLS)
-      .eq('status', 'pending').gte('created_at', since).order('created_at', { ascending: false }).limit(20);
+    // Scoped to THIS book, not just to whatever RLS lets the operator see: a coach on two teams (or
+    // a trainer with a team too) reads the loaded book's rows only. A practice suggestion has no
+    // team, so the practice book filters by its own clients.
+    let q = sb.from('target_suggestions').select(COLS).eq('status', 'pending').gte('created_at', since);
+    if (CD.kind === 'team') q = q.eq('team_id', bookId());
+    else {
+      const ids = (CD.roster && CD.roster.rows ? CD.roster.rows : []).map((r) => r.athleteId).filter(Boolean);
+      if (!ids.length) { SUGG = { ...SUGG, key, rows: [], at: Date.now() }; return false; }
+      q = q.in('athlete_id', ids.slice(0, 200));
+    }
+    const { data, error } = await q.order('created_at', { ascending: false }).limit(20);
     if (error) return false;
     const before = JSON.stringify(SUGG.rows);
     SUGG = { ...SUGG, key, rows: Array.isArray(data) ? data : [], at: Date.now() };
@@ -203,40 +214,62 @@ export function liveSuggestions() {
 }
 
 export function suggestionCardsHtml() {
-  const rows = liveSuggestions();
+  // Live rows, plus a row this visit just closed (stale / expired), so its note is read once.
+  const all = SUGG.key === `${CD.kind}|${bookId()}` && SUGG.rows ? SUGG.rows : [];
+  const rows = all.filter((r) => firstName(r.athlete_id) && (isLive(r, todayISO()) || (r.status === 'closed' && SUGG.note[r.id])));
   if (!rows.length) return '';
   return rows.slice(0, 3).map((r) => {
     const busy = !!SUGG.busy[r.id];
     const note = SUGG.note[r.id] || '';
+    const why = composeReason(r);
     return `<section class="tsc" data-tsc="${esc(r.id)}" aria-label="Suggested change">
       <div class="tsc-t">${esc(`Suggested change for ${firstName(r.athlete_id)}: ${changeHeadline(r)}`)}</div>
-      <p class="tsc-why">${esc(r.reason)}</p>
-      <div class="tsc-acts">
+      ${why ? `<p class="tsc-why">${esc(why)}</p>` : ''}
+      ${r.status === 'closed' ? '' : `<div class="tsc-acts">
         <button type="button" class="btn ghost" data-tsc-no="${esc(r.id)}"${busy ? ' disabled' : ''}>Decline</button>
         <button type="button" class="btn primary" data-tsc-yes="${esc(r.id)}"${busy ? ' disabled' : ''}>Approve</button>
-      </div>
+      </div>`}
       ${note ? `<div class="tsc-st err" role="status">${esc(note)}</div>` : ''}
     </section>`;
   }).join('');
 }
 
-/** Approve: the athlete's current targets, with the two numbers replaced, through coach_set_goals,
- *  THEN the mark. `deps` lets the test hand in stubs for roles and the client. */
+/** The athlete's live targets as far as this operator can know them: every stored (coach-set) figure,
+ *  and the goal-derived ones through the SAME function the athlete grades with, but only when the
+ *  bodyweight is visible to this role (a weight-restricted role would derive from the default weight
+ *  and call every goal-derived row stale). What stays unknown is re-checked by the server. */
+export async function liveTargetsFor(athleteId, r = roles) {
+  let b = null;
+  try { b = await r.fetchAthleteBasics(athleteId); } catch { b = null; }
+  if (!b) return {};
+  const t = b.targets && typeof b.targets === 'object' ? b.targets : {};
+  const live = {};
+  if (Number(t.protein) > 0) live.protein = Number(t.protein);
+  if (Number(t.calories) > 0) live.kcal = Number(t.calories);
+  if (b.base_goal && b.base_weight != null && (live.protein == null || live.kcal == null)) {
+    const cfg = nutritionConfigForGoal(b.base_goal, b.base_weight, t, b.season_phase || null);
+    if (live.protein == null) live.protein = cfg.proteinTarget;
+    if (live.kcal == null) live.kcal = cfg.calTarget;
+  }
+  return live;
+}
+
+/** Approve: ONE server call. decide_target_suggestion re-checks the row against the athlete's live
+ *  stored targets and applies the numbers itself through coach_set_goals, in one transaction, so
+ *  the targets and the row can never disagree. Before asking, the device refuses a row whose current
+ *  numbers are no longer the athlete's live targets and closes it (status 'stale').
+ *  Returns { ok, status } with status 'approved' | 'stale' | 'expired', or { ok:false, error }. */
 export async function approveSuggestion(row, deps = {}) {
-  const r = deps.roles || roles;
   const sb = deps.sb || window.sb;
   if (!row || !sb) return { ok: false, error: 'offline' };
-  let existing = null;
-  try {
-    const { data, error } = await sb.rpc('athlete_plan_meta', { athlete: row.athlete_id });
-    // A failed read must not become an empty {}: coach_set_goals replaces the whole JSON, and
-    // writing {protein, calories} over it would wipe the plan style the coach set.
-    if (error) return { ok: false, error: 'read' };
-    existing = Array.isArray(data) && data[0] ? data[0].targets : null;
-  } catch { return { ok: false, error: 'read' }; }
-  const ok = await r.coachSetGoals(row.athlete_id, approvedTargets(existing, row));
-  if (!ok) return { ok: false, error: 'targets' };
-  return decide(row, 'approved', sb);
+  const live = deps.live || await liveTargetsFor(row.athlete_id, deps.roles || roles);
+  if (!liveMatches(row, live)) {
+    await decide(row, 'expire', sb);
+    return { ok: false, status: 'stale' };
+  }
+  const res = await decide(row, 'approved', sb);
+  if (!res.error && res.status !== 'approved') return { ok: false, status: res.status };
+  return res;
 }
 
 export async function declineSuggestion(row, deps = {}) {
@@ -251,6 +284,13 @@ async function decide(row, decision, sb) {
     if (error) return { ok: false, error: 'decide' };
     return { ok: true, status: data };
   } catch { return { ok: false, error: 'decide' }; }
+}
+
+/** What the card says after a tap that did not go through. Always the true state. */
+export function outcomeNote(approving, res) {
+  if (res.status === 'stale') return 'Their targets changed since this was suggested, so nothing was applied. It is closed.';
+  if (res.status === 'expired') return 'This suggestion ran out after 14 days. Nothing was applied.';
+  return approving ? "Couldn't approve it. Their targets are unchanged. Try again." : "Couldn't save that. Try again.";
 }
 
 export function paintSuggestions(root) {
@@ -277,7 +317,10 @@ export function paintSuggestions(root) {
       if (res.ok) {
         SUGG.rows = (SUGG.rows || []).filter((x) => x.id !== id);
       } else {
-        SUGG.note[id] = yes ? "Couldn't approve it. Their targets are unchanged. Try again." : "Couldn't save that. Try again.";
+        SUGG.note[id] = outcomeNote(!!yes, res);
+        // A closed row (stale or expired) stays on screen for this visit only, so the note is read;
+        // it cannot be tapped again: the buttons go with it on the next read.
+        if (res.status) SUGG.rows = (SUGG.rows || []).map((x) => (x.id === id ? { ...x, status: 'closed' } : x));
       }
       paint();
     });

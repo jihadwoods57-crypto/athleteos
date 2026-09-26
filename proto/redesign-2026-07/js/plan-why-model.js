@@ -194,7 +194,7 @@ export function explainTargets({
     compare,
     // B: what the season does to these numbers, in one line. Goal-derived calories only; a coach's
     // (or an accepted) number says the season leaves it alone. No phase = no line = today.
-    season: whyPhaseLine({ phase, family: fam, coachSet: coach.calories, minor, numbers: showCalories, adjust: phaseAdjust }),
+    season: whyPhaseLine({ phase, family: fam, coachSet: coach.calories, who, minor, numbers: showCalories, adjust: phaseAdjust }),
   };
 }
 

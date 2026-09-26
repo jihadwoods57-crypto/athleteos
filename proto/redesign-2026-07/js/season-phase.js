@@ -13,7 +13,7 @@
  *  3. Intuitive: no figures. The plate says what changes instead.
  *  4. Deterministic text the app writes, never signed as Nia. No em dashes.
  */
-import { canEditStandards, normalizeRole } from './staff-access.js';
+import { canSetTargets, TARGET_ROLES } from './staff-access.js';
 
 export const PHASES = [
   { key: 'off', label: 'Off-season', short: 'Off', meaning: 'Build. The full plan for each goal.' },
@@ -29,11 +29,8 @@ export const phaseLabel = (k) => { const p = phaseInfo(k); return p ? p.label : 
 /** Who may set the TEAM's phase: the staff who edit its standard (0252 can_set_team_phase holds
  *  the same list). Fails CLOSED while the role loads: the spec says the control never renders for
  *  view-only staff, and a control that flashes then vanishes is worse than one that arrives late. */
-export const PHASE_SETTER_ROLES = ['head_coach', 'coordinator', 'nutritionist', 's_and_c', 'team_admin'];
-export function canSetSeason(role) {
-  const r = normalizeRole(role);
-  return !!r && PHASE_SETTER_ROLES.includes(r) && canEditStandards(r);
-}
+export const PHASE_SETTER_ROLES = TARGET_ROLES.filter((r) => r !== 'assistant');
+export function canSetSeason(role) { return canSetTargets(role); }
 
 /** The line the coach confirms before a change: what it does for athletes, in plain words. */
 export function confirmLine(phase) {
@@ -86,16 +83,20 @@ const PLATE_LINES = {
  *   phase       'off' | 'pre' | 'in' | 'post' | null
  *   family      'gain' | 'lose' | 'maintain' | 'perform' | null (plan-why-model goalFamily)
  *   coachSet    the calories were set by a coach or trainer (or accepted by the athlete)
+ *   who         'coach' | 'trainer' | 'self' (a solo athlete who accepted a suggested change)
  *   minor       a provable minor (0050)
  *   numbers     the plan style shows calories
  *   adjust      state.js phaseCalAdjust(goal, phase): the calories the phase moved
  *   mode        'numbers' | 'plate'
  */
-export function whyPhaseLine({ phase, family = null, coachSet = false, minor = false, numbers = true, adjust = 0, mode = 'numbers' } = {}) {
+export function whyPhaseLine({ phase, family = null, coachSet = false, who = 'coach', minor = false, numbers = true, adjust = 0, mode = 'numbers' } = {}) {
   const info = phaseInfo(phase);
   if (!info) return null;
   if (mode === 'plate') return { label: info.label, text: PLATE_LINES[phase] };
-  if (coachSet) return { label: info.label, text: `${info.label}: the season does not move numbers your coach set.` };
+  if (coachSet) {
+    const whose = who === 'self' ? 'numbers you set from a suggested change' : who === 'trainer' ? 'numbers your trainer set' : 'numbers your coach set';
+    return { label: info.label, text: `${info.label}: the season does not move ${whose}.` };
+  }
   const fam = minor || !family ? 'perform' : family;
   let text = LINES[fam][phase];
   if (numbers && !minor && adjust) {

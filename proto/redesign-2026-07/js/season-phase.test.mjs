@@ -211,3 +211,55 @@ test('the coach confirm line says what changes and that coach numbers stay', () 
     assert.doesNotMatch(t, /[—–]/);
   }
 });
+
+/* ---------------- review round (2026-09-26) ---------------- */
+
+test('who set the numbers is named truly: a solo athlete\'s accepted change is theirs', () => {
+  const self = SP.whyPhaseLine({ phase: 'in', family: 'gain', coachSet: true, who: 'self' });
+  assert.match(self.text, /numbers you set from a suggested change/);
+  assert.doesNotMatch(self.text, /coach/);
+  assert.match(SP.whyPhaseLine({ phase: 'in', family: 'gain', coachSet: true, who: 'trainer' }).text, /numbers your trainer set/);
+  assert.match(SP.whyPhaseLine({ phase: 'in', family: 'gain', coachSet: true }).text, /numbers your coach set/);
+  const d = nutritionConfigForGoal('gain', 187, { protein: 190, calories: 3300 }, 'in');
+  const x = WM.explainTargets({ goalKey: 'gain', bodyweight: 187, protein: d.proteinTarget, kcal: d.calTarget, derive: (k, bw) => nutritionConfigForGoal(k, bw, null, 'in'),
+    showMacros: true, showCalories: true, coachSet: { protein: true, calories: true }, who: 'self', phase: 'in', phaseAdjust: -150 });
+  assert.match(x.season.text, /numbers you set from a suggested change/);
+});
+
+test('who may set targets: one list for the targets door, the season, and the Save button', async () => {
+  const SA = await import('./staff-access.js');
+  for (const r of ['head_coach', 'coordinator', 'assistant', 'nutritionist', 's_and_c', 'team_admin']) assert.equal(SA.canSetTargets(r), true, r);
+  for (const r of ['readonly', 'position_coach', 'athletic_trainer', null, undefined, '']) assert.equal(SA.canSetTargets(r), false, String(r));
+  const sql = readFileSync(join(ROOT, 'supabase', 'migrations', '0253_target_suggestions.sql'), 'utf8')
+    .match(/function can_decide_targets_for[\s\S]*?role::text in \(([^)]*)\)/)[1].split(',').map((x) => x.trim().replace(/'/g, '')).sort();
+  assert.deepEqual([...SA.TARGET_ROLES].sort(), sql);
+  assert.match(readFileSync(join(ROOT, 'supabase', 'migrations', '0254_coach_set_goals_gate.sql'), 'utf8'), /if not can_decide_targets_for\(athlete\) then/);
+  // The only client door to coach_set_goals is the coach's Nutrition targets screen: Save is gated there.
+  const coach = readFileSync(join(HERE, 'screens', 'coach.js'), 'utf8');
+  assert.match(coach, /const canSave = CD\.kind === 'practice' \|\| \(CD\.extras && canSetTargets\(CD\.extras\.myRole\)\)/);
+  assert.match(coach, /\$\{canSave \? `<button class="btn primary" id="save-targets">/);
+});
+
+test('the season loads beside the launch chain, never in front of it', () => {
+  const state = readFileSync(join(HERE, 'state.js'), 'utf8');
+  assert.doesNotMatch(state, /await this\._loadSeasonIntoRt/);
+  assert.match(state, /void this\._loadSeasonIntoRt\(RT\.userId\)/);
+});
+
+test('each day records the phase that graded it (checkin.seasonPhase, like days.plan_style)', async () => {
+  const day = await import('./day.js');
+  const { act } = await import('./state.js');
+  const rows = [];
+  const prevSb = globalThis.window.sb;
+  globalThis.window.sb = {
+    rpc: async () => ({ data: { phase: 'in', source: 'team', can_set_self: false }, error: null }),
+    from: () => ({ upsert: async (row) => { rows.push(row); return { error: null }; } }),
+  };
+  RT.userId = 'u-phase'; RT.profile = { baseGoal: 'gain', baseWeight: 200 }; RT.season = null;
+  await act._loadSeasonIntoRt('u-phase');
+  assert.equal(day.DAY.seasonPhase, 'in');
+  assert.equal(day.DAY.calTarget, nutritionConfigForGoal('gain', 200, null, 'in').calTarget);
+  await day.pushDay('u-phase', true);
+  assert.equal(rows.at(-1).checkin.seasonPhase, 'in');
+  globalThis.window.sb = prevSb; RT.season = null;
+});
