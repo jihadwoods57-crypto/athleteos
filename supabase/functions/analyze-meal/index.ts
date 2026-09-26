@@ -44,7 +44,7 @@ import { resolvePackagedProduct } from '../_shared/packaged-resolve.ts';
 import { groundPackagedItems, MAX_LOOKUPS as PACKAGED_MAX_LOOKUPS } from '../_shared/packaged-grounding.ts';
 import { composeOpener } from '../_shared/meal-opener.ts';
 import { athleteContextLine, positionWords, type AthleteContextIn } from '../_shared/athlete-context.ts';
-import { loadAthleteDossier, renderDossier } from '../_shared/athlete-dossier.mjs';
+import { loadAthleteDossier, renderDossier, ageBand } from '../_shared/athlete-dossier.mjs';
 import { clockLine, dayContextLine } from '../_shared/day-context.ts';
 import { NIA_IDENTITY, NIA_HONESTY, NIA_VOICE } from '../_shared/nia-voice.ts';
 import { detectDayLeak, dayLeakOutcome } from '../_shared/day-leak.ts';
@@ -1003,7 +1003,20 @@ async function postOpener(
     const late = t && typeof t.minutesLate === 'number' ? t.minutesLate > 0
       : t && typeof t.minutesLeft === 'number' ? false
       : null;
-    const { text, ask } = composeOpener(read, {
+    // The goal and the age band, read here for the meal owner (A2 "why this matters"). The client
+    // never supplies them: RT.primaryGoal has no writer, so req.goal is null in every shipped build,
+    // and a minor's rails must not be a client courtesy. A failed read is an unknown age, which
+    // 0050 treats as an adult, and the goal falls back to whatever the request carried.
+    let ownerGoal: unknown = req.goal ?? null;
+    let minor = false;
+    try {
+      const { data: ap } = await service.from('athlete_profiles').select('base_goal, dob, base_age').eq('athlete_id', userId).maybeSingle();
+      if (ap) {
+        if (ap.base_goal) ownerGoal = ap.base_goal;
+        minor = ageBand(ap.dob ?? null, ap.base_age ?? null, new Date().toISOString().slice(0, 10)) === 'minor';
+      }
+    } catch { /* unknown: adult, request goal */ }
+    const { text, ask, why } = composeOpener(read, {
       planStyle,
       late,
       mealName: req.mealType ?? null,
@@ -1013,8 +1026,10 @@ async function postOpener(
       // printing it is what made a logged breakfast read "near 0 of 155g".
       day: req.dayAfter ?? null,
       patterns: req.patterns ?? null,
-      goal: req.goal ?? null,
+      goal: typeof ownerGoal === 'string' ? ownerGoal : null,
       clarifyBudgetSpent,
+      mealId,
+      minor,
     });
     if (!text) return;   // nothing honest to say — an empty bubble is worse than no bubble
 
@@ -1022,7 +1037,8 @@ async function postOpener(
       meal_id: mealId, athlete_id: userId, author_id: userId,
       // `ask` (2026-09-25): the item the uncertainty line names, as data, so the athlete can answer
       // it with one tap. Composed here from the grounded read's detected names, never from free text.
-      role: 'ai', kind: 'message', text, meta: ask ? { t: 'analysis', ask } : { t: 'analysis' },
+      // `why` (A2): the one deterministic "why this matters" sentence, drawn as a collapsible chip.
+      role: 'ai', kind: 'message', text, meta: { t: 'analysis', ...(ask ? { ask } : {}), ...(why ? { why } : {}) },
     });
   } catch (e) {
     console.error('analyze-meal opener post failed:', e);

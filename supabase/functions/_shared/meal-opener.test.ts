@@ -437,7 +437,7 @@ describe('composeOpener says what it asked', () => {
   it('asks nothing when the message itself is refused', () => {
     const r = composeOpener(read({ analysis: 'That is roughly 45g of protein on the plate.', detected: [{ name: 'Rice', confidence: 'low', quantity: '1 cup' }], highlights: [] }),
       { planStyle: 'intuitive' });
-    expect(r).toEqual({ text: '', ask: null });
+    expect(r).toEqual({ text: '', ask: null, why: null });
   });
 
   it('asks nothing when a clip dropped the question from the message', () => {

@@ -30,6 +30,7 @@
 
 import { violatesStyleLanguage, type PlanStyle } from './plan-style.ts';
 import { scrubToolLeak } from './tool-leak.ts';
+import { openerWhy, whyTopic, type OpenerWhy } from './opener-why.ts';
 
 const MAX = 1000;
 
@@ -241,6 +242,11 @@ export type OpenerContext = {
    *  could not ask its question. The uncertainty line then says it is estimating and names the
    *  item, instead of the silence the forced report used to leave. null/undefined = unknown. */
   clarifyBudgetSpent?: boolean | null;
+  /** The meal row's id: picks the "why" variant, so one meal always says the same thing (A2). */
+  mealId?: string | null;
+  /** True when the athlete is a PROVABLE minor (0050: unknown age is an adult). A minor's "why"
+   *  is about training and recovery, never weight (opener-why.ts). */
+  minor?: boolean | null;
 };
 
 /**
@@ -256,7 +262,7 @@ export function composeOpenerText(input: MealInput, ctx: OpenerContext = {}): st
  * into the message whole (a clip that dropped it, or a style rail that emptied the message, leaves
  * nothing to answer), so a tap-to-answer chip can never answer a question the athlete was not asked.
  */
-export function composeOpener(input: MealInput, ctx: OpenerContext = {}): { text: string; ask: OpenerAsk | null } {
+export function composeOpener(input: MealInput, ctx: OpenerContext = {}): { text: string; ask: OpenerAsk | null; why: OpenerWhy | null } {
   const style = ctx.planStyle ?? null;
   // INTUITIVE (0142): not one macro or calorie figure may reach this athlete. The plate, the
   // timing and how it fits their goal still do — the composition IS the feedback. The model's own
@@ -355,10 +361,18 @@ export function composeOpener(input: MealInput, ctx: OpenerContext = {}): { text
   // INSIDE a part, so the only line breaks in the message are the ones between texts.
   const tidy = (p: string) => p.replace(/—/g, ',').replace(/\s+/g, ' ').trim();
   const out = clip(parts.map(tidy).filter(Boolean).join('\n\n'));
-  if (out.length < 2) return { text: '', ask: null };
+  if (out.length < 2) return { text: '', ask: null, why: null };
   // Final rail, matching meal-chat: nothing that breaches the athlete's plan-style language is
   // ever persisted, even assembled from the model's own already-railed prose.
-  if (violatesStyleLanguage(out, style)) return { text: '', ask: null };
+  if (violatesStyleLanguage(out, style)) return { text: '', ask: null, why: null };
   const asked = unsure && out.includes(tidy(unsure)) ? askOf(uncertainItem(input.detected)) : null;
-  return { text: out, ask: asked };
+  // WHY THIS MATTERS (A2): one deterministic sentence for the move above, keyed by the goal and by
+  // what the day line said. Not part of the text: it rides meta.why and the client draws it as a
+  // collapsible chip. The library holds its own rails (no figures, no weight language); the style
+  // rail is re-checked here anyway, so a line added later can never reach an Intuitive athlete.
+  const why = openerWhy({
+    goal: ctx.goal, minor: ctx.minor === true, mealId: ctx.mealId ?? null,
+    topic: whyTopic({ gap: dayTotal !== null && target !== null && target > 0 ? target - dayTotal : null, remaining, late: ctx.late, slot: text(ctx.mealName) }),
+  });
+  return { text: out, ask: asked, why: violatesStyleLanguage(why.text, style) ? null : why };
 }
