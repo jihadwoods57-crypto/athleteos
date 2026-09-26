@@ -66,3 +66,66 @@ When a photo is taken for a slot that has a plan, send it to analyze-meal as `pl
 - Tests for the slot and target math (parity with meal-opener), the plan storage ignored by scoring, the idea ranking and caching, the plannedMeal sanitizing, the prefs RLS and filters, and the intuitive/minor gating.
 - All gates green, zip rebuilt.
 - Screenshots of Today at every state (choose, planned, logged, intuitive, no usuals, all logged) in dark and light at 390, looked at.
+
+## A2 in detail (A1 shipped 2026-09-25: merge d1e7db34, OTA 01a0db2e)
+
+Everything in A2 is DETERMINISTIC: no new model calls and no new AI cost. Text that the app writes is
+never signed as Nia, with one exception: the opener "why" (below) is part of the opener, which Nia
+already signs and which is composed deterministically today.
+
+### 1. Why these numbers (replaces the goal-panel link on Plan > Today)
+- A screen that explains the athlete's REAL targets (the graded `DAY.proteinTarget` / `DAY.calTarget`).
+  - Protein per day with its basis: about Xg per pound for this goal, from the same math as `goalDerivedTargets` (state.js 750-784). Include the per-meal split ("about 45g at each of 4 meals", using the Plan/opener split math).
+  - Calories per day, and what they mean for this goal.
+  - "How to eat it": a 1-2 sentence plain rule for the goal.
+- **Coach-set targets.** Say "Your coach set these numbers" and keep the general why. Hide the goal comparison.
+- **Goal comparison.** A segmented Maintain / Lean out / Gain / Perform control showing what each goal would mean. Numbers come from `goalDerivedTargets` for the athlete's own inputs. The athlete's current goal is marked "Your goal". Only shown when the targets are goal-derived.
+- **Minors.** No bodyweight figures, no "per pound" wording, and no weight-change language. Use "for your body and training".
+- **Intuitive.** "Why this plate": no figures at all; explain the plate for the goal.
+- Style: the A1 look (calm, one accent, ≥44px targets), with a back button to Plan.
+
+### 2. Nia's "why this matters" (opener)
+- **Server** (`_shared/meal-opener.ts`). `composeOpener` also returns `why`: one short deterministic sentence (at most 200 chars), keyed by goal (gain / lose / maintain / perform) and by the topic of the move it made (protein short, protein closed, carbs around the day, a late meal, a snack). Put it in the opener row's `meta.why`, the same way `meta.ask` was added. It is not part of the text, so older clients show nothing new.
+  - Write a small library, 3+ variants per goal x topic, picked deterministically by the meal id so it doesn't repeat every time.
+  - Intuitive: no numbers.
+  - Minors: no weight language.
+  - It must pass the plan-style rail, and scrubToolLeak must never be needed.
+- **Client** (`thread-polish.js`). When the opener row has `meta.why`, render a collapsible chip under the opener bubbles, "Why this matters for gaining" (the label follows the goal wording). Tapping expands it into a bubble in the goal accent (teal); tapping again collapses it.
+  - The athlete's own threads only. The coach view shows it expanded, labelled "Why (for their goal)", or hides it; your call, but document it.
+
+### 3. Weekly focus plus Sunday recap (Home)
+- **Picking the focus.** Computed on the device from the last 14 days of the athlete's own meals and days. Candidates:
+  - breakfast protein, lunch protein, dinner protein, measured against the per-slot share of the target;
+  - missed required meals;
+  - logging late (minutes_late);
+  - snack consistency when the snack is required.
+- Pick the weakest candidate that has enough data (≥5 days of that slot). Keep it stable for the ISO week (persisted per athlete and week; recomputed only if there's no data).
+- With fewer than 5 days of data overall: no card, or a gentle "Log a few days and Nia will pick your focus" (not signed Nia).
+- **The card** (on Home, one calm card):
+  - "This week's focus" (teal), the focus title, and one line on why it matters most for them, with a real number for numbers styles ("Breakfasts average 22g").
+  - A Mon-Sun tracker of hits.
+  - 3 tips from a library per focus, checkable, stored locally per week.
+  - "Ask Nia why this matters", which opens the nutrition chat with that question typed but NOT sent.
+- **Intuitive.** The same focus, phrased without numbers ("A palm of protein at breakfast"). The tracker still works from the data, but shows no grams.
+- **Sunday recap** (Sunday, and Monday until noon). One quiet line under the card:
+  - protein days hit X of 7, and which slot missed most;
+  - for adults with weight data, the weight pace from the existing weight trend;
+  - the average day score.
+  - Deterministic, and not signed Nia.
+
+### 4. What works for you (personal insights)
+- Correlate the athlete's own days: meal behaviours (a slot's protein hit, all required meals logged, logged on time) against the check-in fields (energy, recovery/soreness, sleep, confidence, motivation).
+- **CHECK-IN POLARITY IS LOAD-BEARING.** Soreness and cravings storage must never be flipped. Read them the way the existing code reads them (see the memory note / state.js), so "better" means better.
+- **Thresholds:**
+  - ≥10 days with both meals and a check-in;
+  - each group ≥3 days;
+  - a mean difference ≥1.5 points on the 1-10 scale.
+- Show at most 2 insights. Honest, non-causal wording: "On days your breakfast hit 40g, your energy averaged 8. On days it didn't, 5."
+- For intuitive athletes, express the behaviour without grams ("a palm of protein at breakfast").
+- **Where it shows:** the Progress page ("What works for you") and, when strong, in the Sunday recap.
+- Never for guardians' views.
+
+### Done means
+- Tests: the target explanation math (parity with goalDerivedTargets), the minor and intuitive gating, the why library selection plus the rails, the focus picking and its stability, the tracker, the insight thresholds and polarity.
+- All gates green, the zip rebuilt.
+- Screenshots in qc/plan-teach/, dark and light at 390, looked at.

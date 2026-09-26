@@ -110,6 +110,7 @@ export const screens = {
   plan,
   'memory-edit': lazy(() => import('./memory-edit.js')),
   'plan-ask': lazy(() => import('./plan-ask.js')),
+  'plan-why': lazy(() => import('./plan-why.js')),
   camera: lazy(camera),
   'camera-confirm': lazy(camera, 'cameraConfirm'),
   analyzing: lazy(meal, 'analyzing'),

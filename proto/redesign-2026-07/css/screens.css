@@ -4474,6 +4474,71 @@ html[data-layout] .rhb-body, html[data-layout] .rhb-acts { max-width: 720px; }
 :root[data-theme="light"] { --pt-goal-ink: var(--teal-deep); --pt-plate-pr: var(--blue-deep); --pt-plate-cb: var(--amber); --pt-plate-vg: var(--sage); }
 @media (prefers-reduced-motion: reduce) { .pt-dot { transition: none; } }
 
+/* Plan > Why these numbers (A2, js/screens/plan-why.js). The A1 look: no boxes around the figures,
+   one number per section with its reason under it, teal only on the goal (the lead, "Your goal"),
+   blue only on what can be tapped. Prefixed pw- (one flat namespace). */
+.pw { display: block; padding: 0 2px var(--s5); }
+.pw-lead { margin: var(--s1) 0 var(--s2); font-size: var(--t-base); font-weight: 800; color: var(--pt-goal-ink); }
+.pw-fig { padding: var(--s3) 0; border-top: 1px solid var(--hairline-soft); }
+.pw-fig:first-of-type { border-top: none; }
+.pw-k { font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-key); text-transform: uppercase; color: var(--text-3); }
+.pw-v { margin-top: var(--s1); font-size: var(--t-2xl); font-weight: 800; letter-spacing: var(--num-tight); font-variant-numeric: tabular-nums; color: var(--text); line-height: 1.1; }
+.pw-b, .pw-m, .pw-how { margin: var(--s1h) 0 0; font-size: var(--t-base); font-weight: 600; color: var(--text-2); line-height: 1.45; text-wrap: pretty; }
+.pw-m { color: var(--text); font-weight: 700; }
+.pw-how { margin-top: 0; color: var(--text); }
+.pw-plate-art { position: relative; width: 112px; height: 112px; margin: var(--s2) auto var(--s1); }
+.pw-plate { margin-top: var(--s3); gap: var(--s2h); }
+.pw-plate li { font-size: var(--t-base); }
+.pw-seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; padding: 2px; border-radius: var(--r-card-sm); background: var(--surface-2); }
+.pw-sg { position: relative; min-height: 44px; padding: 0 var(--s1); border: none; border-radius: calc(var(--r-card-sm) - 2px); background: none; cursor: pointer;
+  font-family: var(--font); font-size: var(--t-sm); font-weight: 700; color: var(--text-2); white-space: nowrap; }
+.pw-sg.on { background: var(--surface-1); color: var(--text); box-shadow: var(--sh-card); }
+.pw-sg.mine::before { content: ""; position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--pt-goal-ink); }
+.pw-cmp { padding: var(--s3) 0 0; }
+.pw-cmp-h { display: flex; align-items: center; flex-wrap: wrap; gap: var(--s2); font-size: var(--t-md); color: var(--text); }
+.pw-cmp-h b { font-weight: 800; font-variant-numeric: tabular-nums; }
+.pw-mine { font-size: var(--t-micro); font-weight: 800; letter-spacing: var(--track-key); text-transform: uppercase; color: var(--pt-goal-ink);
+  padding: var(--s1) var(--s2); border-radius: var(--r-pill); background: rgba(var(--teal-rgb), 0.10); }
+.pw-link { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; margin-top: var(--s3); padding: 0; background: none; border: none; cursor: pointer;
+  font-family: var(--font); font-size: var(--t-sm); font-weight: 700; color: var(--blue-bright); }
+
+/* Home: this week's focus (A2, js/weekly-focus.js). ONE calm card: teal only for the goal (the
+   eyebrow, the tracker's hits), blue only for what acts (Ask Nia), no green (nothing here is a
+   scored status). The tips tick like a list, not like buttons. Prefixed wf- / ww-. */
+.wf { margin-top: var(--s4); background: var(--surface-1); border-radius: var(--r-card); box-shadow: var(--sh-card); padding: var(--s4); }
+.wf-eb { font-size: var(--t-eyebrow); font-weight: 800; letter-spacing: var(--track-eyebrow); text-transform: uppercase; color: var(--pt-goal-ink); }
+.wf-t { margin-top: var(--s1); font-size: var(--t-lg); font-weight: 800; color: var(--text); line-height: 1.25; }
+.wf-why { margin: var(--s1h) 0 0; font-size: var(--t-base); font-weight: 600; color: var(--text-2); line-height: 1.45; text-wrap: pretty; }
+.wf-trk { list-style: none; margin: var(--s3) 0 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--s1); }
+.wf-d { display: flex; flex-direction: column; align-items: center; gap: var(--s1); }
+.wf-dot { width: 28px; height: 28px; border-radius: var(--r-pill); display: grid; place-items: center; border: 2px solid var(--hairline); color: var(--bg); }
+.wf-d.hit .wf-dot { background: var(--pt-goal-ink); border-color: var(--pt-goal-ink); }
+.wf-d.miss .wf-dot { border-color: var(--text-3); opacity: 0.55; }
+.wf-d.open .wf-dot { border-style: dashed; border-color: var(--pt-goal-ink); }
+.wf-d.future .wf-dot { border-color: var(--hairline-soft); }
+.wf-d.unknown .wf-dot { border-color: var(--hairline); border-style: dotted; }
+.wf-dl { font-size: var(--t-micro); font-weight: 800; letter-spacing: var(--track-key); color: var(--text-3); }
+.wf-d.open .wf-dl { color: var(--text); }
+.wf-tips { list-style: none; margin: var(--s3) 0 0; padding: 0; border-top: 1px solid var(--hairline-soft); }
+.wf-tip { display: flex; align-items: center; gap: var(--s3); width: 100%; min-height: 44px; padding: var(--s2) 0; background: none; border: none; cursor: pointer;
+  text-align: left; font-family: var(--font); font-size: var(--t-base); font-weight: 600; color: var(--text); line-height: 1.35; }
+.wf-box { flex: none; width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--text-3); display: grid; place-items: center; color: transparent; }
+.wf-tip.on .wf-box { background: var(--pt-goal-ink); border-color: var(--pt-goal-ink); color: var(--bg); }
+.wf-tip.on > span:last-child { color: var(--text-2); text-decoration: line-through; text-decoration-color: var(--text-3); }
+.wf-ask { display: flex; align-items: center; justify-content: center; gap: var(--s1h); width: 100%; min-height: 44px; margin-top: var(--s1);
+  background: none; border: none; cursor: pointer; font-family: var(--font); font-size: var(--t-sm); font-weight: 700; color: var(--blue-bright); }
+.wf-recap { margin: var(--s2) 0 0; padding-top: var(--s2); border-top: 1px solid var(--hairline-soft); font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.45; }
+.wf-recap + .wf-recap { border-top: none; padding-top: 0; margin-top: var(--s1); }
+.wf-gentle { margin: var(--s4) 2px 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-3); line-height: 1.45; }
+
+/* Progress: what works for you (A2, js/what-works.js). */
+.ww-row { display: flex; align-items: flex-start; gap: var(--s3); }
+.ww-row + .ww-row { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--hairline-soft); }
+.ww-i { flex: none; width: 32px; height: 32px; border-radius: var(--r-pill); display: grid; place-items: center; color: var(--pt-goal-ink); background: rgba(var(--teal-rgb), 0.10); }
+.ww-row p { margin: 0; font-size: var(--t-base); font-weight: 600; color: var(--text); line-height: 1.45; text-wrap: pretty; }
+.ww-note { margin: var(--s3) 0 0; font-size: var(--t-sm); font-weight: 600; color: var(--text-3); }
+.ww-soon { margin: 0 2px; font-size: var(--t-sm); font-weight: 600; color: var(--text-3); line-height: 1.45; }
+
 /* ===== Sleep (#sleep) — evidence, never a score =====
    Purple is recovery and a short night is a recovery signal, so `under` carries it. Amber is
    warning ONLY and a night below your own average is a fact, not an alarm; red is missed and this
@@ -4684,6 +4749,20 @@ html[data-layout] .aicsheet { place-items: center; }
 }
 .msg.tp-askrow { margin-top: calc(-1 * var(--s1)); }
 .tp-ask { flex-wrap: wrap; }
+/* WHY THIS MATTERS (A2): a quiet chip under Nia's read, in the goal accent (teal, never blue: it is
+   not an action on the day, and never green: it is not a status). Open, the same element becomes a
+   bubble with the sentence in it; the whole thing is the tap target both ways (44px). */
+.msg.tp-whyrow { margin-top: calc(-1 * var(--s1)); }
+.tp-why { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: var(--s1); max-width: 100%; min-height: 44px;
+  padding: var(--s1h) var(--s3); border-radius: var(--r-pill); border: 1px solid rgba(var(--teal-rgb), 0.32); background: rgba(var(--teal-rgb), 0.07);
+  color: var(--pt-goal-ink); font-family: var(--font-chat); text-align: left; cursor: pointer; }
+.tp-why-h { display: inline-flex; align-items: center; gap: var(--s1); font-size: var(--t-sm); font-weight: 700; }
+.tp-why-cv { flex: none; transition: transform var(--dur-1) var(--ease-out); }
+.tp-why-t { display: none; font-size: var(--t-lg); font-weight: 600; line-height: 1.3; color: var(--text); overflow-wrap: anywhere; }
+.tp-why.open { border-radius: calc(var(--r-card-sm) + 2px); padding: var(--s2) var(--s3h); background: rgba(var(--teal-rgb), 0.11); }
+.tp-why.open .tp-why-t { display: block; }
+.tp-why.open .tp-why-cv { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) { .tp-why-cv { transition: none; } }
 /* The starters above the box: one row that scrolls sideways when it runs past the phone, with room
    above and below for each chip's hit expander. Gone while the box has words in it (keyboard.js
    .has-text; the mount also sets .tp-off). With the keyboard up (body.kb-open) the row FOLDS

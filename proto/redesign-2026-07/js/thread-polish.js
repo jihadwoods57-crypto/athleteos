@@ -260,6 +260,52 @@ export async function quickSend(key, text, { beginSend, deliver, onAccepted = nu
   return true;
 }
 
+/* ---------------- 4. Why this matters (goals and eating plan A2, 2026-09-25) ----------------
+   Nia's opener carries one deterministic sentence in meta.why (meal-opener.ts, opener-why.ts): why
+   the move she just made matters for THIS athlete's goal. It is not part of the text, so it draws as
+   a quiet chip under her bubbles, "Why this matters for gaining", and a tap opens it into a bubble in
+   the goal accent (teal); another tap closes it. The athlete's OWN threads only: the coach's view
+   hides it (their thread is the plate and the athlete's words; the why is teaching aimed at the
+   athlete, and "Why (for their goal)" would be one more thing between the coach and the reply). */
+
+const WHY_LABEL = { gain: 'gaining', lose: 'losing fat', maintain: 'maintaining', perform: 'performing', train: 'your training' };
+
+/** The why an opener row carries, or null. A provable minor is always "for your training", whatever
+ *  the row says (the server already sends a minor the training family; this holds for an old row). */
+export function whyOf(comment, { minor = false } = {}) {
+  if (!isAnalysisOpener(comment)) return null;
+  const m = metaOf(comment);
+  const w = m && m.why;
+  if (!w || typeof w !== 'object') return null;
+  const text = String(w.text || '').replace(/[<>`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (!text) return null;
+  const key = minor ? 'train' : (Object.prototype.hasOwnProperty.call(WHY_LABEL, w.goal) ? w.goal : 'perform');
+  return { id: String(comment.id || ''), text, label: `Why this matters for ${WHY_LABEL[key]}` };
+}
+
+/** The chips a reader opened, so a repaint keeps them open. Session-only, per row id. */
+const WHY_OPEN = new Set();
+const CHEV = '<svg class="tp-why-cv" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+/** The chip, collapsed or open. One button: the whole bubble is the tap target both ways. */
+export function whyChipHtml(why, esc) {
+  if (!why) return '';
+  const open = WHY_OPEN.has(why.id);
+  return `<div class="msg ai tp-whyrow"><div class="av-sp"></div><div class="stack"><button type="button" class="tp-why${open ? ' open' : ''}" data-tp-why="${esc(why.id)}" aria-expanded="${open ? 'true' : 'false'}"><span class="tp-why-h">${esc(why.label)}${CHEV}</span><span class="tp-why-t">${esc(why.text)}</span></button></div></div>`;
+}
+
+/** A tap inside a thread: when it lands on a why chip, flip it in place (no repaint) and return true. */
+export function toggleWhyAt(target) {
+  const b = target && target.closest ? target.closest('[data-tp-why]') : null;
+  if (!b) return false;
+  const id = b.getAttribute('data-tp-why') || '';
+  const open = b.getAttribute('aria-expanded') !== 'true';
+  b.setAttribute('aria-expanded', open ? 'true' : 'false');
+  b.classList.toggle('open', open);
+  if (open) WHY_OPEN.add(id); else WHY_OPEN.delete(id);
+  return true;
+}
+
 /* ---------------- who has seen this meal, read once and painted where it lives ----------------
    The meal page mounts again on every render, so two mounts can race one read. The rows live in
    one cache per screen module (one read in flight, shared, 30s fresh); what each THREAD last

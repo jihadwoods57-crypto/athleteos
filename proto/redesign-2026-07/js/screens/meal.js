@@ -48,7 +48,7 @@ import {
 import {
   bubblesHtml, askChipsFor, askChipsHtml, askReplyText, seenByLine,
   composerChipsVisible, composerChipsHtml, composerChipOf,
-  quickSend, makeViewsCache, viewsKey, needsSeenRepaint, markSeenPainted,
+  quickSend, makeViewsCache, viewsKey, needsSeenRepaint, markSeenPainted, whyOf, whyChipHtml, toggleWhyAt,
 } from '../thread-polish.js';
 
 /* The meal score chip's ring, drawn as the brand dial (docs/brand/LOGO.md): a 300° gauge with
@@ -2007,7 +2007,9 @@ export const thread = {
           ${msgTimeHtml(c, fmtMsgTime, esc)}
         </div>${plannedRow(c)}${/* The size chips ride their own row under Nia's question, so her face stays beside
                    her last bubble instead of sliding down beside the chips. */''}${askAt && askAt.id === String(c.id || '') ? `
-        <div class="msg ai tp-askrow"><div class="av-sp"></div><div class="stack">${askChipsHtml(askAt, esc)}</div></div>` : ''}`;
+        <div class="msg ai tp-askrow"><div class="av-sp"></div><div class="stack">${askChipsHtml(askAt, esc)}</div></div>` : ''}${
+          /* Why this matters (A2): the athlete's own thread only, under Nia's read. */
+          staffAccount() ? '' : whyChipHtml(whyOf(c, { minor: !!S.consent.minor }), esc)}`;
       }).join('');
 
       /* THE RECEIPT MUST BE TRUE (founder, 2026-08-06). Three things were wrong with it:
@@ -2351,6 +2353,7 @@ export const thread = {
         });
         return;
       }
+      if (toggleWhyAt(ev.target)) return;   // Nia's "why this matters" chip (A2) opens and closes in place
       // A starter above the box: "What should I eat next?" sends; the other two fill the box.
       const st = ev.target && ev.target.closest ? ev.target.closest('[data-tp-cmp]') : null;
       if (st) {

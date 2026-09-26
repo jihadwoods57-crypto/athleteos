@@ -856,13 +856,21 @@ function applyPlanStyleToDay() {
    baseGoal, else the onboarding scratch) and body weight, and push them onto the live DAY so the
    score honors what they signed up for. A coach/trainer-set target (athlete_profiles.targets)
    always wins over the goal-derived default. Idempotent — safe on every profile hydrate. */
+/** The bodyweight the goal-derived targets are computed from, and whether it is the athlete's own
+ *  (false = the GOAL_BW_DEFAULT stand-in). One resolution: applyGoalToDay grades with it and Plan's
+ *  "Why these numbers" (A2) explains with it. */
+export function goalBodyweight() {
+  const p = RT.profile || {};
+  const own = (p.baseWeight != null ? +p.baseWeight : 0)
+    || (RT.ob && RT.ob.currentWeight ? +RT.ob.currentWeight : 0)
+    || (DAY.currentWeight != null ? +DAY.currentWeight : 0);
+  return { bw: own || GOAL_BW_DEFAULT, known: !!own };
+}
 function applyGoalToDay() {
   const p = RT.profile || {};
   const goal = p.baseGoal || (RT.ob && RT.ob.goal) || null;
   if (!goal) { setDayGoalConfig('athlete', 0, 0); return; } // no goal yet → shipped athlete default
-  const bw = (p.baseWeight != null ? +p.baseWeight : 0)
-    || (RT.ob && RT.ob.currentWeight ? +RT.ob.currentWeight : 0)
-    || (DAY.currentWeight != null ? +DAY.currentWeight : 0) || GOAL_BW_DEFAULT;
+  const bw = goalBodyweight().bw;
   // ONE derivation, shared with the coach breakdown (nutritionConfigForGoal) so they never drift.
   const cfg = nutritionConfigForGoal(goal, bw, p.targets);
   setDayGoalConfig(cfg.scoringProfile, cfg.proteinTarget, cfg.calTarget);

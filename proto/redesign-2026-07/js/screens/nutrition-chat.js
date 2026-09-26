@@ -41,7 +41,7 @@ import {
   isCorrectionReceipt, receiptCardHtml, playFreshReceipts, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta,
   personText, workingLabel,
 } from '../chat-view.js';
-import { bubblesHtml } from '../thread-polish.js';
+import { bubblesHtml, whyOf, whyChipHtml, toggleWhyAt } from '../thread-polish.js';
 import { wireChatTimes } from '../chat-times.js';
 import { attachedPhoto, isPhotoOnly, bubblePhotoHtml, hydrateThreadPhotos, postChatMessage } from '../chat-attach.js';
 import {
@@ -437,7 +437,7 @@ export default {
           ${deliveredHtml({ mine, isLast: c === newest })}
         </div>
         ${msgTimeHtml(c, fmtTime, esc)}
-      </div>${plannedRow(c)}`;
+      </div>${plannedRow(c)}${whyChipHtml(whyOf(c, { minor: !!S.consent.minor }), esc)}`;
       }).join('');
     };
 
@@ -564,6 +564,7 @@ export default {
     // Attached photos open in the shared full-screen viewer; delegated on the thread element
     // because every paint replaces the <img> nodes.
     threadEl.addEventListener('click', (ev) => {
+      if (toggleWhyAt(ev.target)) return;   // Nia's "why this matters" chip (A2) opens in place
       const im = ev.target && ev.target.closest ? ev.target.closest('img.bimg') : null;
       if (!im || !im.src) return;
       openImageViewer(im.src, 'Photo attached to this message', im);
