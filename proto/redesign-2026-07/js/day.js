@@ -1392,12 +1392,20 @@ export function dayCheckTask(userId, id, done = true) {
   pushDay(userId);
 }
 
+/** 0251's refusal: SQLSTATE 23514 with exactly this message. Other check violations share the
+ *  code, so the message is what identifies it. */
+export const PHOTO_REQUIRED = 'photo_required';
+export function isPhotoRequired(error) {
+  return !!error && typeof error.message === 'string' && error.message.trim() === PHOTO_REQUIRED;
+}
+
 /** Insert a real row into the `meals` table (mirrors the RN insertMeal / mapMealToRow) so a coach
  *  can review and comment on the plate. The proto otherwise only writes `days`; coach review +
  *  meal_comments key on a real meal id. Best-effort — a failed insert never blocks logging.
  *  Returns the new meal id (string), the `{ dup: true }` sentinel when the 0062 photo-hash
- *  unique index rejected a reused photo (the caller flags the slot so it doesn't score), or
- *  null on any other failure. */
+ *  unique index rejected a reused photo (the caller flags the slot so it doesn't score), the
+ *  `{ photoRequired: true }` sentinel when 0251 refused a meal with no photo (terminal: the
+ *  caller drops the write, it never retries), or null on any other failure. */
 export async function insertMeal(userId, key, macros, meta, photoPath) {
   const sb = window.sb;
   if (!sb || !userId || SYNC_BLOCKED) return null;
@@ -1430,10 +1438,14 @@ export async function insertMeal(userId, key, macros, meta, photoPath) {
     };
     let { data, error } = await sb.from('meals').insert(row).select('id').maybeSingle();
     if (error && error.code === '23505') return { dup: true }; // photo reused — server wall held
+    // No photo, no meal (0251). The legacy shape below would be refused the same way, and so
+    // would every retry: say so once and let the caller drop it.
+    if (isPhotoRequired(error)) { console.warn('[day] insertMeal refused: no photo (0251)'); return { photoRequired: true }; }
     if (error) {
       // Pre-0062 DB (unknown column / stale schema cache): retry with the legacy shape so an
       // un-applied migration can never block logging a meal.
       ({ data, error } = await sb.from('meals').insert(legacyRow).select('id').maybeSingle());
+      if (isPhotoRequired(error)) { console.warn('[day] insertMeal refused: no photo (0251)'); return { photoRequired: true }; }
     }
     if (error) { console.warn('[day] insertMeal failed', error.message); return null; }
     return data ? data.id : null;
