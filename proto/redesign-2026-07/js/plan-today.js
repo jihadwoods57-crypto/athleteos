@@ -12,7 +12,7 @@
  * The rules live in plan-today-model.js (tested in Node). This file reads the live day, draws, and
  * wires taps. Every figure it prints sits behind its own plan-style flag.
  */
-import { S, RT, slotTitle, mealDueState, invokeWithDeadline } from './state.js';
+import { S, RT, slotTitle, mealDueState, invokeWithDeadline, seasonPhase } from './state.js';
 import { DAY, pushDay, mealScored, slotDeadline, slotGrace, minutesNow } from './day.js';
 import { icon } from './icons.js';
 import { esc, skeletonRows, errorState } from './components.js';
@@ -24,8 +24,11 @@ import {
   slotTargetLine, goalWords, planFromIdea, readIdeasCache, writeIdeasCache, laterLine, planMeta,
 } from './plan-today-model.js';
 import { aiConsentCached, isConsentSkip, noteAiConsentRequired } from './ai-consent.js';
+import { heroGoalLine } from './season-phase.js';
+import { suggestionHtml, wireSuggestion, loadMySuggestion } from './target-suggest.js';
 
 /* ---------------- module state (survives every repaint, never persisted) ---------------- */
+let SUGGEST_READ = null;       // whose suggestion row was read this session (once, on the first Plan open)
 let PICK = {};                 // slot -> the idea id the athlete selected
 let FOCUS = null;              // a later slot the athlete tapped to plan now
 let NIA = { at: null, state: 'idle', ideas: [], retryAt: 0 };   // Nia's ideas for `at` = uid|day|slot|prefsKey
@@ -201,7 +204,8 @@ function goalHtml(PS) {
     minor: !!(S.consent && S.consent.minor),
     intuitive: !PS.showMacros && !PS.showCalories,
   });
-  return w ? `<div class="pt-goal">${esc(w.label)}${w.range ? ` · ${esc(w.range)}` : ''}</div>` : '';
+  // B: the season joins the goal ("Gaining · In-season"); the weight range, when there is one, stays last.
+  return w ? `<div class="pt-goal">${esc(heroGoalLine(w.label, seasonPhase(), w.range))}</div>` : '';
 }
 
 function heroHtml(ctx) {
@@ -357,7 +361,7 @@ export function todayHtml() {
   const hero = S.planTargetsState === 'offline'
     ? errorState({ title: "Can't reach your plan", body: 'Your targets will show when you reconnect. Nothing is lost, and logging still counts in the meantime.', retryId: 'plan-retry' })
     : heroHtml(ctx);
-  return `<div class="ptd">${hero}${upNextHtml(ctx)}${doneHtml(ctx)}${laterHtml(ctx)}${loggedHtml(ctx)}${alsoHtml(ctx.order)}</div>`;
+  return `<div class="ptd">${hero}${suggestionHtml()}${upNextHtml(ctx)}${doneHtml(ctx)}${laterHtml(ctx)}${loggedHtml(ctx)}${alsoHtml(ctx.order)}</div>`;
 }
 
 /* ---------------- Nia's ideas: fetched once per athlete, day, slot and prefs ---------------- */
@@ -424,6 +428,9 @@ const repaint = () => { if (/^#plan(\/|$)/.test(location.hash)) window.__render(
 export function wireToday(root) {
   const pane = root.querySelector('.ptd');
   if (!pane) return;
+  // B: a suggested target change (solo: decide it here; on a team: "your coach is reviewing").
+  wireSuggestion(root);
+  if (SUGGEST_READ !== RT.userId) { SUGGEST_READ = RT.userId; void loadMySuggestion().then((changed) => { if (changed) repaint(); }); }
   pane.addEventListener('click', (e) => {
     const t = e.target && e.target.closest ? e.target : null;
     if (!t) return;

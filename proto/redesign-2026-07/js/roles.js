@@ -969,12 +969,14 @@ export async function fetchPlanMetaBatch(athleteIds) {
 export async function fetchAthleteBasics(athleteId) {
   const c = sb(); if (!c || !athleteId) return null;
   try {
-    const [{ data }, meta] = await Promise.all([
+    const [{ data }, meta, season] = await Promise.all([
       c.from('athlete_profiles').select('base_goal,position,sport').eq('athlete_id', athleteId).maybeSingle(),
       fetchPlanMeta(athleteId),
+      // The season phase (0252): its own call, so a pre-0252 server costs only the phase.
+      c.rpc('season_phase_for', { p_athlete: athleteId }).then((r) => (r && !r.error && r.data ? r.data.phase || null : null), () => null),
     ]);
     if (!data && !meta) return null;
-    return { ...(data || {}), base_weight: meta ? meta.base_weight : null, targets: (meta && meta.targets) || null };
+    return { ...(data || {}), base_weight: meta ? meta.base_weight : null, targets: (meta && meta.targets) || null, season_phase: season };
   } catch { return null; }
 }
 export async function coachSetGoals(athleteId, targets) {

@@ -149,6 +149,7 @@ function goalPanel() {
   if (g.startedOn) row('Tracking since', esc(fmtDate(g.startedOn) || g.startedOn));
   row('Set by', g.label ? 'You, at signup' : 'Nobody yet');
   if (g.targetsAreCoachSet) row('Targets', g.targetsSetBy ? `Set by ${esc(g.targetsSetBy)}` : `Set by your ${esc(S.coach.noun)}`);
+  else if (g.targetsAreSelfSet) row('Targets', 'Set by you, from a suggested change');
   // INTUITIVE (0142): each derived figure honors its own surface flag, per-figure like
   // targetsRow below — off the row means absent, per this panel's own "real or absent" rule.
   // The numbers are still computed; fueling adequacy scores against them.

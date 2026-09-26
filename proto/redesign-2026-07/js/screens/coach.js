@@ -2156,7 +2156,8 @@ function breakdownBlock(P, athleteId) {
   const set = resolveRequirementSet(CD.extras && CD.extras.sets, athleteId, P.row ? resolvePos(P.row) : null);
   const std = set ? stdFromItems(set.items) : null;
   const b = P.basics || {};
-  const cfg = nutritionConfigForGoal(b.base_goal, b.base_weight, b.targets);
+  // The athlete's season phase (0252 season_phase_for), the same resolution their own device grades with.
+  const cfg = nutritionConfigForGoal(b.base_goal, b.base_weight, b.targets, b.season_phase || null);
   // Map the snake_case days row into the shape dayFromHistoryRow reads, and score it against the
   // athlete's config (not the device DAY's). checkin/meals default to {} in the schema, so a real
   // row always projects; a null row is handled above.
