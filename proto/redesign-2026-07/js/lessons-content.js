@@ -55,7 +55,7 @@ export const LESSONS = [
         intuitive: 'Aim for a palm of protein at breakfast, the same as any other meal. Eggs, Greek yogurt, milk, or a breakfast sandwich with egg and meat all count.',
       },
       { text: 'Short on time? Greek yogurt with granola and berries. A breakfast burrito with eggs and cheese. Overnight oats made with milk and peanut butter. A banana and a glass of milk on the way out the door.' },
-      { text: 'Not hungry early? Start small with a glass of milk or a yogurt, then eat a real meal when you can. Most people find their morning appetite shows up after a week or two of eating breakfast.' },
+      { text: 'Not hungry early? Start small with a glass of milk or a yogurt, then eat a real meal when you can. Many athletes find their morning appetite grows once breakfast becomes a habit.' },
     ],
     check: {
       q: 'Which breakfast holds up best until lunch?',
@@ -136,6 +136,7 @@ export const LESSONS = [
       {
         text: 'After training, keep drinking until your urine is pale again. If you weigh yourself before and after practice, drink about 16 to 24 ounces of fluid for every pound you lost.',
         minor: 'After training, keep drinking with your recovery meal until your urine is pale again. Heavy sweaters and anyone training in the heat need more. Water, milk and sports drinks all count.',
+        intuitive: 'After training, keep drinking with your recovery meal until your urine is pale again. Heavy sweaters and anyone training in the heat need more. Water, milk and sports drinks all count.',
       },
       { text: 'Energy drinks are not hydration. Many carry a lot of caffeine and other stimulants, which can leave you jittery and hurt your sleep. Stick to water, milk and sports drinks.' },
     ],
@@ -209,8 +210,8 @@ export const LESSONS = [
       { text: 'A snack is a small meal that keeps you fueled when there is a long gap between meals, or training in the middle of it. It works best with protein and carbs together.' },
       { text: 'Snacks that count: Greek yogurt with fruit, a peanut butter and banana sandwich, cheese and crackers, trail mix, a turkey wrap, hummus with pita, or chocolate milk.' },
       {
-        text: 'Aim for a snack with about 10 to 20 grams of protein. A cup of Greek yogurt, or chocolate milk with a granola bar, gets you there.',
-        intuitive: 'Give your snack half a palm to a palm of protein, plus some carbs. Greek yogurt, or chocolate milk with a granola bar, are easy ways to get there.',
+        text: 'Aim for a snack with about 15 to 20 grams of protein. A cup of Greek yogurt has about 20. A glass of chocolate milk and a string cheese together come to about 15.',
+        intuitive: 'Give your snack about a palm of protein, plus some carbs. A cup of Greek yogurt, or chocolate milk and a string cheese, are easy ways to get there.',
       },
       { text: 'Chips, candy and soda on their own are treats, not fuel. They are fine sometimes, but they will not carry you to your next meal. Keep a real snack in your bag so you are never stuck.' },
     ],
@@ -233,7 +234,10 @@ export const LESSONS = [
         intuitive: 'Check protein next. Foods with more protein keep you full longer and help you recover. Compare two similar foods and pick the one with more.',
       },
       { text: 'Look at added sugars. Carbs are fuel, but a food that is mostly added sugar gives you quick energy that fades fast. Sports drinks during long, hard sessions are the exception.' },
-      { text: 'The percent Daily Value shows how much one serving gives compared with a typical day. About 5 percent or less is low, and 20 percent or more is high. Use it to compare similar foods.' },
+      {
+        text: 'The percent Daily Value shows how much one serving gives compared with a typical day. About 5 percent or less is low, and 20 percent or more is high. Use it to compare similar foods.',
+        intuitive: 'The Daily Value column shows whether one serving gives a little or a lot of something. Use it to compare two similar foods, not as a number to hit.',
+      },
       { text: 'The ingredients list starts with what the food contains the most of. If sugar or oil is one of the first few ingredients, there is a lot of it.' },
     ],
     check: {

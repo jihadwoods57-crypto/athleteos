@@ -188,3 +188,25 @@ test('the assigned card: who it is from, the lesson, a minute, and the due date'
   assert.deepEqual(assignedCardCopy({ lesson_id: 'carbs-are-fuel', from: '' }, '2026-09-26'),
     { from: 'From Your coach', title: 'Carbs are fuel', meta: '1 min' });
 });
+
+/* ---------------- review fix round (2026-09-26) ---------------- */
+
+test('fix: Intuitive readers never see the scale or the percent figures', () => {
+  for (const l of LESSONS) {
+    for (const a of AUDIENCES.filter((x) => x.intuitive)) {
+      const v = lessonFor(l.id, a);
+      for (const t of [...v.cards, v.check.q, v.check.why, ...v.check.options]) {
+        assert.doesNotMatch(t, /\bweigh(?:ing)?\b|\bpounds?\b|\bpercent\b|%/i, `${l.id} for ${a.name}: ${t}`);
+      }
+    }
+  }
+});
+
+test('fix: the snack example really reaches 15 grams, and breakfast makes no appetite promise', () => {
+  const snack = lessonFor('snacks-that-count', { intuitive: false, minor: false }).cards.join(' ');
+  assert.match(snack, /chocolate milk and a string cheese/i);
+  assert.doesNotMatch(snack, /chocolate milk with a granola bar/i, 'about 10 g is not a 15 g example');
+  const breakfast = lessonFor('breakfast-that-holds', { intuitive: false, minor: false }).cards.join(' ');
+  assert.doesNotMatch(breakfast, /week or two/);
+  assert.match(breakfast, /many athletes find/i);
+});

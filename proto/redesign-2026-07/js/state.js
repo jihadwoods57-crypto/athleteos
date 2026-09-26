@@ -891,7 +891,8 @@ export function goalBodyweight() {
   const p = RT.profile || {};
   const own = (p.baseWeight != null ? +p.baseWeight : 0)
     || (RT.ob && RT.ob.currentWeight ? +RT.ob.currentWeight : 0)
-    || (DAY.currentWeight != null ? +DAY.currentWeight : 0);
+    || (DAY.currentWeight != null ? +DAY.currentWeight : 0)
+    || (DAY.lastWeight && DAY.lastWeight.weight ? +DAY.lastWeight.weight : 0);   // 0256's chain
   return { bw: own || GOAL_BW_DEFAULT, known: !!own };
 }
 function applyGoalToDay() {
@@ -3809,6 +3810,7 @@ export const act = {
     // Adaptive targets (0253): at most once a day, file a suggestion when the weight pace is off
     // the plan. Lazy and unawaited: it never holds the launch.
     import('./target-suggest.js').then((m) => m.maybeFileSuggestion()).catch(() => {});
+    import('./weight-backfill.js').then((m) => m.backfillBaseWeight()).catch(() => {});
   },
   /* Resolve the governing set (athlete > position room > team) into the DAY engine: slot
      list, deadlines, titles, and the nutrition denominator. No set → the classic day. */

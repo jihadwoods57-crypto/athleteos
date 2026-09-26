@@ -99,7 +99,8 @@ export function openAssignments(rows, done) {
   const finished = new Set(Array.isArray(done) ? done : []);
   const seen = new Set();
   const list = (Array.isArray(rows) ? rows : [])
-    .filter((r) => r && isLessonId(r.lesson_id) && !finished.has(r.lesson_id))
+    // A lesson from a coach this athlete blocked (0244) never reaches Home or "From your coach".
+    .filter((r) => r && !r.blocked && isLessonId(r.lesson_id) && !finished.has(r.lesson_id))
     .sort((a, b) => {
       if (!!a.due_on !== !!b.due_on) return a.due_on ? -1 : 1;
       if (a.due_on && b.due_on && a.due_on !== b.due_on) return a.due_on < b.due_on ? -1 : 1;

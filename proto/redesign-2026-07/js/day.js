@@ -632,6 +632,7 @@ export const DAY = {
   signalWeekRate: null,  // 0..1 trailing-week signal answer rate, so one skipped day barely moves awareness
   hydrationTargetL: 0,   // 0 = the shipped 3.0 L default; a coach hydration item overrides it
   currentWeight: null,
+  lastWeight: null,      // { date, weight } the latest weigh-in of the last 90 days
   scoreHistory: [],      // [{date, score}] past days, for streak/trend
   // Trust Pass state (0196). Carried ON THE DAY rather than read from module scope by the scorer,
   // for the same reason proteinTarget is: coach.js reconstructs ANOTHER athlete's days and scores
@@ -931,6 +932,8 @@ export const DAY_SELECT_COLS = 'id,athlete_id,date,meals,hydration_l,tasks,check
    a median, so a pass excuses it instead of crediting stale macros — understating, never
    inventing, same direction dayFromHistoryRow already chose. */
 export const HISTORY_DAYS = 60;
+/* Weigh-ins are read over 90 days: the latest one sets goal targets when none is stored (0256). */
+export const WEIGHT_DAYS = 90;
 export const HISTORY_HEAVY_DAYS = 35;
 
 /** The athlete's weight-by-date map via the 0103 weight_series RPC (is_self always passes;
@@ -1035,7 +1038,7 @@ export async function loadDay(userId) {
       // reconstruct to null in dayFromHistoryRow (no meals/checkin), which its callers already
       // skip by design — trends read the recent past, never a truncated fabrication.
       sb.from('days').select('date,score,plan_style').eq('athlete_id', userId).gte('date', since).lt('date', heavySince).order('date'),
-      fetchWeightSeries(sb, userId, HISTORY_DAYS),
+      fetchWeightSeries(sb, userId, WEIGHT_DAYS),
       // Pass eligibility, from the horse's mouth: the SAME rows 0196's grant_pass wall counts
       // (lifetime, distinct days), so "N of M photo-logged days" can never go backwards just
       // because this fetch holds a bounded history window. One short column; failure is soft —
@@ -1053,6 +1056,7 @@ export async function loadDay(userId) {
     if (nearErr) throw nearErr;
     if (farErr) throw farErr;
     if (data && weights.has(String(data.date))) data.current_weight = weights.get(String(data.date));
+    if (weights.size) { const k = [...weights.keys()].sort().pop(); DAY.lastWeight = { date: k, weight: weights.get(k) }; }
     STORED = data && typeof data.score === 'number' ? { date: String(data.date), score: data.score } : null;
     const localAhead = projectRowToDay(data) || (!data && hasLoggedAnything());
     // Far tail first, then near — both arrive date-ascending and the ranges don't overlap, so
@@ -1254,7 +1258,7 @@ export function dayResetLocal() {
   DAY.ciConfig = { ...DEFAULT_CICFG };
   const sig = PKNOBS && PKNOBS.signals;
   if (sig) for (const k of ['digestion', 'cravings']) DAY.ciConfig[k] = !!sig[k];
-  DAY.ciSubmitted = false; DAY.ciLast = null; DAY.currentWeight = null; DAY.scoreHistory = []; DAY.passes = []; DAY.passSpends = [];
+  DAY.ciSubmitted = false; DAY.ciLast = null; DAY.currentWeight = null; DAY.lastWeight = null; DAY.scoreHistory = []; DAY.passes = []; DAY.passSpends = [];
   DAY.wakeup = null;
   DAY.arrival = null;
   DAY.plans = {};

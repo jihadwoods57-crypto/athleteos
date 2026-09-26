@@ -1210,8 +1210,7 @@ onLaunchDrop(() => {
   for (const k of Object.keys(SHOWN)) delete SHOWN[k];
 });
 
-/* This week's focus + the Sunday recap (A2), the assigned lesson and the team challenge (D): lazy,
-   drawn into #wf-slot by home-teach.js. Once the module has landed
+/* The weekly focus (A2), lesson and challenge cards (D): lazy, home-teach.js into #wf-slot. Once landed,
    every render draws it inline, so the 30s tick never flashes the card away and back. */
 let WF = null;
 const focusSlot = () => `<div id="wf-slot">${WF ? WF.focusHtml() : ''}</div>`;

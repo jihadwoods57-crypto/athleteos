@@ -231,3 +231,26 @@ test('staff read the habit about the athletes, the athlete about themself', asyn
   assert.equal(habitRule('protein:lunch', true, true), 'A day counts when their lunch carries its share of their protein.');
   assert.equal(habitRule('late', true, true), 'A day counts when every meal they log comes in on time.');
 });
+
+test('fix: a lesson from a coach the athlete blocked never reaches Home; Learn keeps the lesson, no name', async () => {
+  athlete('ln-blk');
+  const rows = [{ id: 'b1', lesson_id: 'game-day', due_on: null, created_at: '2026-09-23T12:00:00Z', from: null, blocked: true }];
+  window.sb = stubSb({ my_learning: () => ({ data: { today: '2026-09-24', assignments: rows, completions: [], challenge: null }, error: null }) });
+  await LD.loadLearning(true);
+  assert.equal(HT.nextAssigned(), null, 'no card on Home');
+  assert.doesNotMatch(HT.focusHtml(), /class="lnh"/);
+  const { learnList } = await import('./screens/learn.js');
+  const html = learnList.render();
+  assert.doesNotMatch(html, /From your coach/, 'not listed as from anyone');
+  assert.match(html, /Game-day eating/, 'the lesson itself stays in Learn');
+});
+
+test('fix: a duplicate assignment never promises another push', async () => {
+  const { assignLesson } = await import('./screens/coach-teach.js');
+  const dup = {
+    from: () => ({ insert: () => ({ select: () => ({ single: async () => ({ data: null, error: { code: '23505', message: 'duplicate key' } }) }) }) }),
+    functions: { invoke: async () => ({ error: null }) },
+  };
+  const r = await assignLesson({ team: 't1', lesson: 'carbs-are-fuel' }, dup);
+  assert.equal(r.note, 'That lesson is already assigned to them. Remove it first to assign it again. Athletes are notified once a day at most.');
+});

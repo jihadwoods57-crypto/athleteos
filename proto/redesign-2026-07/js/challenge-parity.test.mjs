@@ -35,7 +35,8 @@ globalThis.localStorage = fakeStore;
 globalThis.sessionStorage = { getItem: () => null, setItem() {}, removeItem() {} };
 globalThis.location = globalThis.window.location;
 
-const { nutritionConfigForGoal } = await import('./state.js');
+const { nutritionConfigForGoal, goalBodyweight, RT } = await import('./state.js');
+const { DAY: LIVE } = await import('./day.js');
 const { slotDeadline, slotGrace } = await import('./day.js');
 const { stdFromItems, filterItemsByDayType } = await import('./requirements.js');
 const { slotOrder } = await import('./plan-today-model.js');
@@ -134,4 +135,17 @@ test('Intuitive athletes read the habit without grams', () => {
     assert.doesNotMatch(CM.habitRule(h.key, false), /\d|gram|calorie/i, h.key);
   }
   assert.equal(CM.habitTitle('protein:breakfast', false), 'A palm of protein at breakfast');
+});
+
+test('fix: parity for the whole weight chain: stored weight, else the latest logged one, else 171', () => {
+  assert.ok(FX.people.some((f) => f.base == null && f.logged != null), 'a null-base athlete with a logged weight is in the fixtures');
+  for (const f of FX.people) {
+    RT.profile = { baseWeight: f.base, targets: f.targets };
+    RT.ob = null;
+    LIVE.currentWeight = null;
+    LIVE.lastWeight = f.logged == null ? null : { date: '2026-09-20', weight: f.logged };
+    const t = nutritionConfigForGoal(f.goal, goalBodyweight().bw, f.targets, null).proteinTarget;
+    assert.equal(Math.round(t), f.expect, f.name);
+  }
+  LIVE.lastWeight = null; RT.profile = null;
 });

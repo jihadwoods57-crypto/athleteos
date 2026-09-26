@@ -237,7 +237,7 @@ export async function assignLesson({ team, lesson, room, due }, sb = window.sb) 
       .select('id').single();
     if (error) {
       const dup = error.code === '23505' || /duplicate/i.test(String(error.message || ''));
-      return { ok: false, note: dup ? 'That lesson is already assigned to them. Remove it first to send it again.' : "Couldn't assign it. Check your connection and try again." };
+      return { ok: false, note: dup ? 'That lesson is already assigned to them. Remove it first to assign it again. Athletes are notified once a day at most.' : "Couldn't assign it. Check your connection and try again." };
     }
     if (data && data.id) void announce('lesson', data.id);
     return { ok: true, id: data && data.id };
