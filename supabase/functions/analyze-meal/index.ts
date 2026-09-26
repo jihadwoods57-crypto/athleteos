@@ -994,28 +994,32 @@ async function postOpener(
     if (!mealRow || mealRow.athlete_id !== userId) return;
 
     const service = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { count } = await service.from('meal_comments')
-      .select('id', { count: 'exact', head: true })
-      .eq('meal_id', mealId).eq('role', 'ai').eq('meta->>t', 'analysis');
+    // The duplicate check and the owner's goal + age band (A2 "why this matters") in ONE round trip
+    // (review 2026-09-26): read after the count, the profile widened the window between "no opener
+    // yet" and the insert, where a second call could double-post. The client never supplies the
+    // goal or the age: RT.primaryGoal has no writer, so req.goal is null in every shipped build,
+    // and a minor's rails must not be a client courtesy. A failed profile read is an unknown age,
+    // which 0050 treats as an adult, and the goal falls back to whatever the request carried.
+    const [{ count }, profile] = await Promise.all([
+      service.from('meal_comments')
+        .select('id', { count: 'exact', head: true })
+        .eq('meal_id', mealId).eq('role', 'ai').eq('meta->>t', 'analysis'),
+      service.from('athlete_profiles').select('base_goal, dob, base_age').eq('athlete_id', userId).maybeSingle()
+        .then((r) => r, () => ({ data: null })),
+    ]);
     if (count && count > 0) return;   // this plate has already been read into the thread
 
     const t = req.timing;
     const late = t && typeof t.minutesLate === 'number' ? t.minutesLate > 0
       : t && typeof t.minutesLeft === 'number' ? false
       : null;
-    // The goal and the age band, read here for the meal owner (A2 "why this matters"). The client
-    // never supplies them: RT.primaryGoal has no writer, so req.goal is null in every shipped build,
-    // and a minor's rails must not be a client courtesy. A failed read is an unknown age, which
-    // 0050 treats as an adult, and the goal falls back to whatever the request carried.
     let ownerGoal: unknown = req.goal ?? null;
     let minor = false;
-    try {
-      const { data: ap } = await service.from('athlete_profiles').select('base_goal, dob, base_age').eq('athlete_id', userId).maybeSingle();
-      if (ap) {
-        if (ap.base_goal) ownerGoal = ap.base_goal;
-        minor = ageBand(ap.dob ?? null, ap.base_age ?? null, new Date().toISOString().slice(0, 10)) === 'minor';
-      }
-    } catch { /* unknown: adult, request goal */ }
+    const ap = profile && profile.data;
+    if (ap) {
+      if (ap.base_goal) ownerGoal = ap.base_goal;
+      minor = ageBand(ap.dob ?? null, ap.base_age ?? null, new Date().toISOString().slice(0, 10)) === 'minor';
+    }
     const { text, ask, why } = composeOpener(read, {
       planStyle,
       late,

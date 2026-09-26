@@ -74,3 +74,13 @@ test('the server sends it in meta, beside the text and never inside it', () => {
   // The goal and the age band are the server's own read, never the request's.
   assert.match(src, /from\('athlete_profiles'\)\.select\('base_goal, dob, base_age'\)/);
 });
+
+test('fix: the opener\'s profile read rides alongside the duplicate check, not after it', () => {
+  const src = read('..', '..', '..', 'supabase', 'functions', 'analyze-meal', 'index.ts');
+  const fn = src.slice(src.indexOf('async function postOpener('), src.indexOf('Deno.serve('));
+  const all = fn.indexOf('Promise.all(');
+  assert.ok(all > 0, 'one Promise.all');
+  const seg = fn.slice(all, fn.indexOf(']);', all));
+  assert.match(seg, /from\('meal_comments'\)/);
+  assert.match(seg, /from\('athlete_profiles'\)\.select\('base_goal, dob, base_age'\)/);
+});
