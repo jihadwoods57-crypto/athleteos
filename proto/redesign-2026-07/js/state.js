@@ -1422,6 +1422,8 @@ export const act = {
     // The bytes (memory, IndexedDB or the queue). None left: shedPhoto decides what that costs.
     if (job.needUpload || job.needAnalysis) {
       const b64 = await photoFor(job);
+      // Storage did not answer: leave the job exactly as it is and try on a later drain.
+      if (b64 === undefined) { updateJob(job.k, { lastTryAt: Date.now() }); return; }
       if (!b64) {
         job = shedPhoto(job);
         updateJob(job.k, job);

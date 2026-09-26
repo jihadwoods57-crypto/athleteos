@@ -214,3 +214,17 @@ test('a full localStorage never sheds a photo on the spot: the session keeps the
   assert.equal(calls.uploads.length, 1);
   assert.equal(calls.inserts.length, 1);
 });
+
+test('IndexedDB that errors or never answers: the photo is "try later", never "lost" (review 2026-09-26)', async () => {
+  const broken = { put: () => Promise.reject(new Error('x')), get: () => Promise.reject(new Error('idb timeout')), del: () => Promise.resolve(), keys: () => Promise.resolve([]) };
+  reset(broken);
+  const row = { k: 'u-op/2026-01-02/lunch', bytes: 'idb', base64: null };
+  assert.equal(await OB.photoFor(row), undefined, 'a storage error is unknown, not missing');
+  reset(fakeIdb());
+  assert.equal(await OB.photoFor({ k: 'u-op/none/lunch', bytes: 'idb', base64: null }), null, 'a real miss is null');
+});
+
+test('the IndexedDB backend races every call against a deadline', () => {
+  assert.equal(typeof OP.IDB_TIMEOUT_MS, 'number');
+  assert.ok(OP.IDB_TIMEOUT_MS > 0 && OP.IDB_TIMEOUT_MS <= 5000);
+});

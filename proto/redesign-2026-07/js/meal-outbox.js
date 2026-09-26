@@ -141,12 +141,14 @@ export function getJob(k) { return readQueue().find((e) => e.k === k) || null; }
 /** Can this job still reach its photo bytes, as far as the queue knows? Synchronous. */
 export function hasPhoto(job) { return !!job && (MEM.has(job.k) || !!job.base64 || job.bytes === 'idb'); }
 
-/** The job's photo bytes (MEM, then the queue, then IndexedDB), or null when none is left. */
+/** The job's photo bytes (MEM, then the queue, then IndexedDB); null when none is left; UNDEFINED
+ *  when IndexedDB did not answer (error or timeout). Undefined is "unknown, try again later", never
+ *  "lost": shedding on a transient storage error would destroy a photo that still exists. */
 export async function photoFor(job) {
   if (!job) return null;
   const b = MEM.get(job.k) || job.base64;
   if (b || job.bytes !== 'idb') return b || null;
-  try { return await (await photos()).load(job.k); } catch { return null; }
+  try { return (await (await photos()).load(job.k)) || null; } catch { return undefined; }
 }
 
 /** First drain of a session: legacy base64 moves to IndexedDB, orphaned bytes are deleted. */

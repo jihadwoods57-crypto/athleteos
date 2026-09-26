@@ -12,6 +12,7 @@ import { readQueue, writeQueue, patchJob, fallback } from './meal-outbox.js';
 
 /** Most photos kept at once. The guard for IndexedDB's own budget; normal use holds 1-4. */
 export const MAX_IDB_PHOTOS = 30;
+export const IDB_TIMEOUT_MS = 2500;
 const DB = 'onstd-outbox', ST = 'photos';
 
 let backend;  // undefined = not resolved yet; null = no IndexedDB here
@@ -28,12 +29,17 @@ function idbBackend() {
     r.onerror = () => rej(r.error);
     r.onblocked = () => rej(new Error('blocked'));
   }).catch((e) => { dbp = null; throw e; }));
-  const run = (mode, fn) => open().then((db) => new Promise((res, rej) => {
+  // WKWebView's IndexedDB can simply never answer (an open that hangs after a resume). The drain
+  // awaits this module, so a hang here would hold the drain lock for the session and stop every
+  // meal from uploading. Every call is raced against a deadline; a timeout rejects, which the
+  // callers already treat as "use the localStorage fallback / retry next drain" (review 2026-09-26).
+  const deadline = (p) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('idb timeout')), IDB_TIMEOUT_MS))]);
+  const run = (mode, fn) => deadline(open().then((db) => new Promise((res, rej) => {
     const t = db.transaction(ST, mode);
     const q = fn(t.objectStore(ST));
     t.oncomplete = () => res(q ? q.result : undefined);
     t.onerror = t.onabort = () => rej(t.error || new Error('idb'));
-  }));
+  })));
   return {
     put: (k, b64) => run('readwrite', (s) => { s.put({ k, b64, at: Date.now() }); }),
     get: (k) => run('readonly', (s) => s.get(k)).then((r) => (r && r.b64) || null),
