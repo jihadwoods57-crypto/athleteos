@@ -234,9 +234,13 @@ export function tagsHitAllergens(tags, allergens) {
    against the dish's NAME ("Gluten-free pasta" tagged gluten free). Never the athlete's own
    dislikes, and never an allergen tag, which always wins. The rule mark is food-prefs.js RULE. */
 const RULE_MARK = '~';
+// A printed "X free" tag clears only the PRODUCT words of that family, never the allergen's own
+// name: "gluten free" is not "wheat free" (wheat-starch products carry the label), and a mis-tagged
+// "Milk chocolate pudding" must still read as milk (review 2026-09-26). Cautious by design: an
+// oat milk is dropped for a dairy allergy rather than risk the other direction.
 const FREE_OF = {
-  'gluten free': ['gluten', 'wheat', 'bread', 'pasta', 'flour', 'toast', 'bun', 'tortilla', 'cracker', 'wrap', 'bagel'],
-  'dairy free': ['dairy', 'milk', 'lactose', 'cheese', 'yogurt', 'butter', 'cream', 'whey'],
+  'gluten free': ['bread', 'pasta', 'flour', 'toast', 'bun', 'tortilla', 'cracker', 'wrap', 'bagel'],
+  'dairy free': ['cheese', 'yogurt', 'butter', 'cream'],
 };
 
 /**

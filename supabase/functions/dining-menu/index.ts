@@ -234,10 +234,10 @@ Deno.serve(async (request) => {
       return !error;
     },
     finish: async (id: string, n: number) => {
-      await service.from('dining_menu_uploads').update({ status: 'parsed', entries: n, parsed_at: new Date().toISOString(), error: null }).eq('id', id);
+      await service.from('dining_menu_uploads').update({ status: 'parsed', entries: n, parsed_at: new Date().toISOString(), error: null }).eq('id', id).eq('status', 'parsing');
     },
     fail: async (id: string, code: string) => {
-      await service.from('dining_menu_uploads').update({ status: 'failed', error: code, parsed_at: new Date().toISOString() }).eq('id', id);
+      await service.from('dining_menu_uploads').update({ status: 'failed', error: code, parsed_at: new Date().toISOString() }).eq('id', id).eq('status', 'parsing');
     },
   });
 

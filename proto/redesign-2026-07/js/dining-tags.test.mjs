@@ -198,3 +198,17 @@ test('the vocabulary is the database vocabulary (0255 dining_items_ok)', () => {
   assert.ok(m, 'the migration lists the tag vocabulary');
   assert.deepEqual(m[1].split(',').map((x) => x.trim().replace(/'/g, '')).sort(), [...TAG_KEYS].sort());
 });
+
+test('a printed "X free" tag never vouches for the allergen\'s own name (review 2026-09-26)', () => {
+  const check = (allergy, item) => itemAllowed(cleanMenuItem(item),
+    { avoid: avoidWords({}, R([allergy])), allergens: allergenKeysFrom(R([allergy])), namesAny });
+  // "Gluten free" is not "wheat free": wheat-starch products carry the label.
+  assert.equal(check('Wheat', { name: 'Wheat bread', tags: ['gluten free'] }), false);
+  assert.equal(check('Wheat', { name: 'Whole wheat pasta', tags: ['gluten free'] }), false);
+  // A mis-tagged milk product still reads as milk.
+  assert.equal(check('Milk', { name: 'Milk chocolate pudding', tags: ['dairy free'] }), false);
+  assert.equal(check('Dairy', { name: 'Oat milk latte', tags: ['dairy free'] }), false, 'cautious: milk words are never vouched');
+  // Product words stay vouched, so honest labels still help.
+  assert.equal(check('Gluten', { name: 'Gluten-free pasta', tags: ['gluten free'] }), true);
+  assert.equal(check('Dairy', { name: 'Coconut yogurt', tags: ['dairy free'] }), true);
+});
