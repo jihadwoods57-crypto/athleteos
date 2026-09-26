@@ -73,12 +73,16 @@ SUITES=(
   # 0250 food preferences + the plan-ideas cache: the owner writes their own prefs, linked staff
   # read them, a teammate, an outsider and a guardian see nothing; only the function writes ideas.
   "food prefs + plan ideas (0250)|food_prefs_test.sql"
-  # 0252 + 0253 the season phase and adaptive targets: only standards editors set the team's phase
-  # (RPC or direct update), a solo athlete sets their own, season_phase_for resolves team >
-  # practice (none) > self; suggestions are adult gain/lose only, one per 14 days, read and decided
-  # by linked staff with target-edit rights, approved only after coach_set_goals applied them, and
-  # self-approved only by a solo athlete.
-  "season phase + target suggestions (0252-0253)|season_targets_test.sql"
+  # 0251 no photo, no meal: an athlete's (or the service role's) insert without a photo in their
+  # own folder is refused with 23514 photo_required; a photo can never be stripped or swapped;
+  # past no-photo rows stay readable; the Trust Pass and pro corrections still work.
+  "no photo, no meal (0251)|meal_photo_test.sql"
+  # 0252 + 0253 + 0254 the season phase, adaptive targets and the targets door: only standards
+  # editors set the team's phase (RPC or direct update), a solo athlete sets their own,
+  # season_phase_for resolves team > practice (none) > self; suggestions are adult gain/lose only,
+  # one per 14 days, anchored to the stored targets and bounded, decided (and applied, atomically)
+  # by staff with target-edit rights or by a solo athlete; coach_set_goals is gated the same way.
+  "season phase + target suggestions + targets door (0252-0254)|season_targets_test.sql"
 )
 
 echo "==> SQL suites against: ${DB%%\?*}"
