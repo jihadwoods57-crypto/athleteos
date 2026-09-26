@@ -19,7 +19,7 @@ import {
   setSyncBlocked, isSyncBlocked, SYNC, setDayTaskProvider,
   dayLogMeal, daySubmitCheckin, daySetCommitment, daySetFocus, dayLogWeight, dayResetLocal, dayCheckTask,
   dayUnlogMeal, dayMoveMeal,
-  insertMeal, MEAL_KEYS, minutesNow, mealScored,
+  insertMeal, PHOTO_REQUIRED, MEAL_KEYS, minutesNow, mealScored,
   setDayStandard, slotDeadline, slotGrace, slotLateCredit, slotOpen, setDayGoalConfig,
   setDayPlanStyle, weightsForDay, DAY_SELECT_COLS, PROFILE_WEIGHTS, dayRev, HISTORY_DAYS, plannedHint, CI_INVERSE,
 } from './day.js';
@@ -1161,6 +1161,7 @@ export const act = {
       // past the pre-check: the slot stays logged (honest record) but is flagged so it never
       // scores, and the flag is visible to athlete + coach.
       insertMeal(RT.userId, slot, macros, meta, photoPath).then((res) => {
+        if (res && res.photoRequired) { this._photoRefused(slot, 'insert'); return; }
         if (res && res.dup) {
           DAY.slotMacros[slot] = { ...(DAY.slotMacros[slot] || {}), flagged: 'dup' };
           pushDay(RT.userId);
@@ -1409,6 +1410,14 @@ export const act = {
         window.__render && window.__render();
         return;
       }
+      // No photo, no meal (0251): the server refuses this row on every retry, so retrying is a
+      // loop with nothing at the end of it. Drop the whole job (there is no row to read into) and
+      // leave the reason on the slot.
+      if (res && res.photoRequired) {
+        removeJob(job.k);
+        this._photoRefused(slot, 'outbox');
+        return;
+      }
       if (res) {
         this._patchSlot(slot, { mealId: res });
         updateJob(job.k, { needInsert: false, mealId: res });
@@ -1426,6 +1435,16 @@ export const act = {
     await settleUpload();
     const left = readQueue().find((e) => e.k === job.k);
     if (left && !left.needUpload && !left.needInsert && !left.needAnalysis) removeJob(job.k);
+  },
+
+  /** The server refused this slot's meals row because it carried no photo (0251). Terminal, not
+   *  retryable: the note on the slot is the record (`syncRefused`), the insert is never re-sent,
+   *  and the day stays as the athlete left it. Only an old staged meal or a bug can reach this —
+   *  act.logMeal already refuses a commit with no photo. */
+  _photoRefused(slot, stage) {
+    this._patchSlot(slot, { syncRefused: PHOTO_REQUIRED, pending: false });
+    console.warn(`[meal] ${slot}: the server refused a meal with no photo (0251, ${stage}); dropped, not retried`);
+    window.__render && window.__render();
   },
 
   /** Merge fields into a slot's persisted macros and flush the day. */
