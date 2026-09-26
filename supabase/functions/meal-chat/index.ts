@@ -1607,18 +1607,27 @@ async function planIdeasTurn(req: Request, raw: unknown, cors: Record<string, st
   ]);
   const planStyle: PlanStyle | null = style?.style ?? null;
   const dossier = renderDossier(facts, { viewer: 'self', planStyle, positionWords });
-  const avoid = [...avoidWords(prefs, facts?.restrictions ?? null), ...avoidFromFacts(mem)];
+  // Allergies, intolerances and confirmed allergy/dislike facts, each carrying its category's
+  // members ("Dairy" is yogurt and cheese too), then the dislikes. food-prefs.mjs, shared.
+  const avoid = avoidWords(prefs, facts?.restrictions ?? null, avoidFromFacts(mem));
 
   const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
   const t0 = Date.now();
-  const msg = await anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 400,
-    system: [{ type: 'text', text: composeSystem(`${NIA_IDENTITY} ${NIA_HONESTY}\n\n${PLAN_IDEAS_SYSTEM}`, '', planStyle), cache_control: { type: 'ephemeral' } }],
-    tools: [PLAN_IDEAS_TOOL] as unknown as Anthropic.Tool[],
-    tool_choice: { type: 'tool', name: 'plan_ideas' },
-    messages: [{ role: 'user', content: planIdeasUserText(ask, { prefs, dossier, memory: memoryBlock(mem) }) }],
-  });
+  let msg: Anthropic.Message;
+  try {
+    msg = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 400,
+      system: [{ type: 'text', text: composeSystem(`${NIA_IDENTITY} ${NIA_HONESTY}\n\n${PLAN_IDEAS_SYSTEM}`, '', planStyle), cache_control: { type: 'ephemeral' } }],
+      tools: [PLAN_IDEAS_TOOL] as unknown as Anthropic.Tool[],
+      tool_choice: { type: 'tool', name: 'plan_ideas' },
+      messages: [{ role: 'user', content: planIdeasUserText(ask, { prefs, dossier, memory: memoryBlock(mem) }) }],
+    });
+  } catch (e) {
+    await recordAiCall({ fn: 'meal-chat', mode: 'plan_ideas', userId: uid, model: MODEL, latencyMs: Date.now() - t0, ok: false, errorCode: 'upstream_error' });
+    console.log(JSON.stringify({ evt: 'plan_ideas_failed', error: String((e as Error)?.message ?? e).slice(0, 200) }));
+    return bad(503, 'unavailable', cors);
+  }
   const tool = msg.content.find((b) => b.type === 'tool_use') as { input?: unknown } | undefined;
   const ideas = parsePlanIdeas(tool?.input, { avoid });
   await recordAiCall({
@@ -1627,13 +1636,16 @@ async function planIdeasTurn(req: Request, raw: unknown, cors: Record<string, st
   });
 
   // Keep it, so the next open of Plan is free, and drop this athlete's rows older than a week.
-  try {
-    await service.from('plan_ideas').upsert(
-      { athlete_id: uid, day_date: ask.dayDate, slot: ask.slot, prefs_key: key, ideas, created_at: new Date().toISOString() },
-      { onConflict: 'athlete_id,day_date,slot' },
-    );
-    const weekAgo = new Date(Date.parse(`${ask.dayDate}T12:00:00Z`) - 7 * 86400000).toISOString().slice(0, 10);
-    await service.from('plan_ideas').delete().eq('athlete_id', uid).lt('day_date', weekAgo);
-  } catch { /* the ideas still go back; the next open pays once more */ }
+  // An EMPTY answer is never kept (review 2026-09-25): a later open may ask again, within the cap.
+  if (ideas.length) {
+    try {
+      await service.from('plan_ideas').upsert(
+        { athlete_id: uid, day_date: ask.dayDate, slot: ask.slot, prefs_key: key, ideas, created_at: new Date().toISOString() },
+        { onConflict: 'athlete_id,day_date,slot' },
+      );
+      const weekAgo = new Date(Date.parse(`${ask.dayDate}T12:00:00Z`) - 7 * 86400000).toISOString().slice(0, 10);
+      await service.from('plan_ideas').delete().eq('athlete_id', uid).lt('day_date', weekAgo);
+    } catch { /* the ideas still go back; the next open pays once more */ }
+  }
   return json({ ideas, cached: false, key });
 }

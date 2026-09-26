@@ -24,6 +24,8 @@ export function plannedMealName(raw) {
   const v = raw && typeof raw === 'object' ? raw.name : null;
   if (typeof v !== 'string') return '';
   return scrubToolLeak(v)
+    // A portion suffix ("(170g)", "(2 bars)") is the plan's amount, not a food to name.
+    .replace(/\s*\([^)]*\d[^)]*\)\s*$/, '')
     .replace(/[^\p{L}\p{N} &'\-,.()+/]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim()

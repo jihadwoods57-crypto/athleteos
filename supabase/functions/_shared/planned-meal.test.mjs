@@ -50,3 +50,9 @@ test('WIRING: analyze-meal reads only the name, only through the helper, only in
   assert.equal((AM.match(/req\.plannedMeal\b/g) || []).length, 1, 'one read of the request field, in the prompt; nothing else reads it');
   assert.doesNotMatch(AM, /plannedMeal\.(protein|kcal|carbs|fat)/);
 });
+
+test('a portion suffix like "(100g)" is dropped from the hint name', () => {
+  assert.equal(plannedMealName({ name: 'Greek yogurt, plain (170g)' }), 'Greek yogurt, plain');
+  assert.equal(plannedMealName({ name: 'Protein bar (2 bars)' }), 'Protein bar');
+  assert.equal(plannedMealName({ name: 'Bowl (spicy)' }), 'Bowl (spicy)', 'a word aside that is not a portion stays');
+});
