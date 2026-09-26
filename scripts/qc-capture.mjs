@@ -481,6 +481,10 @@ const SHOTS = [
   { g: 'meal', name: 'meal-rubric', seed: 'dayMidday', route: 'meal-detail/lunch', at: [13, 8],
     act: `const d = document.querySelector('details.rub'); if (d) d.open = true; else console.error('meal-rubric: details.rub not found — shot is a silent duplicate of meal-detail');` },
   { g: 'meal', name: 'meal-thread', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9] },
+  // A photo the phone lost before it uploaded (2026-09-26): no meals row, a retake instead of a dead end.
+  { g: 'meal', name: 'meal-thread-photo-lost', seed: 'dayMidday', route: 'meal-thread/lunch', at: [13, 9],
+    pre: `const d = await import('./js/day.js');
+      d.DAY.slotMacros.lunch = { name: 'Lunch', source: 'gallery', live: false, pending: true, analysisFailed: 'photo_lost', protein: 0, kcal: 0, carbs: 0, fat: 0, quality: null, foods: [], detectedRich: [], highlights: [], analysis: '' };` },
   { g: 'meal', name: 'nutrition-chat', seed: 'dayMidday', route: 'nutrition-chat', at: [13, 30] },
   // The clarifying moment needs the questions the analyze call sends back; without them the
   // route correctly bounces to the camera, which is all this shot ever showed.

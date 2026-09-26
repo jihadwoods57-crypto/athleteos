@@ -52,7 +52,7 @@ import { commitmentReminders, ROLLCALL_OFF } from './commitments.js';
 import { normalizeCoachPrefs, alertKeys, buildCoachSyncPlan } from './coach-notify-plan.js';
 import { entriesFor, getScope, CD } from './coach-data.js';
 import { splitServerRows } from './notif-feed.js';
-import { jobKey, putJob, readQueue, removeJob, updateJob, due as dueJobs, backoffMs } from './meal-outbox.js';
+import { jobKey, putJob, readQueue, removeJob, updateJob, due as dueJobs, backoffMs, hasPhoto as jobHasPhoto, photoFor, shedPhoto, migratePhotos } from './meal-outbox.js';
 import * as SQ from './sync-queue.js';
 import { setVcUidProvider, noteLocationArm, _resetAhead } from './commitment-data.js';
 import { CS as CS_DATA, loadMine as loadCsMine } from './connected-standard-data.js';
@@ -362,7 +362,9 @@ function load() {
   catch { return { ...DEFAULT_RT }; }
 }
 export const RT = load();
-function save() { bumpRev(); localStorage.setItem(KEY, JSON.stringify(RT)); }
+const putRT = () => { try { localStorage.setItem(KEY, JSON.stringify(RT)); return true; } catch { return false; } };
+// A full localStorage used to throw out of save() into whatever action called it.
+function save() { bumpRev(); if (!putRT()) void import('./storage-guard.js').then((g) => g.onQuota('rt', putRT), () => {}); }
 
 /* ---------------- Derived-getter memo (per render tick) ----------------
    S below exposes ~64 getters that recompute on every read, and one render reads several of them
@@ -615,6 +617,10 @@ function nextOpenSlot(explicit) {
   const now = minutesNow();
   return open.find(k => now <= slotDeadline(k)) || open[open.length - 1];
 }
+
+/** A logged slot whose photo the device lost before it uploaded: the thread offers a retake, and
+ *  the retake may replace the log (act.logMeal). */
+export const lostPhotoSlot = (k) => !!(k && DAY.meals[k] && DAY.slotMacros[k] && DAY.slotMacros[k].analysisFailed === 'photo_lost');
 
 /** Does this logged slot have a photo behind it? Photo-sourced logs ('live'/'gallery' — or
  *  legacy meta with no source recorded, where we try and degrade) get their stored image
@@ -1118,13 +1124,17 @@ export const act = {
     // meal (DAY.plans); only a photo commits one. The Trust Pass never comes through here.
     if (!captured) return false;
     const slot = captured || nextOpenSlot(slotArg) || slotArg || MEAL.key;
-    if (!slot || !MEAL_KEYS.includes(slot) || DAY.meals[slot]) return;
+    // A RETAKE of a photo lost before it uploaded ('photo_lost') replaces that log and keeps its
+    // logged minute: the athlete logged on time; the loss was ours.
+    const lost = lostPhotoSlot(slot) ? { at: DAY.mealLoggedAt[slot], mealId: DAY.slotMacros[slot].mealId || null } : null;
+    if (!slot || !MEAL_KEYS.includes(slot) || (DAY.meals[slot] && !lost)) return;
     const from = computeScore(componentsNow());
+    if (lost) dayUnlogMeal(slot);
     const hasPhoto = MEAL.photoBase64 && MEAL.key === slot;
     // Timing accountability (0062): minutes past this slot's deadline at log time, computed on
     // the athlete's own clock (the only honest source) and persisted so the COACH side can
     // render the same on-time/late sentence the athlete saw.
-    const minutesLate = Math.max(0, minutesNow() - slotDeadline(slot));
+    const minutesLate = Math.max(0, (lost && lost.at != null ? lost.at : minutesNow()) - slotDeadline(slot));
     const source = MEAL.key === slot ? (MEAL.source || (hasPhoto ? 'live' : 'manual')) : 'manual';
     const integrity = {
       live: MEAL.live !== false, source, minutesLate,
@@ -1146,6 +1156,12 @@ export const act = {
           ...(optimistic ? { pending: true, pendingHash: MEAL.photoHash || null } : {}) };
     const macros = loggingMacros();
     dayLogMeal(RT.userId, slot, macros, meta);
+    if (lost) {
+      if (lost.at != null) DAY.mealLoggedAt[slot] = lost.at;
+      // A row that went in before the loss keeps its id; the new photo uploads to the path it names.
+      if (lost.mealId) DAY.slotMacros[slot].mealId = lost.mealId;
+      pushDay(RT.userId);
+    }
     const photoPath = hasPhoto ? `${RT.userId}/${DAY.date}/${slot}.jpg` : null;
 
     // OPTIMISTIC PATH (photo logged before the AI has read it). The athlete gets their day back
@@ -1162,7 +1178,8 @@ export const act = {
         mealType: MEAL.mealType || cap(slot),
         capturedAtMin: MEAL.capturedAtMin != null ? MEAL.capturedAtMin : minutesNow(),
         userNote, macros, meta,
-        needUpload: true, needInsert: true, needAnalysis: true,
+        needUpload: true, needInsert: !(lost && lost.mealId), needAnalysis: true,
+        ...(lost && lost.mealId ? { mealId: lost.mealId } : {}),
         tries: 0, lastTryAt: 0,
       });
       void this.drainMealOutbox();
@@ -1247,6 +1264,7 @@ export const act = {
     if (this._draining || typeof window === 'undefined') return;
     this._draining = true;
     try {
+      await migratePhotos();   // once per session: legacy base64 → IndexedDB, orphaned bytes out
       for (const job of dueJobs(readQueue(), Date.now())) {
         if (!job.uid || job.uid !== RT.userId) continue;   // another account's queue — leave it
         await this._runMealJob(job);
@@ -1275,12 +1293,14 @@ export const act = {
   _reconcileDeadJobs() {
     try {
       for (const e of readQueue()) {
-        if (!e || !e.dead || e.uid !== RT.userId || e.date !== DAY.date || !e.slot) continue;
+        if (!e || !(e.dead || e.readLost) || e.uid !== RT.userId || !e.slot) continue;
+        if (e.date !== DAY.date) { if (e.date < DAY.date && e.dead) removeJob(e.k); continue; }  // an old tombstone explains nothing now
         const m = DAY.slotMacros[e.slot];
         if (m && m.pending && !m.analysisFailed) {
           this._patchSlot(e.slot, { analysisFailed: e.lostPhoto ? 'photo_lost' : 'error' });
           window.__render && window.__render();
         }
+        if (e.readLost && !e.dead && !e.needInsert) removeJob(e.k);   // nothing left to run; the slot holds the record
       }
     } catch { /* reconcile is best-effort; never let it break the drain loop */ }
   },
@@ -1400,6 +1420,20 @@ export const act = {
     if (job.date === DAY.date && !DAY.meals[slot] && job.meta) {
       dayLogMeal(job.uid, slot, job.macros || { protein: 0, kcal: 0, carbs: 0, fat: 0 }, job.meta);
       syncRtFromDay();
+    }
+
+    // The bytes (memory, IndexedDB or the queue). None left: shedPhoto decides what that costs.
+    if (job.needUpload || job.needAnalysis) {
+      const b64 = await photoFor(job);
+      // Storage did not answer: leave the job exactly as it is and try on a later drain.
+      if (b64 === undefined) { updateJob(job.k, { lastTryAt: Date.now() }); return; }
+      if (!b64) {
+        job = shedPhoto(job);
+        updateJob(job.k, job);
+        this._reconcileDeadJobs();
+        if (job.dead) return;
+      }
+      job = { ...job, base64: b64 };
     }
 
     // THE PHOTO UPLOAD IS PROOF, NOT AN INPUT. analyze-meal is handed the base64 straight off the
@@ -1742,14 +1776,11 @@ export const act = {
   },
   skipPendingQuestions(slot) { this.answerPendingQuestions(slot, []); },
 
-  /** Manual retry after a terminal analysis failure. Always answers: local bytes when the
-   *  queue still has them, otherwise the same storage rescue rereadMeal uses (the photo budget
-   *  keeps only the two newest captures locally, but the upload usually made it). The old
-   *  version returned silently when the bytes were gone, which made the "Read it again" chip
-   *  a dead button for exactly the meals most likely to need it. */
+  /** Manual retry after a terminal analysis failure. Always answers: local bytes when the device
+   *  still has them, otherwise the storage rescue rereadMeal uses (never a dead button). */
   async retryAnalysis(slot) {
     const job = readQueue().find((e) => e.slot === slot && e.uid === RT.userId && e.date === DAY.date);
-    if (job && job.base64) {
+    if (job && await photoFor(job)) {
       updateJob(job.k, { needAnalysis: true, tries: 0, lastTryAt: 0 });
       this._patchSlot(slot, { analysisFailed: null, rereadError: null });
       window.__render && window.__render();
@@ -1775,7 +1806,8 @@ export const act = {
     const cur = DAY.slotMacros[slot];
     if (!cur || !DAY.meals[slot]) return false;
     const job = readQueue().find((e) => e.slot === slot && e.uid === RT.userId && e.date === DAY.date);
-    track(EVENTS.MEAL_REREAD, { slot, source: job && job.base64 ? 'queued' : 'storage' });
+    const queued = !!(job && jobHasPhoto(job) && await photoFor(job));
+    track(EVENTS.MEAL_REREAD, { slot, source: queued ? 'queued' : 'storage' });
 
     const restage = (photoHash) => {
       // Drop the settled numbers and the dead audit trail; put the slot back in the pending state
@@ -1786,15 +1818,14 @@ export const act = {
       window.__render && window.__render();
     };
 
-    if (job && job.base64) {
+    if (queued) {
       restage(job.photoHash);
       updateJob(job.k, { needAnalysis: true, tries: 0, lastTryAt: 0, analysisFailed: null });
       void this.drainMealOutbox();
       return true;
     }
 
-    // The queue only carries the two most recent photos (MAX_PHOTOS), so an older meal has to come
-    // back from storage. Fetch the uploaded object, re-encode it, and queue a fresh job.
+    // No local bytes: fetch the uploaded object back from storage and queue a fresh job.
     try {
       const path = todayMealPhotoPath(RT.userId, DAY.date, slot);
       const url = path && await resolveMealPhoto(path);
@@ -2336,7 +2367,7 @@ export const act = {
       } catch { /* hashing unavailable — server wall still holds */ }
     })();
     // Real slot: the requirement row's slot if it passed one, else the next open slot by time.
-    const key = nextOpenSlot(slot) || slot || 'dinner';
+    const key = lostPhotoSlot(slot) ? slot : (nextOpenSlot(slot) || slot || 'dinner');
     MEAL.key = key;
     MEAL.mealType = cap(key);
     save(); saveMeal();

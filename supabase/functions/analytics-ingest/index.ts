@@ -37,6 +37,9 @@ const ALLOWED = new Set([
   "onboarding_completed", "meal_logged", "meal_analysis_failed", "meal_analysis_applied", "memory_fact_confirmed", "commitment_set",
   "recovery_submitted", "checkin_submitted", "weight_logged", "coach_connected",
   "code_join_failed", "app_error",
+  // localStorage refused a write (2026-09-26): {where, total_k, t1..t4}, the top 8 key sizes as
+  // label:thousands-of-characters. Sizes and labels only; no key, no value.
+  "storage_quota",
   // Paywall funnel (2026-07-21) — surface events; must match proto analytics.js EVENTS.
   "paywall_viewed", "plan_selected", "trial_started",
   // Deterministic-scoring cutover (2026-07-21) — AI-vs-app score delta + tone-conflict signals.
