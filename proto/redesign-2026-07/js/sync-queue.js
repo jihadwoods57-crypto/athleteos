@@ -39,12 +39,25 @@ export function enqueue(list, entry) {
 }
 
 /** Not exhausted, has backoff-due work. Exhausted entries stay in the list as a record until a
-    successful drain of the same key replaces them — they are never retried. */
+    successful drain of the same key replaces them (or prune ages them out); never retried. */
 export function runnable(e, now) {
   if (!e || e.tries >= MAX_TRIES) return false;
   return now - (e.lastTryAt || 0) >= (e.tries ? backoffMs(e.tries) : 0);
 }
 export function due(list, now) { return list.filter((e) => runnable(e, now)); }
+
+/** The bound (2026-09-26): an exhausted record is kept a week, then dropped; a correction's
+    receipt (revived on every launch) a month. At most MAX_KEEP entries, oldest out first. Pure. */
+export const MAX_KEEP = 200;
+const DAY_MS = 864e5;
+export function prune(list, now) {
+  const out = (list || []).filter((e) => {
+    if (!e || (e.tries || 0) < MAX_TRIES) return !!e;
+    const at = e.lastTryAt || e.queuedAt || 0;
+    return now - at < (e.kind === 'correction-outcome' ? 30 : 7) * DAY_MS;
+  });
+  return out.length > MAX_KEEP ? out.slice(out.length - MAX_KEEP) : out;
+}
 
 /** Queue-worthiness of a failure: an unreachable server is retryable; a server that answered
     "no" is not (an RLS refusal or a closed roll-call window replays into the same "no" five
@@ -67,6 +80,7 @@ export function readQueue() {
   } catch { return []; }
 }
 export function writeQueue(list) {
+  list = prune(list, Date.now());
   if (!hasLS()) return list;
   try { localStorage.setItem(KEY, JSON.stringify(list)); } catch { /* tiny rows; a quota loss here is acceptable */ }
   return list;

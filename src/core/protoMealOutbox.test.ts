@@ -88,13 +88,15 @@ describe('quota policy', () => {
     expect(out.find((e: { k: string }) => e.k === 'mid').base64).toBe('xxx');
     expect(out.find((e: { k: string }) => e.k === 'new').base64).toBe('xxx');
   });
-  it('a stripped job is marked dead with a reason, not silently forgotten', () => {
+  it('a stripped job keeps its bytes in memory and is NOT declared lost (2026-09-26)', () => {
+    // The old trim marked it dead on the spot, which threw away photos this session could still
+    // upload. Whether a photo is gone is now decided at drain time (meal-outbox.js shedPhoto).
     const out = trimPhotos([job({ k: 'old' }), job({ k: 'a' }), job({ k: 'b' })], 2);
-    const dropped = out.find((e: { k: string }) => e.k === 'old');
-    expect(dropped.dead).toBe('quota');
-    expect(dropped.needUpload).toBe(false);
-    expect(dropped.needAnalysis).toBe(false);
-    expect(out.length).toBe(3);   // the entry itself survives so the thread can explain it
+    const stripped = out.find((e: { k: string }) => e.k === 'old');
+    expect(stripped.dead).toBeUndefined();
+    expect(stripped.bytes).toBe('mem');
+    expect(stripped.needUpload).toBe(job({}).needUpload);
+    expect(out.length).toBe(3);
   });
   it('does nothing when under budget', () => {
     const list = [job({ k: 'a' })];

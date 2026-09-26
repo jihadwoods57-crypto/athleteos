@@ -63,6 +63,7 @@ export const EVENTS = Object.freeze({
   WEIGHT_LOGGED: 'weight_logged',
   COACH_CONNECTED: 'coach_connected',         // {kind}
   CODE_JOIN_FAILED: 'code_join_failed',
+  STORAGE_QUOTA: 'storage_quota',             // {where, total_k, t1..t4}: localStorage refused a write; top 8 key sizes, labels only
   APP_ERROR: 'app_error',                     // {where} — crash/unhandled rejection (truncated)
   // Coach Marketplace (0183–0186). The hire funnel end-to-end: intro → directory → a coach's
   // page → checkout intent → paid (MKT_HIRED is fired by billing-return state, not optimism),

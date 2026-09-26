@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { trimPhotos, runnable, backoffMs, enqueue, jobKey } from './meal-outbox.js';
+import { trimPhotos, shedPhoto, runnable, backoffMs, enqueue, jobKey } from './meal-outbox.js';
 
 const job = (k, over = {}) => ({
   k, uid: 'u1', date: '2026-08-15', slot: 'lunch',
@@ -8,27 +8,36 @@ const job = (k, over = {}) => ({
   tries: 0, lastTryAt: 0, ...over,
 });
 
-test('trimPhotos strips the OLDEST photos past the budget and marks them dead', () => {
-  const list = [job('a'), job('b'), job('c')];
-  const out = trimPhotos(list, 2);
-  assert.equal(out[0].dead, 'quota');
+test('trimPhotos (localStorage fallback) keeps base64 for the newest two and marks nothing lost', () => {
+  // 2026-09-26: the old trim marked the oldest entries dead on the spot, which is how a photo the
+  // athlete could still have uploaded this session was thrown away. Now the older entries keep
+  // their bytes in memory ('mem'); whether a photo is really gone is decided at drain time.
+  const out = trimPhotos([job('a'), job('b'), job('c')], 2);
   assert.equal(out[0].base64, null);
-  assert.equal(out[1].dead, undefined);
-  assert.equal(out[2].dead, undefined);
+  assert.equal(out[0].bytes, 'mem');
+  assert.equal(out[0].dead, undefined);
+  assert.equal(out[0].needUpload, true, 'still owed: nothing was decided here');
+  assert.equal(out[1].base64, 'AAAA');
+  assert.equal(out[2].base64, 'AAAA');
 });
 
-test('a stripped entry preserves whether its photo had already uploaded (lostPhoto)', () => {
-  // 'a' never uploaded: its bytes died with the strip. 'b' uploaded first: recoverable.
-  const list = [job('a', { needUpload: true }), job('b', { needUpload: false }), job('c'), job('d')];
-  const out = trimPhotos(list, 2);
-  assert.equal(out[0].lostPhoto, true);   // bytes gone forever
-  assert.equal(out[1].lostPhoto, false);  // photo lives in storage; a re-read can recover it
-  assert.equal(out[0].needUpload, false); // the strip overwrites this — which is why lostPhoto exists
+test('shedPhoto: a photo that never uploaded ends the job (no insert: 0251 needs a real photo)', () => {
+  const e = shedPhoto(job('a', { needUpload: true, needInsert: true }));
+  assert.equal(e.dead, 'lost');
+  assert.equal(e.lostPhoto, true);
+  assert.equal(e.needInsert, false);
+  assert.equal(e.needAnalysis, false);
+  assert.equal(runnable(e, Date.now() + 10 * 60_000), false, 'a dead entry is never runnable');
 });
 
-test('a dead entry is never runnable, no matter how due it is', () => {
-  const e = trimPhotos([job('a'), job('b'), job('c')], 2)[0];
-  assert.equal(runnable(e, Date.now() + 10 * 60_000), false);
+test('shedPhoto: a photo already in storage still gets its meals row; only the read is lost', () => {
+  const e = shedPhoto(job('b', { needUpload: false, needInsert: true }));
+  assert.equal(e.dead, undefined);
+  assert.equal(e.lostPhoto, false);
+  assert.equal(e.readLost, true);
+  assert.equal(e.needInsert, true, 'the insert still runs');
+  assert.equal(e.needAnalysis, false);
+  assert.equal(runnable(e, Date.now()), true);
 });
 
 test('backoff starts in seconds and caps in minutes', () => {
