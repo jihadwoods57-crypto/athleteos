@@ -27,6 +27,8 @@ import { aiConsentCached, isConsentSkip, noteAiConsentRequired } from './ai-cons
 import { heroGoalLine } from './season-phase.js';
 import { suggestionHtml, wireSuggestion, loadMySuggestion } from './target-suggest.js';
 import { loadHallMenus, hallMenusDue, hallIdeas } from './dining-today.js';
+import { allergenKeysFrom } from './dining-menu.js';
+import { planButtonLabel } from './dining-plate-model.js';
 
 /* ---------------- module state (survives every repaint, never persisted) ---------------- */
 let SUGGEST_READ = null;       // whose suggestion row was read this session (once, on the first Plan open)
@@ -124,7 +126,8 @@ function ideasFor(slot, slotTarget, max = 3) {
   // no share, so no "Double" portion.
   const PS = S.planStyle;
   const share = PS.showMacros || PS.showCalories ? slotTarget : {};
-  const hall = hallIdeas({ slot, dayDate: DAY.date, dueMin: slotDeadline(slot), nowMin: minutesNow(), target: share, avoid: av });
+  // Allergen TAGS on the menu are checked against the declared allergies and intolerances.
+  const hall = hallIdeas({ slot, dayDate: DAY.date, dueMin: slotDeadline(slot), nowMin: minutesNow(), target: share, avoid: av, allergens: allergenKeysFrom(RT.restrictions) });
   return rankIdeas({ usuals: own, nia, hall, slotTarget, avoid: av, max });
 }
 
@@ -298,7 +301,7 @@ function upNextHtml(ctx) {
       ${loading ? `<div class="pt-idea sk" role="status"><span class="pt-dot" aria-hidden="true"></span><span class="pt-idea-b"><span class="pt-idea-n">Getting ideas from Nia…</span></span></div>` : ''}
     </div>` : `<div class="pt-empty">No ideas yet. Log like normal and your usuals show up here.</div>`}
     ${picked
-    ? `<button type="button" class="btn primary pt-cta" id="pt-plan" data-pt-pick="${esc(picked.id)}">Plan ${esc(shortName(picked.name))}</button>`
+    ? `<button type="button" class="btn primary pt-cta" id="pt-plan" data-pt-pick="${esc(picked.id)}">${esc(picked.source === 'hall' ? planButtonLabel(picked) : `Plan ${shortName(picked.name)}`)}</button>`
     : snap}
     <button type="button" class="pt-ask" id="pt-ask">${icon('sparkle', 15)}Ask Nia for other ideas</button>
   </section>`;

@@ -4663,10 +4663,19 @@ html[data-layout] .rhb-body, html[data-layout] .rhb-acts { max-width: 720px; }
 .dh-closed { margin-left: var(--s2h); font-size: var(--t-sm); font-weight: 600; color: var(--text-3); }
 .dh-times { display: flex; align-items: center; gap: var(--s2); margin-top: var(--s2h); font-size: var(--t-sm); font-weight: 700; color: var(--text-3); }
 .dh-time { flex: 1; }
-.dh-days { display: grid; grid-template-columns: repeat(7, 44px); justify-content: space-between; margin-top: var(--s2h); }
-.dh-wd { min-height: 44px; border-radius: var(--r-card-sm); border: 1px solid var(--hairline); background: var(--surface-2); color: var(--text-3); cursor: pointer;
-  font-family: var(--font); font-size: var(--t-sm); font-weight: 800; }
-.dh-wd.on { background: var(--blue-surface); border-color: var(--blue-border); color: var(--text); }
+/* Seven 44px hit cells fit a 375px phone because the editor card runs a narrower side padding; the
+   visible pill is 36px inside each cell. */
+.dh-hedit { padding-left: var(--s3); padding-right: var(--s3); }
+.dh-days { display: grid; grid-template-columns: repeat(7, minmax(44px, 1fr)); margin-top: var(--s1h); }
+.dh-wd { display: grid; place-items: center; min-height: 44px; padding: 0; background: none; border: none; cursor: pointer; font-family: var(--font); }
+.dh-wd-p { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-pill); border: 1px solid var(--hairline); background: var(--surface-2);
+  color: var(--text-3); font-size: var(--t-sm); font-weight: 800; }
+.dh-wd.on .dh-wd-p { background: var(--blue-surface); border-color: var(--blue-border); color: var(--text); }
+/* The item editor's printed allergens and markers. */
+.dh-tags { display: flex; flex-wrap: wrap; gap: var(--s2); }
+.dh-tg { min-height: 44px; padding: 0 var(--s3); border-radius: var(--r-pill); border: 1px solid var(--hairline); background: var(--surface-2); color: var(--text-2);
+  cursor: pointer; font-family: var(--font); font-size: var(--t-sm); font-weight: 700; }
+.dh-tg.on { background: var(--blue-surface); border-color: var(--blue-border); color: var(--text); }
 /* A day's review */
 .dh-banner { display: flex; align-items: flex-start; gap: var(--s2); margin: var(--s1) 0 var(--s2); padding: var(--s2h) var(--s3h); border-radius: var(--r-card-sm);
   background: var(--surface-2); color: var(--text-2); font-size: var(--t-sm); font-weight: 700; line-height: 1.4; }

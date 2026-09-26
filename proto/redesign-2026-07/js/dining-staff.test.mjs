@@ -136,3 +136,50 @@ test('COACH HOME: the door shows only for editors, and says what is waiting', ()
   const idx = readFileSync(join(HERE, 'screens', 'index.js'), 'utf8');
   for (const r of ['dining-halls', 'dining-hall', 'dining-day']) assert.match(idx, new RegExp(`^\\s*'${r}': lazy\\(dining, `, 'm'));
 });
+
+/* ---------------------------------------------------------------- review round (2026-09-26) */
+
+test('POLLING: an upload still parsing past 10 minutes reads as failed; the result comes from its own rows', () => {
+  const now = Date.parse('2026-09-28T12:00:00Z');
+  const ago = (m) => new Date(now - m * 60000).toISOString();
+  assert.equal(SM.uploadState({ status: 'parsing', claimed_at: ago(2) }, now), 'parsing');
+  assert.equal(SM.uploadState({ status: 'parsing', claimed_at: ago(11) }, now), 'failed');
+  assert.equal(SM.uploadState({ status: 'parsed' }, now), 'parsed');
+  assert.equal(SM.uploadState({ status: 'failed', error: 'timeout' }, now), 'failed');
+  assert.equal(SM.uploadState(null, now), 'unknown');
+  const rows = [
+    { upload_id: 'u1', menu_date: '2026-09-28', items: [{}, {}] }, { upload_id: 'u1', menu_date: '2026-09-29', items: [{}] },
+    { upload_id: 'u2', menu_date: '2026-09-28', items: [{}] },
+  ];
+  assert.deepEqual(SM.resultFromRows(rows, 'u1'), { ok: true, entries: 2, days: ['2026-09-28', '2026-09-29'], items: 3 });
+  for (const c of ['too_many_pages', 'pages_unknown', 'timeout']) assert.ok(SM.uploadErrorLine(c).length > 10 && SM.uploadErrorLine(c) !== SM.uploadErrorLine('x'), c);
+  assert.match(SM.uploadErrorLine('too_many_pages'), /10 pages/);
+  assert.match(SM.uploadErrorLine('too_long'), /fewer days/);
+});
+
+test('START DATE: the picker is bounded to the database window, with a plain message outside it', () => {
+  assert.deepEqual(SM.startDateBounds('2026-09-28'), { min: '2026-09-21', max: '2026-10-28' });
+  assert.equal(SM.startDateError('2026-09-28', '2026-09-28'), null);
+  assert.equal(SM.startDateError('2026-10-28', '2026-09-28'), null);
+  assert.match(SM.startDateError('2026-10-29', '2026-09-28'), /within a week back or a month ahead/);
+  assert.match(SM.startDateError('2026-09-20', '2026-09-28'), /within a week back or a month ahead/);
+  assert.match(SM.startDateError('nope', '2026-09-28'), /Pick the date/);
+});
+
+test('TAGS in the editor: chips from the vocabulary toggle in vocabulary order', () => {
+  assert.deepEqual(SM.toggleTag([], 'contains nuts'), ['contains nuts']);
+  assert.deepEqual(SM.toggleTag(['contains nuts'], 'contains dairy'), ['contains dairy', 'contains nuts']);
+  assert.deepEqual(SM.toggleTag(['contains dairy', 'contains nuts'], 'contains dairy'), ['contains nuts']);
+  assert.deepEqual(SM.toggleTag(['contains nuts'], 'not a tag'), ['contains nuts']);
+});
+
+test('SCREENS: the upload form is per hall, the date is bounded, the read is polled, and tags are editable', () => {
+  const src = readFileSync(join(HERE, 'screens', 'dining-halls.js'), 'utf8');
+  assert.match(src, /const U = upFor\(hallId\);/, 'every hall has its own form state');
+  assert.doesNotMatch(src, /DH\.up\b/, 'no shared upload state left');
+  assert.match(src, /min="\$\{esc\(bounds\.min\)\}" max="\$\{esc\(bounds\.max\)\}"/);
+  assert.match(src, /await pollUpload\(hallId, id\)/);
+  assert.match(src, /data-dh-tag="\$\{esc\(t\.key\)\}"/);
+  assert.match(src, /tags: DH\.edit && Array\.isArray\(DH\.edit\.tags\) \? DH\.edit\.tags : \[\]/);
+  assert.doesNotMatch(src, /two weeks/);
+});

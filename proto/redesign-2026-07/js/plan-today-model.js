@@ -201,6 +201,7 @@ export function rankIdeas({ usuals = [], nia = [], hall = [], slotTarget = {}, a
       tags: [],
       hall: cleanName(h.hall, 40) || null,
       station: cleanName(h.station, 30) || null,
+      protein_name: cleanName(h.protein_name, 40) || null,
       est: true,
       verified: false,
     }));

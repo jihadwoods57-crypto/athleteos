@@ -67,10 +67,10 @@ async function readMenus(sb, date, key) {
 }
 
 /** Up to two dining-hall plates for `slot`, or [] (not today, no menu, closed, nothing safe). */
-export function hallIdeas({ slot, dayDate, dueMin = null, nowMin = null, target = {}, avoid = [] }) {
+export function hallIdeas({ slot, dayDate, dueMin = null, nowMin = null, target = {}, avoid = [], allergens = [] }) {
   const date = localToday();
   if (!slot || String(dayDate) !== date || MENU.key !== keyFor(date)) return [];
-  return buildHallPlates({ halls: MENU.halls, menus: MENU.menus, date, slot, dueMin, nowMin, target, avoid, max: 2 });
+  return buildHallPlates({ halls: MENU.halls, menus: MENU.menus, date, slot, dueMin, nowMin, target, avoid, allergens, max: 2 });
 }
 
 /* Tests and the screenshot harness only. */

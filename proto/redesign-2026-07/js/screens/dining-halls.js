@@ -21,11 +21,12 @@ import { ensureAiConsent, isConsentSkip, noteAiConsentRequired } from '../ai-con
 import { encodeImageFile } from '../chat-attach.js';
 import { base64ToBytes } from '../photo-hash.js';
 import {
-  PERIOD_KEYS, periodLabel, ITEM_KINDS, DEFAULT_HOURS, cleanMenuItem, cleanMenuText, HALL_NAME_MAX, addDays,
+  PERIOD_KEYS, periodLabel, ITEM_KINDS, DEFAULT_HOURS, cleanMenuItem, cleanMenuText, HALL_NAME_MAX, addDays, MENU_TAGS,
 } from '../dining-menu.js';
 import {
   canManageDining, fmtDay, hoursLines, hoursForm, hoursFromForm, dayGroups, dayState, DAY_STATE_LABEL, dayPeriods,
   todayLine, shownRow, itemMeta, uploadErrorLine, readResultLine, BLANK_ITEM, dayControls,
+  uploadState, resultFromRows, startDateBounds, startDateError, toggleTag,
 } from '../dining-staff-model.js';
 
 /* ---------------------------------------------------------------- state (this session only) */
@@ -35,9 +36,10 @@ let DH = {
   today: [],                 // the team's rows for today and ahead (the halls list)
   rows: {}, rowsAt: {},      // hallId -> that hall's rows
   adding: false, addNote: '',
+  // One upload form PER HALL (review round): hall Y's Read never touches hall X's upload.
   // pendingId: an upload already filed whose read was refused for now (busy, today's cap, a dropped
   // connection). The next tap asks for THAT upload again instead of uploading the files twice.
-  up: { kind: 'photo', files: [], text: '', startsOn: '', busy: false, note: '', err: false, pendingId: null },
+  ups: {},
   hoursEdit: null,           // { hallId, name, rows, note }
   edit: null,                // { key: 'lunch:3' | 'lunch:new', note }
   day: { busy: false, note: '', err: false, confirmDiscard: false },
@@ -50,6 +52,11 @@ const localToday = () => { const d = new Date(); return `${d.getFullYear()}-${St
 const repaint = () => { if (window.__render) window.__render(); };
 const manage = () => !!(CD.extras && canManageDining(CD.extras.myRole, CD.caps, CD.kind));
 const hallOf = (id) => (DH.halls || []).find((h) => h.id === id) || null;
+const BLANK_UP = { kind: 'photo', files: [], text: '', startsOn: '', busy: false, note: '', err: false, pendingId: null };
+/** This hall's upload form (made on first use). */
+const upFor = (hallId) => { if (!DH.ups[hallId]) DH.ups[hallId] = { ...BLANK_UP }; return DH.ups[hallId]; };
+const setUp = (hallId, patch) => { DH.ups[hallId] = { ...upFor(hallId), ...patch }; return DH.ups[hallId]; };
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 const uuid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID()
   : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); }));
 
@@ -196,8 +203,9 @@ export const diningHalls = {
 /* ================================================================ #dining-hall/<id> */
 function uploadHtml(hallId) {
   if (!manage()) return '';
-  const U = DH.up;
+  const U = upFor(hallId);
   const start = U.startsOn || localToday();
+  const bounds = startDateBounds(localToday());
   const kinds = [['photo', 'Photos'], ['pdf', 'PDF'], ['text', 'Paste text']];
   const n = U.files.length;
   const picker = U.kind === 'text'
@@ -214,9 +222,9 @@ function uploadHtml(hallId) {
     </div>
     ${picker}
     <label class="dh-lbl" for="dh-start">Menu starts on</label>
-    <input type="date" class="dh-in" id="dh-start" value="${esc(start)}"${U.busy ? ' disabled' : ''}/>
+    <input type="date" class="dh-in" id="dh-start" value="${esc(start)}" min="${esc(bounds.min)}" max="${esc(bounds.max)}"${U.busy ? ' disabled' : ''}/>
     <button type="button" class="btn primary dh-go" id="dh-read"${ready ? '' : ' disabled'}>${U.busy ? 'Reading the menu…' : 'Read the menu'}</button>
-    <p class="dh-note${U.err ? ' err' : ''}" role="status">${esc(U.note || 'We read each upload once, up to two weeks of menus. Nothing reaches athletes until you publish.')}</p>
+    <p class="dh-note${U.err ? ' err' : ''}" role="status">${esc(U.note || 'We read each upload once, up to a week of menus. Nothing reaches athletes until you publish.')}</p>
   </section>`;
 }
 
@@ -254,7 +262,7 @@ function hoursHtml(h) {
     ${E.rows.map((r) => `<div class="dh-hrow" data-dh-p="${esc(r.period)}">
       <button type="button" class="dh-tog${r.on ? ' on' : ''}" aria-pressed="${r.on ? 'true' : 'false'}" data-dh-on="${esc(r.period)}">${r.on ? icon('check', 14) : ''}${esc(periodLabel(r.period))}</button>
       ${r.on ? `<div class="dh-times"><input type="time" class="dh-in dh-time" aria-label="${esc(`${periodLabel(r.period)} opens`)}" data-dh-from="${esc(r.period)}" value="${esc(r.from)}"/><span>to</span><input type="time" class="dh-in dh-time" aria-label="${esc(`${periodLabel(r.period)} closes`)}" data-dh-to="${esc(r.period)}" value="${esc(r.to)}"/></div>
-      <div class="dh-days" role="group" aria-label="${esc(`${periodLabel(r.period)} days`)}">${DAY_LETTERS.map((l, i) => `<button type="button" class="dh-wd${r.days.includes(i) ? ' on' : ''}" aria-pressed="${r.days.includes(i) ? 'true' : 'false'}" aria-label="${DAY_NAMES[i]}" data-dh-day="${esc(r.period)}:${i}">${l}</button>`).join('')}</div>` : '<span class="dh-closed">Not served</span>'}
+      <div class="dh-days" role="group" aria-label="${esc(`${periodLabel(r.period)} days`)}">${DAY_LETTERS.map((l, i) => `<button type="button" class="dh-wd${r.days.includes(i) ? ' on' : ''}" aria-pressed="${r.days.includes(i) ? 'true' : 'false'}" aria-label="${DAY_NAMES[i]}" data-dh-day="${esc(r.period)}:${i}"><span class="dh-wd-p">${l}</span></button>`).join('')}</div>` : '<span class="dh-closed">Not served</span>'}
     </div>`).join('')}
     <div class="dh-acts"><button type="button" class="btn ghost" id="dh-hours-cancel">Cancel</button><button type="button" class="btn primary" id="dh-hours-save">Save</button></div>
     <div class="dh-err" role="status">${esc(E.note || '')}</div>
@@ -285,32 +293,37 @@ export const diningHall = {
     const box = root.querySelector('.dh');
     if (!box) return;
     box.addEventListener('click', (e) => onHallClick(e, hallId));
-    box.addEventListener('change', (e) => onHallChange(e));
+    box.addEventListener('change', (e) => onHallChange(e, hallId));
     box.addEventListener('input', (e) => {
       if (e.target && e.target.id === 'dh-text') {
-        const before = DH.up.text.trim().length >= 10;
-        DH.up.text = e.target.value;
-        DH.up.pendingId = null;
-        if ((DH.up.text.trim().length >= 10) !== before) { const b = box.querySelector('#dh-read'); if (b) b.disabled = !(DH.up.text.trim().length >= 10) || DH.up.busy; }
+        const U = upFor(hallId);
+        const before = U.text.trim().length >= 10;
+        U.text = e.target.value;
+        U.pendingId = null;
+        if ((U.text.trim().length >= 10) !== before) { const b = box.querySelector('#dh-read'); if (b) b.disabled = !(U.text.trim().length >= 10) || U.busy; }
       }
       if (e.target && e.target.id === 'dh-hname' && DH.hoursEdit) DH.hoursEdit.name = e.target.value;
     });
   },
 };
 
-function onHallChange(e) {
+function onHallChange(e, hallId) {
   const t = e.target;
   if (!t) return;
+  const U = upFor(hallId);
   if (t.id === 'dh-file') {
     const files = [...(t.files || [])];
-    DH.up.files = DH.up.kind === 'pdf' ? files.slice(0, 1) : files.slice(0, 6);
-    DH.up.pendingId = null;
-    DH.up.note = files.length > 6 && DH.up.kind === 'photo' ? 'The first 6 photos will be read.' : '';
-    DH.up.err = false;
+    setUp(hallId, {
+      files: U.kind === 'pdf' ? files.slice(0, 1) : files.slice(0, 6),
+      pendingId: null,
+      note: files.length > 6 && U.kind === 'photo' ? 'The first 6 photos will be read.' : '',
+      err: false,
+    });
     repaint();
   } else if (t.id === 'dh-start') {
-    DH.up.startsOn = t.value || '';
-    DH.up.pendingId = null;
+    const err = startDateError(t.value || '', localToday());
+    setUp(hallId, { startsOn: t.value || '', pendingId: null, note: err || '', err: !!err });
+    if (err) repaint();
   } else if (DH.hoursEdit && (t.dataset.dhFrom || t.dataset.dhTo)) {
     const p = t.dataset.dhFrom || t.dataset.dhTo;
     const r = DH.hoursEdit.rows.find((x) => x.period === p);
@@ -322,7 +335,7 @@ async function onHallClick(e, hallId) {
   const t = e.target && e.target.closest ? e.target : null;
   if (!t) return;
   const kind = t.closest('[data-dh-kind]');
-  if (kind && !DH.up.busy) { DH.up = { ...DH.up, kind: kind.dataset.dhKind, files: [], note: '', err: false, pendingId: null }; repaint(); return; }
+  if (kind && !upFor(hallId).busy) { setUp(hallId, { kind: kind.dataset.dhKind, files: [], note: '', err: false, pendingId: null }); repaint(); return; }
   if (t.closest('#dh-read')) { await readMenu(hallId); return; }
   if (t.closest('#dh-hours-edit')) {
     const h = hallOf(hallId);
@@ -370,21 +383,25 @@ async function onHallClick(e, hallId) {
   }
 }
 
-/** Upload the files (or the text), file the upload row, and ask the function to read it once. */
+/** Upload the files (or the text), file the upload row, and ask the function to read it once. The
+ *  function answers as soon as it has claimed the upload and reads in the background; this polls the
+ *  upload's status until it is parsed or failed. */
 async function readMenu(hallId) {
-  const U = DH.up;
+  const U = upFor(hallId);
   const sb = window.sb;
   if (U.busy || !sb) return;
-  const fail = (code, keep = null) => { DH.up = { ...DH.up, busy: false, err: true, note: uploadErrorLine(code), pendingId: keep }; repaint(); };
+  const fail = (code, keep = null) => { setUp(hallId, { busy: false, err: true, note: uploadErrorLine(code), pendingId: keep }); repaint(); };
+  const start = U.startsOn || localToday();
+  const dateErr = startDateError(start, localToday());
+  if (dateErr) { setUp(hallId, { err: true, note: dateErr }); repaint(); return; }
   // The upload goes to the third-party AI: the uploader's own yes first (0243).
   if (!(await ensureAiConsent(RT.userId, { role: RT.authRole || 'coach', ask: true }))) { fail('ai_consent_required', U.pendingId); return; }
   let id = U.pendingId;
   if (!id) {
-    DH.up = { ...U, busy: true, err: false, note: 'Uploading…' };
+    setUp(hallId, { busy: true, err: false, note: 'Uploading…' });
     repaint();
     const team = bookId();
     id = uuid();
-    const start = U.startsOn || localToday();
     const paths = [];
     try {
       if (U.kind === 'photo') {
@@ -410,9 +427,9 @@ async function readMenu(hallId) {
     } catch { fail('upload'); return; }
   }
 
-  DH.up = { ...DH.up, busy: true, err: false, note: 'Reading the menu. This can take a minute.' };
+  setUp(hallId, { busy: true, err: false, note: 'Reading the menu. This can take a minute or two.' });
   repaint();
-  const { data, error } = await invokeWithDeadline('dining-menu', { uploadId: id }, 180000);
+  const { data, error } = await invokeWithDeadline('dining-menu', { uploadId: id }, 60000);
   if (isConsentSkip(data)) { noteAiConsentRequired(RT.userId); fail('ai_consent_required', id); return; }
   if (error || !data || data.ok !== true) {
     let code = data && data.error;
@@ -424,10 +441,32 @@ async function readMenu(hallId) {
     fail(code || 'read', retry ? id : null);
     return;
   }
-  DH.up = { kind: DH.up.kind, files: [], text: '', startsOn: DH.up.startsOn, busy: false, err: false, note: readResultLine(data), pendingId: null };
+  const done = await pollUpload(hallId, id);
+  if (done.state === 'failed') { fail(done.error || 'read'); return; }
   await loadRows(hallId, true);
   await loadHalls(true);
+  setUp(hallId, {
+    files: [], text: '', busy: false, err: false, pendingId: null,
+    note: done.state === 'parsed' ? readResultLine(resultFromRows(DH.rows[hallId], id))
+      : 'Still reading. The days appear here when it is done; if nothing shows in 10 minutes, upload it again.',
+  });
   repaint();
+}
+
+/** Poll one upload until it is parsed or failed (a read left parsing past 10 minutes reads as failed),
+ *  for up to about three minutes: the function's own model timeout is well inside that. */
+async function pollUpload(hallId, id) {
+  const sb = window.sb;
+  for (let i = 0; i < 60; i++) {
+    try {
+      const { data } = await sb.from('dining_menu_uploads').select('status, error, claimed_at, entries').eq('id', id).maybeSingle();
+      const state = uploadState(data);
+      if (state === 'parsed') return { state };
+      if (state === 'failed') return { state, error: (data && data.error) || 'read' };
+    } catch { /* keep polling */ }
+    await pause(3000);
+  }
+  return { state: 'parsing' };
 }
 
 /* ================================================================ #dining-day/<hallId>/<date> */
@@ -442,6 +481,12 @@ function itemForm(it, key) {
     </div>
     <div class="dh-grid4">${num('protein', 'Protein g')}${num('kcal', 'Calories')}${num('carbs', 'Carbs g')}${num('fat', 'Fat g')}</div>
     <p class="dh-note">Estimates for one serving. Leave a figure blank if you don't know it.</p>
+    <div class="dh-lbl">Allergens and markers, as printed</div>
+    <div class="dh-tags" role="group" aria-label="Allergens and markers">${MENU_TAGS.map((t) => {
+      const on = !!(DH.edit && Array.isArray(DH.edit.tags) && DH.edit.tags.includes(t.key));
+      return `<button type="button" class="dh-tg${on ? ' on' : ''}${t.covers.length ? ' al' : ''}" aria-pressed="${on ? 'true' : 'false'}" data-dh-tag="${esc(t.key)}">${esc(t.label)}</button>`;
+    }).join('')}</div>
+    <p class="dh-note">Athletes with a matching allergy or intolerance never see this item.</p>
     <div class="dh-acts">
       ${key.endsWith(':new') ? '' : '<button type="button" class="btn ghost dh-del" data-dh-del>Delete</button>'}
       <button type="button" class="btn ghost" data-dh-cancel>Cancel</button>
@@ -561,12 +606,11 @@ async function onItemSave(e, hallId, date) {
   const numOrNull = (v) => (String(v).trim() === '' ? null : Number(v));
   const g = dayOf(hallId, date);
   const cur = [...(((shownRow(g && g.periods[period]) || {}).items) || [])];
-  const was = idx === 'new' ? null : cur[Number(idx)];
   const it = cleanMenuItem({
     name: f('name'), station: f('station'), kind: f('kind'),
     per_serving: { protein: numOrNull(f('protein')), kcal: numOrNull(f('kcal')), carbs: numOrNull(f('carbs')), fat: numOrNull(f('fat')) },
-    // The printed dietary markers ride along unchanged: the allergy filter reads them.
-    tags: was && Array.isArray(was.tags) ? was.tags : [],
+    // The chips staff set: the allergy filter reads them, so they are the vocabulary's words only.
+    tags: DH.edit && Array.isArray(DH.edit.tags) ? DH.edit.tags : [],
   });
   if (!DH.edit) return;
   if (!it) { DH.edit.note = 'Give the item a name.'; repaint(); return; }
@@ -582,9 +626,25 @@ async function onDayClick(e, hallId, date) {
   const t = e.target && e.target.closest ? e.target : null;
   if (!t) return;
   const ed = t.closest('[data-dh-edit]');
-  if (ed) { DH.edit = { key: ed.dataset.dhEdit, note: '' }; repaint(); return; }
+  if (ed) {
+    const [p, i] = ed.dataset.dhEdit.split(':');
+    const g = dayOf(hallId, date);
+    const it = (((shownRow(g && g.periods[p]) || {}).items) || [])[Number(i)] || {};
+    DH.edit = { key: ed.dataset.dhEdit, note: '', tags: Array.isArray(it.tags) ? it.tags.slice() : [] };
+    repaint();
+    return;
+  }
   const add = t.closest('[data-dh-add]');
-  if (add) { DH.edit = { key: `${add.dataset.dhAdd}:new`, note: '' }; repaint(); return; }
+  if (add) { DH.edit = { key: `${add.dataset.dhAdd}:new`, note: '', tags: [] }; repaint(); return; }
+  // A tag chip toggles in place: a repaint would throw away what is typed in the form.
+  const tg = t.closest('[data-dh-tag]');
+  if (tg && DH.edit) {
+    DH.edit.tags = toggleTag(DH.edit.tags, tg.dataset.dhTag);
+    const on = DH.edit.tags.includes(tg.dataset.dhTag);
+    tg.classList.toggle('on', on);
+    tg.setAttribute('aria-pressed', on ? 'true' : 'false');
+    return;
+  }
   if (t.closest('[data-dh-cancel]')) { DH.edit = null; repaint(); return; }
   if (t.closest('[data-dh-del]') && DH.edit) {
     const [period, idx] = DH.edit.key.split(':');
@@ -627,7 +687,7 @@ async function onDayClick(e, hallId, date) {
 }
 
 /* Tests and the screenshot harness only. */
-export function _seedDining({ team, halls, today = [], rows = {}, up, edit = null, hoursEdit = null } = {}) {
+export function _seedDining({ team, halls, today = [], rows = {}, ups, edit = null, hoursEdit = null } = {}) {
   DH = { ...DH, team: team || bookId(), halls, hallsAt: Date.now(), err: false, today, rows, rowsAt: Object.fromEntries(Object.keys(rows).map((k) => [k, Date.now()])), edit, hoursEdit };
-  if (up) DH.up = { ...DH.up, ...up };
+  if (ups) for (const [h, u] of Object.entries(ups)) DH.ups[h] = { ...BLANK_UP, ...u };
 }

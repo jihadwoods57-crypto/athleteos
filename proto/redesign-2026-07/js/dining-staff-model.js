@@ -6,7 +6,7 @@
  * (0255: can_set_team_phase on every write, publish only through publish_dining_day).
  */
 import { canSetTargets } from './staff-access.js';
-import { PERIODS, PERIOD_KEYS, periodLabel, cleanHours, hmToMin, clockLabel, ITEM_KINDS } from './dining-menu.js';
+import { PERIODS, PERIOD_KEYS, periodLabel, cleanHours, hmToMin, clockLabel, ITEM_KINDS, TAG_KEYS, addDays, isIsoDate } from './dining-menu.js';
 
 /** Staff who edit the team's standard, on a team whose plan is live (0223 caps.standards). Fails
  *  CLOSED while the role loads, like the season control: view-only staff never see it. */
@@ -66,7 +66,8 @@ export function hoursFromForm(rows) {
     const f = hmToMin(r.from);
     const t = hmToMin(r.to);
     if (f === null || t === null) return { error: `${label} needs a start and an end time.` };
-    if (t <= f) return { error: `${label} has to end after it starts.` };
+    // A late period may run past midnight: an earlier end is the next day. Nothing else may.
+    if (t === f || (t < f && r.period !== 'late')) return { error: `${label} has to end after it starts.` };
     if (!r.days || !r.days.length) return { error: `${label} needs at least one day.` };
     out.push({ period: r.period, days: r.days.slice().sort((a, b) => a - b), from: r.from, to: r.to });
   }
@@ -155,7 +156,10 @@ export function uploadErrorLine(code) {
     case 'forbidden': return 'Only staff who edit the team standard can upload menus.';
     case 'too_large': return 'That upload is too big. Try fewer photos or a smaller PDF.';
     case 'bad_file': return "That file couldn't be read. Use photos (JPG or PNG) or a PDF.";
-    case 'too_long': return 'That menu is too long to read in one go. Upload a week at a time.';
+    case 'too_long': return 'That menu is too long to read in one go. Upload fewer days at a time.';
+    case 'too_many_pages': return 'That PDF has more than 10 pages. Upload the pages for one week, or photos of them.';
+    case 'pages_unknown': return "We couldn't count the pages in that PDF. Upload photos of the menu instead.";
+    case 'timeout': return 'Reading that menu took too long. Try again with fewer pages or days.';
     case 'ai_consent_required': return 'Turn on Nia in Privacy on your Profile to read menus.';
     case 'upload': return "The files didn't upload. Check your connection and try again.";
     default: return "Couldn't read the menu. Check your connection and try again.";
@@ -172,3 +176,46 @@ export function readResultLine(body) {
 
 /** A blank item for the editor. */
 export const BLANK_ITEM = { name: '', station: null, kind: 'protein', per_serving: null, tags: [] };
+
+/* ---------------------------------------------------------------- review round (2026-09-26) */
+
+/** An upload's state as the screen reads it. A read still 'parsing' 10 minutes after its claim was
+ *  cut off by the platform; it reads as failed (the function sweeps it too), so staff can retry. */
+export const STUCK_MS = 10 * 60 * 1000;
+export function uploadState(row, now = Date.now()) {
+  if (!row || !row.status) return 'unknown';
+  if (row.status === 'parsing') {
+    const at = Date.parse(row.claimed_at || '');
+    return Number.isFinite(at) && now - at > STUCK_MS ? 'failed' : 'parsing';
+  }
+  return row.status === 'parsed' || row.status === 'failed' || row.status === 'pending' ? row.status : 'unknown';
+}
+
+/** What one upload wrote, from the hall's rows: { ok, entries, days, items } (readResultLine's shape). */
+export function resultFromRows(rows, uploadId) {
+  const mine = (Array.isArray(rows) ? rows : []).filter((r) => r && r.upload_id === uploadId);
+  return {
+    ok: true,
+    entries: mine.length,
+    days: [...new Set(mine.map((r) => r.menu_date))].sort(),
+    items: mine.reduce((n, r) => n + (Array.isArray(r.items) ? r.items.length : 0), 0),
+  };
+}
+
+/** The start-date picker's window: the database's (0255 dining_uploads_guard: a week back, 30 days ahead). */
+export function startDateBounds(today) {
+  return { min: addDays(today, -7), max: addDays(today, 30) };
+}
+export function startDateError(date, today) {
+  if (!isIsoDate(date)) return 'Pick the date the menu starts on.';
+  const b = startDateBounds(today);
+  return date < b.min || date > b.max ? 'Pick a start date within a week back or a month ahead.' : null;
+}
+
+/** Toggle one vocabulary tag, keeping the vocabulary's order; an unknown tag changes nothing. */
+export function toggleTag(tags, key) {
+  if (!TAG_KEYS.includes(key)) return (tags || []).slice();
+  const on = new Set(tags || []);
+  if (on.has(key)) on.delete(key); else on.add(key);
+  return TAG_KEYS.filter((k) => on.has(k));
+}

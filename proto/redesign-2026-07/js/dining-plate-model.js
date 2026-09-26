@@ -6,9 +6,11 @@
  * time for the same menu.
  *
  * THE RULES THIS FILE HOLDS
- *  1. ALLERGIES FIRST. An item that names an allergy, an intolerance (rule terms match INSIDE words:
- *     "contains dairy", "buttermilk") or a dislike is dropped before anything is picked. Its tags
- *     count: an item tagged "contains peanuts" is a peanut item.
+ *  1. ALLERGIES FIRST (dining-menu.js itemAllowed, the filter Nia's menu context shares). An item
+ *     whose allergen TAG covers an allergy or intolerance ("contains nuts" covers peanut and tree
+ *     nut; "contains dairy" covers milk and lactose), or whose NAME names one (rule terms match
+ *     inside words: "buttermilk") or a dislike, is dropped before anything is picked. A "free of"
+ *     marker never matches.
  *  2. THE PLATE. A protein first, then a carb, then a vegetable (fruit at breakfast, or when there is
  *     no vegetable), sized so the plate lands near the slot's protein share: a second serving of the
  *     protein only when one leaves the plate well short.
@@ -20,7 +22,7 @@
  * Pure: no DOM, no storage, no network.
  */
 import { namesAny } from './food-prefs.js';
-import { cleanMenuItems, cleanMenuText, periodWindow, periodForSlot, HALL_NAME_MAX, isIsoDate } from './dining-menu.js';
+import { cleanMenuItems, cleanMenuText, periodWindow, periodForSlot, HALL_NAME_MAX, isIsoDate, itemAllowed } from './dining-menu.js';
 
 const P = (it) => (it.per_serving && Number(it.per_serving.protein)) || 0;
 const K = (it) => (it.per_serving && Number(it.per_serving.kcal)) || 0;
@@ -29,14 +31,15 @@ const hasFigures = (it) => !!(it.per_serving && (it.per_serving.protein != null 
 /** Short words for a plate name: "Grilled chicken breast" stays, "(8 oz)" goes. */
 const partName = (it) => cleanMenuText(String(it.name).replace(/\s*\([^)]*\)\s*/g, ' '), 32);
 
-/** "Grilled chicken, brown rice and roasted broccoli" (a doubled protein says so). A plan name is
+/** "Grilled chicken, brown rice and roasted broccoli"; a doubled protein reads "2 servings of
+ *  turkey burger, ..." (never "Double turkey burger", which reads like another dish). A plan name is
  *  at most 60 characters, so a long plate first drops the sides' describing words ("roasted
  *  broccoli" becomes "broccoli"), and only then a side. */
 export function plateName(parts, servings = 1) {
   const lower = (t) => `${t.charAt(0).toLowerCase()}${t.slice(1)}`;
   const names = parts.filter(Boolean).map(partName).filter(Boolean).map((t, i) => (i ? lower(t) : t));
   if (!names.length) return '';
-  if (servings > 1) names[0] = `Double ${lower(names[0])}`;
+  if (servings > 1) names[0] = `${servings} servings of ${lower(names[0])}`;
   const join = (ns) => (ns.length === 1 ? ns[0] : `${ns.slice(0, -1).join(', ')} and ${ns[ns.length - 1]}`);
   const lastWord = (t) => t.split(/\s+/).pop();
   const tries = [
@@ -49,9 +52,16 @@ export function plateName(parts, servings = 1) {
   return names[0].slice(0, 60);
 }
 
-/** The items at a hall that this athlete may eat. */
-export function safeItems(items, avoid) {
-  return cleanMenuItems(items).filter((it) => !namesAny([it.name, ...(it.tags || [])], avoid || []));
+/** The items at a hall that this athlete may eat. `allergens` is allergenKeysFrom(restrictions). */
+export function safeItems(items, avoid, allergens = []) {
+  return cleanMenuItems(items).filter((it) => itemAllowed(it, { avoid: avoid || [], allergens, namesAny }));
+}
+
+/** The Plan button for a hall plate: "Plan the turkey burger plate", or "Plan this plate" when the
+ *  protein's name is long. */
+export function planButtonLabel(idea) {
+  const n = cleanMenuText(idea && idea.protein_name, 32).replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+  return n && n.length <= 18 ? `Plan the ${n.charAt(0).toLowerCase()}${n.slice(1)} plate` : 'Plan this plate';
 }
 
 /**
@@ -116,11 +126,12 @@ export function platesFromItems(items, { target = {}, period = '', max = 2 } = {
  *   dueMin   the slot's due minute (for a coach's extra slots)
  *   nowMin   minutes since midnight
  *   target   the slot's share { protein, kcal }
- *   avoid    avoidWords(prefs, restrictions)
+ *   avoid     avoidWords(prefs, restrictions)
+ *   allergens allergenKeysFrom(restrictions), for the items' allergen tags
  *
- * Each idea: { id, name, protein, kcal, source: 'hall', tags: [], hall, station, est: true, verified: false }.
+ * Each idea: { id, name, protein, kcal, source: 'hall', tags: [], hall, station, protein_name, est: true, verified: false }.
  */
-export function buildHallPlates({ halls = [], menus = [], date = '', slot = '', dueMin = null, nowMin = null, target = {}, avoid = [], max = 2 } = {}) {
+export function buildHallPlates({ halls = [], menus = [], date = '', slot = '', dueMin = null, nowMin = null, target = {}, avoid = [], allergens = [], max = 2 } = {}) {
   if (!isIsoDate(date) || !slot) return [];
   const all = [];
   for (const h of Array.isArray(halls) ? halls : []) {
@@ -134,7 +145,7 @@ export function buildHallPlates({ halls = [], menus = [], date = '', slot = '', 
       && (m.menu_date == null || m.menu_date === date) && (m.status == null || m.status === 'published'));
     if (!row) continue;
     const hall = cleanMenuText(h.name, HALL_NAME_MAX);
-    for (const p of platesFromItems(safeItems(row.items, avoid), { target, period, max })) {
+    for (const p of platesFromItems(safeItems(row.items, avoid, allergens), { target, period, max })) {
       all.push({
         id: `h:${h.id}:${period}:${p.name.toLowerCase()}`,
         name: p.name,
@@ -144,6 +155,7 @@ export function buildHallPlates({ halls = [], menus = [], date = '', slot = '', 
         tags: [],
         hall,
         station: p.protein.station || null,
+        protein_name: p.protein.name,
         est: true,
         verified: false,
         fit: p.figured ? p.fit : Infinity,

@@ -11,6 +11,7 @@ import {
 } from './dining-menu.js';
 import { buildHallPlates, platesFromItems, plateName, safeItems, hallTag } from './dining-plate-model.js';
 import { avoidWords } from './food-prefs.js';
+import { allergenKeysFrom } from './dining-menu.js';
 import * as M from './plan-today-model.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -106,7 +107,7 @@ test('PLATE: protein, then carb, then a vegetable, sized to the slot share', () 
   const big = platesFromItems(safeItems(LUNCH, NONE), { target: { protein: 75 }, period: 'lunch', max: 1 })[0];
   assert.equal(big.servings, 2);
   assert.equal(big.proteinG, 78);
-  assert.match(big.name, /^Double grilled chicken breast/);
+  assert.match(big.name, /^2 servings of grilled chicken breast/);
   // Breakfast prefers fruit to a vegetable.
   const bf = platesFromItems(safeItems(LUNCH, NONE), { target: { protein: 40 }, period: 'breakfast', max: 1 })[0];
   assert.match(bf.name, /fresh fruit cup$/);
@@ -114,19 +115,19 @@ test('PLATE: protein, then carb, then a vegetable, sized to the slot share', () 
   assert.deepEqual(platesFromItems(safeItems(LUNCH.filter((i) => i.kind !== 'protein'), NONE), { target: { protein: 40 } }), []);
   assert.equal(plateName([{ name: 'Tofu (6 oz)' }]), 'Tofu');
   // A long plate keeps all three parts by dropping the side's describing word first (60 max).
-  assert.equal(plateName([{ name: 'Grilled chicken breast' }, { name: 'Brown rice' }, { name: 'Roasted broccoli' }], 2), 'Double grilled chicken breast, brown rice and broccoli');
+  assert.equal(plateName([{ name: 'Grilled chicken breast' }, { name: 'Brown rice' }, { name: 'Roasted broccoli' }], 2), '2 servings of grilled chicken breast, rice and broccoli');
   assert.ok(plateName([{ name: 'A'.repeat(32) }, { name: 'B'.repeat(32) }, { name: 'C'.repeat(32) }]).length <= 60);
 });
 
 test('PLATE: allergies and dislikes go first, rule terms match inside words and in the tags', () => {
   const R = (names) => ({ allergies: names.map((name) => ({ name, severity: 'severe' })) });
-  const names = (avoid) => safeItems(LUNCH, avoid).map((i) => i.name);
-  const dairy = names(avoidWords({}, R(['Dairy'])));
+  const names = (avoid, r = null) => safeItems(LUNCH, avoid, r ? allergenKeysFrom(r) : []).map((i) => i.name);
+  const dairy = names(avoidWords({}, R(['Dairy'])), R(['Dairy']));
   assert.ok(!dairy.includes('Cheese pizza'));
   assert.ok(!dairy.includes('Buttermilk fried chicken'), '"buttermilk" is dairy, inside the word');
-  const fish = names(avoidWords({}, R(['Fish'])));
+  const fish = names(avoidWords({}, R(['Fish'])), R(['Fish']));
   assert.ok(!fish.includes('Salmon fillet'), 'caught by the name and by the "contains fish" tag');
-  const tagOnly = safeItems([{ name: 'House special', kind: 'protein', tags: ['contains peanuts'] }], avoidWords({}, R(['Peanuts'])));
+  const tagOnly = safeItems([{ name: 'House special', kind: 'protein', tags: ['contains peanuts'] }], avoidWords({}, R(['Peanuts'])), allergenKeysFrom(R(['Peanuts'])));
   assert.equal(tagOnly.length, 0, 'an allergen printed only as a tag still drops the item');
   const dislike = names(avoidWords({ dislikes: ['broccoli'] }, null));
   assert.ok(!dislike.includes('Roasted broccoli'));
@@ -180,11 +181,11 @@ test('TODAY: hall plates lead the list, the plan style rail holds, and a plan ke
 
 test('WIRING: Plan asks for the hall before Nia, and hall plates name their hall under the plate', () => {
   const src = read('plan-today.js');
-  assert.match(src, /hallIdeas\(\{ slot, dayDate: DAY\.date, dueMin: slotDeadline\(slot\), nowMin: minutesNow\(\), target: share, avoid: av \}\)/);
+  assert.match(src, /hallIdeas\(\{ slot, dayDate: DAY\.date, dueMin: slotDeadline\(slot\), nowMin: minutesNow\(\), target: share, avoid: av, allergens: allergenKeysFrom\(RT\.restrictions\) \}\)/);
   assert.match(src, /const share = PS\.showMacros \|\| PS\.showCalories \? slotTarget : \{\};/, 'Intuitive plates get no share');
-  // With no share, a plate is one serving: never "Double" for an Intuitive athlete.
+  // With no share, a plate is one serving: never "2 servings of" for an Intuitive athlete.
   const plain = buildHallPlates({ halls: [HALL], menus: MENUS, date: TODAY, slot: 'lunch', nowMin: 12 * 60, target: {}, avoid: NONE });
-  assert.ok(plain.length && plain.every((p) => !/^Double/.test(p.name)));
+  assert.ok(plain.length && plain.every((p) => !/^2 servings/.test(p.name)));
   assert.match(src, /if \(!hallMenusDue\(\)\) \{ maybeNia\(\); return; \}/);
   assert.match(src, /class="pt-tag dh-tag"/);
   const today = read('dining-today.js');
