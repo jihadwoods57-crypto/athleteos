@@ -73,6 +73,10 @@ SUITES=(
   # 0250 food preferences + the plan-ideas cache: the owner writes their own prefs, linked staff
   # read them, a teammate, an outsider and a guardian see nothing; only the function writes ideas.
   "food prefs + plan ideas (0250)|food_prefs_test.sql"
+  # 0251 no photo, no meal: an athlete's (or the service role's) insert without a photo in their
+  # own folder is refused with 23514 photo_required; a photo can never be stripped or swapped;
+  # past no-photo rows stay readable; the Trust Pass and pro corrections still work.
+  "no photo, no meal (0251)|meal_photo_test.sql"
 )
 
 echo "==> SQL suites against: ${DB%%\?*}"

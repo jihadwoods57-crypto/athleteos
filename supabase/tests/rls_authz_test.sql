@@ -198,7 +198,7 @@ select _ok((select count(*) from checkins) = 1, 'athlete A sees exactly their ow
 select _ok((select count(*) from trust_passes) = 1, 'athlete A sees their own trust pass');
 select _ok((select count(*) from meal_comments) = 1, 'athlete A sees the coach comment on their meal');
 select _ok((select count(*) from notifications) = 1, 'athlete A sees their own notification');
-select _ok(_try($q$insert into meals (athlete_id, day_date, name) values ('aaaaaaaa-0000-0000-0000-000000000001', current_date, 'A lunch')$q$) = 'ok',
+select _ok(_try($q$insert into meals (athlete_id, day_date, name, photo_path) values ('aaaaaaaa-0000-0000-0000-000000000001', current_date, 'A lunch', 'aaaaaaaa-0000-0000-0000-000000000001/2026-07-11/lunch.jpg')$q$) = 'ok',
            'athlete A can log their own meal');
 
 -- ================================================================ 2. STRANGER DENIED (athlete B probes A)
@@ -218,7 +218,7 @@ select _ok((select count(*) from messages) = 0, 'stranger athlete B reads no for
 select _ok((select count(*) from guardianships) = 0, 'stranger athlete B sees no guardianship links');
 
 -- ================================================================ 3. STRANGER WRITE / ESCALATION DENIED
-select _ok(_try($q$insert into meals (athlete_id, day_date, name) values ('aaaaaaaa-0000-0000-0000-000000000001', current_date, 'planted')$q$) <> 'ok',
+select _ok(_try($q$insert into meals (athlete_id, day_date, name, photo_path) values ('aaaaaaaa-0000-0000-0000-000000000001', current_date, 'planted', 'aaaaaaaa-0000-0000-0000-000000000001/2026-07-11/planted.jpg')$q$) <> 'ok',
            'B cannot insert a meal AS athlete A');
 -- an RLS-filtered UPDATE silently matches 0 rows; verify from superuser that nothing changed
 select _try($q$update profiles set full_name = 'pwned' where id = 'aaaaaaaa-0000-0000-0000-000000000001'$q$);
@@ -1090,7 +1090,7 @@ insert into team_members (team_id, athlete_id, status) values
 select _as('eeeeeeee-0000-0000-0000-000000000006');
 select _ok(_try($q$insert into days (athlete_id, date, score) values ('eeeeeeee-0000-0000-0000-000000000006', current_date, 80)$q$) <> 'ok',
            '0050: unconsented minor CANNOT sync a day row');
-select _ok(_try($q$insert into meals (athlete_id, day_date, name) values ('eeeeeeee-0000-0000-0000-000000000006', current_date, 'N lunch')$q$) <> 'ok',
+select _ok(_try($q$insert into meals (athlete_id, day_date, name, photo_path) values ('eeeeeeee-0000-0000-0000-000000000006', current_date, 'N lunch', 'eeeeeeee-0000-0000-0000-000000000006/2026-07-11/n.jpg')$q$) <> 'ok',
            '0050: unconsented minor CANNOT sync a meal row');
 select _ok(_try($q$insert into storage.objects (bucket_id, name) values ('meal-photos','eeeeeeee-0000-0000-0000-000000000006/2026-07-11/n.jpg')$q$) <> 'ok',
            '0050: unconsented minor CANNOT upload a meal photo');
@@ -1115,7 +1115,7 @@ select _superuser();
 insert into guardian_consent_requests (athlete_id, guardian_email, status, verified_at) values
   ('eeeeeeee-0000-0000-0000-000000000006','guardian-n@x.io','verified', now());
 select _as('eeeeeeee-0000-0000-0000-000000000006');
-select _ok(_try($q$insert into meals (athlete_id, day_date, name) values ('eeeeeeee-0000-0000-0000-000000000006', current_date, 'N lunch')$q$) = 'ok',
+select _ok(_try($q$insert into meals (athlete_id, day_date, name, photo_path) values ('eeeeeeee-0000-0000-0000-000000000006', current_date, 'N lunch', 'eeeeeeee-0000-0000-0000-000000000006/2026-07-11/n.jpg')$q$) = 'ok',
            '0050: verified consent unlocks the minor''s meal sync');
 select _ok(_try($q$insert into storage.objects (bucket_id, name) values ('meal-photos','eeeeeeee-0000-0000-0000-000000000006/2026-07-11/n.jpg')$q$) = 'ok',
            '0050: verified consent unlocks the minor''s photo upload');
