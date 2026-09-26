@@ -129,3 +129,82 @@ already signs and which is composed deterministically today.
 - Tests: the target explanation math (parity with goalDerivedTargets), the minor and intuitive gating, the why library selection plus the rails, the focus picking and its stability, the tracker, the insight thresholds and polarity.
 - All gates green, the zip rebuilt.
 - Screenshots in qc/plan-teach/, dark and light at 390, looked at.
+
+## B in detail (A2 shipped 2026-09-26: merge e08b743b, OTA 01a0dd06)
+
+The founder approved B on 2026-09-26 ("Start it"). They said the app needs to know what part of the season the team is in, and that target changes need coach approval.
+
+### 1. Season phase (team level)
+- **Phases:**
+  - `off` Off-season (build)
+  - `pre` Pre-season (ramp up)
+  - `in` In-season (perform and recover)
+  - `post` Post-season (recover and reset)
+- **Where it's stored:**
+  - On the team: `teams.season_phase` (text, check constraint on the four values, default null = not set) plus `teams.season_phase_at` (timestamptz).
+  - Solo athletes (no active team) can set their own phase on their profile (`athlete_profiles.season_phase`, same values).
+  - Trainer practices have no season. Their clients never see the feature, unless they are also on a team.
+  - An athlete on a team always uses the team's phase. The phase belongs to the team, not the athlete.
+- **Who sets it:** only staff who may edit the team's standards (reuse the existing staff-role / caps gating; view-only staff can't). An RPC or policy enforces that server-side.
+- **Coach UI:** one clear control on coach Home (or team settings, whichever the coach sees most): "Season: In-season", which opens a sheet with the 4 phases, each with a one-line meaning. Changing it confirms with a line saying what changes for athletes. It never renders for view-only staff.
+- **What the phase changes (goal-derived targets ONLY; coach-set numbers are never touched):**
+  - Protein is unchanged.
+  - Calories are adjusted against the goal's base. The adjustments are deliberately small and conservative, as product defaults the coach can override:
+
+    | goal | off | pre | in | post |
+    |---|---|---|---|---|
+    | gain | 0 | 0 | -150 | -100 |
+    | lose | 0 | +100 | +250 | 0 |
+    | maintain | 0 | +100 | +150 | -100 |
+    | perform | 0 | +100 | +150 | -100 |
+
+  - The existing floors still apply (e.g. 1500).
+  - The math lives in the one shared targets function (state.js `goalDerivedTargets` / `nutritionConfigForGoal`), so the athlete device, the coach reconstruction and the Why screen all agree.
+  - The server side (anything that recomputes targets) must match, or read the device's pushed targets. Find out which and keep them in parity with a test.
+- **Athlete surfaces:**
+  - The Plan › Today hero shows the phase with the goal ("Gaining · In-season").
+  - Why these numbers explains the phase's effect in one line ("In-season: a smaller surplus, so energy for games comes first").
+  - Minors: no weight language (as before).
+- **Nia:** the athlete dossier (`_shared/athlete-dossier.mjs`) and the plan-ideas prompt get the phase, with one line of guidance per phase (e.g. in-season: no aggressive cuts, carbs around competition, recovery). The opener why library gets phase-aware variants where natural. These must stay deterministic, with no new model calls beyond the existing ones.
+- **Unset phase:** everything behaves exactly as today.
+
+### 2. Adaptive targets (suggest, then the coach approves)
+- **Who:** adults (never minors) with goal gain or lose, goal-derived OR coach-set targets, and weight data:
+  - at least 3 weigh-ins spanning at least 10 days in the last 21 days;
+  - uses the existing weight pace logic (`S.weight.pace` in weight.js / progress.js).
+- **When:** at most once every 14 days per athlete. Deterministic, no model call. Computed on the athlete's device at app open (or the cheapest correct place).
+- **What:**
+  - If the pace is off the plan, suggest a calorie change of ±150 to ±250 (sized by how far off), never below the floor:
+    - gaining slower than planned: +
+    - losing slower: -
+    - too fast either way: toward the plan
+  - Protein stays unless the bodyweight changed enough to move the per-pound target by 10g or more.
+  - Reason text is plain and specific: "Gaining 0.2 lb a week against a plan of 0.5. Suggest +200 calories."
+- **Storage:** a new `target_suggestions` table:
+  - columns: athlete_id, team_id (nullable), created_at, current and proposed protein/kcal, reason, status (pending/approved/declined/expired), decided_by, decided_at;
+  - RLS: the athlete inserts and reads their own; linked staff with target-edit rights read, approve and decline for their athletes; guardians see nothing;
+  - grants per the repo's patterns.
+- **Coach flow:**
+  - A pending suggestion shows in the coach's Inbox / Home as a compact card: "Suggested change for Jihad: +200 cal", with the reason, and Approve / Decline.
+  - Approve sets the athlete's coach targets through the existing `roles.coachSetGoals` path, so it becomes coach-set, and marks the suggestion approved.
+  - Decline marks it declined; no new suggestion for 14 days.
+  - Suggestions expire after 14 days if nobody decides.
+- **Solo athletes** (no coach) see the suggestion themselves on Plan › Today and can accept or dismiss it.
+- **Athletes on a team** see only "Your coach is reviewing a target change", or nothing. They never get a self-accept.
+- **Honesty:** the suggestion is deterministic, so it is labelled "Suggested change", never signed Nia.
+
+### Done means
+- Tests:
+  - the phase adjustment table and parity (device, coach, server);
+  - coach-set targets are never altered;
+  - phase gating by role;
+  - the suggestion math (pace thresholds, sizing, floors, the 14-day cadence, the minor exclusion);
+  - RLS for both new structures (SQL tests in supabase/tests, registered in run.sh);
+  - the approve path goes through coachSetGoals.
+- All gates green, zip rebuilt.
+- Screenshots in qc/plan-season/, dark and light at 390, looked at:
+  - coach phase control and sheet
+  - athlete hero with the phase
+  - Why screen with the phase line
+  - coach suggestion card
+  - solo athlete suggestion
