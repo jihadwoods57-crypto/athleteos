@@ -176,6 +176,14 @@ begin
    order by (t.season_phase is null), m.joined_at
    limit 1;
   if v_team is not null then
+    -- The phase itself is needed for target parity (a viewer reconstructs the athlete's targets),
+    -- but WHICH team set it, and when, is only for the athlete, the service role, or that team's
+    -- own staff: a coach of the athlete's other team must not learn it (review 2026-09-26, P10).
+    if auth.uid() is not null and not is_self(p_athlete) and not exists (
+      select 1 from team_staff s where s.team_id = v_team and s.staff_id = auth.uid() and s.status = 'active'
+    ) then
+      v_team := null; v_at := null;
+    end if;
     return jsonb_build_object('phase', v_phase, 'source', case when v_phase is null then null else 'team' end,
       'team_id', v_team, 'at', v_at, 'can_set_self', false);
   end if;
