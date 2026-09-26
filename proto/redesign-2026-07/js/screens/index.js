@@ -93,6 +93,8 @@ const coachCommitments = () => import('./coach-commitments.js');
 const coachWakeup = () => import('./coach-wakeup.js');
 const rollcallSetup = () => import('./rollcall-setup.js');
 const dining = () => import('./dining-halls.js');
+const learn = () => import('./learn.js');
+const teachS = () => import('./coach-teach.js');
 
 // The operator tab set (coach and trainer bars): NAVS in router.js names these routes, and the
 // tab badges read badge() off coach-inbox / coach-profile / trainer-grow. Preloaded at boot for
@@ -258,6 +260,12 @@ export const screens = {
   'dining-halls': lazy(dining, 'diningHalls'),
   'dining-hall': lazy(dining, 'diningHall'),
   'dining-day': lazy(dining, 'diningDay'),
+  learn: lazy(learn, 'learnList'),
+  lesson: lazy(learn, 'lessonView'),
+  'coach-lesson': lazy(learn, 'coachLesson'),
+  'coach-lessons': lazy(teachS, 'coachLessons'),
+  'coach-lesson-progress': lazy(teachS, 'coachLessonProgress'),
+  'coach-challenge': lazy(teachS, 'coachChallenge'),
   'health-consent': lazy(() => import('./health-consent.js')),
   'apple-health': lazy(() => import('./apple-health.js')),
   // Sleep (phase 1, evidence only). Registered so #sleep renders; DELIBERATELY UNLINKED from
