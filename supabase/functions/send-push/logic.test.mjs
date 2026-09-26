@@ -87,3 +87,45 @@ test('the switch never silences any other report', () => {
     assert.equal(rollcallReportSilenced(k, { kill_switch: true }), false, String(k));
   }
 });
+
+/* ---------------- lessons and team challenges (0256): announced once, to the right people ---------------- */
+import { sanitizeTeachPush, claimAudience, teachBellKind, planTeachPush } from './logic.mjs';
+import { readFileSync } from 'node:fs';
+
+test('teach push: only a lesson or a challenge, by uuid', () => {
+  assert.deepEqual(sanitizeTeachPush({ kind: 'lesson', id: U(7).toUpperCase() }), { kind: 'lesson', id: U(7) });
+  assert.deepEqual(sanitizeTeachPush({ kind: 'challenge', id: U(8) }), { kind: 'challenge', id: U(8) });
+  assert.equal(sanitizeTeachPush({ kind: 'nudge', id: U(8) }), null);
+  assert.equal(sanitizeTeachPush({ kind: 'lesson', id: 'lesson/carbs' }), null);
+  assert.equal(sanitizeTeachPush(null), null);
+});
+
+test('teach push: the audience is the claim\'s, cleaned and deduped', () => {
+  assert.deepEqual(claimAudience({ athlete_ids: [U(1), U(1), 'x', 5, U(2)] }), [U(1), U(2)]);
+  assert.deepEqual(claimAudience(null), []);
+  assert.equal(teachBellKind({ kind: 'lesson', ref: 'carbs-are-fuel' }), 'lesson:carbs-are-fuel');
+  assert.equal(teachBellKind({ kind: 'lesson', ref: '<b>' }), 'lesson');
+  assert.equal(teachBellKind({ kind: 'challenge' }), 'challenge');
+});
+
+test('teach push: a blocker gets nothing; opt-outs and quiet hours get the bell row but no push', () => {
+  const noon = Date.parse('2026-09-26T16:00:00Z');   // 12:00 in New York
+  const profiles = [
+    { id: U(1) },
+    { id: U(2), notifications_opt_out: true },
+    { id: U(3), team_standard_pushes_opt_out: true },
+    { id: U(4), quiet_from_min: 600, quiet_to_min: 780, timezone: 'America/New_York' },   // 10:00 to 13:00
+    { id: U(5) },
+  ];
+  const plan = planTeachPush({ athleteIds: [U(1), U(2), U(3), U(4), U(5)], profiles, blocked: new Set([U(5)]), nowMs: noon });
+  assert.deepEqual(plan.bell, [U(1), U(2), U(3), U(4)]);
+  assert.deepEqual(plan.push, [U(1)]);
+});
+
+test('teach push: the function claims before it sends, and sends only a claimed audience', () => {
+  const src = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
+  const branch = src.split('// ---------- lessons and team challenges (teach_push mode)')[1].split('// ----------')[0];
+  assert.match(branch, /caller\w*\.rpc\('claim_teach_push'/, 'the claim runs with the CALLER\'s session');
+  assert.ok(branch.indexOf("rpc('claim_teach_push'") < branch.indexOf('sendExpoPushAndPrune'), 'claim first, then send');
+  assert.match(branch, /claimed !== true/, 'an unclaimed (already pushed) row sends nothing');
+});
