@@ -30,6 +30,8 @@
 //  6. COST. Every read runs in ONE Promise.all (one round trip of latency), and nothing here calls
 //     a model.
 
+import { loadSeasonPhase, phaseDossierLine } from './season-phase.mjs';
+
 /* ------------------------------------------------------------------ sanitising */
 
 /** Athlete- or coach-typed text, made safe to sit in a prompt as data. */
@@ -309,9 +311,15 @@ export function renderDossier(facts, opts = {}) {
     const tb = [];
     if (p !== null && p > 0 && p <= 500) tb.push(`${Math.round(p)}g protein`);
     if (c !== null && c > 0 && c <= 9000) tb.push(`${Math.round(c)} calories`);
-    if (tb.length) styleBits.push(`daily targets set by their coach: ${tb.join(', ')}`);
+    // A solo athlete's accepted suggestion (0253) carries source 'self': theirs, not a coach's.
+    if (tb.length) styleBits.push(`daily targets ${t.source === 'self' ? 'they set from a suggested change' : 'set by their coach'}: ${tb.join(', ')}`);
   }
   if (styleBits.length) lines.push(`- ${styleBits.join('; ')}.`);
+
+  // The season phase (phase B), with one line of guidance. Figure-free and weight-free by
+  // construction (season-phase.mjs), so it serves a minor and an Intuitive athlete as written.
+  const season = phaseDossierLine(facts.seasonPhase, facts.seasonSource);
+  if (season) lines.push(season);
 
   // The coach's standard for the day (or the athlete's own meals-per-day when solo).
   const std = facts.standardItems ? standardPhrases(facts.standardItems, opts.dayType) : null;
@@ -372,7 +380,7 @@ async function loadFacts(service, athleteId, o) {
   const asOf = dayDate || new Date().toISOString().slice(0, 10);
   const settle = async (p) => { try { const r = await p; return r && !r.error ? r.data : null; } catch { return null; } };
 
-  const [ap, rx, days, memberships, mySets, canW] = await Promise.all([
+  const [ap, rx, days, memberships, mySets, canW, season] = await Promise.all([
     settle(service.from('athlete_profiles')
       .select('sport, position, level, base_goal, season_goal, dob, base_age, base_weight, targets, standard, profiles(full_name)')
       .eq('athlete_id', athleteId).maybeSingle()),
@@ -394,6 +402,9 @@ async function loadFacts(service, athleteId, o) {
           return !error && data === true;
         } catch { return false; }
       })(),
+    // The season phase (0252 season_phase_for, the one resolution). Its own settled read: a
+    // pre-0252 database costs the dossier this line and nothing else.
+    loadSeasonPhase(service, athleteId),
   ]);
 
   const p = ap && typeof ap === 'object' ? ap : {};
@@ -430,5 +441,7 @@ async function loadFacts(service, athleteId, o) {
     dayMeals: today && today.meals && typeof today.meals === 'object' ? today.meals : null,
     restrictions: rx && rx.data && typeof rx.data === 'object' ? rx.data : null,
     canSeeWeight: canW === true,
+    seasonPhase: season ? season.phase : null,
+    seasonSource: season ? season.source : null,
   };
 }

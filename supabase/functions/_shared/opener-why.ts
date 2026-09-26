@@ -134,6 +134,57 @@ export const WHY_LIBRARY: Record<WhyGoal, Record<WhyTopic, string[]>> = {
   },
 };
 
+/* SEASON-AWARE VARIANTS (phase B, 2026-09-26). Where the season changes the honest answer, the
+   line speaks to it: carbs in and before the season, recovery after it, building in the off-season.
+   Same rails as the library above (pinned over this table too): no figures, no weight words, plain,
+   at most 200 characters. Goal-agnostic by design, so a minor reads them unchanged. A phase with no
+   variant for the topic falls back to the goal's own line. */
+export type WhyPhase = 'off' | 'pre' | 'in' | 'post';
+export const PHASE_WHY: Record<WhyPhase, Partial<Record<WhyTopic, string[]>>> = {
+  off: {
+    short: [
+      'Off-season is when you build. Protein at every meal is what turns the extra training into new muscle.',
+      'The off-season is the time to stack good days. Steady protein at each meal is where that starts.',
+      'With no games to fuel, the off-season is about building. Protein spread across the day feeds it.',
+    ],
+  },
+  pre: {
+    carbs: [
+      'Pre-season training climbs fast. Carbs around hard sessions keep you strong through the ramp-up.',
+      'Hard conditioning burns through carbs quickly. Refilling them after each session keeps the next one possible.',
+      'Pre-season is when the training load jumps. Enough carbs is what keeps practice quality high while it does.',
+    ],
+  },
+  in: {
+    carbs: [
+      'In-season, carbs are what you play on. Eating them around practice and games keeps your legs there late.',
+      'Games and practice burn through stored carbs fast. Refilling them after each one is how you show up fresh next time.',
+      'During the season, carbs before and after training matter most. They keep energy steady from warm-up to the final whistle.',
+    ],
+    closed: [
+      'Protein is covered. In-season, the rest of today is about carbs and water so you recover for the next game.',
+      'With protein handled, recovery has what it needs. In-season, that is what keeps you fresh week to week.',
+      'In-season, days like this add up. Covering protein every day is how your body keeps up with games and practice.',
+    ],
+  },
+  post: {
+    short: [
+      'Post-season is recovery time. Protein at every meal helps your body repair what the season took out of it.',
+      'After a long season, steady meals with protein are how your body resets. Nothing drastic, just consistent.',
+      'The post-season is for recovering. Protein spread across the day repairs the wear the season left behind.',
+    ],
+    closed: [
+      'Protein is covered. Post-season, regular meals and good sleep do the rest of the recovering.',
+      'With protein handled, today is about resetting: steady meals, fruit and vegetables, and rest.',
+      'Days like this are what a good post-season looks like. Consistent, calm, and enough.',
+    ],
+  },
+};
+
+export function whyPhase(v: unknown): WhyPhase | null {
+  return v === 'off' || v === 'pre' || v === 'in' || v === 'post' ? v : null;
+}
+
 /** The goal family, tolerant of every stored spelling (base_goal is 'performance' from the core
  *  and 'perform' from older onboarding; 'build', 'lose_fat', 'health' are the client slugs).
  *  Unknown or unset reads as perform: the shipped athlete default. */
@@ -171,10 +222,12 @@ function pick(seed: string, n: number): number {
   return n > 0 ? h % n : 0;
 }
 
-/** The why for one opener. A minor always gets the perform family, labelled 'train'. */
-export function openerWhy(o: { goal: unknown; minor?: boolean | null; topic: WhyTopic; mealId?: string | null }): OpenerWhy {
+/** The why for one opener. A minor always gets the perform family, labelled 'train'. With a season
+ *  phase that has a variant for this topic, the season's line speaks instead (phase B). */
+export function openerWhy(o: { goal: unknown; minor?: boolean | null; topic: WhyTopic; mealId?: string | null; phase?: unknown }): OpenerWhy {
   const fam: WhyGoal = o.minor ? 'perform' : whyGoal(o.goal);
-  const lines = WHY_LIBRARY[fam][o.topic];
+  const ph = whyPhase(o.phase);
+  const lines = (ph && PHASE_WHY[ph][o.topic]) || WHY_LIBRARY[fam][o.topic];
   const text = lines[pick(String(o.mealId || ''), lines.length)];
   return { text, goal: o.minor ? 'train' : fam, topic: o.topic };
 }

@@ -73,6 +73,12 @@ SUITES=(
   # 0250 food preferences + the plan-ideas cache: the owner writes their own prefs, linked staff
   # read them, a teammate, an outsider and a guardian see nothing; only the function writes ideas.
   "food prefs + plan ideas (0250)|food_prefs_test.sql"
+  # 0252 + 0253 the season phase and adaptive targets: only standards editors set the team's phase
+  # (RPC or direct update), a solo athlete sets their own, season_phase_for resolves team >
+  # practice (none) > self; suggestions are adult gain/lose only, one per 14 days, read and decided
+  # by linked staff with target-edit rights, approved only after coach_set_goals applied them, and
+  # self-approved only by a solo athlete.
+  "season phase + target suggestions (0252-0253)|season_targets_test.sql"
 )
 
 echo "==> SQL suites against: ${DB%%\?*}"
