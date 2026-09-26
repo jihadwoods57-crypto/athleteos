@@ -39,6 +39,8 @@ import { NIA_IDENTITY, NIA_HONESTY, NIA_VOICE } from '../_shared/nia-voice.ts';
 // WHO THIS ATHLETE IS, read server-side for the meal OWNER (2026-09-23): goal, goal weight, the
 // coach's standard, allergies, age band, weight trend. Visibility per caller; see the module header.
 import { loadAthleteDossier, renderDossier } from '../_shared/athlete-dossier.mjs';
+// Phase C: today's published dining hall menu, for the athlete's own turns (no model call).
+import { diningContextFor } from '../_shared/dining-context.mjs';
 // WHO IS THIS MESSAGE FOR. Byte-identical to proto/redesign-2026-07/js/ai-addressing.js
 // (`npm run lint:mirror` fails the build if they drift), so the client's decision not to spend
 // a turn and this function's refusal to spend one are the SAME decision, not two that agree.
@@ -818,9 +820,12 @@ Deno.serve(async (req) => {
     // words are about is the athlete, not whoever is asking. Confirmed facts only. Loaded
     // server-side rather than merged into the client `context` blob, which is clamped at 8KB and
     // would silently drop them.
-    const memBlock = (await flagOn(service, 'ai_memory', { userId: mealRow.athlete_id }))
-      ? memoryBlock(await loadMemoryForAthlete(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, mealRow.athlete_id))
-      : '';
+    // The facts are kept (not just their prose): the dining menu filter reads the confirmed
+    // allergy and dislike facts too (phase C review round).
+    const memFacts = (await flagOn(service, 'ai_memory', { userId: mealRow.athlete_id }))
+      ? await loadMemoryForAthlete(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, mealRow.athlete_id)
+      : [];
+    const memBlock = memFacts.length ? memoryBlock(memFacts) : '';
     // COACH VOICE (2026-08-06): the team's (or, 0187, the practice's) AI Nutritionist config now
     // shapes every chat surface — athlete replies, coach questions, drafts. Resolved for the MEAL
     // OWNER like plan style and memory. Gated only by the config's own enabled flag (the page's
@@ -828,6 +833,13 @@ Deno.serve(async (req) => {
     // when voice is off or unset, and a null directive keeps the prompt byte-identical to before.
     const voice = await loadVoiceForAthlete(service, mealRow.athlete_id);
     const voiceDirective = voice ? chatVoiceDirective(voice.cfg) : '';
+    // PHASE C: when staff published today's menu at the athlete's team hall, Nia sees today's
+    // remaining periods (capped, figure-free for Intuitive), with everything their allergies,
+    // intolerances, dislikes and confirmed facts rule out left off. The athlete's OWN question turns only:
+    // the date and clock are their device's, and a coach's turn is not about what they eat next.
+    const diningP: Promise<string> = !coachMode && !correctionUpdate && mealRow.athlete_id === callerId
+      ? diningContextFor(service, mealRow.athlete_id, body?.athlete, planStyle, { extraAvoid: avoidFromFacts(memFacts) }).catch(() => '')
+      : Promise.resolve('');
     // Guardians never reach this line (0081 took them out of can_view, so the meal select above
     // refuses them); 'guardian' is the fail-closed answer should one ever arrive in a coach mode.
     const dossier = renderDossier(await dossierP, {
@@ -838,8 +850,10 @@ Deno.serve(async (req) => {
     });
     // The athlete's clock rides only on the athlete's own turns: a coach's device is not their clock.
     const clock = coachMode ? '' : clockLine(body?.athlete);
+    const dining = await diningP;
     const ctxBlock = `Context (deterministic, computed by the app):\n${JSON.stringify(promptContext)}${
-      dossier ? `\n\n${dossier}` : whoLine ? `\n\nThe athlete this thread belongs to:${whoLine}` : ''}${clock ? `\n\n${clock.trim()}` : ''}`;
+      dossier ? `\n\n${dossier}` : whoLine ? `\n\nThe athlete this thread belongs to:${whoLine}` : ''}${clock ? `\n\n${clock.trim()}` : ''}${
+      dining ? `\n\n${dining} With this menu in hand, answer a what-to-eat question with reply, naming items from it, rather than suggest_meal.` : ''}`;
     const styleSafe = (text: string): string => {
       // Shared tail of both call sites below: one corrected retry is handled inline by the
       // caller; this is the final rail that guarantees nothing unsafe is ever persisted.

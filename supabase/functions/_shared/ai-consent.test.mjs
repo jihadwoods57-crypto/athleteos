@@ -61,7 +61,7 @@ test('the skip body is a normal answer with a plain code', () => {
    serves anonymous TestFlight testers on a web page, holds no app account, and its page carries
    its own notice. */
 const FN = join(process.cwd(), 'supabase', 'functions');
-const AI_FUNCTIONS = ['analyze-meal', 'meal-chat', 'athlete-summary', 'ai-followup', 'coach-voice-nudge', 'deep-analysis', 'monthly-report', 'assist', 'plan-generate'];
+const AI_FUNCTIONS = ['analyze-meal', 'meal-chat', 'athlete-summary', 'ai-followup', 'coach-voice-nudge', 'deep-analysis', 'monthly-report', 'assist', 'plan-generate', 'dining-menu'];
 for (const fn of AI_FUNCTIONS) {
   test(`${fn} checks AI consent before calling the model`, () => {
     const src = readFileSync(join(FN, fn, 'index.ts'), 'utf8');

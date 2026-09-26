@@ -572,3 +572,9 @@ verify_jwt = false
 # An unpinned function is an undeclared one, and undeclared is how that happens.
 [functions.marketplace-checkout]
 verify_jwt = true
+
+# dining-menu (phase C, 0255) reads a staff member's menu upload with one paid model call. Every
+# caller is a signed-in staff member, and the function asks can_set_team_phase with THEIR JWT, so
+# the gateway check stays on. Pinned so a redeploy can't drop it.
+[functions.dining-menu]
+verify_jwt = true

@@ -17,6 +17,7 @@
  */
 import { rankForRemaining } from './food-memory.js';
 import { namesAny, cleanTags, tagLabel } from './food-prefs.js';
+import { hallTag } from './dining-plate-model.js';
 
 /** The classic day's slots, snack last (the 4-meal model: Breakfast, Lunch, Dinner, Snack). */
 export const CLASSIC_REQUIRED = ['breakfast', 'lunch', 'dinner'];
@@ -55,8 +56,8 @@ const clampN = (v, hi) => {
 };
 const cleanName = (v, max = 60) => String(v == null ? '' : v).replace(/[<>{}[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
 
-/** Where a plan came from: a usual, Nia, or one of the three planning screens. */
-export const PLAN_SOURCES = ['usual', 'nia', 'search', 'label', 'barcode'];
+/** Where a plan came from: a usual, Nia, a dining-hall plate (C), or one of the three planning screens. */
+export const PLAN_SOURCES = ['usual', 'nia', 'hall', 'search', 'label', 'barcode'];
 
 /** One stored plan, re-sanitized on read (the day row is client-written jsonb). null = none. */
 export function cleanPlan(p) {
@@ -180,15 +181,31 @@ export function ringFractions({ target, consumed, planned }) {
 }
 
 /**
- * Up to `max` ideas for a slot: the athlete's own usuals first, ranked for what the slot should
- * carry (food-memory.js rankForRemaining, the ranking Plan has always used), then Nia's ideas to
- * fill. Anything that names an allergy, an intolerance or a dislike is dropped, usuals included.
+ * Up to `max` ideas for a slot. Phase C: today's dining-hall plates lead (at most 2, built from the
+ * published menu by dining-plate-model.js), because they are real food being served right now.
+ * Then the athlete's own usuals, ranked for what the slot should carry (food-memory.js
+ * rankForRemaining, the ranking Plan has always used), then Nia's ideas to fill. Anything that
+ * names an allergy, an intolerance or a dislike is dropped, hall plates and usuals included.
  */
-export function rankIdeas({ usuals = [], nia = [], slotTarget = {}, avoid = [], max = 3 }) {
+export function rankIdeas({ usuals = [], nia = [], hall = [], slotTarget = {}, avoid = [], max = 3 }) {
   const safe = (usuals || []).filter((it) => it && it.status !== 'archived'
     && !namesAny([it.name, ...(Array.isArray(it.items) ? it.items.map((x) => x && x.name) : [])], avoid));
   const rem = { protein: slotTarget.protein > 0 ? slotTarget.protein : null, kcal: slotTarget.kcal > 0 ? slotTarget.kcal : null };
-  const out = rankForRemaining(safe, rem, max).map(({ item }) => ({
+  const plates = (Array.isArray(hall) ? hall : []).filter((h) => h && h.source === 'hall' && cleanName(h.name) && !namesAny([h.name], avoid))
+    .slice(0, Math.min(2, max)).map((h) => ({
+      id: String(h.id || `h:${cleanName(h.name).toLowerCase()}`).slice(0, 120),
+      name: cleanName(h.name),
+      protein: clampN(h.protein, 500),
+      kcal: clampN(h.kcal, 5000),
+      source: 'hall',
+      tags: [],
+      hall: cleanName(h.hall, 40) || null,
+      station: cleanName(h.station, 30) || null,
+      protein_name: cleanName(h.protein_name, 40) || null,
+      est: true,
+      verified: false,
+    }));
+  const out = plates.concat(rankForRemaining(safe, rem, max - plates.length).map(({ item }) => ({
     id: `u:${item.id}`,
     name: cleanName(item.name),
     protein: clampN(item.protein, 500),
@@ -196,7 +213,7 @@ export function rankIdeas({ usuals = [], nia = [], slotTarget = {}, avoid = [], 
     source: 'usual',
     tags: [],
     verified: !!item.verified_at,
-  })).filter((x) => x.name);
+  })).filter((x) => x.name));
   const seen = new Set(out.map((x) => x.name.toLowerCase()));
   for (const n of Array.isArray(nia) ? nia : []) {
     if (out.length >= max) break;
@@ -208,11 +225,17 @@ export function rankIdeas({ usuals = [], nia = [], slotTarget = {}, avoid = [], 
   return out;
 }
 
-/** The line under an idea's name: its figures when the style shows them, else where it came from. */
+/** The line under an idea's name: its figures when the style shows them, else where it came from.
+ *  A dining-hall plate's figures are estimates from the menu, so they read "About"; its station
+ *  leads when the menu names one. */
 export function ideaMeta(idea, { showMacros, showCalories }) {
   const bits = [];
   if (showMacros && idea.protein > 0) bits.push(`${idea.protein}g protein`);
-  if (showCalories && idea.kcal > 0) bits.push(`${idea.kcal} cal`);
+  if (showCalories && idea.kcal > 0) bits.push(`${Number(idea.kcal).toLocaleString('en-US')} cal`);
+  if (idea.source === 'hall') {
+    const figs = bits.length ? `About ${bits.join(' · ')}` : "From today's menu";
+    return idea.station ? `${idea.station} · ${figs}` : figs;
+  }
   if (bits.length) return bits.join(' · ');
   return idea.source === 'usual' ? 'One of your usuals' : 'A new idea';
 }
@@ -221,13 +244,16 @@ export function ideaMeta(idea, { showMacros, showCalories }) {
 export function planMeta(plan, { showMacros, showCalories }) {
   const bits = [];
   if (showMacros && plan.protein > 0) bits.push(`${plan.protein}g protein`);
-  if (showCalories && plan.kcal > 0) bits.push(`${plan.kcal} cal`);
+  if (showCalories && plan.kcal > 0) bits.push(`${Number(plan.kcal).toLocaleString('en-US')} cal`);
+  if (plan.source === 'hall') return bits.length ? `About ${bits.join(' · ')} · Dining hall` : 'From the dining hall';
   return bits.length ? bits.join(' · ') : 'Your plan';
 }
 
-/** The tag an idea wears: the first preference it fits, else where it came from (numbers styles
- *  only; an Intuitive athlete's meta line already says it). '' for none. */
+/** The tag an idea wears: a dining-hall plate always says which hall; else the first preference it
+ *  fits, else where it came from (numbers styles only; an Intuitive athlete's meta line already
+ *  says it). '' for none. */
 export function ideaTag(idea, numbers) {
+  if (idea.source === 'hall') return hallTag(idea);
   const t = (idea.tags || []).map(tagLabel).find(Boolean);
   if (t) return t;
   if (!numbers) return idea.verified ? 'Coach verified' : '';

@@ -959,6 +959,9 @@ export function athleteContextForAnalysis({ atMin = null } = {}) {
   // about the plate at the time it was eaten. A chat reply takes now.
   const nowMin = atMin != null && Number.isFinite(+atMin) ? Math.max(0, Math.min(1439, Math.round(+atMin))) : minutesNow();
   out.localTime = fmtClock(nowMin);
+  // C: the athlete's calendar day, so a dining-hall menu Nia is shown is THEIR today's.
+  const d = new Date();
+  out.localDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const nx = ((S.exec && S.exec.items) || []).filter((i) => i.minsLeft != null && i.state !== 'not_required')
     .sort((a, b) => a.minsLeft - b.minsLeft)[0];
   if (nx) out.next = `${nx.title} (${nx.dueLabel})`.slice(0, 80);

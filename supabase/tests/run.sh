@@ -83,6 +83,11 @@ SUITES=(
   # one per 14 days, anchored to the stored targets and bounded, decided (and applied, atomically)
   # by staff with target-edit rights or by a solo athlete; coach_set_goals is gated the same way.
   "season phase + target suggestions + targets door (0252-0254)|season_targets_test.sql"
+  # 0255 dining hall menus: standards editors write halls, uploads and DRAFT menus; only
+  # publish_dining_day / unpublish_dining_day move a menu's status; the team's athletes read
+  # PUBLISHED menus only; view-only staff, position coaches, other teams, guardians and outsiders
+  # never write (and outside the team never read); the bucket is editor-only per team folder.
+  "dining hall menus (0255)|dining_hall_test.sql"
 )
 
 echo "==> SQL suites against: ${DB%%\?*}"

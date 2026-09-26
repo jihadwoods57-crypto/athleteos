@@ -92,6 +92,7 @@ const coachConnected = () => import('./coach-connected.js');
 const coachCommitments = () => import('./coach-commitments.js');
 const coachWakeup = () => import('./coach-wakeup.js');
 const rollcallSetup = () => import('./rollcall-setup.js');
+const dining = () => import('./dining-halls.js');
 
 // The operator tab set (coach and trainer bars): NAVS in router.js names these routes, and the
 // tab badges read badge() off coach-inbox / coach-profile / trainer-grow. Preloaded at boot for
@@ -253,6 +254,10 @@ export const screens = {
   'coach-standards': lazy(coachConnected, 'coachStandards'),
   'coach-standard-edit': lazy(coachConnected, 'coachStandardEdit'),
   'coach-standards-manage': lazy(coachConnected, 'coachStandardsManage'),
+  // Dining hall menus (phase C, 0255): the halls, one hall (upload, days, hours), one day's review.
+  'dining-halls': lazy(dining, 'diningHalls'),
+  'dining-hall': lazy(dining, 'diningHall'),
+  'dining-day': lazy(dining, 'diningDay'),
   'health-consent': lazy(() => import('./health-consent.js')),
   'apple-health': lazy(() => import('./apple-health.js')),
   // Sleep (phase 1, evidence only). Registered so #sleep renders; DELIBERATELY UNLINKED from
