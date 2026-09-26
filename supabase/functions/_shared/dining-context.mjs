@@ -9,8 +9,15 @@
 //
 // "Today" is the athlete's calendar day, from their device (state.js athleteContextForAnalysis
 // localDate), accepted only within a day of the server's: a stale or forged date renders nothing.
+// WHAT THEY CANNOT EAT NEVER REACHES NIA (review round 2026-09-26). Before the block is built, every
+// item is passed through dining-menu.mjs itemAllowed, the SAME filter the athlete's plates use: its
+// allergen tags against their declared allergies and intolerances ("contains nuts" covers a peanut
+// allergy), its name against those rules, their dislikes (food_prefs) and the allergy facts memory
+// has confirmed. What is left carries its printed allergen tags, compactly.
+//
 // A plain .mjs so `npm run test:fn` runs it in Node.
-import { menuContextBlock, isIsoDate, addDays } from './dining-menu.mjs';
+import { menuContextBlock, isIsoDate, addDays, itemAllowed, allergenKeysFrom } from './dining-menu.mjs';
+import { avoidWords, namesAny, cleanFoodPrefs } from './food-prefs.mjs';
 
 /** "3:40 PM" -> 940, or null. */
 export function minuteOf(localTime) {
@@ -48,16 +55,38 @@ export async function loadDiningToday(service, athleteId, date) {
   }
 }
 
+/** The athlete's declared restrictions and their food preferences. Never throws; absent is empty. */
+export async function loadAvoidFacts(service, athleteId) {
+  const settle = async (p) => { try { const r = await p; return r && !r.error ? r.data : null; } catch { return null; } };
+  const [rx, pr] = await Promise.all([
+    settle(service.from('dietary_restrictions').select('data').eq('athlete_id', athleteId).maybeSingle()),
+    settle(service.from('profiles').select('food_prefs').eq('id', athleteId).maybeSingle()),
+  ]);
+  return {
+    restrictions: rx && rx.data && typeof rx.data === 'object' ? rx.data : null,
+    prefs: cleanFoodPrefs(pr && pr.food_prefs),
+  };
+}
+
 /**
  * The block for one athlete turn, or ''. `athlete` is the request's body.athlete (localDate and
- * localTime from the device); `planStyle` is the OWNER's resolved style.
+ * localTime from the device); `planStyle` is the OWNER's resolved style. `extraAvoid` is the allergy
+ * and dislike facts memory has confirmed (memory.ts avoidFromFacts).
+ * @param {any} service
+ * @param {string} athleteId
+ * @param {any} athlete
+ * @param {string | null} planStyle
+ * @param {{ serverNow?: Date, extraAvoid?: string[] }} [opts]
  */
-export async function diningContextFor(service, athleteId, athlete, planStyle, serverNow = new Date()) {
+export async function diningContextFor(service, athleteId, athlete, planStyle, { serverNow = new Date(), extraAvoid = [] } = {}) {
   const date = athleteToday(athlete, serverNow);
   if (!date) return '';
-  const got = await loadDiningToday(service, athleteId, date);
+  const [got, facts] = await Promise.all([loadDiningToday(service, athleteId, date), loadAvoidFacts(service, athleteId)]);
   if (!got) return '';
+  const avoid = avoidWords(facts.prefs, facts.restrictions, extraAvoid);
+  const allergens = allergenKeysFrom(facts.restrictions, extraAvoid);
   return menuContextBlock({
+    keep: (it) => itemAllowed(it, { avoid, allergens, namesAny }),
     halls: got.halls,
     menus: got.menus,
     date,

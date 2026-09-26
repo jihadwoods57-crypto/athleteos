@@ -174,9 +174,9 @@ delete from dining_halls where name like 'Hall %';
 
 -- ================================================================ uploads
 select _as('7fc00000-0000-0000-0000-000000000004');
-select _ok(_try($q$insert into dining_menu_uploads (id, team_id, hall_id, kind, paths, starts_on, status)
+select _ok(_try($q$insert into dining_menu_uploads (id, team_id, hall_id, kind, paths, starts_on, status, claimed_at)
   values ('7fc00000-0000-0000-0000-0000000000b1', '7fc00000-0000-0000-0000-0000000000d1', '7fc00000-0000-0000-0000-0000000000a1', 'photo',
-          array['7fc00000-0000-0000-0000-0000000000d1/7fc00000-0000-0000-0000-0000000000b1/0.jpg'], current_date, 'parsed')$q$) = 'ok',
+          array['7fc00000-0000-0000-0000-0000000000d1/7fc00000-0000-0000-0000-0000000000b1/0.jpg'], current_date, 'parsed', now())$q$) = 'ok',
   'uploads: an editor files one');
 select _superuser();
 select _ok((select status = 'pending' and created_by = '7fc00000-0000-0000-0000-000000000004' from dining_menu_uploads where id = '7fc00000-0000-0000-0000-0000000000b1'),
@@ -205,6 +205,8 @@ select _ok(_try($q$insert into dining_menu_uploads (team_id, hall_id, kind, text
   'uploads: an athlete cannot file one');
 select _ok((select count(*) from dining_menu_uploads) = 0, 'uploads: an athlete reads none');
 select _superuser();
+select _ok((select claimed_at is null from dining_menu_uploads where id = '7fc00000-0000-0000-0000-0000000000b1'),
+  'uploads: a signed-in caller cannot pre-stamp the claim time');
 select _ok(_n($q$update dining_menu_uploads set status = 'parsing' where id = '7fc00000-0000-0000-0000-0000000000b1' and status = 'pending'$q$) = 1
        and _n($q$update dining_menu_uploads set status = 'parsing' where id = '7fc00000-0000-0000-0000-0000000000b1' and status = 'pending'$q$) = 0,
   'uploads: the claim is one-shot (the second pending -> parsing touches nothing)');
@@ -237,6 +239,29 @@ select _ok(_try($q$insert into dining_menus (hall_id, menu_date, period, items)
 select _ok(_try($q$insert into dining_menus (hall_id, menu_date, period, items)
   values ('7fc00000-0000-0000-0000-0000000000a1', current_date + 100, 'dinner', '[{"name":"Steak"}]')$q$) <> 'ok',
   'menus: a date months away is refused');
+-- the item shape (review round): known keys only, tags from the ONE vocabulary (dining-menu.js MENU_TAGS)
+select _ok(_try($q$insert into dining_menus (hall_id, menu_date, period, items)
+  values ('7fc00000-0000-0000-0000-0000000000a1', current_date + 2, 'dinner', '[{"name":"Alfredo","tags":["contains dairy","contains wheat","gluten free"]}]')$q$) = 'ok',
+  'items: vocabulary tags are accepted');
+select _ok(_try($q$insert into dining_menus (hall_id, menu_date, period, items)
+  values ('7fc00000-0000-0000-0000-0000000000a1', current_date + 3, 'dinner', '[{"name":"Alfredo","tags":["spicy"]}]')$q$) <> 'ok',
+  'items: a tag outside the vocabulary is refused');
+select _ok(_try($q$insert into dining_menus (hall_id, menu_date, period, items)
+  values ('7fc00000-0000-0000-0000-0000000000a1', current_date + 3, 'dinner', '[{"name":"Alfredo","tags":[7]}]')$q$) <> 'ok',
+  'items: a tag that is not a string is refused');
+select _ok(_try($q$insert into dining_menus (hall_id, menu_date, period, items)
+  values ('7fc00000-0000-0000-0000-0000000000a1', current_date + 3, 'dinner', '[{"name":"Alfredo","tags":["vegan","vegan","vegan","vegan","vegan","vegan","vegan","vegan","vegan"]}]')$q$) <> 'ok',
+  'items: more than 8 tags is refused');
+select _ok(_try($q$insert into dining_menus (hall_id, menu_date, period, items)
+  values ('7fc00000-0000-0000-0000-0000000000a1', current_date + 3, 'dinner', '[{"name":"Alfredo","note":"<script>"}]')$q$) <> 'ok',
+  'items: an unknown key is refused');
+select _ok(_try($q$insert into dining_menus (hall_id, menu_date, period, items)
+  values ('7fc00000-0000-0000-0000-0000000000a1', current_date + 3, 'dinner', '[{"name":"Alfredo","per_serving":{"protein":20,"sugar":9}}]')$q$) <> 'ok',
+  'items: an unknown figure is refused');
+select _superuser();
+delete from dining_menus where menu_date = current_date + 2;
+select _as('7fc00000-0000-0000-0000-000000000004');
+
 select _as('7fc00000-0000-0000-0000-000000000002');
 select _ok(_try($q$insert into dining_menus (hall_id, menu_date, period, items)
   values ('7fc00000-0000-0000-0000-0000000000a1', current_date, 'dinner', '[{"name":"Steak"}]')$q$) <> 'ok',

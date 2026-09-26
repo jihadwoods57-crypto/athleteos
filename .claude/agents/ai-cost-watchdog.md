@@ -15,7 +15,10 @@ The paid AI functions live in `supabase/functions/`. Today they are:
 `analyze-meal`, `assist`, `coach-voice-nudge`, `deep-analysis`, `dining-menu`, `meal-chat`,
 `monthly-report`, `plan-generate`. (`dining-menu`, phase C: one vision or text read per staff menu
 upload; its per-team daily cap is `claim_ai_usage_key('dining_menu:<team>')` and fails closed, and
-the one-shot pending -> parsing claim is what makes it one read per upload. Its guard order is
+the one-shot pending -> parsing claim (taken BEFORE the cap, handed back if the cap refuses) is what
+makes it one read per upload. The read runs under `EdgeRuntime.waitUntil` with `maxRetries: 0`, a
+135 s timeout and `recordAiCall` in a `finally`; the spend reservation scales with PDF pages (max 10)
+and images. Its guard order is
 pinned by `supabase/functions/dining-menu/parse.test.mjs`.) Any NEW function that calls Anthropic joins this list and must follow the same
 three rules.
 

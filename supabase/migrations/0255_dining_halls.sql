@@ -20,7 +20,8 @@
 -- 2. dining_menu_uploads: one row per upload. The files live in the private 'dining-menus' bucket
 --    at <team_id>/<upload_id>/<n>.<ext>; pasted text lives on the row. status pending -> parsing ->
 --    parsed | failed is moved ONLY by the function (service role), and the pending -> parsing claim
---    is a single conditional update, which is what makes it one parse per upload.
+--    is a single conditional update, which is what makes it one parse per upload. claimed_at
+--    stamps the claim; a read still parsing 10 minutes later is swept to failed so staff can retry.
 -- 3. dining_menus: one row per hall, date, period and status ('draft' | 'published'), items as a
 --    bounded jsonb list. The function writes drafts; staff edit drafts directly (RLS: drafts
 --    only); publish_dining_day / unpublish_dining_day are the ONLY ways a row changes status, so a
@@ -65,16 +66,25 @@ end $$;
 
 /* The items list the client and the function both write through dining-menu.js cleanMenuItem.
    This is the database's own bound on shape and size, so a hand-rolled request cannot store a
-   blob, a script-shaped name or an absurd figure. */
+   blob, a script-shaped name, an absurd figure, an unknown key, or a tag outside the ONE vocabulary
+   (dining-menu.js MENU_TAGS, pinned against this list by dining-tags.test.mjs): the allergen tags
+   are what an athlete's allergies are checked against, so they must be words the app knows. */
 create or replace function dining_items_ok(p jsonb) returns boolean
 language plpgsql immutable set search_path = public as $$
 declare
   e jsonb;
+  k text;
+  t jsonb;
+  v_keys constant text[] := array['name', 'station', 'kind', 'per_serving', 'tags'];
+  v_tags constant text[] := array['contains dairy', 'contains eggs', 'contains fish', 'contains shellfish', 'contains peanuts', 'contains tree nuts', 'contains nuts', 'contains soy', 'contains wheat', 'contains gluten', 'contains sesame', 'vegetarian', 'vegan', 'gluten free', 'dairy free', 'halal'];
 begin
   if p is null or jsonb_typeof(p) <> 'array' then return false; end if;
   if jsonb_array_length(p) > 60 or pg_column_size(p) > 65536 then return false; end if;
   for e in select value from jsonb_array_elements(p) loop
     if jsonb_typeof(e) <> 'object' then return false; end if;
+    for k in select jsonb_object_keys(e) loop
+      if not k = any(v_keys) then return false; end if;
+    end loop;
     if jsonb_typeof(e -> 'name') is distinct from 'string' then return false; end if;
     if char_length(e ->> 'name') not between 1 and 80 or (e ->> 'name') ~ '[<>{}]' then return false; end if;
     if e ? 'station' and e -> 'station' <> 'null'::jsonb
@@ -86,9 +96,11 @@ begin
       return false;
     end if;
     if e ? 'per_serving' and not dining_serving_ok(e -> 'per_serving') then return false; end if;
-    if e ? 'tags' and e -> 'tags' <> 'null'::jsonb
-       and (jsonb_typeof(e -> 'tags') <> 'array' or jsonb_array_length(e -> 'tags') > 8) then
-      return false;
+    if e ? 'tags' and e -> 'tags' <> 'null'::jsonb then
+      if jsonb_typeof(e -> 'tags') <> 'array' or jsonb_array_length(e -> 'tags') > 8 then return false; end if;
+      for t in select value from jsonb_array_elements(e -> 'tags') loop
+        if jsonb_typeof(t) <> 'string' or not (t #>> '{}') = any(v_tags) then return false; end if;
+      end loop;
     end if;
   end loop;
   return true;
@@ -170,6 +182,8 @@ create table if not exists public.dining_menu_uploads (
   text_body   text check (text_body is null or char_length(text_body) between 1 and 20000),
   starts_on   date not null,
   status      text not null default 'pending' check (status in ('pending', 'parsing', 'parsed', 'failed')),
+  claimed_at  timestamptz,           -- when the function took it (pending -> parsing); a read still
+                                     -- 'parsing' 10 minutes later is swept to failed ('timeout')
   error       text check (error is null or char_length(error) <= 60),
   entries     int check (entries is null or entries between 0 and 100),
   parsed_at   timestamptz,
@@ -178,6 +192,7 @@ create table if not exists public.dining_menu_uploads (
   check (kind <> 'pdf' or cardinality(paths) = 1)
 );
 create index if not exists dining_menu_uploads_hall on public.dining_menu_uploads (hall_id, created_at desc);
+create index if not exists dining_menu_uploads_parsing on public.dining_menu_uploads (claimed_at) where status = 'parsing';
 
 comment on table public.dining_menu_uploads is
   'One menu upload (photos, a PDF or pasted text) for a dining hall. The dining-menu function claims it once (pending -> parsing) and writes DRAFT menus from it. 0255.';
@@ -205,7 +220,7 @@ begin
   new.created_at := now();
   -- A signed-in user only ever files a pending upload; the service role moves the status.
   if auth.uid() is not null then
-    new.status := 'pending'; new.error := null; new.entries := null; new.parsed_at := null;
+    new.status := 'pending'; new.error := null; new.entries := null; new.parsed_at := null; new.claimed_at := null;
   end if;
   return new;
 end $$;

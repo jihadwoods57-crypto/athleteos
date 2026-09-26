@@ -25,6 +25,7 @@ function fakeService(tables) {
       in: (c, vs) => { q.filters.push(['in', c, vs]); rows = rows.filter((r) => vs.includes(r[c])); return api; },
       order: () => api,
       limit: () => api,
+      maybeSingle: () => Promise.resolve({ data: rows[0] || null, error: null }),
       then: (res, rej) => Promise.resolve({ data: rows, error: null }).then(res, rej),
     };
     return api;
@@ -67,7 +68,7 @@ test("the reads: the athlete's ACTIVE teams, today's date, PUBLISHED rows only",
 });
 
 test('the block: remaining periods, figures only for a numbers style, nothing without a menu', async () => {
-  const at = (athlete, style) => diningContextFor(fakeService(TABLES), 'a1', athlete, style, NOW);
+  const at = (athlete, style) => diningContextFor(fakeService(TABLES), 'a1', athlete, style, { serverNow: NOW });
   const noon = await at({ localDate: '2026-09-28', localTime: '12:10 PM' }, 'structured');
   assert.match(noon, /Knights Plaza, lunch \(11 AM to 2 PM\): Grilled chicken \(about 35g protein\)/);
   assert.doesNotMatch(noon, /Secret draft steak|Tomorrow tacos|Old team pasta/);
@@ -79,8 +80,40 @@ test('the block: remaining periods, figures only for a numbers style, nothing wi
 
 test("meal-chat: the menu rides the athlete's OWN turns only, and never costs a model call", () => {
   const src = readFileSync(join(HERE, '..', 'meal-chat', 'index.ts'), 'utf8');
-  assert.match(src, /const diningP: Promise<string> = !coachMode && !correctionUpdate && mealRow\.athlete_id === callerId\s*\? diningContextFor\(service, mealRow\.athlete_id, body\?\.athlete, planStyle\)/);
+  assert.match(src, /const diningP: Promise<string> = !coachMode && !correctionUpdate && mealRow\.athlete_id === callerId\s*\? diningContextFor\(service, mealRow\.athlete_id, body\?\.athlete, planStyle, /);
   assert.match(src, /dining \? `\\n\\n\$\{dining\} With this menu in hand/);
   const mod = readFileSync(join(HERE, 'dining-context.mjs'), 'utf8');
   assert.doesNotMatch(mod, /anthropic|messages\.create/i);
+});
+
+test("FILTERED: the athlete's allergies (by tag and by name), intolerances, dislikes and confirmed facts never reach Nia", async () => {
+  const tables = {
+    ...TABLES,
+    dining_menus: [{ team_id: 't1', hall_id: 'h1', menu_date: '2026-09-28', period: 'lunch', status: 'published', items: [
+      { name: 'Pad thai', kind: 'protein', per_serving: { protein: 25 }, tags: ['contains nuts'] },
+      { name: 'Alfredo', kind: 'carb', per_serving: { protein: 18 }, tags: ['contains dairy', 'contains wheat'] },
+      { name: 'Mushroom risotto', kind: 'carb', tags: [] },
+      { name: 'Kiwi cup', kind: 'fruit', tags: [] },
+      { name: 'Grilled chicken', kind: 'protein', per_serving: { protein: 35 }, tags: ['gluten free'] },
+    ] }],
+    dietary_restrictions: [{ athlete_id: 'a1', data: { allergies: [{ name: 'Peanuts', severity: 'severe' }], intolerances: ['Lactose'] } }],
+    profiles: [{ id: 'a1', food_prefs: { dislikes: ['mushrooms'] } }],
+  };
+  const block = await diningContextFor(fakeService(tables), 'a1', { localDate: '2026-09-28', localTime: '12:10 PM' }, 'structured',
+    { serverNow: NOW, extraAvoid: ['kiwi'] });
+  assert.doesNotMatch(block, /Pad thai/, 'the nuts tag covers a peanut allergy');
+  assert.doesNotMatch(block, /Alfredo/, 'the dairy tag covers a lactose intolerance');
+  assert.doesNotMatch(block, /Mushroom/, 'a dislike');
+  assert.doesNotMatch(block, /Kiwi/, 'a confirmed allergy fact from memory');
+  assert.match(block, /Grilled chicken \(about 35g protein\)/);
+  // With nothing ruled out, the rest carries its allergen tags.
+  const open = await diningContextFor(fakeService({ ...tables, dietary_restrictions: [], profiles: [] }), 'a1',
+    { localDate: '2026-09-28', localTime: '12:10 PM' }, 'structured', { serverNow: NOW });
+  assert.match(open, /Pad thai \(about 25g protein; nuts\)/);
+  assert.match(open, /Alfredo \(about 18g protein; dairy, wheat\)/);
+});
+
+test('meal-chat hands the confirmed memory facts to the menu filter', () => {
+  const src = readFileSync(join(HERE, '..', 'meal-chat', 'index.ts'), 'utf8');
+  assert.match(src, /diningContextFor\(service, mealRow\.athlete_id, body\?\.athlete, planStyle, \{ extraAvoid: avoidFromFacts\(memFacts\) \}\)/);
 });

@@ -2,8 +2,15 @@
 //
 // Reads ONE uploaded dining hall menu (photos, a PDF or pasted text; a dining_menu_uploads row,
 // 0255) with ONE model call and writes it as DRAFT menus for staff to review. It never publishes:
-// staff do, with publish_dining_day. The rules, the prompt and the order of every guard live in
-// parse.mjs (tested in Node); this file wires them to Supabase and Anthropic.
+// staff do, with publish_dining_day. The rules, the prompt, the timing budget and the order of every
+// guard live in parse.mjs (tested in Node); this file wires them to Supabase and Anthropic.
+//
+// THE READ RUNS IN THE BACKGROUND (review round 2026-09-26). The request answers 202 right after
+// the claim and the model call continues under EdgeRuntime.waitUntil; the staff screen polls the
+// upload row's status. The call has no retries and a hard timeout (parse.mjs MODEL_TIMEOUT_MS) so
+// it ends inside the edge limits, and every paid call is metered in a `finally`, success or failure.
+// Where waitUntil is missing (a local runtime), the read runs inline: the same timeout still keeps it
+// inside the 150 s request limit.
 //
 // Deploy:
 //   supabase functions deploy dining-menu            (verify_jwt stays on; see config.toml)
@@ -20,18 +27,25 @@ import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';
 import { missingConsent } from '../_shared/ai-consent.mjs';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 import {
-  MENU_TOOL, MENU_SYSTEM, MAX_UPLOAD_BYTES, menuRequest, sniffMime, toBase64, menuUserContent, runUpload, capFrom,
+  MENU_TOOL, MENU_SYSTEM, MAX_UPLOAD_BYTES, MAX_TOKENS, MODEL_TIMEOUT_MS, MAX_PDF_PAGES, STUCK_MINUTES,
+  menuRequest, sniffMime, toBase64, menuUserContent, runUpload, capFrom, countPdfPages,
 } from './parse.mjs';
 
 const MODEL = Deno.env.get('ANTHROPIC_MODEL_DINING') ?? Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-5';
 const TEXT_MODEL = Deno.env.get('ANTHROPIC_TEXT_MODEL') ?? 'claude-haiku-4-5-20251001';
 const TEAM_CAP = capFrom(Deno.env.get('DINING_MENU_DAILY_CAP'), 6);
-// Two weeks of a busy hall is the longest honest answer; past this the read is cut off and fails
-// cleanly (the staff member is told to upload fewer days) rather than saving half a menu.
-const MAX_TOKENS = 16000;
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+/** Supabase's background-task hook (hosted Edge Runtime). Absent elsewhere. */
+declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
+const waitUntil = (p: Promise<unknown>): boolean => {
+  try {
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime && typeof EdgeRuntime.waitUntil === 'function') { EdgeRuntime.waitUntil(p); return true; }
+  } catch { /* not this runtime */ }
+  return false;
+};
 
 // CORS: the analyze-meal / plan-generate allowlist (a native app sends no Origin).
 const ALLOWED_ORIGINS = (Deno.env.get('ALLOWED_ORIGINS') ?? '').split(',').map((o) => o.trim()).filter(Boolean);
@@ -48,7 +62,7 @@ function corsFor(req: Request): Record<string, string> {
 }
 
 // Best-effort per-IP limit (the plan-generate pattern): blunts a single hammering client. The real
-// ceilings are the per-team daily cap and the dollar gate below.
+// ceilings are the per-team daily cap and the dollar gate.
 const RL_MAX = Number(Deno.env.get('RATE_LIMIT_PER_MIN') ?? '20');
 const rlHits = new Map<string, { count: number; resetAt: number }>();
 function rateLimited(req: Request): boolean {
@@ -64,6 +78,7 @@ type Upload = {
   id: string; team_id: string; hall_id: string; kind: 'photo' | 'pdf' | 'text';
   paths: string[] | null; text_body: string | null; starts_on: string; status: string;
 };
+type Prepared = { files: { mime: string; b64: string }[]; images: number; pages: number };
 
 class ReadError extends Error {
   code: string;
@@ -95,6 +110,14 @@ Deno.serve(async (request) => {
   let hallName = '';
 
   const result = await runUpload({ uploadId: ask.uploadId, userId }, {
+    // A read the platform killed mid-call leaves its row 'parsing'. Past STUCK_MINUTES it reads as
+    // failed (timeout), so staff can upload again.
+    sweep: async () => {
+      try {
+        await service.from('dining_menu_uploads').update({ status: 'failed', error: 'timeout', parsed_at: new Date().toISOString() })
+          .eq('status', 'parsing').lt('claimed_at', new Date(Date.now() - STUCK_MINUTES * 60_000).toISOString());
+      } catch { /* the next request sweeps */ }
+    },
     loadUpload: async (id: string) => {
       const { data, error } = await service.from('dining_menu_uploads')
         .select('id, team_id, hall_id, kind, paths, text_body, starts_on, status, dining_halls(name)').eq('id', id).maybeSingle();
@@ -117,10 +140,44 @@ Deno.serve(async (request) => {
         return (data as { entitled?: boolean }).entitled !== false;
       } catch { return true; }
     },
+    // Download and check everything BEFORE any money moves: the real type of each file, the total
+    // size, and a PDF's page count (more than MAX_PDF_PAGES, or a count we cannot read, is refused).
+    prepare: async (up: Upload): Promise<Prepared> => {
+      if (up.kind === 'text') return { files: [], images: 0, pages: 0 };
+      const files: { mime: string; b64: string }[] = [];
+      let total = 0;
+      let pages = 0;
+      for (const path of (up.paths ?? []).slice(0, 6)) {
+        const { data, error } = await service.storage.from('dining-menus').download(path);
+        if (error || !data) throw new ReadError('bad_file');
+        const bytes = new Uint8Array(await data.arrayBuffer());
+        total += bytes.length;
+        if (total > MAX_UPLOAD_BYTES) throw new ReadError('too_large');
+        const mime = sniffMime(bytes);
+        if (!mime || (up.kind === 'pdf') !== (mime === 'application/pdf')) throw new ReadError('bad_file');
+        if (mime === 'application/pdf') {
+          const n = await countPdfPages(bytes);
+          if (n === null) throw new ReadError('pages_unknown');
+          if (n > MAX_PDF_PAGES) throw new ReadError('too_many_pages');
+          pages += n;
+        }
+        files.push({ mime, b64: toBase64(bytes) });
+      }
+      if (!files.length) throw new ReadError('bad_file');
+      return { files, images: up.kind === 'photo' ? files.length : 0, pages };
+    },
     spendAllowed: async (estimate: number) => {
       const v = await checkSpend(estimate);
       if (!v.allowed) console.log(JSON.stringify({ evt: 'ai_spend_block', fn: 'dining-menu', reason: v.reason }));
       return v.allowed;
+    },
+    claim: async (id: string) => {
+      const { data, error } = await service.from('dining_menu_uploads')
+        .update({ status: 'parsing', claimed_at: new Date().toISOString() }).eq('id', id).eq('status', 'pending').select('id');
+      return !error && Array.isArray(data) && data.length === 1;
+    },
+    unclaim: async (id: string) => {
+      await service.from('dining_menu_uploads').update({ status: 'pending', claimed_at: null }).eq('id', id).eq('status', 'parsing');
     },
     teamCap: async (teamId: string) => {
       // Fail CLOSED: unlike a meal log, nothing an athlete needs right now waits on this.
@@ -131,37 +188,21 @@ Deno.serve(async (request) => {
         return row?.allowed === true;
       } catch { return false; }
     },
-    claim: async (id: string) => {
-      const { data, error } = await service.from('dining_menu_uploads')
-        .update({ status: 'parsing' }).eq('id', id).eq('status', 'pending').select('id');
-      return !error && Array.isArray(data) && data.length === 1;
+    background: async (fn: () => Promise<void>) => {
+      const p = fn().catch((e) => console.error('dining-menu background error:', String((e as Error)?.message ?? e).slice(0, 200)));
+      if (!waitUntil(p)) await p;
     },
-    readModel: async (up: Upload) => {
+    readModel: async (up: Upload, prep: Prepared) => {
       void trackAuthedAiSpend(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, userId!, 'dining-menu');
-      let content;
-      if (up.kind === 'text') {
-        content = menuUserContent({ startDate: up.starts_on, hallName, text: String(up.text_body ?? '') });
-      } else {
-        const files: { mime: string; b64: string }[] = [];
-        let total = 0;
-        for (const path of (up.paths ?? []).slice(0, 6)) {
-          const { data, error } = await service.storage.from('dining-menus').download(path);
-          if (error || !data) throw new ReadError('bad_file');
-          const bytes = new Uint8Array(await data.arrayBuffer());
-          total += bytes.length;
-          if (total > MAX_UPLOAD_BYTES) throw new ReadError('too_large');
-          const mime = sniffMime(bytes);
-          if (!mime || (up.kind === 'pdf') !== (mime === 'application/pdf')) throw new ReadError('bad_file');
-          files.push({ mime, b64: toBase64(bytes) });
-        }
-        if (!files.length) throw new ReadError('bad_file');
-        content = menuUserContent({ startDate: up.starts_on, hallName, files });
-      }
+      const content = up.kind === 'text'
+        ? menuUserContent({ startDate: up.starts_on, hallName, text: String(up.text_body ?? '') })
+        : menuUserContent({ startDate: up.starts_on, hallName, files: prep.files });
       const model = up.kind === 'text' ? TEXT_MODEL : MODEL;
       const t0 = Date.now();
-      let msg: Anthropic.Message;
+      let msg: Anthropic.Message | null = null;
+      let errorCode: string | null = 'upstream_error';
       try {
-        msg = await new Anthropic({ apiKey }).messages.create({
+        msg = await new Anthropic({ apiKey, maxRetries: 0, timeout: MODEL_TIMEOUT_MS }).messages.create({
           model,
           max_tokens: MAX_TOKENS,
           system: [{ type: 'text', text: MENU_SYSTEM, cache_control: { type: 'ephemeral' } }],
@@ -169,17 +210,19 @@ Deno.serve(async (request) => {
           tool_choice: { type: 'tool', name: MENU_TOOL.name },
           messages: [{ role: 'user', content: content as Anthropic.MessageParam['content'] }],
         });
+        errorCode = msg.stop_reason === 'max_tokens' ? 'max_tokens' : null;
       } catch (e) {
-        await recordAiCall({ fn: 'dining-menu', mode: up.kind, userId, model, latencyMs: Date.now() - t0, ok: false, errorCode: 'upstream_error' });
+        const timedOut = e instanceof Anthropic.APIConnectionTimeoutError || Date.now() - t0 >= MODEL_TIMEOUT_MS - 1000;
+        errorCode = timedOut ? 'timeout' : 'upstream_error';
         console.error('dining-menu upstream error:', String((e as Error)?.message ?? e).slice(0, 200));
-        throw new ReadError('upstream');
+      } finally {
+        await recordAiCall({
+          fn: 'dining-menu', mode: up.kind, userId, model: msg?.model ?? model, ...(msg ? usageFrom(msg.usage) : {}),
+          latencyMs: Date.now() - t0, ok: errorCode === null, errorCode,
+        });
       }
-      const truncated = msg.stop_reason === 'max_tokens';
-      await recordAiCall({
-        fn: 'dining-menu', mode: up.kind, userId, model: msg.model ?? model, ...usageFrom(msg.usage),
-        latencyMs: Date.now() - t0, ok: !truncated, errorCode: truncated ? 'max_tokens' : null,
-      });
-      if (truncated) throw new ReadError('truncated');
+      if (!msg) throw new ReadError(errorCode === 'timeout' ? 'timeout' : 'upstream');
+      if (errorCode === 'max_tokens') throw new ReadError('truncated');
       const tool = msg.content.find((b) => b.type === 'tool_use') as { input?: unknown } | undefined;
       return { input: tool?.input ?? null };
     },
