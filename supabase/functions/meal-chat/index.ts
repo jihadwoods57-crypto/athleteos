@@ -39,6 +39,8 @@ import { NIA_IDENTITY, NIA_HONESTY, NIA_VOICE } from '../_shared/nia-voice.ts';
 // WHO THIS ATHLETE IS, read server-side for the meal OWNER (2026-09-23): goal, goal weight, the
 // coach's standard, allergies, age band, weight trend. Visibility per caller; see the module header.
 import { loadAthleteDossier, renderDossier } from '../_shared/athlete-dossier.mjs';
+// Phase C: today's published dining hall menu, for the athlete's own turns (no model call).
+import { diningContextFor } from '../_shared/dining-context.mjs';
 // WHO IS THIS MESSAGE FOR. Byte-identical to proto/redesign-2026-07/js/ai-addressing.js
 // (`npm run lint:mirror` fails the build if they drift), so the client's decision not to spend
 // a turn and this function's refusal to spend one are the SAME decision, not two that agree.
@@ -828,6 +830,12 @@ Deno.serve(async (req) => {
     // when voice is off or unset, and a null directive keeps the prompt byte-identical to before.
     const voice = await loadVoiceForAthlete(service, mealRow.athlete_id);
     const voiceDirective = voice ? chatVoiceDirective(voice.cfg) : '';
+    // PHASE C: when staff published today's menu at the athlete's team hall, Nia sees today's
+    // remaining periods (capped, figure-free for Intuitive). The athlete's OWN question turns only:
+    // the date and clock are their device's, and a coach's turn is not about what they eat next.
+    const diningP: Promise<string> = !coachMode && !correctionUpdate && mealRow.athlete_id === callerId
+      ? diningContextFor(service, mealRow.athlete_id, body?.athlete, planStyle).catch(() => '')
+      : Promise.resolve('');
     // Guardians never reach this line (0081 took them out of can_view, so the meal select above
     // refuses them); 'guardian' is the fail-closed answer should one ever arrive in a coach mode.
     const dossier = renderDossier(await dossierP, {
@@ -838,8 +846,10 @@ Deno.serve(async (req) => {
     });
     // The athlete's clock rides only on the athlete's own turns: a coach's device is not their clock.
     const clock = coachMode ? '' : clockLine(body?.athlete);
+    const dining = await diningP;
     const ctxBlock = `Context (deterministic, computed by the app):\n${JSON.stringify(promptContext)}${
-      dossier ? `\n\n${dossier}` : whoLine ? `\n\nThe athlete this thread belongs to:${whoLine}` : ''}${clock ? `\n\n${clock.trim()}` : ''}`;
+      dossier ? `\n\n${dossier}` : whoLine ? `\n\nThe athlete this thread belongs to:${whoLine}` : ''}${clock ? `\n\n${clock.trim()}` : ''}${
+      dining ? `\n\n${dining} With this menu in hand, answer a what-to-eat question with reply, naming items from it, rather than suggest_meal.` : ''}`;
     const styleSafe = (text: string): string => {
       // Shared tail of both call sites below: one corrected retry is handled inline by the
       // caller; this is the final rail that guarantees nothing unsafe is ever persisted.

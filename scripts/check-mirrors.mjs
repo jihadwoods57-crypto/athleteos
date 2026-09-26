@@ -45,6 +45,11 @@ const PAIRS = [
   // meal-chat's plan ideas read the stored value through the copy. Drift here means the prompt and
   // the screen disagree about what the athlete said, or a dislike filtered on one side only.
   ['proto/redesign-2026-07/js/food-prefs.js', 'supabase/functions/_shared/food-prefs.mjs'],
+  // DINING HALL MENUS (0255). The staff editor saves items, the dining-menu function sanitizes the
+  // model's parse, Plan reads the hours and meal-chat renders Nia's menu context through one file.
+  // Drift here means the parse keeps what the editor would refuse, or Nia names a period Plan
+  // considers closed.
+  ['proto/redesign-2026-07/js/dining-menu.js', 'supabase/functions/_shared/dining-menu.mjs'],
 ];
 
 /** Line endings are not drift: git normalises them on this repo and the compiler does not care. */
