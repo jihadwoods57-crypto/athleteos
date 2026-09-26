@@ -133,17 +133,38 @@ export function avoidWords(prefs, restrictions, extra = []) {
   const nameOf = (a) => cleanPrefItem(typeof a === 'string' ? a.split('·')[0] : a && a.name);
   const out = [];
   // `extra`: confirmed allergy/dislike facts from memory. Every rule carries its category members.
-  for (const a of Array.isArray(d.allergies) ? d.allergies : []) out.push(...restrictionTerms(nameOf(a)));
-  for (const a of Array.isArray(d.intolerances) ? d.intolerances : []) out.push(...restrictionTerms(nameOf(a)));
-  for (const a of Array.isArray(extra) ? extra : []) out.push(...restrictionTerms(cleanPrefItem(String(a || ''))));
+  // Rule terms are marked with RULE so namesAny matches them INSIDE words too ("buttermilk",
+  // "cheesy", "creamy"): for an allergy, dropping an idea too often is the safe direction.
+  const rule = (terms) => terms.filter(Boolean).forEach((t) => out.push(RULE + t));
+  for (const a of Array.isArray(d.allergies) ? d.allergies : []) rule(restrictionTerms(nameOf(a)));
+  for (const a of Array.isArray(d.intolerances) ? d.intolerances : []) rule(restrictionTerms(nameOf(a)));
+  for (const a of Array.isArray(extra) ? extra : []) rule(restrictionTerms(cleanPrefItem(String(a || ''))));
   for (const x of cleanFoodPrefs(prefs).dislikes) out.push(x);
   return [...new Set(out.filter(Boolean).map((x) => x.toLowerCase()))];
+}
+
+/** Marks an avoid word that comes from an allergy or intolerance rule (see avoidWords). */
+export const RULE = '~';
+
+/** Does `text` contain a rule term anywhere, even inside a longer word? Terms under 3 letters
+ *  ("pb") stay whole-word, and a trailing plural or silent e is dropped so "cheese" also catches
+ *  "cheesy" and "eggs" catches "egg". */
+export function containsRule(text, term) {
+  const w = String(term || '').trim().toLowerCase();
+  if (w.length < 3) return mentions(text, w);
+  const stem = w.replace(/(?:es|s|e)$/, '');
+  return String(text || '').toLowerCase().includes(stem.length >= 3 ? stem : w);
 }
 
 /** True when any of `texts` names any of `words`. */
 export function namesAny(texts, words) {
   const list = (Array.isArray(texts) ? texts : [texts]).filter(Boolean);
-  return (words || []).some((w) => list.some((t) => mentions(t, w)));
+  return (words || []).some((w) => {
+    const s = String(w || '');
+    return s.startsWith(RULE)
+      ? list.some((t) => containsRule(t, s.slice(RULE.length)))
+      : list.some((t) => mentions(t, s));
+  });
 }
 
 /** Tag keys an idea may carry, filtered to the known switches. */

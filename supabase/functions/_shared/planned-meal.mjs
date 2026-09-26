@@ -23,7 +23,8 @@ export const PLANNED_MEAL_MAX = 60;
 export function plannedMealName(raw) {
   const v = raw && typeof raw === 'object' ? raw.name : null;
   if (typeof v !== 'string') return '';
-  return scrubToolLeak(v)
+  // Cut BEFORE any regex: the suffix pattern below backtracks badly on long hostile input.
+  return scrubToolLeak(v.slice(0, 200))
     // A portion suffix ("(170g)", "(2 bars)") is the plan's amount, not a food to name.
     .replace(/\s*\([^)]*\d[^)]*\)\s*$/, '')
     .replace(/[^\p{L}\p{N} &'\-,.()+/]/gu, ' ')
