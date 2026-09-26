@@ -80,7 +80,7 @@ export default {
         </div>
         <div class="ob-foot" style="margin-top:auto">
           <button class="btn primary" data-act="primeCamera" data-then="camera">Continue</button>
-          <button class="cam-textlink" type="button" data-go="food-search">Log without a camera</button>
+          <button class="cam-textlink" type="button" data-go="food-search">Not now, plan a meal instead</button>
         </div>
       </div>`;
     }
@@ -137,7 +137,7 @@ export default {
         <div class="cam-actions">
           <button class="cam-side" type="button" id="gallery-btn"><span class="cbtn">${icon('image', 19)}</span>Gallery</button>
           <button class="shutter" type="button" id="shutter" aria-label="Take the photo"><span class="inner">${icon('camera', 26)}</span></button>
-          <button class="cam-side" type="button" data-go="food-search"><span class="cbtn">${icon('search', 20)}</span>Search food</button>
+          <button class="cam-side" type="button" data-go="food-search"><span class="cbtn">${icon('search', 20)}</span>Plan a meal</button>
         </div>
       </div>
     </div>`;
@@ -221,7 +221,7 @@ export default {
       // camera that just failed — matching the primed screen's no-camera path. The router
       // only wires [data-go] at render time, so this post-mount injection wires its own tap.
       if (note) {
-        note.innerHTML = `Couldn't get the photo. Check camera access, or <span class="lnk">log without a camera</span>.`;
+        note.innerHTML = `Couldn't get the photo. Check camera access and try again, or <span class="lnk">plan the meal</span> for now.`;
         note.querySelector('.lnk').addEventListener('click', () => window.__go('food-search'));
       }
     };

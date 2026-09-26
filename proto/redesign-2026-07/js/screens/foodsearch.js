@@ -2,6 +2,13 @@ import { S, RT, slotTitle } from '../state.js';
 import { icon } from '../icons.js';
 import { backHead, esc, composer } from '../components.js';
 import { fetchFoodByBarcode } from '../roles.js';
+// NO MEAL IS LOGGED WITHOUT A PHOTO (founder rule, 2026-09-25). These three screens used to stage a
+// no-photo meal for the confirm screen to commit. They PLAN now, through the same door Plan > Today
+// uses (plan-today.js planSlot -> DAY.plans), and send the athlete to the camera to log it.
+import { planSlot } from '../plan-today.js';
+
+/** After a plan: say where it went, then Plan > Today, where the camera button is waiting. */
+const afterPlan = (r) => { if (r) window.__go('plan'); };
 
 /* Food database (proto-local; the real app notes "fuller database lands with backend"). */
 const DB = [
@@ -19,7 +26,7 @@ const DB = [
   { n: 'Tuna, canned',           p: 24, c: 0,  f: 1,  kc: 108, unit: '1 can' },
 ];
 
-/* ---------- Search Food: type, tap to build the plate, log it ---------- */
+/* ---------- Search Food: type, tap to build the plate, PLAN it ---------- */
 export const foodSearch = {
   tab: 'camera',
   transient: true,
@@ -35,7 +42,7 @@ export const foodSearch = {
        its explainer went: a list under a search box needs no label, and the explainer's advice
        lives in the no-match state, where it is the answer. */
     return `
-    ${backHead(`Log without a photo · ${slotName}`, 'When a photo isn’t possible. Same score rules.', 'camera')}
+    ${backHead(`Plan a meal · ${slotName}`, 'Build what you’ll eat. Snap it when you eat to log it.', 'camera')}
 
     ${composer({ inputId: 'fs-input', placeholder: 'Search foods…', inputLabel: 'Search foods', decorativeSend: true, sendIcon: 'search', sendIconSize: 18, sendStyle: 'background:var(--surface-2);color:var(--text)', wrapStyle: 'margin-top:2px' })}
 
@@ -56,7 +63,7 @@ export const foodSearch = {
       </div>
     </section>
 
-    <h2 class="eyebrow">Other ways to log</h2>
+    <h2 class="eyebrow">Other ways to plan</h2>
     <section class="card rows">
       <div class="lrow" data-go="barcode-scan">
         <div class="lic">${icon('barcode', 17)}</div>
@@ -72,14 +79,14 @@ export const foodSearch = {
 
     ${!slot
       ? `<div class="action-bar"><button class="btn ghost" data-back="home">All meals logged · Done</button></div>`
-      : `<div class="action-bar"><button class="btn green" id="fs-log" disabled>${icon('check', 19)} <span id="fs-log-label">Log ${esc(slotName)}</span></button></div>`}
+      : `<div class="action-bar"><button class="btn primary" id="fs-log" disabled>${icon('check', 19)} <span id="fs-log-label">Plan ${esc(slotName)}</span></button></div>`}
     `;
   },
   mount(root) {
     const SLOT = S.currentSlot;
     // INTUITIVE (0142): no calorie or macro figure reaches the athlete — per-food numbers and
     // the plate totals stay hidden; picking "eggs" doesn't need them. Everything is still
-    // computed and stored (captureManual sends the real sums); the gate is presentation only,
+    // computed and stored (the plan carries the real sums); the gate is presentation only,
     // same rule as the meal thread's showNums. Per figure: the totals bar shows when either
     // flag is on (its cells hide themselves in render), and each result-row figure rides its
     // own flag below.
@@ -109,7 +116,7 @@ export const foodSearch = {
       if (logBtn) logBtn.disabled = !plate.length;
       // The count is ITEMS, never a calorie figure (PRODUCT.md red line): what is on the plate.
       const n = plate.reduce((a, x) => a + x.q, 0);
-      if (logLabel) logLabel.textContent = n ? `Log ${slotName} · ${n} item${n === 1 ? '' : 's'}` : `Log ${slotName}`;
+      if (logLabel) logLabel.textContent = n ? `Plan ${slotName} · ${n} item${n === 1 ? '' : 's'}` : `Plan ${slotName}`;
     };
     const renderPlate = () => {
       items.innerHTML = plate.map((x, i) => `
@@ -152,14 +159,13 @@ export const foodSearch = {
         renderPlate();
       }));
     };
-    // Stage the REAL assembled plate and route through the SAME confirm gate the photo path
-    // gets (#meal-analysis) — an accidental tap no longer commits instantly (WS7). The
-    // athlete reviews the plate + totals, then "Log" commits.
+    // The assembled plate becomes the slot's PLAN (name + figures), never a logged meal. The
+    // photo logs it: Plan > Today's card says "Snap it when you eat".
     if (logBtn) logBtn.addEventListener('click', () => {
       if (!plate.length || !SLOT) return;
-      const sum = plate.reduce((a, x) => ({ p: a.p + x.p * x.q, c: a.c + x.c * x.q, f: a.f + x.f * x.q, kc: a.kc + x.kc * x.q }), { p: 0, c: 0, f: 0, kc: 0 });
-      window.__act.captureManual({ protein: sum.p, carbs: sum.c, fat: sum.f, kcal: sum.kc }, plate.map(x => x.n), SLOT, 'manual');
-      location.hash = '#meal-analysis';
+      const sum = plate.reduce((a, x) => ({ p: a.p + x.p * x.q, kc: a.kc + x.kc * x.q }), { p: 0, kc: 0 });
+      const name = plate.map((x) => (x.q > 1 ? `${x.q} ${x.n}` : x.n)).join(', ').slice(0, 60);
+      afterPlan(planSlot(SLOT, { name, protein: sum.p, kcal: sum.kc, source: 'search' }));
     });
 
     // "Clear" was rendered but never wired (router only wires data-go/data-act at render
@@ -183,13 +189,13 @@ export const labelScan = {
     const allergies = (RT.allergies || []).filter(Boolean);
     const numField = 'width:100%;height:52px;border-radius:var(--r-card-sm);background:var(--surface-1);border:1.5px solid var(--hairline);color:var(--text);font-size:17px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums';
     return `
-    ${backHead('Enter the label', 'Type the numbers straight off the panel. Exact, never estimated', 'camera')}
+    ${backHead('Plan from a label', 'Type the numbers off the panel. Snap it when you eat to log it.', 'camera')}
 
     ${allergies.length ? `
     <div class="sidebox" style="border-color:var(--amber-border);background:rgba(var(--amber-rgb),0.08)">
       <div class="req-icon a s38" style="color:var(--amber-bright)">${icon('bell', 17)}</div>
       <div><div class="tt">Check it against your restrictions</div>
-      <div class="ts">You flagged ${esc(allergies.join(', '))}. Read the ingredients before you log this.</div></div>
+      <div class="ts">You flagged ${esc(allergies.join(', '))}. Read the ingredients before you eat this.</div></div>
     </div>
     <div style="height:14px"></div>` : ''}
 
@@ -203,7 +209,7 @@ export const labelScan = {
       </div>
     </section>
 
-    <h2 class="eyebrow">Servings you ate</h2>
+    <h2 class="eyebrow">Servings you’ll eat</h2>
     <div class="chip-row" id="serv" data-toggle-group>
       <span class="chip on" data-m="1">1</span>
       <span class="chip" data-m="1.5">1.5</span>
@@ -221,7 +227,7 @@ export const labelScan = {
     <div id="ls-err" style="color:var(--red-bright);font-size:13px;font-weight:600;min-height:18px;margin-top:12px;text-align:center"></div>
     ${!slot
       ? `<button class="btn ghost" data-back="home">All meals logged · Done</button>`
-      : `<button class="btn green" id="ls-log">${icon('check', 19)} Add to ${slotName}</button>`}
+      : `<button class="btn primary" id="ls-log">${icon('check', 19)} Plan for ${esc(slotName)}</button>`}
     <div style="height:10px"></div>
     `;
   },
@@ -236,7 +242,7 @@ export const labelScan = {
     if (lsBtn && SLOT) lsBtn.addEventListener('click', () => {
       const val = (id) => Math.max(0, parseFloat(root.querySelector('#' + id).value) || 0);
       const p = val('ls-p'), c = val('ls-c'), f = val('ls-f'), kcalIn = val('ls-kcal');
-      // At least protein or calories must be entered — logging an all-zero label is meaningless.
+      // At least protein or calories must be entered: planning an all-zero label is meaningless.
       ['ls-kcal', 'ls-p'].forEach((id) => { const el = root.querySelector('#' + id); if (el) el.removeAttribute('aria-invalid'); });
       if (p <= 0 && kcalIn <= 0) {
         err.textContent = 'Enter at least the calories or protein from the label.';
@@ -245,11 +251,7 @@ export const labelScan = {
       }
       // If calories were left blank, derive them (Atwater) so the plate still carries energy.
       const kcal = kcalIn > 0 ? kcalIn : (4 * p + 4 * c + 9 * f);
-      window.__act.captureManual(
-        { protein: Math.round(p * mult), carbs: Math.round(c * mult), fat: Math.round(f * mult), kcal: Math.round(kcal * mult) },
-        ['Label entry'], SLOT, 'label');
-      // Same confirm gate as the photo path (WS7): review before it counts.
-      location.hash = '#meal-analysis';
+      afterPlan(planSlot(SLOT, { name: 'Packaged food (from the label)', protein: Math.round(p * mult), kcal: Math.round(kcal * mult), source: 'label' }));
     });
   },
 };
@@ -308,7 +310,7 @@ export const barcodeScan = {
           <div class="macro"${S.planStyle.showMacros ? '' : ' hidden'}><div class="mv" id="bc-f">0g</div><div class="mk">Fat</div></div>
           <div class="macro"${S.planStyle.showCalories ? '' : ' hidden'}><div class="mv" id="bc-k">0</div><div class="mk">Calories</div></div>
         </div>
-        <h2 class="eyebrow" style="margin-top:14px">How much did you eat?</h2>
+        <h2 class="eyebrow" style="margin-top:14px">How much will you eat?</h2>
         <div class="chip-row" id="bc-grams" data-toggle-group>
           <span class="chip" data-g="50">50g</span>
           <span class="chip on" data-g="100">100g</span>
@@ -318,7 +320,7 @@ export const barcodeScan = {
         <div id="bc-attr" style="font-size:10.5px;font-weight:600;color:var(--text-3);margin-top:12px"></div>
       </section>
       <div style="height:14px"></div>
-      ${slot ? `<button class="btn green" id="bc-log">${icon('check', 19)} Add to ${slotName}</button>`
+      ${slot ? `<button class="btn primary" id="bc-log">${icon('check', 19)} Plan for ${esc(slotName)}</button>`
         : `<button class="btn ghost" data-back="home">All meals logged · Done</button>`}
     </div>
     <div style="height:10px"></div>
@@ -347,8 +349,8 @@ export const barcodeScan = {
           ? `Label serving: ${found.serving} · numbers below are for your ${grams}g`
           : `Numbers below are for your ${grams}g`)
         : (found.serving
-          ? `Label serving: ${found.serving} · logging your ${grams}g`
-          : `Logging your ${grams}g`);
+          ? `Label serving: ${found.serving} · planning your ${grams}g`
+          : `Planning your ${grams}g`);
       root.querySelector('#bc-p').textContent = Math.round((m.protein || 0) * x) + 'g';
       root.querySelector('#bc-c').textContent = Math.round((m.carbs || 0) * x) + 'g';
       root.querySelector('#bc-f').textContent = Math.round((m.fat || 0) * x) + 'g';
@@ -401,12 +403,8 @@ export const barcodeScan = {
     if (logBtn && SLOT) logBtn.addEventListener('click', () => {
       if (!found) return;
       const m = found.per100 || {}, x = grams / 100;
-      window.__act.captureManual({
-        protein: (m.protein || 0) * x, carbs: (m.carbs || 0) * x,
-        fat: (m.fat || 0) * x, kcal: (m.kcal || 0) * x,
-      }, [`${found.name} (${grams}g)`], SLOT, 'label');
       stop();
-      location.hash = '#meal-analysis';   // same confirm gate as every other path (WS7)
+      afterPlan(planSlot(SLOT, { name: `${found.name} (${grams}g)`, protein: (m.protein || 0) * x, kcal: (m.kcal || 0) * x, source: 'barcode' }));
     });
 
     if (video && 'BarcodeDetector' in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {

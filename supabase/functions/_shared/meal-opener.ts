@@ -202,6 +202,16 @@ function askOf(item: UncertainItem | null): OpenerAsk | null {
   return food ? { food, aspect: item.aspect } : null;
 }
 
+/**
+ * The per-meal protein share the day sentence quotes: "Land around 45g at each of your last 3
+ * meals". Rounded to 5g, never under 5. Exported (2026-09-25) because Plan > Today quotes the
+ * same number for the next meal slot (proto plan-today-model.js perMealShare), and the thread and
+ * the plan must never disagree; plan-today.test.mjs pins the two together.
+ */
+export function perMealProtein(gap: number, remaining: number): number {
+  return Math.max(5, Math.round(gap / remaining / 5) * 5);
+}
+
 export type OpenerContext = {
   planStyle?: PlanStyle | null;
   /** null when the deadline is unknown; true = logged past it. */
@@ -288,7 +298,7 @@ export function composeOpener(input: MealInput, ctx: OpenerContext = {}): { text
     } else if (remaining !== null && remaining > 1) {
       // "~60g at each of your next two meals" — the decision, pre-computed. Rounded to 5g:
       // a coach says "around 60", never "58.5".
-      const per = Math.max(5, Math.round(gap / remaining / 5) * 5);
+      const per = perMealProtein(gap, remaining);
       parts.push(`==Land around **${per}g of protein** at each of your last ${remaining} meals== and you'll hit today's target without forcing the last one.`);
     } else if (remaining === 1) {
       parts.push(`One meal left. ==Bring it in around **${gap}g of protein**== and the day closes out.`);

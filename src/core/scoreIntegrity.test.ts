@@ -435,3 +435,21 @@ describe('the coach-assigned morning as a ceiling slot (0232)', () => {
     }
   });
 });
+
+/* Plan > Today (goals and eating plan A1, 2026-09-25) stores what the athlete PLANS to eat in
+   days.checkin.plans. A plan is not food: it must never unlock nutrition evidence, and no
+   ceiling may move for a row that carries one. */
+describe('checkin.plans is never evidence', () => {
+  const plans = { dinner: { name: 'Chicken burrito bowl', protein: 60, kcal: 900, source: 'usual', at: '2026-09-25T18:00:00Z' } };
+  it('a row with only a plan unlocks nothing', () => {
+    expect(evidenceFromDayRow({ date: V3, meals: {}, checkin: { plans } })).toEqual(evidenceFromDayRow({ date: V3, meals: {}, checkin: {} }));
+    expect(evidenceFromDayRow({ date: V3, meals: {}, checkin: { plans } }).nutritionPossible).toBe(false);
+  });
+  it('a plan moves no ceiling on any real day', () => {
+    for (const date of [V1, V2, V3]) {
+      const row = { date, meals: { breakfast: true }, checkin: { submitted: true, slotMacros: { breakfast: { protein: 40 } } } };
+      expect(evidenceScoreCeiling(evidenceFromDayRow({ ...row, checkin: { ...row.checkin, plans } }), date))
+        .toBe(evidenceScoreCeiling(evidenceFromDayRow(row), date));
+    }
+  });
+});

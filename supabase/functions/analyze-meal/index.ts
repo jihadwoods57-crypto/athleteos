@@ -62,6 +62,8 @@ import { checkSpend, spendMessage, EST_USD } from '../_shared/spend-gate.ts';
 import { clientIpFrom } from '../_shared/client-ip.ts';
 import { trackAuthedAiSpend } from '../_shared/ai-tier-budget.ts';
 import { missingConsent, consentSkipBody } from '../_shared/ai-consent.mjs';
+// The meal the athlete PLANNED for this slot (Plan > Today, 2026-09-25): a naming hint only.
+import { plannedMealLine } from '../_shared/planned-meal.mjs';
 
 // Per-surface override first (see meal-chat): vision is the expensive surface and should be
 // tunable without moving every other AI call in the product.
@@ -355,6 +357,10 @@ interface AnalyzeReq {
   mealId?: string;
   /** The athlete's review-step note: what the camera can't see (oil, sauce, refills). */
   athleteNote?: string;
+  /** What the athlete PLANNED for this slot on Plan > Today (2026-09-25). Only `name` is read, and
+   *  only when there is a photo: it helps name foods the photo shows and never adds one it does not
+   *  (_shared/planned-meal.mjs). Absent on older builds, which keeps the prompt byte-identical. */
+  plannedMeal?: { name?: string };
   /** Who is eating (2026-09-02): sport, position, level, bodyweight (lb), and today's
    *  training/rest type from the team week pattern. CLIENT-sent from the hydrated profile,
    *  sanitized in _shared/athlete-context.ts before one line of it reaches the prompt. Absent
@@ -863,7 +869,7 @@ function userContent(req: AnalyzeReq, photoMime: string): unknown[] {
   }
   blocks.push({
     type: 'text',
-    text: `${goal}${athlete} Meal slot: ${req.mealType}.${desc}${an}${timing}${day}${earlier} Analyze the meal${req.photoBase64 ? ' in the photo' : ' (no photo provided; infer a typical ' + req.mealType.toLowerCase() + ')'} and report it.${qa}${slot}${avoid}${memory}${dossier}`,
+    text: `${goal}${athlete} Meal slot: ${req.mealType}.${desc}${an}${plannedMealLine(req.plannedMeal, !!req.photoBase64)}${timing}${day}${earlier} Analyze the meal${req.photoBase64 ? ' in the photo' : ' (no photo provided; infer a typical ' + req.mealType.toLowerCase() + ')'} and report it.${qa}${slot}${avoid}${memory}${dossier}`,
   });
   return blocks;
 }

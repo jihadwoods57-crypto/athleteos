@@ -91,12 +91,11 @@ describe('a photo capture lands on the slot it was captured for', () => {
     }
   });
 
-  test('a manual log with no photo still uses the open-slot redirect it was written for', () => {
-    // No capture at all — logDinner()/day0Meal() style. nextOpenSlot's behaviour is correct here
-    // and must survive the fix.
+  test('a log with no photo is refused: the camera is the only way to log (founder rule, 2026-09-25)', () => {
+    // No capture at all: the old logDinner()/day0Meal() shape, and every manual/label/memory
+    // staging that used to reach here. Search, labels, barcodes and saved meals PLAN a meal now.
     act.clearMeal();
-    act.logMeal('dinner');
-    expect(DAY.meals.dinner).toBe(true);
-    expect(mealDetail('dinner').pending).toBe(false); // nothing to wait for
+    expect(act.logMeal('dinner')).toBe(false);
+    expect(DAY.meals.dinner).toBe(false);
   });
 });

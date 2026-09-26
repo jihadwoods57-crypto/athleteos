@@ -44,7 +44,14 @@ import { loadAthleteDossier, renderDossier } from '../_shared/athlete-dossier.mj
 // a turn and this function's refusal to spend one are the SAME decision, not two that agree.
 import { gateVerdict } from './addressing-gate.mjs';
 import { loadVoiceForAthlete } from '../_shared/coach-voice-load.ts';
-import { SUGGEST_MEAL_TOOL, parseSuggestMeal, suggestRowText, suggestRowMeta } from './suggest.mjs';
+import {
+  SUGGEST_MEAL_TOOL, parseSuggestMeal, suggestRowText, suggestRowMeta,
+  PLAN_IDEAS_TOOL, PLAN_IDEAS_SYSTEM, planIdeasRequest, planIdeasUserText, parsePlanIdeas,
+} from './suggest.mjs';
+// Food preferences (0250): the SAME sanitizer the Plan screen saves through (a byte-identical copy
+// of proto js/food-prefs.js; `npm run lint:mirror`).
+import { cleanFoodPrefs, prefsKey, avoidWords } from '../_shared/food-prefs.mjs';
+import { avoidFromFacts } from '../_shared/memory.ts';
 // WHAT THE AI CAN SEE IN THE THREAD (2026-09-22): recent photos read out of meal_comments by this
 // function, the label-basis food shape, and the grounding rule for a coach-requested addition.
 import {
@@ -431,7 +438,7 @@ Rules that bind you:
    what to eat for a slot, or how to hit or close a protein or calorie target, and the
    suggest_meal tool is available, call it INSTEAD of reply. The app fills the bubble with up to
    three of their OWN saved usual meals (the "usualMeals" list in the context is what it draws
-   from) that fit what is left of the day, each one tap from being logged. You write the framing
+   from) that fit what is left of the day, each one tap from being planned (a photo logs it). You write the framing
    line and a fallback sentence only; you never pick the meals yourself and never invent a food.
    Use it ONLY when they ask what to eat or how to hit a target, never unprompted, never as an
    aside to a different question, and never when the question is really a correction, a medical
@@ -547,6 +554,7 @@ function bad(status: number, error: string, cors: Record<string, string>) {
   return new Response(JSON.stringify({ error }), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
 }
 
+
 Deno.serve(async (req) => {
   const cors = corsFor(req);
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
@@ -559,6 +567,8 @@ Deno.serve(async (req) => {
     if (rateLimited(req)) return bad(429, 'limit', cors);
 
     const body = await req.json().catch(() => null);
+    // Plan > Today's ideas: no meal, no thread. Its own door, before anything below asks for one.
+    if (body?.planIdeas && typeof body.planIdeas === 'object') return await planIdeasTurn(req, body.planIdeas, cors);
     const mealId = body?.mealId;
     // Coach-support mode (WS4d, founder-ratified 2/3/1): after the coach comments, the AI may
     // add AT MOST ONE short supporting message per meal — and only when the coach's message is
@@ -1534,3 +1544,108 @@ ${memBlock}` : composedSystem, cache_control: { type: 'ephemeral' } }],
     return bad(503, 'unavailable', cors);
   }
 });
+
+/* PLAN IDEAS (goals and eating plan, phase A1, 2026-09-25). Plan > Today asks for up to three
+   ideas for the athlete's next meal slot when their own usuals do not fill the list. No meal,
+   no thread and nothing persisted to one: the caller asks for THEMSELVES and nobody else.
+
+   Order matters and is the cost story: the cache is read FIRST (a hit is free and never touches
+   the model, the cap or the consent read), then consent, then the per-athlete daily cap, then the
+   dollar ceiling, then exactly one forced-tool call that is recorded in ai_calls. The allergy,
+   intolerance and dislike filter runs AFTER the model, deterministically. */
+const PLAN_IDEAS_CAP = Math.max(1, Math.floor(Number(Deno.env.get('PLAN_IDEAS_DAILY_CAP') ?? '8')) || 8);
+
+async function planIdeasTurn(req: Request, raw: unknown, cors: Record<string, string>): Promise<Response> {
+  const json = (o: unknown) => new Response(JSON.stringify(o), { headers: { ...cors, 'Content-Type': 'application/json' } });
+  const ask = planIdeasRequest(raw, new Date().toISOString().slice(0, 10));
+  if (!ask) return bad(400, 'bad_request', cors);
+  const userClient = createClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+    global: { headers: { Authorization: req.headers.get('authorization') ?? '' } },
+  });
+  const { data: userData } = await userClient.auth.getUser();
+  const uid = userData?.user?.id;
+  if (!uid) return bad(401, 'unauthorized', cors);
+  const service = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+
+  // The athlete's stored preferences. Read here, never taken from the request, so the cache key
+  // and the prompt always describe what is actually saved. Before 0250 the column does not exist
+  // and the read errors: that is "no preferences", not a failure.
+  let prefs = cleanFoodPrefs(null);
+  try {
+    const { data, error } = await service.from('profiles').select('food_prefs').eq('id', uid).maybeSingle();
+    if (!error && data) prefs = cleanFoodPrefs((data as { food_prefs?: unknown }).food_prefs);
+  } catch { /* no preferences */ }
+  const key = prefsKey(prefs);
+
+  // 1. The cache. One row per athlete, day and slot; a row built for other preferences is stale.
+  try {
+    const { data: hit } = await service.from('plan_ideas').select('ideas, prefs_key')
+      .eq('athlete_id', uid).eq('day_date', ask.dayDate).eq('slot', ask.slot).maybeSingle();
+    if (hit && hit.prefs_key === key && Array.isArray(hit.ideas)) return json({ ideas: hit.ideas, cached: true, key });
+  } catch { /* no cache table yet: fall through to one paid call */ }
+
+  // 2. AI consent (0243). The request carries the athlete's profile facts to the model.
+  const missing = await missingConsent(service, [uid]);
+  if (missing !== null) return json(consentSkipBody('you'));
+
+  // 3. Caps: calls per athlete per day, then money. Both before the model.
+  if (!(await withinKeyCap(`plan_ideas:${uid}`, PLAN_IDEAS_CAP))) return bad(429, 'limit', cors);
+  const spend = await checkSpend(EST_USD.text);
+  if (!spend.allowed) {
+    console.log(JSON.stringify({ evt: 'ai_spend_block', fn: 'meal-chat:plan_ideas', reason: spend.reason }));
+    return bad(429, 'capacity', cors);
+  }
+  void trackAuthedAiSpend(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, uid, 'meal-chat');
+
+  // Who they are (goal, standard, allergies as hard constraints, the minor rule) and what the
+  // app has learned, both for the caller's OWN record.
+  const [facts, style, mem] = await Promise.all([
+    loadAthleteDossier(service, uid, { isSelf: true, weightClient: userClient, dayDate: ask.dayDate }),
+    loadPlanStyleForAthlete(service, uid),
+    (async () => ((await flagOn(service, 'ai_memory', { userId: uid }))
+      ? await loadMemoryForAthlete(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!, uid) : []))().catch(() => []),
+  ]);
+  const planStyle: PlanStyle | null = style?.style ?? null;
+  const dossier = renderDossier(facts, { viewer: 'self', planStyle, positionWords });
+  // Allergies, intolerances and confirmed allergy/dislike facts, each carrying its category's
+  // members ("Dairy" is yogurt and cheese too), then the dislikes. food-prefs.mjs, shared.
+  const avoid = avoidWords(prefs, facts?.restrictions ?? null, avoidFromFacts(mem));
+
+  const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
+  const t0 = Date.now();
+  let msg: Anthropic.Message;
+  try {
+    msg = await anthropic.messages.create({
+      model: MODEL,
+      max_tokens: 400,
+      system: [{ type: 'text', text: composeSystem(`${NIA_IDENTITY} ${NIA_HONESTY}\n\n${PLAN_IDEAS_SYSTEM}`, '', planStyle), cache_control: { type: 'ephemeral' } }],
+      tools: [PLAN_IDEAS_TOOL] as unknown as Anthropic.Tool[],
+      tool_choice: { type: 'tool', name: 'plan_ideas' },
+      messages: [{ role: 'user', content: planIdeasUserText(ask, { prefs, dossier, memory: memoryBlock(mem) }) }],
+    });
+  } catch (e) {
+    await recordAiCall({ fn: 'meal-chat', mode: 'plan_ideas', userId: uid, model: MODEL, latencyMs: Date.now() - t0, ok: false, errorCode: 'upstream_error' });
+    console.log(JSON.stringify({ evt: 'plan_ideas_failed', error: String((e as Error)?.message ?? e).slice(0, 200) }));
+    return bad(503, 'unavailable', cors);
+  }
+  const tool = msg.content.find((b) => b.type === 'tool_use') as { input?: unknown } | undefined;
+  const ideas = parsePlanIdeas(tool?.input, { avoid });
+  await recordAiCall({
+    fn: 'meal-chat', mode: 'plan_ideas', userId: uid, model: msg.model ?? MODEL, ...usageFrom(msg.usage),
+    latencyMs: Date.now() - t0, ok: true, outcome: ideas.length ? 'ideas_returned' : 'ideas_empty',
+  });
+
+  // Keep it, so the next open of Plan is free, and drop this athlete's rows older than a week.
+  // An EMPTY answer is never kept (review 2026-09-25): a later open may ask again, within the cap.
+  if (ideas.length) {
+    try {
+      await service.from('plan_ideas').upsert(
+        { athlete_id: uid, day_date: ask.dayDate, slot: ask.slot, prefs_key: key, ideas, created_at: new Date().toISOString() },
+        { onConflict: 'athlete_id,day_date,slot' },
+      );
+      const weekAgo = new Date(Date.parse(`${ask.dayDate}T12:00:00Z`) - 7 * 86400000).toISOString().slice(0, 10);
+      await service.from('plan_ideas').delete().eq('athlete_id', uid).lt('day_date', weekAgo);
+    } catch { /* the ideas still go back; the next open pays once more */ }
+  }
+  return json({ ideas, cached: false, key });
+}

@@ -41,6 +41,10 @@ const PAIRS = [
   // tampered client cannot buy itself a turn. Two answers to one question is not a fix, so the
   // decision is one file, copied. Drift here means the AI speaks when the app said it should not.
   ['proto/redesign-2026-07/js/ai-addressing.js', 'supabase/functions/_shared/ai-addressing.mjs'],
+  // WHAT THE ATHLETE PREFERS TO EAT (0250). The Plan screen saves and filters with the proto file;
+  // meal-chat's plan ideas read the stored value through the copy. Drift here means the prompt and
+  // the screen disagree about what the athlete said, or a dislike filtered on one side only.
+  ['proto/redesign-2026-07/js/food-prefs.js', 'supabase/functions/_shared/food-prefs.mjs'],
 ];
 
 /** Line endings are not drift: git normalises them on this repo and the compiler does not care. */
