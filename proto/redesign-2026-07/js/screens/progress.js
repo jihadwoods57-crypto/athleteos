@@ -17,6 +17,8 @@ import { MONTHS_SHORT } from '../fmt-date.js';
    and the Premium pill on Monthly report (its numbers are free; only the written review is paid,
    pricing.js MEMBERSHIP_ADDS). */
 
+let WW = null;   // what-works.js, once it has landed
+
 /* A score number in its tier colour; below 60 stays neutral on the athlete's own history. */
 const ink = (v) => { const c = tierFor(v).cls; return c === 'r' ? '' : ` tier-ink ${c}`; };
 const shortDate = (key) => { const [, m, d] = String(key).split('-').map(Number); return `${MONTHS_SHORT[m - 1]} ${d}`; };
@@ -211,7 +213,8 @@ export default {
     // A trainer's client is chasing a body outcome, so their page leads with it; a team athlete
     // leads with the week. Same sections, reordered.
     const isClient = S.audience === 'client';
-    const score = `${weekCard(P)}${weeksCard(P.read)}${statStrip(P)}${movingSection()}`;
+    // What works for you (A2): lazy, drawn into #ww-slot; inline once the module has landed.
+    const score = `${weekCard(P)}${weeksCard(P.read)}${statStrip(P)}${movingSection()}<div id="ww-slot">${WW ? WW.worksHtml() : ''}</div>`;
     return `
     <h1 class="screen-title">Progress</h1>
     ${isClient ? bodySection() + score : score + bodySection()}
@@ -220,7 +223,14 @@ export default {
     `;
   },
 
-  mount() {
+  mount(root) {
+    if (!WW) {
+      import('../what-works.js').then((m) => {
+        WW = m;
+        const slot = root && root.isConnected && root.querySelector('#ww-slot');
+        if (slot) slot.innerHTML = m.worksHtml();
+      }, () => {});
+    }
     // One-line spotlight the first time someone opens Progress (the main tour never covers this
     // screen). Lazy: the tour runs once per account, so it stays out of the boot graph.
     import('../tour.js').then((T) => T.maybeShowTip('tip:progress', {

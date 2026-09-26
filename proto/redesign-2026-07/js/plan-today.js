@@ -180,7 +180,8 @@ function ring(fr, planned) {
   </svg>`;
 }
 
-function plate() {
+/** The plate graphic (A1 hero; A2's "Why this plate" draws the same one). */
+export function plate() {
   // Half the plate vegetables (right), a quarter protein (top left), a quarter carbs (bottom left).
   return `<svg class="pt-plate-svg" viewBox="0 0 120 120" width="112" height="112" aria-hidden="true">
     <circle class="pt-plate-rim" cx="60" cy="60" r="56"/>
@@ -205,7 +206,8 @@ function goalHtml(PS) {
 
 function heroHtml(ctx) {
   const { PS, T, numbers } = ctx;
-  const why = `<button type="button" class="pt-why" id="pt-why">${numbers ? 'Why these numbers' : 'Why this plate'}${icon('chevron', 13)}</button>`;
+  // A2: its own screen (screens/plan-why.js), the real targets explained. Not the goal panel.
+  const why = `<button type="button" class="pt-why" id="pt-why" data-go="plan-why">${numbers ? 'Why these numbers' : 'Why this plate'}${icon('chevron', 13)}</button>`;
   if (!numbers) {
     return `<section class="pt-hero" aria-label="How to build a plate">
       <div class="pt-hero-art">${plate()}</div>
@@ -419,7 +421,7 @@ async function askNia(slot) {
 const repaint = () => { if (/^#plan(\/|$)/.test(location.hash)) window.__render(); };
 
 /** Wire Today's taps and start Nia's ideas for the up-next slot when the usuals leave room. */
-export function wireToday(root, { openGoal } = {}) {
+export function wireToday(root) {
   const pane = root.querySelector('.ptd');
   if (!pane) return;
   pane.addEventListener('click', (e) => {
@@ -428,7 +430,6 @@ export function wireToday(root, { openGoal } = {}) {
     const idea = t.closest('[data-pt-idea]');
     const card = t.closest('[data-pt-slot]');
     if (idea && card) { PICK[card.dataset.ptSlot] = idea.dataset.ptIdea; repaint(); return; }
-    if (t.closest('#pt-why')) { if (openGoal) openGoal(); return; }
     if (t.closest('#pt-ask') && card) { void askNia(card.dataset.ptSlot); return; }
     if (t.closest('#pt-change') && card) {
       setPlan(card.dataset.ptSlot, null);

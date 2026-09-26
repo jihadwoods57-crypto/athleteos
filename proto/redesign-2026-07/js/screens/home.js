@@ -1210,6 +1210,19 @@ onLaunchDrop(() => {
   for (const k of Object.keys(SHOWN)) delete SHOWN[k];
 });
 
+/* This week's focus + the Sunday recap (A2): lazy, drawn into #wf-slot. Once the module has landed
+   every render draws it inline, so the 30s tick never flashes the card away and back. */
+let WF = null;
+const focusSlot = () => `<div id="wf-slot">${WF ? WF.focusHtml() : ''}</div>`;
+function paintFocus(root) {
+  if (WF) { WF.wireFocus(root); return; }
+  import('../weekly-focus.js').then((m) => {
+    WF = m;
+    const slot = root.isConnected && root.querySelector('#wf-slot');
+    if (slot) { slot.innerHTML = m.focusHtml(); m.wireFocus(root); }
+  }, () => {});
+}
+
 /** Test seam (src/core/protoLaunchRace.test.ts): the three fetches that write the launch cache
  *  and the module state they write, so a sign-out or account switch mid-flight can be proven. */
 export const homeFetchesForTest = {
@@ -1284,6 +1297,7 @@ export default {
       ${lateRows.length ? `<h2 class="xgrp">${e.decided ? 'Missed today' : 'Late · still counts'}</h2>${lateRows.map((i) => row(i)).join('')}` : ''}
       ${upcoming.length ? `<h2 class="xgrp">Upcoming</h2>
       <div class="xgroup">${upcoming.map((i) => grow(i, { hidePill: i.state === 'locked' })).join('')}</div>` : ''}
+      ${focusSlot()}
       <h2 class="eyebrow">Recent Results</h2>
       ${emptyState({
     icon: 'camera',
@@ -1308,6 +1322,7 @@ export default {
       ${receiptHtml(wakeupReceipt(VC.today().find((i) => i.type === WAKEUP_TYPE) || null, RT.userId), esc, Math.round(WAKEUP_SHIFT * 100))}
       <div id="reply-row"></div>
       <div id="rn-home"></div>
+      ${focusSlot()}
       ${recentResults()}
       <div style="height:20px"></div>`;
     }
@@ -1368,6 +1383,7 @@ export default {
     ${laterHtml}
     ${doneHtml}
     ${demoted}
+    ${focusSlot()}
     ${recentResults()}
     <div style="height:20px"></div>`;
   },
@@ -1495,6 +1511,7 @@ export default {
       d.addEventListener('toggle', () => act.setHomeSection(d.getAttribute('data-sec'), d.open));
     });
     paintSeen(root, true, arriving);
+    paintFocus(root);
     // Live loop: re-render when the derived state changes (minute ticks, state
     // transitions, day rollover). Cheap: derive → compare → maybe render. The router
     // clears window.__execTick on every route change.

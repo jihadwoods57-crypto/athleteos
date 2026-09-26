@@ -766,17 +766,13 @@ export default {
     if (goalBtn) goalBtn.addEventListener('click', () => { GOAL_OPEN = !GOAL_OPEN; window.__restate(); });
 
     // Today and the food preferences arrive lazily (loadToday). The first mount loads them and
-    // repaints once; every later mount just wires them. "Why these numbers" opens the goal panel.
+    // repaints once; every later mount just wires them. "Why these numbers" is its own screen (A2).
     if (!TODAY) {
       await loadToday().catch(() => null);
       if (TODAY && root.isConnected && /^#plan(\/|$)/.test(location.hash)) { window.__render(); return; }
     }
     if (TODAY) {
-      TODAY.wireToday(root, { openGoal: () => {
-        GOAL_OPEN = true; window.__restate();
-        const vp = root.closest('.viewport');
-        if (vp) vp.scrollTo({ top: 0, behavior: 'smooth' });
-      } });
+      TODAY.wireToday(root);
       TODAY.wirePrefs(root);
       if (!PREFS_SYNCED) {
         PREFS_SYNCED = true;
