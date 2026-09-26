@@ -11,6 +11,7 @@
    pricing by forgetting to inject it. */
 import { priceAddedFood, priceFoodAtQuantity, servingsFor } from './nutrition.js';
 import { MEAL_QUALITY_GOOD, MEAL_QUALITY_OK } from './score-band.js';
+import { RESTRICTION_SYNONYMS } from './food-prefs.js';
 
 const clean = (v) => String(v == null ? '' : v).replace(/[<>]/g, '').slice(0, 200);
 
@@ -800,19 +801,11 @@ export function restrictionConflicts(detectedNames, restrictions) {
   const r = restrictions && typeof restrictions === 'object' ? restrictions : {};
   const foods = (Array.isArray(detectedNames) ? detectedNames : [])
     .map((f) => String(f && f.name != null ? f.name : f).toLowerCase());
-  // Common-ingredient synonyms so category restrictions catch their obvious members
-  // ("Dairy" hits milk/cheese; "Tree nuts" hits almonds). Deliberately modest — this is
-  // name-level matching, and the UI copy never claims it's complete.
-  const SYNONYMS = {
-    dairy: ['milk', 'cheese', 'yogurt', 'butter', 'cream', 'whey'],
-    gluten: ['bread', 'pasta', 'wheat', 'flour', 'toast', 'bun', 'tortilla', 'cracker'],
-    'tree nuts': ['almond', 'walnut', 'cashew', 'pecan', 'pistachio', 'hazelnut'],
-    shellfish: ['shrimp', 'crab', 'lobster', 'scallop', 'clam', 'oyster', 'mussel'],
-    fish: ['salmon', 'tuna', 'tilapia', 'cod', 'trout'],
-    eggs: ['egg', 'omelet', 'omelette', 'frittata'],
-    soy: ['tofu', 'edamame', 'soy'],
-    wheat: ['bread', 'pasta', 'flour', 'toast'],
-  };
+  // Common-ingredient synonyms so category restrictions catch their obvious members ("Dairy"
+  // hits milk/cheese; "Tree nuts" hits almonds). ONE map, shared with Plan's ideas and meal-chat's
+  // plan ideas (food-prefs.js RESTRICTION_SYNONYMS, mirrored to the edge), so "Dairy" means the
+  // same foods everywhere. Name-level matching; the UI copy never claims it is complete.
+  const SYNONYMS = RESTRICTION_SYNONYMS;
   // A restriction matches when any detected food contains its stem or a known synonym
   // ("peanuts" → "peanut butter"; "Dairy" → "milk").
   const hit = (name) => {

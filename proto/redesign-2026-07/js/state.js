@@ -1050,7 +1050,7 @@ const ANALYSIS_TIMEOUT_MS = 45_000;
  *  an error: the meal is logged either way. */
 export const AI_OFF_LINE = 'Nia is off, so this meal has no numbers. It still counts as proof and for timing.';
 
-function invokeWithDeadline(name, body, ms = ANALYSIS_TIMEOUT_MS) {
+export function invokeWithDeadline(name, body, ms = ANALYSIS_TIMEOUT_MS) {
   const sb = window.sb;
   if (!sb) return Promise.resolve({ data: null, error: { message: 'offline' } });
   let timer = null;

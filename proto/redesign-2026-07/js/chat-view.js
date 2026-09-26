@@ -353,8 +353,8 @@ export function pickLabel(p) {
 /** The bubble body. Picks render as tap targets on `[data-fm-plan]`: a tap PLANS the meal for the
  *  next open slot (plan-today.js planSavedMeal, the same DAY.plans door Plan > Today uses) and never
  *  logs it, because no meal is logged without a photo (founder rule, 2026-09-25). Once one of the
- *  picks is a slot's plan (`planned`, from plan-today.js plannedPick) the chips give way to the
- *  confirmation and a camera button on `[data-fm-snap]`. With no fitting pick the fallback sentence
+ *  picks is a slot's plan (`planned`, from plan-today.js plannedPick) the chips go and the bubble is
+ *  her framing alone; the screen draws plannedLineHtml BELOW it. With no fitting pick the fallback sentence
  *  stands in, so the bubble is never a framing line over nothing. `esc` is passed in like
  *  memoryOfferChips takes it. */
 export function mealSuggestHtml(sug, picks, esc, planned = null) {
@@ -365,13 +365,20 @@ export function mealSuggestHtml(sug, picks, esc, planned = null) {
      "**180g**" (founder's iPhone, 2026-09-24): the what-to-eat reply is the only AI row that
      never reached richText. */
   if (!list.length) return richText(sug.framing === sug.fallback ? sug.framing : `${sug.framing} ${sug.fallback}`, esc);
-  if (planned && planned.slot) {
-    const t = String(planned.title || planned.slot).toLowerCase();
-    return `${richText(sug.framing, esc)}<div class="fq-planned"><span>${esc(`Planned for ${t}. Snap it when you eat.`)}</span>
-      <button type="button" class="fx-chip fq-snap" data-fm-snap="${esc(planned.slot)}">${icon('camera', 15)}Snap ${esc(t)}</button></div>`;
-  }
+  // Planned: Nia's bubble keeps only her own words. What the app did is plannedLineHtml, drawn
+  // BELOW the bubble by the screen (review 2026-09-25: scripted text never rides in her bubble).
+  if (planned && planned.slot) return richText(sug.framing, esc);
   return `${richText(sug.framing, esc)}<div class="fq-chips">${list.map((p) =>
     `<button type="button" class="fx-chip" data-fm-plan="${esc(p.id)}">${esc(pickLabel(p))}</button>`).join('')}</div>`;
+}
+
+/** The app's own line UNDER a suggestion bubble once one of its picks is planned: where it went and
+ *  the camera. An app line, muted, outside every Nia bubble; '' when nothing is planned. */
+export function plannedLineHtml(planned, esc) {
+  if (!planned || !planned.slot) return '';
+  const t = String(planned.title || planned.slot).toLowerCase();
+  return `<div class="fq-planrow" role="status"><span>${esc(`Planned for ${t}. Snap it when you eat.`)}</span>
+    <button type="button" class="fx-chip fq-snap" data-fm-snap="${esc(planned.slot)}">${icon('camera', 15)}Snap ${esc(t)}</button></div>`;
 }
 
 /**

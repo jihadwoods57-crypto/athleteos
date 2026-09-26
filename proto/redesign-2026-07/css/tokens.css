@@ -85,6 +85,9 @@
      places before this and defined nowhere. No light override: it is a fill endpoint
      that holds on both canvases. */
   --teal-deep:   #0E7490;
+  /* The plate's VEGETABLES only (Plan > Today, intuitive): a muted sage, deliberately not a green,
+     because green means status here. 7.4:1 on the dark canvas; the light theme deepens it. */
+  --sage:        #8DA682;
 
   --green-deep:  #16A34A;
   --amber-deep:  #D97706;
@@ -269,6 +272,7 @@
    data-theme from the athlete's choice (Dark / Light / System). Semantic hues shift to
    their deep variants so text-weight color holds AA on white. */
 :root[data-theme="light"] {
+  --sage:        #62805B;   /* plate vegetables; 4.2:1 on --bg */
   color-scheme: light;
   --bg:            #F8FAFC;
   --bg-grad-top:   #EFF4FA;

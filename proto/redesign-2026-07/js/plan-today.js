@@ -12,7 +12,7 @@
  * The rules live in plan-today-model.js (tested in Node). This file reads the live day, draws, and
  * wires taps. Every figure it prints sits behind its own plan-style flag.
  */
-import { S, RT, slotTitle, mealDueState } from './state.js';
+import { S, RT, slotTitle, mealDueState, invokeWithDeadline } from './state.js';
 import { DAY, pushDay, mealScored, slotDeadline, slotGrace, minutesNow } from './day.js';
 import { icon } from './icons.js';
 import { esc, skeletonRows, errorState } from './components.js';
@@ -21,14 +21,14 @@ import { recentRows } from './recent-meals.js';
 import { PREF_FLAGS, PREF_LIST_MAX, cleanFoodPrefs, cleanPrefItem, prefsKey, avoidWords } from './food-prefs.js';
 import {
   slotOrder, buildToday, ringFractions, rankIdeas, ideaMeta, ideaTag, shortName, planHeading,
-  slotTargetLine, goalWords, planFromIdea, readIdeasCache, writeIdeasCache, laterLine,
+  slotTargetLine, goalWords, planFromIdea, readIdeasCache, writeIdeasCache, laterLine, planMeta,
 } from './plan-today-model.js';
 import { aiConsentCached, isConsentSkip, noteAiConsentRequired } from './ai-consent.js';
 
 /* ---------------- module state (survives every repaint, never persisted) ---------------- */
 let PICK = {};                 // slot -> the idea id the athlete selected
 let FOCUS = null;              // a later slot the athlete tapped to plan now
-let NIA = { at: null, state: 'idle', ideas: [] };   // Nia's ideas for `at` = uid|day|slot|prefsKey
+let NIA = { at: null, state: 'idle', ideas: [], retryAt: 0 };   // Nia's ideas for `at` = uid|day|slot|prefsKey
 let PREFS = { uid: null, v: null, note: '' };
 
 const store = () => { try { return window.localStorage; } catch { return null; } };
@@ -264,7 +264,7 @@ function upNextHtml(ctx) {
       <div class="pt-next-h"><span class="pt-slot">${esc(planHeading(slot.key, title))}</span>
         <button type="button" class="pt-change" id="pt-change">Change</button></div>
       <div class="pt-plan-n">${esc(p.name)}</div>
-      <div class="pt-idea-m">${esc([ideaMeta(p, PS), due.label].filter(Boolean).join(' · '))}</div>
+      <div class="pt-idea-m">${esc([planMeta(p, PS), due.label].filter(Boolean).join(' · '))}</div>
       ${snap}
     </section>`;
   }
@@ -359,27 +359,45 @@ export function todayHtml() {
 }
 
 /* ---------------- Nia's ideas: fetched once per athlete, day, slot and prefs ---------------- */
-async function fetchNia(slot, slotTarget) {
+/** How long Plan waits for Nia's ideas before it settles for the usuals alone. */
+export const NIA_DEADLINE_MS = 12_000;
+/** After an empty or failed answer, a later open may ask again, never sooner than this. */
+const NIA_RETRY_MS = 60_000;
+/** Tests only: forget the in-session state. */
+export function _resetNia() { NIA = { at: null, state: 'idle', ideas: [], retryAt: 0 }; }
+
+/**
+ * Start Nia's request for `slot` when one is due and return its promise; null when nothing was
+ * started (a cached answer, AI off, or a request already in flight or answered). THE RENDER LOOP
+ * RULE (review 2026-09-25): only the caller that started a request may repaint, and only once, when
+ * it settles. Marking "loading" and repainting from every wireToday made each render start the next.
+ */
+function startNia(slot, slotTarget) {
   const uid = RT.userId;
   const at = niaKey(slot);
-  if (!uid || NIA.at === at) return false;
+  if (!uid) return null;
+  const retry = (NIA.state === 'empty' || NIA.state === 'error') && Date.now() >= (NIA.retryAt || 0);
+  if (NIA.at === at && !retry) return null;
   const s = store();
+  // A cached answer is already on screen: ideasFor() reads the same cache while NIA is elsewhere.
   const cached = s && readIdeasCache(s, uid, DAY.date, slot, prefsKey(myPrefs()));
-  if (cached) { NIA = { at, state: 'done', ideas: cached }; return true; }
+  if (cached) { NIA = { at, state: 'done', ideas: cached, retryAt: 0 }; return null; }
   // Nia only for someone who said yes to AI (0243). Plan never opens the consent sheet.
-  if (aiConsentCached(uid) !== true || !window.sb) { NIA = { at, state: 'off', ideas: [] }; return false; }
-  NIA = { at, state: 'loading', ideas: [] };
+  if (aiConsentCached(uid) !== true || !window.sb) { NIA = { at, state: 'off', ideas: [], retryAt: 0 }; return null; }
+  NIA = { at, state: 'loading', ideas: [], retryAt: 0 };
   const own = (usuals() || []).slice(0, 5).map((u) => cleanPrefItem(String(u.name || '').slice(0, 60))).filter(Boolean);
-  try {
-    const { data, error } = await window.sb.functions.invoke('meal-chat', {
-      body: { planIdeas: { slot, slotTitle: slotTitle(slot), dayDate: String(DAY.date), proteinTarget: slotTarget.protein || null, kcalTarget: slotTarget.kcal || null, usuals: own } },
-    });
-    if (isConsentSkip(data)) { noteAiConsentRequired(uid); NIA = { at, state: 'off', ideas: [] }; return true; }
+  // A deadline, not a hope: a hung request settles as an error and Today keeps the usuals.
+  return invokeWithDeadline('meal-chat', { planIdeas: {
+    slot, slotTitle: slotTitle(slot), dayDate: String(DAY.date),
+    proteinTarget: slotTarget.protein || null, kcalTarget: slotTarget.kcal || null, usuals: own,
+  } }, NIA_DEADLINE_MS).then(({ data, error }) => {
+    if (NIA.at !== at) return;   // the prefs or the day moved on while it was out
+    if (isConsentSkip(data)) { noteAiConsentRequired(uid); NIA = { at, state: 'off', ideas: [], retryAt: 0 }; return; }
     const ideas = !error && data && Array.isArray(data.ideas) ? data.ideas : [];
-    if (s && !error) writeIdeasCache(s, uid, DAY.date, slot, prefsKey(myPrefs()), ideas);
-    NIA = { at, state: error ? 'error' : 'done', ideas };
-  } catch { NIA = { at, state: 'error', ideas: [] }; }
-  return true;
+    // Never cache an empty answer (review 2026-09-25): a later open may ask again.
+    if (s && ideas.length) writeIdeasCache(s, uid, DAY.date, slot, prefsKey(myPrefs()), ideas);
+    NIA = { at, state: ideas.length ? 'done' : (error ? 'error' : 'empty'), ideas, retryAt: ideas.length ? 0 : Date.now() + NIA_RETRY_MS };
+  }).catch(() => { if (NIA.at === at) NIA = { at, state: 'error', ideas: [], retryAt: Date.now() + NIA_RETRY_MS }; });
 }
 
 /** Ask Nia for more: the nutrition chat with the question already typed, or Plan > Ask for an
@@ -447,8 +465,8 @@ export function wireToday(root, { openGoal } = {}) {
   const own = usuals();
   if (own === null) return;   // Food Memory still loading: ask once it lands, never twice
   if (ideasFor(slot.key, ctx.T.slotTarget).filter((i) => i.source === 'usual').length >= 3) return;
-  void fetchNia(slot.key, ctx.T.slotTarget).then((changed) => { if (changed) repaint(); });
-  if (NIA.state === 'loading') repaint();
+  const pending = startNia(slot.key, ctx.T.slotTarget);
+  if (pending) void pending.then(repaint);
 }
 
 /* ---------------- Plan > Nutrition: food preferences ---------------- */
@@ -477,7 +495,7 @@ export function prefsHtml() {
 export function wirePrefs(root) {
   const box = root.querySelector('#pt-prefs');
   if (!box) return;
-  const save = async (next) => { await writePrefs(cleanFoodPrefs(next)); NIA = { at: null, state: 'idle', ideas: [] }; window.__render(); };
+  const save = async (next) => { await writePrefs(cleanFoodPrefs(next)); _resetNia(); window.__render(); };
   box.addEventListener('click', (e) => {
     const f = e.target.closest && e.target.closest('[data-pref-flag]');
     if (f) { const p = myPrefs(); void save({ ...p, [f.dataset.prefFlag]: !p[f.dataset.prefFlag] }); return; }

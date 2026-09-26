@@ -46,7 +46,7 @@ const { RT, act, MEAL, mealDetail } = await import('./state.js');
 const { DAY } = await import('./day.js');
 const { warmFoodMemory } = await import('./food-memory-data.js');
 const PT = await import('./plan-today.js');
-const { mealSuggestHtml } = await import('./chat-view.js');
+const { mealSuggestHtml, plannedLineHtml } = await import('./chat-view.js');
 const { esc } = await import('./components.js');
 
 const reset = () => {
@@ -88,16 +88,26 @@ test('a chat pick PLANS the next open slot through the same DAY.plans door Today
   assert.equal(PT.planSavedMeal('gone'), null, 'an item that is gone plans nothing');
 });
 
-test('the pick bubble: plan targets, then an in-place confirmation with a camera button', () => {
+test('the pick bubble: plan targets; once planned, the confirmation is an APP line BELOW the bubble', () => {
   const sug = { framing: 'Here is what usually gets you there.', fallback: 'x', proteinGap: 40 };
   const picks = [{ id: 'fm1', name: 'Chicken burrito bowl', protein: 52, kcal: 780 }];
   const before = mealSuggestHtml(sug, picks, esc);
   assert.match(before, /data-fm-plan="fm1"/);
   assert.doesNotMatch(before, /data-fm-log/);
-  const after = mealSuggestHtml(sug, picks, esc, { slot: 'lunch', title: 'Lunch', name: 'Chicken burrito bowl' });
-  assert.match(after, /Planned for lunch\. Snap it when you eat\./);
-  assert.match(after, /data-fm-snap="lunch"/);
-  assert.doesNotMatch(after, /data-fm-plan=/, 'the picks give way to the confirmation');
+  const planned = { slot: 'lunch', title: 'Lunch', name: 'Chicken burrito bowl' };
+  const inBubble = mealSuggestHtml(sug, picks, esc, planned);
+  assert.doesNotMatch(inBubble, /Planned for|data-fm-snap|data-fm-plan=/, "nothing scripted rides inside Nia's bubble");
+  assert.match(inBubble, /Here is what usually gets you there\./);
+  const line = plannedLineHtml(planned, esc);
+  assert.match(line, /^\s*<div class="fq-planrow" role="status">/);
+  assert.match(line, /Planned for lunch\. Snap it when you eat\./);
+  assert.match(line, /data-fm-snap="lunch"/);
+  assert.equal(plannedLineHtml(null, esc), '');
+  for (const f of ['meal.js', 'nutrition-chat.js']) {
+    const src = read('screens', f);
+    assert.match(src, /plannedLineHtml\(/, `${f} draws the line`);
+    assert.doesNotMatch(src, /after: `\$\{offerChips\(c\)\}\$\{planned/, `${f} never puts it in the bubble's after slot`);
+  }
 });
 
 test('plannedPick finds the pick that is this slot\'s plan, and only for a slot still open', () => {

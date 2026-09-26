@@ -55,6 +55,9 @@ const clampN = (v, hi) => {
 };
 const cleanName = (v, max = 60) => String(v == null ? '' : v).replace(/[<>{}[\]]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
 
+/** Where a plan came from: a usual, Nia, or one of the three planning screens. */
+export const PLAN_SOURCES = ['usual', 'nia', 'search', 'label', 'barcode'];
+
 /** One stored plan, re-sanitized on read (the day row is client-written jsonb). null = none. */
 export function cleanPlan(p) {
   if (!p || typeof p !== 'object') return null;
@@ -64,7 +67,7 @@ export function cleanPlan(p) {
     name,
     protein: clampN(p.protein, 500),
     kcal: clampN(p.kcal, 5000),
-    source: p.source === 'nia' ? 'nia' : 'usual',
+    source: PLAN_SOURCES.includes(p.source) ? p.source : 'usual',
     at: typeof p.at === 'string' ? p.at.slice(0, 32) : null,
   };
 }
@@ -115,11 +118,12 @@ export function buildToday({ order, meals = {}, scored, macros = {}, plans = {},
   const open = slots.filter((s) => !s.logged);
   const mealsRemaining = order.required.filter((k) => !isScored(k)).length;
   const focusSlot = focus ? open.find((s) => s.key === focus) : null;
-  // Up next: the first required meal still on time; else the first required meal still open (late
-  // still counts); else, with every required meal in, the optional snack.
+  // Up next: the first required meal still on time; else, with every window passed, the LATEST
+  // required meal still open (dinner at 11 PM, never breakfast; late still counts); else, with
+  // every required meal in, the optional snack.
   const upNext = focusSlot
     || open.find((s) => s.required && !s.late)
-    || open.find((s) => s.required)
+    || [...open].reverse().find((s) => s.required)
     || open[0]
     || null;
   const left = {
@@ -213,6 +217,14 @@ export function ideaMeta(idea, { showMacros, showCalories }) {
   return idea.source === 'usual' ? 'One of your usuals' : 'A new idea';
 }
 
+/** The line under a PLANNED meal: its figures when the style shows them, else "Your plan". */
+export function planMeta(plan, { showMacros, showCalories }) {
+  const bits = [];
+  if (showMacros && plan.protein > 0) bits.push(`${plan.protein}g protein`);
+  if (showCalories && plan.kcal > 0) bits.push(`${plan.kcal} cal`);
+  return bits.length ? bits.join(' · ') : 'Your plan';
+}
+
 /** The tag an idea wears: the first preference it fits, else where it came from (numbers styles
  *  only; an Intuitive athlete's meta line already says it). '' for none. */
 export function ideaTag(idea, numbers) {
@@ -281,11 +293,13 @@ export function readIdeasCache(store, uid, day, slot, key) {
   try {
     const j = JSON.parse(store.getItem(IDEAS_KEY(uid)) || 'null');
     const hit = j && j.day === day && j.slots && j.slots[slot];
-    return hit && hit.key === key && Array.isArray(hit.ideas) ? hit.ideas : null;
+    return hit && hit.key === key && Array.isArray(hit.ideas) && hit.ideas.length ? hit.ideas : null;
   } catch { return null; }
 }
 
 export function writeIdeasCache(store, uid, day, slot, key, ideas) {
+  // An empty answer is never kept: a later open may ask again (within the server's daily cap).
+  if (!Array.isArray(ideas) || !ideas.length) return false;
   try {
     const j = JSON.parse(store.getItem(IDEAS_KEY(uid)) || 'null');
     // Only today is kept: yesterday's ideas are never shown again, so they are never stored.

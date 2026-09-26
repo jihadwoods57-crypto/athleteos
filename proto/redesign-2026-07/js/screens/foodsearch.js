@@ -165,7 +165,7 @@ export const foodSearch = {
       if (!plate.length || !SLOT) return;
       const sum = plate.reduce((a, x) => ({ p: a.p + x.p * x.q, kc: a.kc + x.kc * x.q }), { p: 0, kc: 0 });
       const name = plate.map((x) => (x.q > 1 ? `${x.q} ${x.n}` : x.n)).join(', ').slice(0, 60);
-      afterPlan(planSlot(SLOT, { name, protein: sum.p, kcal: sum.kc, source: 'usual' }));
+      afterPlan(planSlot(SLOT, { name, protein: sum.p, kcal: sum.kc, source: 'search' }));
     });
 
     // "Clear" was rendered but never wired (router only wires data-go/data-act at render
@@ -251,7 +251,7 @@ export const labelScan = {
       }
       // If calories were left blank, derive them (Atwater) so the plate still carries energy.
       const kcal = kcalIn > 0 ? kcalIn : (4 * p + 4 * c + 9 * f);
-      afterPlan(planSlot(SLOT, { name: 'Packaged food (from the label)', protein: Math.round(p * mult), kcal: Math.round(kcal * mult), source: 'usual' }));
+      afterPlan(planSlot(SLOT, { name: 'Packaged food (from the label)', protein: Math.round(p * mult), kcal: Math.round(kcal * mult), source: 'label' }));
     });
   },
 };
@@ -404,7 +404,7 @@ export const barcodeScan = {
       if (!found) return;
       const m = found.per100 || {}, x = grams / 100;
       stop();
-      afterPlan(planSlot(SLOT, { name: `${found.name} (${grams}g)`, protein: (m.protein || 0) * x, kcal: (m.kcal || 0) * x, source: 'usual' }));
+      afterPlan(planSlot(SLOT, { name: `${found.name} (${grams}g)`, protein: (m.protein || 0) * x, kcal: (m.kcal || 0) * x, source: 'barcode' }));
     });
 
     if (video && 'BarcodeDetector' in window && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {

@@ -2513,8 +2513,9 @@ input.wv:focus { border-bottom: 2px solid var(--blue-bright); }
 .fx-vals{padding-top:var(--s3)}
 .fq-chips{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2h)}
 /* A tapped pick PLANS the meal (2026-09-25): the chips give way to where it went and the camera. */
-.fq-planned{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2);margin-top:var(--s2h)}
-.fq-planned > span{font-size:var(--t-sm);font-weight:600;color:var(--text-2);flex-basis:100%}
+/* The app's own line UNDER Nia's bubble (never inside it): muted, aligned to the bubble column. */
+.fq-planrow{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s2);margin:calc(-1 * var(--s1)) 0 var(--s2) calc(var(--s8) + var(--s1))}
+.fq-planrow > span{font-size:var(--t-sm);font-weight:600;color:var(--text-3);flex-basis:100%}
 .fq-snap{display:inline-flex;align-items:center;gap:var(--s1h);color:var(--blue-bright)}
 .mo-ask{margin-top:var(--s2h);padding-top:9px;border-top:1px solid var(--hairline-soft);font-size:var(--t-sm);font-weight:700;color:var(--text-2)}
 
@@ -4396,7 +4397,7 @@ html[data-layout] .rhb-body, html[data-layout] .rhb-acts { max-width: 720px; }
 .pt-rules li { display: flex; align-items: baseline; gap: var(--s2); font-size: var(--t-sm); font-weight: 600; color: var(--text-2); line-height: 1.35; }
 .pt-rules i { flex: none; width: 10px; height: 10px; border-radius: var(--r-pill); transform: translateY(1px); }
 /* The plate's three food groups, each its own hue AND its own lightness (fix round 2026-09-25):
-   protein blue (darkest), vegetables green, carbs amber (lightest), from the semantic tokens, each
+   protein blue (darkest), vegetables a muted sage (never the status green), carbs amber (lightest), each
    at least 3:1 against the page in both themes. The legend dots wear the same three. */
 .pt-rules i.pr { background: var(--pt-plate-pr); }
 .pt-rules i.cb { background: var(--pt-plate-cb); }
@@ -4469,8 +4470,8 @@ html[data-layout] .rhb-body, html[data-layout] .rhb-acts { max-width: 720px; }
 .pt-add-b { flex: none; width: auto; height: 44px; padding: 0 var(--s4); }
 .pt-pref-note { margin-top: var(--s3); font-size: var(--t-sm); font-weight: 600; color: var(--text-3); line-height: 1.45; }
 
-:root { --pt-goal-ink: var(--ring-b); --pt-plate-pr: var(--blue-deep); --pt-plate-cb: var(--amber-bright); --pt-plate-vg: var(--green-deep); }
-:root[data-theme="light"] { --pt-goal-ink: var(--teal-deep); --pt-plate-pr: var(--blue-deep); --pt-plate-cb: var(--amber); --pt-plate-vg: var(--green-bright); }
+:root { --pt-goal-ink: var(--ring-b); --pt-plate-pr: var(--blue-deep); --pt-plate-cb: var(--amber-bright); --pt-plate-vg: var(--sage); }
+:root[data-theme="light"] { --pt-goal-ink: var(--teal-deep); --pt-plate-pr: var(--blue-deep); --pt-plate-cb: var(--amber); --pt-plate-vg: var(--sage); }
 @media (prefers-reduced-motion: reduce) { .pt-dot { transition: none; } }
 
 /* ===== Sleep (#sleep) — evidence, never a score =====

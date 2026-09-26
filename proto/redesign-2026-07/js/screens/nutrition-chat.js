@@ -36,7 +36,7 @@ import {
   AI_NAME, NIA_MARK, whoHtml, facesHtml, composerPrompt, escalationChip,
   isAnalysisUpdate, quotedFor, isEscalated,
   memoryOfferOf, memoryOfferChips,
-  mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
+  mealSuggestOf, fillMealSuggestion, mealSuggestHtml, plannedLineHtml,
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
   isCorrectionReceipt, receiptCardHtml, playFreshReceipts, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta,
   personText, workingLabel,
@@ -437,7 +437,7 @@ export default {
           ${deliveredHtml({ mine, isLast: c === newest })}
         </div>
         ${msgTimeHtml(c, fmtTime, esc)}
-      </div>`;
+      </div>${plannedRow(c)}`;
       }).join('');
     };
 
@@ -467,6 +467,12 @@ export default {
       if (!sug) return c.role === 'ai' ? richText(c.text, esc) : personText(c.text, esc);
       const picks = fillMealSuggestion(sug, suggestItems(), suggestRemaining());
       return mealSuggestHtml(sug, picks, esc, plannedPick(picks));
+    };
+    // The app's line UNDER a suggestion whose pick is planned (never inside Nia's bubble).
+    const plannedRow = (c) => {
+      const sug = mealSuggestOf(c);
+      if (!sug) return '';
+      return plannedLineHtml(plannedPick(fillMealSuggestion(sug, suggestItems(), suggestRemaining())), esc);
     };
 
     const load = async ({ older = false } = {}) => {

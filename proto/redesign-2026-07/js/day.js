@@ -651,7 +651,7 @@ export const DAY = {
 
 export function dayScore() { return scoreFor(DAY); }
 /** analyze-meal's naming hint for a planned slot: the NAME only, never its figures. */
-export const plannedHint = (k) => { const p = DAY.plans && DAY.plans[k]; return p && p.name ? { plannedMeal: { name: String(p.name).slice(0, 60) } } : {}; };
+export const plannedHint = (k) => { const p = DAY.plans && DAY.plans[k]; return p && p.name ? { plannedMeal: { name: String(p.name).replace(/\s*\([^)]*\d[^)]*\)\s*$/, '').slice(0, 60) } } : {}; };
 
 /** Reconstruct a past day object from a scoreHistory row (its meals + checkin jsonb) so the
  *  SAME computeComponents that scores today can grade history — real category trends, no
@@ -897,7 +897,9 @@ function projectRowToDay(row) {
   // Plate meta merges per-slot: local slots win (they carry the freshest AI meta), server
   // fills the slots this device doesn't have.
   DAY.slotMacros = { ...(ck.slotMacros || {}), ...DAY.slotMacros };
-  DAY.plans = { ...(ck.plans && typeof ck.plans === 'object' ? ck.plans : {}), ...DAY.plans };
+  const rp = ck.plans && typeof ck.plans === 'object' ? ck.plans : {};
+  for (const k of Object.keys(DAY.plans || {})) if (JSON.stringify(DAY.plans[k]) !== JSON.stringify(rp[k])) localAhead = true;
+  DAY.plans = { ...rp, ...DAY.plans };
   return localAhead;
 }
 

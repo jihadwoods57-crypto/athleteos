@@ -101,7 +101,7 @@ test('up next: the first required meal still on time, else the first one still o
   assert.deepEqual(T.later, ['breakfast', 'dinner', 'snack']);
   assert.equal(T.slots.find((s) => s.key === 'breakfast').late, true);
   T = M.buildToday({ order: classic, meals, deadline: due, nowMin: 1300 });
-  assert.equal(T.upNext, 'breakfast', 'every window closed: the first open required meal, late still counts');
+  assert.equal(T.upNext, 'dinner', 'every window closed: the LATEST open required meal (dinner at 9:40 PM), late still counts');
   T = M.buildToday({ order: classic, meals, deadline: due, nowMin: 600, focus: 'snack', target: { protein: 180, kcal: 3000 }, consumed: { protein: 40 } });
   assert.equal(T.upNext, 'snack', 'a tapped later slot takes the card');
   assert.equal(T.slotTarget.protein, null, 'an optional snack never carries the whole day while required meals remain');
@@ -165,7 +165,8 @@ test('a plan is stored on the day and synced inside checkin, and the score ignor
 test('pushDay writes plans into checkin, projectRowToDay merges them back, local wins, a clear sticks', () => {
   const src = read('day.js');
   assert.match(src, /arrival: DAY\.arrival \|\| null, plans: DAY\.plans \|\| \{\} \}/, 'plans ride the checkin jsonb');
-  assert.match(src, /DAY\.plans = \{ \.\.\.\(ck\.plans && typeof ck\.plans === 'object' \? ck\.plans : \{\}\), \.\.\.DAY\.plans \}/);
+  assert.match(src, /const rp = ck\.plans && typeof ck\.plans === 'object' \? ck\.plans : \{\};/);
+  assert.match(src, /DAY\.plans = \{ \.\.\.rp, \.\.\.DAY\.plans \};/);
   assert.match(src, /DAY\.plans = \{\};/, 'a local reset forgets them');
 });
 
@@ -243,7 +244,7 @@ test('Plan asks meal-chat for ideas only when the usuals leave room, and never p
   assert.match(src, /aiConsentCached\(uid\) !== true/, 'no yes to AI, no request (0243)');
   assert.doesNotMatch(src, /ensureAiConsent|openAiConsentSheet/);
   assert.match(src, /readIdeasCache\(s, uid, DAY\.date, slot, prefsKey\(myPrefs\(\)\)\)/, 'the cache is read before any request');
-  assert.match(src, /functions\.invoke\('meal-chat', \{\s*body: \{ planIdeas:/);
+  assert.match(src, /invokeWithDeadline\('meal-chat', \{ planIdeas: \{/);
 });
 
 test('the camera is the only way to log: Today plans and snaps, and the one-tap Log is gone from Plan', () => {
@@ -403,7 +404,7 @@ test('RENDER: later rows carry no idea names; ideas appear only in the card', as
   assert.match(later, /About \d+g protein|Optional/);
 });
 
-test('the plate: protein blue, carbs amber, vegetables green, each its own lightness, legend matched', () => {
+test('the plate: protein blue, carbs amber, vegetables a muted sage (never the status green), each its own lightness', () => {
   const css = read('..', 'css', 'screens.css');
   const tok = read('..', 'css', 'tokens.css');
   const darkBlock = tok.slice(0, tok.indexOf(':root[data-theme="light"]'));
@@ -424,7 +425,8 @@ test('the plate: protein blue, carbs amber, vegetables green, each its own light
     const vg = val(tokens, pick(themeCss, '--pt-plate-vg')) || val(darkBlock, pick(themeCss, '--pt-plate-vg'));
     assert.match(pick(themeCss, '--pt-plate-pr'), /blue/);
     assert.match(pick(themeCss, '--pt-plate-cb'), /amber/);
-    assert.match(pick(themeCss, '--pt-plate-vg'), /green/);
+    assert.equal(pick(themeCss, '--pt-plate-vg'), '--sage', 'vegetables wear sage, not a status green');
+    for (const g of ['--green', '--green-bright', '--green-deep']) assert.notEqual(vg, val(tokens, g), 'sage is not any status green');
     for (const c of [pr, cb, vg]) assert.ok(cr(c, bg) >= 3, `${c} reads against ${bg} (graphics, 3:1)`);
     const ls = [L(pr), L(cb), L(vg)].sort((a, b) => a - b);
     assert.ok((ls[1] + 0.05) / (ls[0] + 0.05) >= 1.3 && (ls[2] + 0.05) / (ls[1] + 0.05) >= 1.3, 'three distinct lightnesses');
@@ -446,4 +448,120 @@ test('DECLUTTER: Today has no Ask OnStandard / Ask your coach row; the other Pla
   const ov = plan.slice(plan.indexOf('const overview = () =>'), plan.indexOf('/* ---------------- Nutrition tab'));
   assert.doesNotMatch(ov, /askSection\(/);
   for (const t of ["askSection('nutrition')", "askSection('requirements')", "askSection('memory')"]) assert.ok(plan.includes(t), t);
+});
+
+/* ---------------------------------------------------------------- review fix round (2026-09-25) */
+import { mock } from 'node:test';
+
+/** A fake Plan root: wireToday binds on .ptd, and every window.__render() re-runs the mount the way
+ *  plan.js does (render, then wire). Counts how often the screen asked to repaint. */
+function mountLoop() {
+  let renders = 0;
+  const pane = { addEventListener() {} };
+  const root = { querySelector: (s) => (s === '.ptd' ? pane : null) };
+  globalThis.window.__render = () => { renders++; PT.todayHtml(); PT.wireToday(root, {}); };
+  globalThis.location.hash = '#plan';
+  return { root, count: () => renders };
+}
+const consentYes = () => { mem.set(`os.aiConsent.${RT.userId}`, '1'); };
+
+test('RENDER LOOP: a pending Nia fetch repaints NOTHING until it settles, then exactly once', async () => {
+  await seedToday();
+  setStyle('structured');
+  await warmFoodMemory({ fetchFoodMemory: async () => ({ items: [], places: [] }) }, RT.userId, true);
+  consentYes();
+  mem.delete(`os.planIdeas.${RT.userId}`);
+  let release;
+  const calls = [];
+  globalThis.window.sb = { functions: { invoke: (fn, o) => { calls.push(o.body); return new Promise((r) => { release = r; }); } } };
+  const { root, count } = mountLoop();
+  PT._resetNia();
+  PT.wireToday(root, {});
+  for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+  assert.equal(calls.length, 1, 'one request');
+  assert.equal(count(), 0, 'no repaint while the request is pending');
+  release({ data: { ideas: [{ name: 'Turkey rice bowl', protein: 42, kcal: 600, tags: [] }] }, error: null });
+  for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+  assert.equal(count(), 1, 'exactly one repaint when it settles');
+  assert.equal(calls.length, 1, 'and the repaint did not start another request');
+  delete globalThis.window.sb;
+});
+
+test('a Nia request that hangs gives up at the deadline and Today falls back to the usuals', async () => {
+  await seedToday();
+  setStyle('structured');
+  consentYes();
+  mem.delete(`os.planIdeas.${RT.userId}`);
+  mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    globalThis.window.sb = { functions: { invoke: () => new Promise(() => {}) } };
+    const { root, count } = mountLoop();
+    PT._resetNia();
+    await warmFoodMemory({ fetchFoodMemory: async () => ({ items: USUALS.slice(0, 1), places: [] }) }, RT.userId, true);
+    PT.wireToday(root, {});
+    mock.timers.tick(PT.NIA_DEADLINE_MS + 10);
+    for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r));
+    assert.equal(count(), 1, 'one repaint at the deadline');
+    const html = PT.todayHtml();
+    assert.match(html, /Chicken burrito bowl/, 'the usual is still offered');
+    assert.doesNotMatch(html, /Getting ideas from Nia/, 'no spinner left behind');
+    assert.equal(mem.get(`os.planIdeas.${RT.userId}`), undefined, 'a timeout caches nothing');
+  } finally {
+    mock.timers.reset();
+    delete globalThis.window.sb;
+  }
+  assert.match(read('plan-today.js'), /invokeWithDeadline\('meal-chat', \{ planIdeas:/);
+});
+
+test('an EMPTY answer is never cached, on the phone or the server', () => {
+  const s = new Map();
+  const st = { getItem: (k) => (s.has(k) ? s.get(k) : null), setItem: (k, v) => s.set(k, v) };
+  assert.equal(M.writeIdeasCache(st, 'u1', '2026-09-25', 'dinner', 'k1', []), false);
+  assert.equal(M.readIdeasCache(st, 'u1', '2026-09-25', 'dinner', 'k1'), null);
+  const fn = readFileSync(join(HERE, '..', '..', '..', 'supabase', 'functions', 'meal-chat', 'index.ts'), 'utf8');
+  assert.match(fn, /if \(ideas\.length\) \{\s*try \{\s*await service\.from\('plan_ideas'\)\.upsert\(/);
+});
+
+test('ALLERGY SYNONYMS reach the ideas: a dairy, shellfish, tree nut, gluten or peanut allergy drops its foods', () => {
+  const R = (names) => ({ allergies: names.map((name) => ({ name, severity: 'severe' })) });
+  const nia = (names) => names.map((name) => ({ name, protein: 30, kcal: 400 }));
+  const keep = (allergy, names) => M.rankIdeas({ usuals: [], nia: nia(names), avoid: F.avoidWords({}, R([allergy])), max: 10 }).map((i) => i.name);
+  assert.deepEqual(keep('Dairy', ['Greek yogurt parfait', 'Grilled cheese', 'Chocolate milk', 'Whey shake', 'Turkey rice bowl']), ['Turkey rice bowl']);
+  assert.deepEqual(keep('Shellfish', ['Shrimp tacos', 'Chicken tacos']), ['Chicken tacos']);
+  assert.deepEqual(keep('Tree nuts', ['Almond butter toast', 'Oatmeal']), ['Oatmeal']);
+  assert.deepEqual(keep('Gluten', ['Bread and eggs', 'Pasta bake', 'Turkey wraps', 'Bagels and lox', 'Rice bowl']), ['Rice bowl']);
+  assert.deepEqual(keep('Peanuts', ['PB toast', 'Peanut noodles', 'Rice bowl']), ['Rice bowl']);
+  // And a usual whose ITEMS name the food, not just its title.
+  const u = [{ id: 'u', name: 'Morning bowl', protein: 30, kcal: 400, items: [{ name: 'Greek yogurt' }] }];
+  assert.equal(M.rankIdeas({ usuals: u, avoid: F.avoidWords({}, R(['Dairy'])) }).length, 0);
+});
+
+test('plans from search, a label and a barcode say where they came from', () => {
+  for (const src of ['search', 'label', 'barcode', 'usual', 'nia']) assert.equal(M.cleanPlan({ name: 'x', source: src }).source, src);
+  assert.equal(M.cleanPlan({ name: 'x', source: 'hack' }).source, 'usual');
+  const fs = read('screens', 'foodsearch.js');
+  for (const src of ['search', 'label', 'barcode']) assert.match(fs, new RegExp(`source: '${src}'`));
+});
+
+test('INTUITIVE planned card says "Your plan", never "One of your usuals"', async () => {
+  await seedToday();
+  setStyle('intuitive');
+  const p = M.planFromIdea({ name: 'Grilled chicken breast', protein: 31, kcal: 165, source: 'search' }, 'x');
+  DAY.plans = { lunch: p, dinner: p, snack: p };
+  const html = PT.todayHtml().replace(/<svg[\s\S]*?<\/svg>/g, '');
+  assert.match(html, /Your plan/);
+  assert.doesNotMatch(html, /One of your usuals/);
+  assert.equal(M.planMeta(p, { showMacros: true, showCalories: true }), '31g protein · 165 cal');
+  DAY.plans = {};
+});
+
+test('the photo hint drops a portion suffix like "(100g)"', () => {
+  DAY.plans = { dinner: { name: 'Greek yogurt, plain (170g)', protein: 17, kcal: 100, source: 'barcode' } };
+  assert.deepEqual(day.plannedHint('dinner'), { plannedMeal: { name: 'Greek yogurt, plain' } });
+  DAY.plans = {};
+});
+
+test('a local plan the server has not got marks the device ahead, so it pushes again', () => {
+  const src = read('day.js');
+  assert.match(src, /for \(const k of Object\.keys\(DAY\.plans \|\| \{\}\)\) if \(JSON\.stringify\(DAY\.plans\[k\]\) !== JSON\.stringify\(rp\[k\]\)\) localAhead = true;/);
 });

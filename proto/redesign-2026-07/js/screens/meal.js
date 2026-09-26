@@ -34,7 +34,7 @@ import {
   AI_NAME, AI_TITLE, NIA_MARK, whoHtml, facesHtml, threadTitle, composerPrompt, escalationChip,
   isAnalysisOpener, isAnalysisUpdate, isEscalated, quotedFor,
   memoryOfferOf, memoryOfferChips,
-  mealSuggestOf, fillMealSuggestion, mealSuggestHtml,
+  mealSuggestOf, fillMealSuggestion, mealSuggestHtml, plannedLineHtml,
   dayLabelOf, msgRowClass, timeSepHtml, deliveredHtml, msgTimeHtml, richText,
   isCorrectionReceipt, receiptCardHtml, playFreshReceipts, reactionAnchor, replyQuote, replyQuoteHtml, replyTargetMeta,
   personText, workingLabel,
@@ -1881,6 +1881,12 @@ export const thread = {
       const picks = fillMealSuggestion(sug, suggestItems(), suggestRemaining());
       return mealSuggestHtml(sug, picks, esc, plannedPick(picks));
     };
+    // The app's line UNDER a suggestion whose pick is planned (never inside Nia's bubble).
+    const plannedRow = (c) => {
+      const sug = mealSuggestOf(c);
+      if (!sug) return '';
+      return plannedLineHtml(plannedPick(fillMealSuggestion(sug, suggestItems(), suggestRemaining())), esc);
+    };
 
     const paint = () => {
       if (!threadEl || !threadEl.isConnected) return;   // a replaced mount writes nothing, anywhere
@@ -1999,7 +2005,7 @@ export const thread = {
             ${deliveredHtml({ mine, isLast: c === lastMsg })}
           </div>
           ${msgTimeHtml(c, fmtMsgTime, esc)}
-        </div>${/* The size chips ride their own row under Nia's question, so her face stays beside
+        </div>${plannedRow(c)}${/* The size chips ride their own row under Nia's question, so her face stays beside
                    her last bubble instead of sliding down beside the chips. */''}${askAt && askAt.id === String(c.id || '') ? `
         <div class="msg ai tp-askrow"><div class="av-sp"></div><div class="stack">${askChipsHtml(askAt, esc)}</div></div>` : ''}`;
       }).join('');
