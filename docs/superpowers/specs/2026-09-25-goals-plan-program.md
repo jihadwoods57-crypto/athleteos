@@ -208,3 +208,45 @@ The founder approved B on 2026-09-26 ("Start it"). They said the app needs to kn
   - Why screen with the phase line
   - coach suggestion card
   - solo athlete suggestion
+
+## C in detail (B shipped 2026-09-26: merge 458dd575, 0252-0254, OTA 01a0dd6f)
+
+The founder approved C on 2026-09-26. Their words: "Maybe the nutritionist can upload the dining halls meal schedules to that app so it could know and make it useful."
+
+### 1. Staff upload a dining hall's menu and hours
+- **Who.** Team staff with standards-edit rights (the same role set as 0252's `can_set_team_phase`). Teams only; no practices or solo athletes.
+- **Halls.** A team has 1 or more halls: a name, plus serving hours per period (breakfast, lunch, dinner, and an optional late or grab-and-go period) for each weekday.
+- **Menu upload.** A photo, several photos, a PDF, or pasted text, covering one day up to about 2 weeks. Store the uploads in a team-scoped private storage bucket. The existing buckets show the patterns for folder-scoped policies.
+- **Parsing.** One model call per upload (vision for images and PDF, text for pasted input), in a new or existing edge function. It turns the upload into structured entries: `{ hall, date, period, station?, items: [{ name, per_serving: { protein, kcal, carbs, fat }?, tags?: ['vegetarian', 'contains dairy', …] }] }`.
+  - Macros are estimates per standard serving. Mark them as estimates.
+  - Scrub every string: tool-leak scrubber, plain characters, length caps.
+  - Cost telemetry, a per-team daily cap, and the spend gate. Add the function to the ai-cost-watchdog checklist.
+- **Review before publish.** The parsed menu is saved as a DRAFT. Staff see it grouped by day and period, can edit an item's name and macros, delete items, and add items. Nothing reaches athletes until they press Publish. They can unpublish or replace a day later.
+- **Tables.** Tables for halls and menus (draft or published, per hall, date and period), with RLS:
+  - staff of the team read and write, gated by role;
+  - the team's athletes read PUBLISHED menus only;
+  - guardians and other teams see nothing.
+  - Grants per the repo's patterns. Use the next free migration number after 0254.
+
+### 2. Athletes get dining-hall plates on Plan › Today
+- **When.** A PUBLISHED menu exists for today at one of the team's halls, for the period that matches the athlete's up-next slot.
+- **What.** Ideas include up to 2 plates from that menu, built DETERMINISTICALLY (no per-athlete model call):
+  - pick a protein item, then a carb, then a vegetable or fruit, so the plate hits the slot's protein share;
+  - filter out allergies and dislikes first, using the A1 avoid words, rule terms matched inside words;
+  - respect the plan style: Intuitive shows no figures;
+  - tag the plate "Dining hall: <hall name>", with the station if known.
+- **Planning.** It works like any idea (plan, then snap). The photo rule holds, and the planned name feeds the photo read hint.
+- **If the hall is closed for that period, or it's not today's menu:** no dining-hall ideas.
+
+### 3. Nia knows today's menu
+- **Chat context.** When a published menu exists for today, meal-chat's context (the dossier or day context) gets a compact list of today's remaining periods at the athlete's team halls, capped in length.
+- **Prompt.** "What should I eat" style answers prefer real menu items, and never invent items that aren't on it.
+- **Cost.** No new model calls; only a few more input tokens.
+
+### Done means
+- **Tests:** the parser output sanitising and bounds, RLS (SQL tests), the deterministic plate builder (allergies, the plan-style rail, protein share), the publish gating, and the cost caps.
+- **Gates:** all green; zip rebuilt.
+- **Screenshots** in qc/dining-hall/, dark and light at 390, looked at:
+  - staff: halls list, upload, draft review, published;
+  - athlete: Today with a dining-hall plate (numbers and Intuitive);
+  - chat: an answer referencing the menu (a stub is fine).
