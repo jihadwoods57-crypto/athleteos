@@ -1277,11 +1277,15 @@ select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-00000000
 select _ok((select base_weight = 199 and (targets->>'weight')::int = 150
             from athlete_plan_meta('a1030000-0000-0000-0000-0000000000a1')),
            '0103: athletic trainer reads base_weight and the weight target (150 = the nutritionist''s save above)');
-select _ok(_try($q$select coach_set_goals('a1030000-0000-0000-0000-0000000000a1','{"protein":200,"calories":3300,"weight":185}'::jsonb, null)$q$) = 'ok',
-           '0103: athletic trainer coach_set_goals succeeds');
+-- 0254 (2026-09-26): coach_set_goals is gated by can_decide_targets_for, the staff who edit the
+-- standard. The athletic trainer reads weight (0103) but does not own the nutrition targets
+-- (staff-access.js CREATE_CAPS gives them no 'standards'), so their write is now refused and the
+-- stored weight target stays where the nutritionist put it.
+select _ok(_try($q$select coach_set_goals('a1030000-0000-0000-0000-0000000000a1','{"protein":200,"calories":3300,"weight":185}'::jsonb, null)$q$) <> 'ok',
+           '0254: athletic trainer coach_set_goals is refused (no standards rights)');
 select _superuser();
-select _ok((select (targets->>'weight')::int = 185 from athlete_profiles where athlete_id='a1030000-0000-0000-0000-0000000000a1'),
-           '0103: the athletic trainer''s weight target write actually lands');
+select _ok((select (targets->>'weight')::int = 150 from athlete_profiles where athlete_id='a1030000-0000-0000-0000-0000000000a1'),
+           '0254: the refused athletic trainer write left the weight target alone');
 
 select _as('a1030000-0000-0000-0000-0000000000c1'); -- head coach (allowed)
 select _ok((select count(*) from weight_series('a1030000-0000-0000-0000-0000000000a1', 60)) = 1,

@@ -139,9 +139,13 @@ begin
   if exists (select 1 from practice_clients pc where pc.client_id = v_uid and pc.status = 'active') then
     raise exception 'a practice has no season' using errcode = '42501';
   end if;
-  insert into athlete_profiles as ap (athlete_id, season_phase, updated_at)
-  values (v_uid, p_phase, now())
-  on conflict (athlete_id) do update set season_phase = excluded.season_phase, updated_at = now();
+  -- Athletes only (review 2026-09-26). A coach, trainer or parent calling this must not get an
+  -- athlete_profiles row minted for them, so this UPDATES an existing athlete row and never inserts.
+  if not exists (select 1 from profiles p where p.id = v_uid and p.primary_role = 'athlete')
+     or not exists (select 1 from athlete_profiles ap where ap.athlete_id = v_uid) then
+    raise exception 'only an athlete sets their own season' using errcode = '42501';
+  end if;
+  update athlete_profiles set season_phase = p_phase, updated_at = now() where athlete_id = v_uid;
   return p_phase;
 end $$;
 revoke all on function set_my_season_phase(text) from public, anon;
