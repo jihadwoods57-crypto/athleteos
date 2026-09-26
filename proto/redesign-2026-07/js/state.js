@@ -347,6 +347,8 @@ const DEFAULT_RT = {
   myCoach: null,
   // --- a trainer's CLIENT: linked practice + trainer ({practiceId,practiceName,name,handle}) — null until a real practice link ---
   myTrainer: null,
+  // --- season phase (0252): season_phase_for's { phase, source, canSetSelf } for this athlete, or null ---
+  season: null,
   // --- guardian consent (athlete side of 0008/0050): last server-confirmed state, or null ---
   // { status: 'verified'|'pending'|'revoked'|'none', guardianEmail } — only meaningful for minors.
   consent: null,
@@ -754,16 +756,33 @@ function scoringProfileForGoal(goal) {
     default: return 'athlete'; // performance / perform / unknown → the shipped formula, unchanged
   }
 }
-function goalDerivedTargets(goal, bodyweightLb) {
+/* SEASON PHASE (0252, phase B). Calories only, against the goal's base, deliberately small; the
+   1500 floor still holds. Protein never moves. Only goal-DERIVED targets see it: a coach-set
+   number wins in nutritionConfigForGoal before this is ever read. Unset phase = 0 = today. */
+export const PHASE_CAL = {
+  gain:     { off: 0, pre: 0,   in: -150, post: -100 },
+  lose:     { off: 0, pre: 100, in: 250,  post: 0 },
+  maintain: { off: 0, pre: 100, in: 150,  post: -100 },
+  perform:  { off: 0, pre: 100, in: 150,  post: -100 },
+};
+const goalFam = (g) => (g === 'gain' || g === 'build' || g === 'gain_muscle' || g === 'gain_weight' ? 'gain'
+  : g === 'lose' || g === 'lose_fat' ? 'lose' : g === 'maintain' || g === 'health' ? 'maintain'
+    : g === 'perform' || g === 'performance' ? 'perform' : null);
+export function phaseCalAdjust(goal, phase) {
+  const row = PHASE_CAL[goalFam(goal)];
+  return (row && row[phase]) || 0;
+}
+function goalDerivedTargets(goal, bodyweightLb, phase) {
   const bw = bodyweightLb > 0 ? bodyweightLb : GOAL_BW_DEFAULT;
   const p = (n) => Math.max(80, Math.round(n / 5) * 5);      // protein floor 80 g (safety)
-  const c = (n) => Math.max(1500, Math.round(n / 50) * 50);  // calorie floor 1500 (safety)
+  const adj = phaseCalAdjust(goal, phase);
+  const c = (n) => Math.max(1500, Math.max(1500, Math.round(n / 50) * 50) + adj);  // calorie floor 1500 (safety)
   switch (goal) {
     case 'lose': case 'lose_fat':   return { proteinTarget: p(bw * 0.9), calTarget: c(bw * 12) };
     case 'gain': case 'build': case 'gain_muscle': case 'gain_weight':
                                     return { proteinTarget: p(bw * 1.0), calTarget: c(bw * 17) };
     case 'maintain': case 'health': return { proteinTarget: p(bw * 0.8), calTarget: c(bw * 15) };
-    default:                        return { proteinTarget: GOAL_PROTEIN_DEFAULT, calTarget: GOAL_CAL_DEFAULT };
+    default:                        return { proteinTarget: GOAL_PROTEIN_DEFAULT, calTarget: GOAL_CAL_DEFAULT + adj };
   }
 }
 /* The athlete's nutrition scoring config from their goal + bodyweight + coach-set targets — the
@@ -772,9 +791,9 @@ function goalDerivedTargets(goal, bodyweightLb) {
    coach/trainer target (athlete_profiles.targets) wins over the goal-derived default; no goal →
    the shipped athlete defaults (never another athlete's device values). Pure + exported for the
    coach reconstruction. */
-export function nutritionConfigForGoal(goal, bodyweightLb, targets) {
+export function nutritionConfigForGoal(goal, bodyweightLb, targets, phase) {
   if (!goal) return { scoringProfile: 'athlete', proteinTarget: GOAL_PROTEIN_DEFAULT, calTarget: GOAL_CAL_DEFAULT };
-  const derived = goalDerivedTargets(goal, bodyweightLb > 0 ? +bodyweightLb : GOAL_BW_DEFAULT);
+  const derived = goalDerivedTargets(goal, bodyweightLb > 0 ? +bodyweightLb : GOAL_BW_DEFAULT, phase);
   const t = targets || {};
   return {
     scoringProfile: scoringProfileForGoal(goal),
@@ -859,6 +878,9 @@ function applyPlanStyleToDay() {
 /** The bodyweight the goal-derived targets are computed from, and whether it is the athlete's own
  *  (false = the GOAL_BW_DEFAULT stand-in). One resolution: applyGoalToDay grades with it and Plan's
  *  "Why these numbers" (A2) explains with it. */
+/** The season phase that applies to this athlete (off | pre | in | post), or null. RT.season is
+ *  season_phase_for's answer, cached across launches so the first paint grades the same day. */
+export function seasonPhase() { return (RT.season && RT.season.phase) || null; }
 export function goalBodyweight() {
   const p = RT.profile || {};
   const own = (p.baseWeight != null ? +p.baseWeight : 0)
@@ -869,11 +891,15 @@ export function goalBodyweight() {
 function applyGoalToDay() {
   const p = RT.profile || {};
   const goal = p.baseGoal || (RT.ob && RT.ob.goal) || null;
-  if (!goal) { setDayGoalConfig('athlete', 0, 0); return; } // no goal yet → shipped athlete default
+  if (!goal) { setDayGoalConfig('athlete', 0, 0); DAY.seasonPhase = null; return; } // no goal yet → shipped athlete default (no season applies)
   const bw = goalBodyweight().bw;
   // ONE derivation, shared with the coach breakdown (nutritionConfigForGoal) so they never drift.
-  const cfg = nutritionConfigForGoal(goal, bw, p.targets);
+  // The season phase is season_phase_for's answer (0252), the same resolution the coach reads.
+  const cfg = nutritionConfigForGoal(goal, bw, p.targets, seasonPhase());
   setDayGoalConfig(cfg.scoringProfile, cfg.proteinTarget, cfg.calTarget);
+  // The stamp: which season graded this day (checkin.seasonPhase), so a phase-caused change in the
+  // score can be explained later. Cheap: one key in the jsonb the push already writes.
+  DAY.seasonPhase = seasonPhase();
 }
 
 /* Who is eating, for the meal read (2026-09-02). analyze-meal was asked to coach "THIS athlete"
@@ -3197,7 +3223,7 @@ export const act = {
     }
     if (role === 'trainer') await this._loadPracticeIntoRt(RT.userId);
     if (role === 'coach') { await this._loadTeamIntoRt(RT.userId); await this._loadCoachHandleIntoRt(); }
-    if (role === 'athlete') { await this._loadCoachIntoRt(RT.userId); await this._loadTrainerIntoRt(RT.userId); await this._loadConsentIntoRt(RT.userId); await this._loadAssignmentsIntoRt(); }
+    if (role === 'athlete') { await this._loadCoachIntoRt(RT.userId); await this._loadTrainerIntoRt(RT.userId); void this._loadSeasonIntoRt(RT.userId); await this._loadConsentIntoRt(RT.userId); await this._loadAssignmentsIntoRt(); }
     await loadDay(RT.userId);
     await this._afterDayLoad();
     syncRtFromDay();
@@ -3525,6 +3551,38 @@ export const act = {
     if (RT.myTrainer && RT.myTrainer.practiceId) RT.hadRoster = true;  // see _loadCoachIntoRt
     save();
   },
+  /* The season phase that applies (0252 season_phase_for: team > practice client (none) > self),
+     then re-grade the day. A failed read keeps the last-known phase; a pre-0252 server is none.
+     NOT awaited by the launch chain (review 2026-09-26): the cached phase grades the first paint,
+     and when the server's answer differs the day is re-graded, re-pushed and repainted. */
+  async _loadSeasonIntoRt(userId) {
+    const sb = window.sb;
+    if (!sb || !userId) return;
+    try {
+      const { data, error } = await sb.rpc('season_phase_for', { p_athlete: userId });
+      if (error) { if (error.code === 'PGRST202') RT.season = null; return; }
+      const d = data && typeof data === 'object' ? data : {};
+      const before = seasonPhase();
+      RT.season = { phase: d.phase || null, source: d.source || null, canSetSelf: d.can_set_self === true };
+      applyGoalToDay(); save();
+      if (before !== seasonPhase() && RT.userId === userId) {
+        pushDay(userId);
+        if (typeof window.__render === 'function') window.__render();
+      }
+    } catch { /* offline: keep last-known */ }
+  },
+  /** A solo athlete sets their own phase (set_my_season_phase refuses a team athlete). */
+  async setMySeasonPhase(phase) {
+    const sb = window.sb;
+    if (!sb) return false;
+    try {
+      const { error } = await sb.rpc('set_my_season_phase', { p_phase: phase || null });
+      if (error) return false;
+      RT.season = { ...(RT.season || {}), phase: phase || null, source: phase ? 'self' : null, canSetSelf: true };
+      applyGoalToDay(); save(); pushDay(RT.userId);
+      return true;
+    } catch { return false; }
+  },
   /* The keep-your-record card was dismissed (or acted on) — never show it again. */
   markKeepRecordSeen() { RT.keepRecordSeen = true; save(); },
   /* The "you picked <plan> in onboarding" card was acted on / superseded — never show it again. */
@@ -3714,6 +3772,9 @@ export const act = {
     if (SCORE_INPUTS.std && SCORE_INPUTS.profile && RT.profile) {
       try { await healStoredScore(RT.userId); } catch { /* best-effort */ }
     }
+    // Adaptive targets (0253): at most once a day, file a suggestion when the weight pace is off
+    // the plan. Lazy and unawaited: it never holds the launch.
+    import('./target-suggest.js').then((m) => m.maybeFileSuggestion()).catch(() => {});
   },
   /* Resolve the governing set (athlete > position room > team) into the DAY engine: slot
      list, deadlines, titles, and the nutrition denominator. No set → the classic day. */
@@ -4822,7 +4883,9 @@ export const S = {
     const p = RT.profile || {};
     const key = p.baseGoal || null;
     const w = this.weight;
-    const coachSet = !!this.planTargets;
+    // A solo athlete's accepted suggestion (0253, targets.source 'self') is theirs, not a coach's.
+    const selfSet = !!(p.targets && p.targets.source === 'self');
+    const coachSet = !!this.planTargets && !selfSet;
     const bw = (p.baseWeight != null ? +p.baseWeight : 0) || (w.current != null ? +w.current : 0) || 0;
     // What the goal DOES: the scoring branch it selects and the numbers it derives when no
     // professional has set their own. This is the honest answer to "what's the strategy" —
@@ -4833,7 +4896,7 @@ export const S = {
     // `tone` label: a pro can stamp tone:'signals' onto exact-target scoring, and "Never
     // restriction" would be a lie there. Unknown or unset goals stay null, as they always
     // have — plan.js renders its "pick a goal" prompt for null. Perform names no figure.
-    const derived = key ? nutritionConfigForGoal(key, bw, null) : null;
+    const derived = key ? nutritionConfigForGoal(key, bw, null, seasonPhase()) : null;
     const surf = this.planStyle;
     const kn = (surf.knobs && surf.knobs.nutrition) || {};
     const signalsScored = surf.tone === 'signals' && (kn.calorie === 'adequacy' || kn.calorie === 'off') && kn.protein === 'off';
@@ -4874,6 +4937,7 @@ export const S = {
       derivedProtein: derived ? derived.proteinTarget : null,
       derivedCalories: derived ? derived.calTarget : null,
       targetsAreCoachSet: coachSet,
+      targetsAreSelfSet: selfSet && !!this.planTargets,
       targetsSetBy: coachSet && this.coach.hasCoach && this.coach.isNamed ? this.coach.name : null,
       startedOn: activationDateOnly(),
     };

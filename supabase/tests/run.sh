@@ -77,6 +77,12 @@ SUITES=(
   # own folder is refused with 23514 photo_required; a photo can never be stripped or swapped;
   # past no-photo rows stay readable; the Trust Pass and pro corrections still work.
   "no photo, no meal (0251)|meal_photo_test.sql"
+  # 0252 + 0253 + 0254 the season phase, adaptive targets and the targets door: only standards
+  # editors set the team's phase (RPC or direct update), a solo athlete sets their own,
+  # season_phase_for resolves team > practice (none) > self; suggestions are adult gain/lose only,
+  # one per 14 days, anchored to the stored targets and bounded, decided (and applied, atomically)
+  # by staff with target-edit rights or by a solo athlete; coach_set_goals is gated the same way.
+  "season phase + target suggestions + targets door (0252-0254)|season_targets_test.sql"
 )
 
 echo "==> SQL suites against: ${DB%%\?*}"

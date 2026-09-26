@@ -821,6 +821,9 @@ export const coachHome = {
     return `${head}
     <button class="btn ghost sm" data-scopes data-tour="roster" style="width:auto;padding:0 13px;height:30px;margin-bottom:10px">${icon('users', 13)} ${esc(scopeLabel(scope))} ${icon('chevron', 12, 'style="transform:rotate(90deg)"')}</button>
     ${SHOW_SCOPES ? scopeSheet() : ''}
+    ${/* Phase B: the team's season (standards editors only) and the suggested target changes waiting
+          on a decision, both painted async into their slots by season-coach.js (lazy). */''}
+    <div id="sp-slot"></div>
     ${planCard()}
     ${pending.length ? `<div class="card" data-go="coach-inbox" style="padding:10px 15px;cursor:pointer;display:flex;align-items:center;gap:10px"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 15)}</div><div style="flex:1;font-size:var(--t-sm);font-weight:700">${pending.length} join request${pending.length > 1 ? 's' : ''} waiting</div>${icon('chevron', 14, 'style="color:var(--text-3)"')}</div>` : ''}
     ${/* THE RING LEADS FOR EVERY BOOK (founder 2026-09-15: the coach's and the nutritionist's
@@ -836,6 +839,7 @@ export const coachHome = {
           so it now sits directly under the ring and its standing bar, and the roll-call and
           standards boards, the Trust Pass praise card and the setup checklist follow it. Before
           this the first athlete name sat ~1700px down, under six cards that were not triage. */''}
+    <div id="tsc-slot"></div>
     <h2 class="eyebrow co-major" data-tour="priority">${esc(vocab().priorities)}</h2>
     ${entries === null ? `<div class="sidebox"><div class="req-icon b s38">${icon('bell', 17)}</div><div><div class="tt">Ranking the day…</div><div class="ts">Standards and exceptions are loading.</div></div></div>`
     : cards.length === 0 ? emptyState({ icon: 'check', title: 'Nothing needs you right now', body: 'Anything you nudge, assign, or mark handled stays out of this queue until the reason changes.', compact: true })
@@ -902,6 +906,8 @@ export const coachHome = {
     paintBoard(root);
     paintStandardsBoard(root);
     paintNutritionBoard(root);
+    // Phase B: the season control and the suggested target changes (season-coach.js, lazy).
+    import('../season-coach.js').then((m) => { m.paintSeason(root); m.paintSuggestions(root); }).catch(() => {});
     // Empty-state invite card: Copy + native Share of the invite code (present only before
     // anyone has joined). operatorIdentity resolves the right code for a team OR a practice.
     const code = S.operatorIdentity.code;

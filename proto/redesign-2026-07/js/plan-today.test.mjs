@@ -164,7 +164,8 @@ test('a plan is stored on the day and synced inside checkin, and the score ignor
 
 test('pushDay writes plans into checkin, projectRowToDay merges them back, local wins, a clear sticks', () => {
   const src = read('day.js');
-  assert.match(src, /arrival: DAY\.arrival \|\| null, plans: DAY\.plans \|\| \{\} \}/, 'plans ride the checkin jsonb');
+  // Phase B added the season stamp beside the plans in the same jsonb.
+  assert.match(src, /arrival: DAY\.arrival \|\| null, plans: DAY\.plans \|\| \{\}(, seasonPhase: DAY\.seasonPhase \|\| null)? \}/, 'plans ride the checkin jsonb');
   assert.match(src, /const rp = ck\.plans && typeof ck\.plans === 'object' \? ck\.plans : \{\};/);
   assert.match(src, /DAY\.plans = \{ \.\.\.rp, \.\.\.DAY\.plans \};/);
   assert.match(src, /DAY\.plans = \{\};/, 'a local reset forgets them');

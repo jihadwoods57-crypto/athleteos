@@ -17,6 +17,7 @@
  *  4. INTUITIVE. "Why this plate": not one figure; the plate explained for the goal.
  */
 import { perMealShare } from './plan-today-model.js';
+import { whyPhaseLine } from './season-phase.js';
 
 /** Goal families, tolerant of every stored spelling. null = no goal set. */
 export function goalFamily(key) {
@@ -74,16 +75,18 @@ const PLATE_HOW = {
  *   defaultBw     what the math used when there was none (state.js GOAL_BW_DEFAULT)
  *   protein, kcal the graded targets (DAY.proteinTarget / DAY.calTarget)
  *   coachSet      { protein, calories } true where a coach or trainer set that figure
- *   who           'coach' | 'trainer'
+ *   who           'coach' | 'trainer' | 'self' (a solo athlete who accepted a suggested change, 0253)
  *   minor         a PROVABLE minor (unknown age is an adult, 0050)
  *   showMacros, showCalories   the plan style's surface flags
  *   requiredMeals how many required meal slots the day has (plan-today-model slotOrder)
  *   derive        (goalKey, bodyweight) => { proteinTarget, calTarget }: nutritionConfigForGoal
+ *   phase         the season phase that applies (state.js seasonPhase), or null (B)
+ *   phaseAdjust   state.js phaseCalAdjust(goal, phase): what the phase moved the calories by
  */
 export function explainTargets({
   goalKey = null, bodyweight = null, defaultBw = 171, protein = 0, kcal = 0,
   coachSet = {}, who = 'coach', minor = false, showMacros = true, showCalories = true,
-  requiredMeals = 3, derive = null,
+  requiredMeals = 3, derive = null, phase = null, phaseAdjust = 0,
 } = {}) {
   const fam = goalFamily(goalKey);
   const coach = { protein: !!coachSet.protein, calories: !!coachSet.calories };
@@ -99,7 +102,7 @@ export function explainTargets({
   const coachWhat = !numbers ? 'your plan'
     : coach.protein && coach.calories ? 'these numbers'
       : coach.protein ? 'your protein target' : 'your calorie target';
-  const lead = source === 'coach' ? `Your ${who} set ${coachWhat}.`
+  const lead = source === 'coach' ? (who === 'self' ? `You set ${coachWhat} from a suggested change.` : `Your ${who} set ${coachWhat}.`)
     : minor ? 'Set for your body and training.'
       : fam ? `From your goal: ${goalWord}.`
         : "OnStandard's starting targets.";
@@ -112,6 +115,7 @@ export function explainTargets({
       plate: PLATE[pf].slice(),
       how: minor ? HOW_TO_EAT.minor : PLATE_HOW[pf],
       compare: null,
+      season: whyPhaseLine({ phase, mode: 'plate' }),
     };
   }
 
@@ -188,6 +192,9 @@ export function explainTargets({
     calories: calPart,
     how: minor ? HOW_TO_EAT.minor : fam ? HOW_TO_EAT[fam] : HOW_TO_EAT.none,
     compare,
+    // B: what the season does to these numbers, in one line. Goal-derived calories only; a coach's
+    // (or an accepted) number says the season leaves it alone. No phase = no line = today.
+    season: whyPhaseLine({ phase, family: fam, coachSet: coach.calories, who, minor, numbers: showCalories, adjust: phaseAdjust }),
   };
 }
 

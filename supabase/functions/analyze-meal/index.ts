@@ -43,6 +43,7 @@ import { productCacheKey } from '../_shared/food-resolve.ts';
 import { resolvePackagedProduct } from '../_shared/packaged-resolve.ts';
 import { groundPackagedItems, MAX_LOOKUPS as PACKAGED_MAX_LOOKUPS } from '../_shared/packaged-grounding.ts';
 import { composeOpener } from '../_shared/meal-opener.ts';
+import { loadSeasonPhase } from '../_shared/season-phase.mjs';
 import { athleteContextLine, positionWords, type AthleteContextIn } from '../_shared/athlete-context.ts';
 import { loadAthleteDossier, renderDossier, ageBand } from '../_shared/athlete-dossier.mjs';
 import { clockLine, dayContextLine } from '../_shared/day-context.ts';
@@ -1000,12 +1001,14 @@ async function postOpener(
     // goal or the age: RT.primaryGoal has no writer, so req.goal is null in every shipped build,
     // and a minor's rails must not be a client courtesy. A failed profile read is an unknown age,
     // which 0050 treats as an adult, and the goal falls back to whatever the request carried.
-    const [{ count }, profile] = await Promise.all([
+    const [{ count }, profile, season] = await Promise.all([
       service.from('meal_comments')
         .select('id', { count: 'exact', head: true })
         .eq('meal_id', mealId).eq('role', 'ai').eq('meta->>t', 'analysis'),
       service.from('athlete_profiles').select('base_goal, dob, base_age').eq('athlete_id', userId).maybeSingle()
         .then((r) => r, () => ({ data: null })),
+      // The season phase (0252, phase B): picks a season-aware "why" where one exists. Never throws.
+      loadSeasonPhase(service, userId),
     ]);
     if (count && count > 0) return;   // this plate has already been read into the thread
 
@@ -1034,6 +1037,7 @@ async function postOpener(
       clarifyBudgetSpent,
       mealId,
       minor,
+      phase: season ? season.phase : null,
     });
     if (!text) return;   // nothing honest to say — an empty bubble is worse than no bubble
 

@@ -17,6 +17,7 @@
 // Plan > Today's idea list. Different contract, same file: see the block header down there.
 import { scrubToolLeak } from '../_shared/tool-leak.ts';
 import { namesAny, cleanPrefItem, prefsPromptText } from '../_shared/food-prefs.mjs';
+import { cleanPhase, PHASE_IDEA_HINT } from '../_shared/season-phase.mjs';
 
 export const SUGGEST_MEAL_TOOL = {
   name: 'suggest_meal',
@@ -158,10 +159,12 @@ export function planIdeasRequest(raw, today) {
 }
 
 /** The user turn. `dossier` and `memory` are the server's own blocks (athlete-dossier.mjs,
- *  memory.ts); `prefs` is the stored food_prefs. Figures appear only as a sizing target.
+ *  memory.ts); `prefs` is the stored food_prefs; `phase` is the season phase season_phase_for
+ *  resolved (phase B), which shapes the KIND of meal, never a figure. Figures appear only as a
+ *  sizing target.
  *  @param {{ slotTitle: string, proteinTarget: number|null, kcalTarget: number|null, usuals: string[] }} req
- *  @param {{ prefs?: unknown, dossier?: string, memory?: string }} [opts] */
-export function planIdeasUserText(req, { prefs = null, dossier = '', memory = '' } = {}) {
+ *  @param {{ prefs?: unknown, dossier?: string, memory?: string, phase?: unknown }} [opts] */
+export function planIdeasUserText(req, { prefs = null, dossier = '', memory = '', phase = null } = {}) {
   const lines = [`Meal slot: ${req.slotTitle}.`];
   const t = [];
   if (req.proteinTarget) t.push(`about ${req.proteinTarget}g protein`);
@@ -170,6 +173,8 @@ export function planIdeasUserText(req, { prefs = null, dossier = '', memory = ''
   if (req.usuals.length) lines.push(`Their usual meals, already shown to them, so do not repeat these: ${req.usuals.join('; ')}.`);
   const p = prefsPromptText(prefs);
   if (p) lines.push(p);
+  const ph = cleanPhase(phase);
+  if (ph) lines.push(PHASE_IDEA_HINT[ph]);
   if (dossier) lines.push(dossier);
   if (memory) lines.push(memory);
   lines.push('Give up to three ideas through the plan_ideas tool.');

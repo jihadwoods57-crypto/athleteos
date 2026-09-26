@@ -247,6 +247,9 @@ export type OpenerContext = {
   /** True when the athlete is a PROVABLE minor (0050: unknown age is an adult). A minor's "why"
    *  is about training and recovery, never weight (opener-why.ts). */
   minor?: boolean | null;
+  /** The season phase that applies (0252 season_phase_for): 'off' | 'pre' | 'in' | 'post', or null.
+   *  Only picks a season-aware "why" where one exists (phase B); the text never changes. */
+  phase?: string | null;
 };
 
 /**
@@ -371,7 +374,7 @@ export function composeOpener(input: MealInput, ctx: OpenerContext = {}): { text
   // collapsible chip. The library holds its own rails (no figures, no weight language); the style
   // rail is re-checked here anyway, so a line added later can never reach an Intuitive athlete.
   const why = openerWhy({
-    goal: ctx.goal, minor: ctx.minor === true, mealId: ctx.mealId ?? null,
+    goal: ctx.goal, minor: ctx.minor === true, mealId: ctx.mealId ?? null, phase: ctx.phase ?? null,
     topic: whyTopic({ gap: dayTotal !== null && target !== null && target > 0 ? target - dayTotal : null, remaining, late: ctx.late, slot: text(ctx.mealName) }),
   });
   return { text: out, ask: asked, why: violatesStyleLanguage(why.text, style) ? null : why };

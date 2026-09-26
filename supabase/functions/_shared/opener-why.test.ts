@@ -1,6 +1,6 @@
 // A2 "why this matters": the library's rails, the topic pick, the variant pick, and the opener
 // wiring (meta.why is a separate field, never part of the text).
-import { WHY_LIBRARY, WHY_MAX, openerWhy, whyGoal, whyTopic, type WhyGoal, type WhyTopic } from './opener-why';
+import { WHY_LIBRARY, WHY_MAX, PHASE_WHY, openerWhy, whyGoal, whyTopic, whyPhase, type WhyGoal, type WhyTopic, type WhyPhase } from './opener-why';
 import { composeOpener } from './meal-opener';
 import { violatesStyleLanguage } from './plan-style';
 import { scrubToolLeak } from './tool-leak';
@@ -93,5 +93,46 @@ describe('the opener carries it beside the text, never in it', () => {
   });
   it('no message, no why', () => {
     expect(composeOpener({}, { goal: 'gain' }).why).toBeNull();
+  });
+});
+
+describe('season-aware variants (phase B)', () => {
+  const PHASES: WhyPhase[] = ['off', 'pre', 'in', 'post'];
+  const LINES = PHASES.flatMap((p) => TOPICS.flatMap((t) => (PHASE_WHY[p][t] || []).map((line) => ({ p, t, line }))));
+  it('hold the same rails as the goal library', () => {
+    expect(LINES.length).toBeGreaterThanOrEqual(18);
+    for (const { line } of LINES) {
+      expect(line.length).toBeLessThanOrEqual(WHY_MAX);
+      expect(line).not.toMatch(/\d/);
+      expect(violatesStyleLanguage(line, 'intuitive')).toBeNull();
+      expect(scrubToolLeak(line)).toBe(line);
+      expect(line).not.toMatch(new RegExp(`[${String.fromCharCode(0x2014, 0x2013)}<>{}]`));   // no dashes, no markup
+      expect(line).not.toMatch(WEIGHT);
+      expect(line).toMatch(/[.!?]$/);
+    }
+    for (const p of PHASES) for (const t of TOPICS) { const l = PHASE_WHY[p][t]; if (l) expect(l.length).toBeGreaterThanOrEqual(3); }
+    expect(new Set([...LINES.map((x) => x.line), ...ALL.map((x) => x.line)]).size).toBe(LINES.length + ALL.length);
+  });
+  it('speak where the season has a variant, and fall back to the goal where it has none', () => {
+    const inCarbs = openerWhy({ goal: 'gain', topic: 'carbs', mealId: 'm', phase: 'in' });
+    expect(PHASE_WHY.in.carbs).toContain(inCarbs.text);
+    expect(inCarbs.goal).toBe('gain');                       // the chip still names the goal
+    const inLate = openerWhy({ goal: 'gain', topic: 'late', mealId: 'm', phase: 'in' });
+    expect(WHY_LIBRARY.gain.late).toContain(inLate.text);
+    const none = openerWhy({ goal: 'gain', topic: 'carbs', mealId: 'm', phase: null });
+    expect(WHY_LIBRARY.gain.carbs).toContain(none.text);
+    expect(openerWhy({ goal: 'gain', topic: 'carbs', mealId: 'm', phase: 'playoffs' }).text).toBe(none.text);
+    expect(whyPhase('IN')).toBeNull();
+  });
+  it('a minor in season still hears about training, labelled train', () => {
+    const w = openerWhy({ goal: 'lose', minor: true, topic: 'carbs', mealId: 'm', phase: 'in' });
+    expect(w.goal).toBe('train');
+    expect(PHASE_WHY.in.carbs).toContain(w.text);
+  });
+  it('rides composeOpener through ctx.phase', () => {
+    const read = { name: 'Chicken bowl', analysis: 'Real protein and a starch, which is what a training day wants. Add a fruit next time.', detected: [] };
+    const r = composeOpener(read, { goal: 'gain', mealId: 'a', phase: 'in', day: { proteinIncludingThisMeal: 190, proteinTarget: 180, mealsRemaining: 1 } });
+    expect(r.why && r.why.topic).toBe('closed');
+    expect(PHASE_WHY.in.closed).toContain(r.why!.text);
   });
 });

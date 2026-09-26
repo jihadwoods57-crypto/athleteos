@@ -1621,7 +1621,7 @@ async function planIdeasTurn(req: Request, raw: unknown, cors: Record<string, st
       system: [{ type: 'text', text: composeSystem(`${NIA_IDENTITY} ${NIA_HONESTY}\n\n${PLAN_IDEAS_SYSTEM}`, '', planStyle), cache_control: { type: 'ephemeral' } }],
       tools: [PLAN_IDEAS_TOOL] as unknown as Anthropic.Tool[],
       tool_choice: { type: 'tool', name: 'plan_ideas' },
-      messages: [{ role: 'user', content: planIdeasUserText(ask, { prefs, dossier, memory: memoryBlock(mem) }) }],
+      messages: [{ role: 'user', content: planIdeasUserText(ask, { prefs, dossier, memory: memoryBlock(mem), phase: facts?.seasonPhase ?? null }) }],
     });
   } catch (e) {
     await recordAiCall({ fn: 'meal-chat', mode: 'plan_ideas', userId: uid, model: MODEL, latencyMs: Date.now() - t0, ok: false, errorCode: 'upstream_error' });
