@@ -99,9 +99,9 @@ test('coach-set: says so, keeps the why, and the comparison is gone', () => {
   assert.match(x.calories.basis, /^Calories are the fuel/);
   assert.equal(x.compare, null);
   const t = M.explainTargets({ ...base, goalKey: 'gain', bodyweight: 187, protein: 220, kcal: 3600, coachSet: { protein: true }, who: 'trainer' });
-  assert.equal(t.lead, 'Your trainer set these numbers.');
+  assert.equal(t.lead, 'Your trainer set your protein target.');
   assert.equal(t.compare, null);
-  assert.match(t.protein.basis, /^Set by your trainer\./);   // set alone, so it says so itself
+  assert.match(t.protein.basis, /^Protein repairs training/);   // the lead names it; the figure explains itself
   assert.match(t.calories.basis, /per pound/);   // the figure the trainer did not set keeps its own basis
 });
 
@@ -148,7 +148,36 @@ test('the live screen explains DAY\'s real targets, and a coach number only when
   m = whyModel();
   assert.equal(m.source, 'coach');
   const html = screen.render();
-  assert.match(html, /Your coach set these numbers/);
+  assert.match(html, /Your coach set your protein target/);   // only protein is theirs here
   assert.doesNotMatch(html, /What each goal would mean/);
   assert.doesNotMatch(html, /—/);
+});
+
+/* ---------------- review fix round (2026-09-26) ---------------- */
+
+test('fix: the lead names exactly what the coach set', () => {
+  const both = M.explainTargets({ ...base, goalKey: 'gain', bodyweight: 187, protein: 220, kcal: 3600, coachSet: { protein: true, calories: true } });
+  assert.equal(both.lead, 'Your coach set these numbers.');
+  const p = M.explainTargets({ ...base, goalKey: 'gain', bodyweight: 187, protein: 220, kcal: 3200, coachSet: { protein: true } });
+  assert.equal(p.lead, 'Your coach set your protein target.');
+  assert.match(p.calories.basis, /per pound/);            // the calories keep their goal source
+  assert.equal(p.compare, null);
+  const c = M.explainTargets({ ...base, goalKey: 'gain', bodyweight: 187, protein: 185, kcal: 3600, coachSet: { calories: true }, who: 'trainer' });
+  assert.equal(c.lead, 'Your trainer set your calorie target.');
+  assert.match(c.protein.basis, /per pound/);
+  assert.equal(c.compare, null);
+});
+
+test('fix: no goal set means no goal comparison, even though the defaults are not coach-set', () => {
+  const x = M.explainTargets({ ...base, goalKey: null, bodyweight: 187, protein: 180, kcal: 3200 });
+  assert.equal(x.source, 'default');
+  assert.equal(x.compare, null);
+});
+
+test('fix: a calorie target set by the 1500 floor says so, never a per-pound figure', () => {
+  const d = derive('lose', 100);
+  assert.equal(d.calTarget, 1500);
+  const x = M.explainTargets({ ...base, goalKey: 'lose', bodyweight: 100, protein: d.proteinTarget, kcal: 1500 });
+  assert.match(x.calories.basis, /OnStandard's minimum/);
+  assert.doesNotMatch(x.calories.basis, /per pound/);
 });

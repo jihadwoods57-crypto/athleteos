@@ -178,7 +178,7 @@ test('the Home card: athletes only, stable, and ticks persist for the week', () 
   const html = card.focusHtml();
   assert.match(html, /This week's focus/);
   assert.match(html, /Protein at breakfast/);
-  assert.match(html, /Ask Nia why this matters/);
+  assert.doesNotMatch(html, /Ask Nia why this matters/, 'no recent meal on file yet: no chat to open, so no button');
   assert.doesNotMatch(html, /—/);
   const kept = JSON.parse(mem.get('os.weekFocus.wf-athlete'));
   assert.equal(kept.key, 'protein:breakfast');
@@ -192,4 +192,47 @@ test('the Home card: athletes only, stable, and ticks persist for the week', () 
   assert.match(card.focusHtml(), /Log a few more days/);
   DAY.scoreHistory = [];
   assert.equal(card.focusHtml(), '');
+});
+
+/* ---------------- review fix round (2026-09-26) ---------------- */
+
+test('fix: "Ask Nia why this matters" only ever prefills the nutrition chat, never Plan > Ask', async () => {
+  const src = (await import('node:fs')).readFileSync(new URL('./weekly-focus.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(src, /plan-ask|seedAsk/, 'no route to the auto-asking Plan > Ask');
+  RT.userId = 'wf-ask'; RT.authRole = 'athlete'; RT.stdMeals = null;
+  DAY.date = '2026-09-24'; DAY.proteinTarget = 180;
+  DAY.meals = { breakfast: false, lunch: false, dinner: false, snack: false }; DAY.slotMacros = {}; DAY.mealLoggedAt = {};
+  DAY.scoreHistory = dates('2026-09-12', 12).map((d) => row(d, { breakfast: 22, lunch: 60, dinner: 65 }));
+  // No recent meals known yet: the chat has no plate to open on, so there is no button.
+  assert.doesNotMatch(card.focusHtml(), /data-wf-ask/);
+  const rm = await import('./recent-meals.js');
+  await rm.warmRecent({ fetchRecentMeals: async () => [], daysAgoISO: () => '2026-09-10' }, 'wf-ask');
+  assert.doesNotMatch(card.focusHtml(), /data-wf-ask/, 'an empty read hides it too');
+  await rm.warmRecent({ fetchRecentMeals: async () => [{ id: 'm1' }], daysAgoISO: () => '2026-09-10' }, 'wf-ask2');
+  RT.userId = 'wf-ask2';
+  assert.match(card.focusHtml(), /data-wf-ask/);
+  const went = [];
+  globalThis.window.__go = (r) => went.push(r);
+  await card.askNia('Why does protein at breakfast matter so much for my goal?');
+  assert.deepEqual(went, ['nutrition-chat']);
+});
+
+test('fix: a past day whose meal read failed is unknown on the tracker, not missed', () => {
+  const failed = row('2026-09-22', { breakfast: 60 });
+  failed.checkin.slotMacros.breakfast = { analysisFailed: true };
+  const byDate = Object.fromEntries(facts([row('2026-09-21', { breakfast: 60 }), failed, row('2026-09-23', { lunch: 40 })]).map((d) => [d.date, d]));
+  const t = WF.tracker('protein:breakfast', byDate, { ...ctx, todayISO: '2026-09-24' });
+  assert.deepEqual(t.slice(0, 3).map((d) => d.state), ['hit', 'unknown', 'miss']);
+});
+
+test('fix: the recap\'s day protein is the Plan ring\'s own sum (S.dayConsumed), so "hit" means "met"', async () => {
+  const { S } = await import('./state.js');
+  const r = row('2026-09-22', { breakfast: 60, lunch: 50, dinner: 40 });
+  r.meals['meal-5'] = true; r.checkin.slotMacros['meal-5'] = { protein: 25 };   // a standard's extra slot
+  r.checkin.slotMacros.dinner.flagged = 'dup';                                   // never counts
+  r.checkin.slotMacros.lunch = { protein: 50, pending: true };                   // counted as the ring counts it
+  DAY.meals = { ...r.meals }; DAY.slotMacros = JSON.parse(JSON.stringify(r.checkin.slotMacros));
+  DAY.quickAdded = [true, false, false];
+  assert.equal(WF.dayFacts(r, ctx).dayProtein, S.dayConsumed.protein);
+  DAY.quickAdded = [false, false, false];
 });

@@ -63,17 +63,24 @@ export function dayFacts(row, ctx) {
   const at = ck.mealLoggedAt && typeof ck.mealLoggedAt === 'object' ? ck.mealLoggedAt : {};
   const due = ctx && typeof ctx.deadline === 'function' ? ctx.deadline : () => 1440;
   const logged = {}, protein = {}, onTime = {};
-  let dayProtein = 0;
   for (const k of ctx.order.all) {
     const m = sm[k] || {};
     const scored = !!row.meals[k] && m.flagged !== 'dup';
     logged[k] = scored;
     const p = scored && !m.pending && !m.analysisFailed ? num(m.protein) : null;
     protein[k] = p;
-    if (p != null) dayProtein += p;
     const t = scored ? num(at[k]) : null;
     onTime[k] = t == null ? null : t <= due(k);
   }
+  // THE RING'S OWN SUM (review 2026-09-26): the recap's "protein hit" must mean what Plan's ring
+  // calls "met", so the day total is state.js S.dayConsumed exactly: every scored slot the row
+  // carries (a standard's extra slots too), a duplicate photo never, whatever protein its plate
+  // holds. No quick-adds: the ring does not count them (only the score engine's proteinToday does).
+  let dayProtein = 0;
+  for (const k of Object.keys(row.meals)) {
+    if (row.meals[k] && sm[k] && sm[k].flagged !== 'dup') dayProtein += Number(sm[k].protein) || 0;
+  }
+  dayProtein = Math.round(dayProtein);
   // A check-in counts only once it was SUBMITTED: an unsubmitted row still carries the defaults.
   let ci = null;
   if (ck.submitted) {
@@ -277,7 +284,8 @@ export function dayHit(key, d, { order, target }) {
   return false;
 }
 
-/** Monday..Sunday for the week `todayISO` is in: 'hit' | 'miss' | 'open' (today, not yet) |
+/** Monday..Sunday for the week `todayISO` is in: 'hit' | 'miss' | 'unknown' (a past day whose
+ *  read never landed: no evidence either way, so never a miss) | 'open' (today, not yet) |
  *  'future'. `byDate` maps an ISO date to its dayFacts (today's included). */
 export function tracker(key, byDate, { order, target, todayISO }) {
   return weekDates(todayISO).map((date, i) => {
@@ -285,7 +293,7 @@ export function tracker(key, byDate, { order, target, todayISO }) {
     if (date > todayISO) return { date, label, state: 'future' };
     const h = dayHit(key, byDate[date] || null, { order, target });
     if (date === todayISO) return { date, label, state: h === true ? 'hit' : 'open' };
-    return { date, label, state: h === true ? 'hit' : 'miss' };
+    return { date, label, state: h === true ? 'hit' : h === null ? 'unknown' : 'miss' };
   });
 }
 

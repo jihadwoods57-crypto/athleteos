@@ -116,7 +116,13 @@ export const isStrong = (p) => !!p && p.gap >= STRONG_GAP && p.nYes >= STRONG_SI
  */
 export function insightText(p, { numbers, share = 0, titleOf = (k) => k }) {
   const f = FIELDS[p.field].label;
-  const y = Math.round(p.yes), n = Math.round(p.no);
+  // WHOLE NUMBERS ONLY WHEN THEY TELL THE TRUTH (review 2026-09-26): 6.4 vs 4.8 rounds to 6 vs 5, a
+  // 1 point gap for a real 1.6. Whole numbers print only when their gap is 2 or more AND equals
+  // the real gap rounded; otherwise both means print with one decimal ("6.4 ... 4.8").
+  const real = Math.abs(p.yes - p.no);
+  const whole = Math.abs(Math.round(p.yes) - Math.round(p.no));
+  const fmt1 = (v) => (whole >= 2 && whole === Math.round(real) ? String(Math.round(v)) : (Math.round(v * 10) / 10).toFixed(1));
+  const y = fmt1(p.yes), n = fmt1(p.no);
   const tail = `your ${f} averaged ${y} out of 10`;
   if (p.behaviour.startsWith('protein:')) {
     const meal = String(titleOf(p.slot)).toLowerCase();

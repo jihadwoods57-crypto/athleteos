@@ -88,15 +88,18 @@ export function explainTargets({
   const fam = goalFamily(goalKey);
   const coach = { protein: !!coachSet.protein, calories: !!coachSet.calories };
   const anyCoach = coach.protein || coach.calories;
-  // The lead already says who set them when both are theirs; each figure says so only when it alone is.
-  const setBy = coach.protein && coach.calories ? '' : `Set by your ${who}. `;
   const source = anyCoach ? 'coach' : fam ? 'goal' : 'default';
   const numbers = !!(showMacros || showCalories);
   const bwKnown = Number(bodyweight) > 0;
   const bw = bwKnown ? Number(bodyweight) : defaultBw;
   const goalWord = fam ? GOAL_WORD[fam] : null;
 
-  const lead = source === 'coach' ? `Your ${who} set ${numbers ? 'these numbers' : 'your plan'}.`
+  // The lead names exactly what the coach set (review 2026-09-26): "these numbers" only when both
+  // are theirs. Each figure then explains itself from its own real source.
+  const coachWhat = !numbers ? 'your plan'
+    : coach.protein && coach.calories ? 'these numbers'
+      : coach.protein ? 'your protein target' : 'your calorie target';
+  const lead = source === 'coach' ? `Your ${who} set ${coachWhat}.`
     : minor ? 'Set for your body and training.'
       : fam ? `From your goal: ${goalWord}.`
         : "OnStandard's starting targets.";
@@ -112,12 +115,21 @@ export function explainTargets({
     };
   }
 
+  // The 1500 calorie safety floor (state.js goalDerivedTargets): the per-pound factor, read off a
+  // size no floor touches, would have landed under it, so the number is the floor.
+  const calFloor = (k, w) => {
+    if (k !== 1500 || !derive) return false;
+    const f = derive(goalKey, 1000).calTarget / 1000;
+    return f > 0 && Math.round((w * f) / 50) * 50 < 1500;
+  };
+
   // PROTEIN. The per-pound figure is read back off the REAL target, so it is the factor the math
   // used (the 5g rounding moves it by a hair, never by a different rule).
   let proteinPart = null;
   if (showMacros && protein > 0) {
     let basis;
-    if (coach.protein) basis = `${setBy}Protein repairs training and keeps muscle fed, so it counts at every meal.`;
+    // The lead already names what the coach set, so the figure explains itself, not its author.
+    if (coach.protein) basis = 'Protein repairs training and keeps muscle fed, so it counts at every meal.';
     else if (minor) basis = 'Enough protein to repair training, set for your body and training.';
     else if (fam === 'gain' || fam === 'lose' || fam === 'maintain') {
       // The 80g safety floor: the per-pound factor (read off a size no floor touches) would have
@@ -141,9 +153,11 @@ export function explainTargets({
   let calPart = null;
   if (showCalories && kcal > 0) {
     let basis;
-    if (coach.calories) basis = `${setBy}Calories are the fuel for training and recovery.`;
+    if (coach.calories) basis = 'Calories are the fuel for training and recovery.';
     else if (minor) basis = 'Enough fuel for your body and training. Running short costs you energy and recovery.';
-    else if (fam === 'gain' || fam === 'lose' || fam === 'maintain') {
+    else if ((fam === 'gain' || fam === 'lose' || fam === 'maintain') && calFloor(kcal, bw)) {
+      basis = "OnStandard's minimum. It sits above the per-pound math for your size, so you always fuel enough to train.";
+    } else if (fam === 'gain' || fam === 'lose' || fam === 'maintain') {
       const per = `About ${fmt(Math.round(kcal / bw))} calories per pound`;
       basis = fam === 'gain' ? `${per}: more than you burn, so training has material to build with.`
         : fam === 'lose' ? `${per}: a bit under what you burn, with protein held high so the change comes from fat.`
@@ -153,9 +167,10 @@ export function explainTargets({
     calPart = { value: fmt(kcal), basis };
   }
 
-  // THE COMPARISON: goal-derived targets only, adults only, from the athlete's own inputs.
+  // THE COMPARISON: goal-derived targets with a goal actually set (no goal = the shipped defaults,
+  // which no goal chose), adults only, from the athlete's own inputs. Any coach figure hides it.
   let compare = null;
-  if (source !== 'coach' && !minor && typeof derive === 'function') {
+  if (source === 'goal' && !minor && typeof derive === 'function') {
     compare = GOALS.map((g) => {
       const d = derive(g.key, bw);
       return {

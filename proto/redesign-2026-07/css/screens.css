@@ -4516,6 +4516,7 @@ html[data-layout] .rhb-body, html[data-layout] .rhb-acts { max-width: 720px; }
 .wf-d.miss .wf-dot { border-color: var(--text-3); opacity: 0.55; }
 .wf-d.open .wf-dot { border-style: dashed; border-color: var(--pt-goal-ink); }
 .wf-d.future .wf-dot { border-color: var(--hairline-soft); }
+.wf-d.unknown .wf-dot { border-color: var(--hairline); border-style: dotted; }
 .wf-dl { font-size: var(--t-micro); font-weight: 800; letter-spacing: var(--track-key); color: var(--text-3); }
 .wf-d.open .wf-dl { color: var(--text); }
 .wf-tips { list-style: none; margin: var(--s3) 0 0; padding: 0; border-top: 1px solid var(--hairline-soft); }

@@ -157,3 +157,14 @@ test('Progress: athletes only, and only fields the athlete is actually asked', (
   DAY.scoreHistory = [];
   assert.equal(section.worksHtml(), '');
 });
+
+/* ---------------- review fix round (2026-09-26) ---------------- */
+
+test('fix: one decimal when whole numbers would misstate the gap', () => {
+  const p = { behaviour: 'all', slot: null, field: 'energy', yes: 6.4, no: 4.8, gap: 1.6, nYes: 5, nNo: 5 };
+  assert.equal(WW.insightText(p, { numbers: true, titleOf }), 'On days you logged every meal, your energy averaged 6.4 out of 10. On days you didn\'t, 4.8.');
+  const q = { ...p, yes: 8, no: 5, gap: 3 };
+  assert.equal(WW.insightText(q, { numbers: true, titleOf }), 'On days you logged every meal, your energy averaged 8 out of 10. On days you didn\'t, 5.');
+  // 7.4 vs 5.6 reads as 7 vs 6 in whole numbers: a 1 point gap for a real 1.8.
+  assert.match(WW.insightText({ ...p, yes: 7.4, no: 5.6, gap: 1.8 }, { numbers: true, titleOf }), /7\.4 out of 10\. On days you didn't, 5\.6\./);
+});

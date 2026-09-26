@@ -2,7 +2,8 @@
  *
  * ONE calm card: "This week's focus" in the goal teal, the focus, one line on why with a real
  * number, a Monday to Sunday tracker, three tips the athlete can tick off, and "Ask Nia why this
- * matters", which types the question into the nutrition chat and leaves it unsent. On Sunday, and
+ * matters", which types the question into the nutrition chat and leaves it unsent (and is not drawn
+ * when there is no chat to open: never a detour to Plan > Ask, which asks on arrival). On Sunday, and
  * Monday until noon, one quiet line recaps the week.
  *
  * LAZY ON PURPOSE: screens/home.js is in the boot graph, so this arrives by dynamic import the
@@ -16,6 +17,7 @@ import { DAY, slotDeadline, slotGrace, minutesNow } from './day.js';
 import { esc } from './components.js';
 import { icon } from './icons.js';
 import { slotOrder } from './plan-today-model.js';
+import { recentRows, warmRecent } from './recent-meals.js';
 import {
   WINDOW_DAYS, addDays, dayFacts, resolveFocus, candidateStats, focusCopy, focusTips, askQuestion,
   tracker, recapDue, recapLine, loggedDays, slotShare,
@@ -85,13 +87,13 @@ export function focusView() {
     key: r.key, numbers, ...copy,
     track: tracker(r.key, byDate, { ...ctx, todayISO: DAY.date }),
     tips: focusTips(r.key).map((t, i) => ({ text: t, done: !!ticks[i] })),
-    ask: askQuestion(stats, { numbers, titleOf }),
+    ask: canAsk() ? askQuestion(stats, { numbers, titleOf }) : null,
     recap, insight,
   };
 }
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const STATE_WORD = { hit: 'done', miss: 'missed', open: 'today, not yet', future: 'still to come' };
+const STATE_WORD = { hit: 'done', miss: 'missed', unknown: 'not read yet', open: 'today, not yet', future: 'still to come' };
 
 /** The card's markup ('' for none). */
 export function focusHtml() {
@@ -109,32 +111,43 @@ export function focusHtml() {
     <ul class="wf-tips">
       ${v.tips.map((t, i) => `<li><button type="button" class="wf-tip${t.done ? ' on' : ''}" aria-pressed="${t.done ? 'true' : 'false'}" data-wf-tip="${i}"><span class="wf-box" aria-hidden="true">${icon('check', 12)}</span><span>${esc(t.text)}</span></button></li>`).join('')}
     </ul>
-    <button type="button" class="wf-ask" data-wf-ask="${esc(v.ask)}">${icon('sparkle', 15)}Ask Nia why this matters</button>
+    ${v.ask ? `<button type="button" class="wf-ask" data-wf-ask="${esc(v.ask)}">${icon('sparkle', 15)}Ask Nia why this matters</button>` : ''}
     ${v.recap ? `<p class="wf-recap">${esc(v.recap.replace(/ · /g, '\u00a0· '))}</p>` : ''}
     ${v.insight ? `<p class="wf-recap">${esc(v.insight)}</p>` : ''}
   </section>`;
 }
 
-/** The chat with the question typed and NOT sent; Plan > Ask when there is no plate to hang it on. */
-async function askNia(q) {
-  const rm = await import('./recent-meals.js');
-  let rows = rm.recentRows(RT.userId);
-  if (!rows) { try { rows = await rm.warmRecent(await import('./roles.js'), RT.userId); } catch { rows = null; } }
-  if (rows && rows.length) {
-    const { seedComposer } = await import('./screens/nutrition-chat.js');
-    seedComposer(q);
-    window.__go('nutrition-chat');
-    return;
-  }
-  const { seedAsk } = await import('./screens/plan-ask.js');
-  seedAsk(q);
-  window.__go('plan-ask/overview');
+/* THE ASK ONLY EVER PREFILLS (review 2026-09-26). The nutrition chat hangs a message on a meal,
+   so it can open only with a recent meal on file; without one the button is not drawn at all. It
+   used to fall back to Plan > Ask, which ASKS on arrival: a tap that was meant to type a question
+   sent it. */
+const canAsk = () => { const r = recentRows(RT.userId); return !!(r && r.length); };
+
+/** The nutrition chat with the question typed and NOT sent. Nothing when it cannot open. */
+export async function askNia(q) {
+  if (!canAsk()) return false;
+  const { seedComposer } = await import('./screens/nutrition-chat.js');
+  seedComposer(q);
+  window.__go('nutrition-chat');
+  return true;
+}
+
+/** Recent meals not read yet this session: read them once, then redraw the card with the ask. */
+function warmAsk(root) {
+  if (recentRows(RT.userId) !== null || !RT.userId) return;
+  const uid = RT.userId;
+  void import('./roles.js').then((roles) => warmRecent(roles, uid)).then(() => {
+    if (RT.userId !== uid || !canAsk()) return;
+    const slot = root && root.isConnected && root.querySelector('#wf-slot');
+    if (slot) { slot.innerHTML = focusHtml(); wireFocus(root, false); }
+  }, () => {});
 }
 
 /** Wire the card inside `root` (Home's mount, every render). Ticks flip in place. */
-export function wireFocus(root) {
+export function wireFocus(root, warm = true) {
   const card = root && root.querySelector('.wf');
   if (!card) return;
+  if (warm) warmAsk(root);
   card.addEventListener('click', (e) => {
     const t = e.target && e.target.closest ? e.target : null;
     if (!t) return;
