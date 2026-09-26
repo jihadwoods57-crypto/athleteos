@@ -191,6 +191,14 @@ create temp table _fx as select $fx$
     { "goal": "maintain", "bw": 187, "targets": { "protein": 0, "calories": 2800 }, "expect": 150 },
     { "goal": "lose", "bw": 187, "targets": { "protein": 187.6 }, "expect": 188 },
     { "goal": "lose", "bw": 187, "targets": { "protein": "lots" }, "expect": 170 }
+  ],
+  "people": [
+    { "name": "no stored weight, a logged one", "goal": "gain", "base": null, "logged": 205, "targets": null, "expect": 205 },
+    { "name": "no stored weight, a logged decimal", "goal": "lose", "base": null, "logged": 187.4, "targets": null, "expect": 170 },
+    { "name": "the stored weight wins over a logged one", "goal": "gain", "base": 190, "logged": 205, "targets": null, "expect": 190 },
+    { "name": "no weight anywhere is the 171 lb stand-in", "goal": "gain", "base": null, "logged": null, "targets": null, "expect": 170 },
+    { "name": "a coach number wins over any weight", "goal": "maintain", "base": null, "logged": 205, "targets": { "protein": 175 }, "expect": 175 },
+    { "name": "a zero stored weight falls through to the logged one", "goal": "maintain", "base": 0, "logged": 200, "targets": null, "expect": 160 }
   ]
 }
 $fx$::jsonb as j;
@@ -210,6 +218,10 @@ select _ok(protein_target_from(f ->> 'goal', (f ->> 'bw')::numeric, f -> 'target
   from _fx, jsonb_array_elements(_fx.j -> 'targets') f;
 
 select _ok((select count(*) from jsonb_array_elements((select j from _fx) -> 'hits')) >= 30, 'parity: the hit fixtures are all there');
+
+select _ok(protein_target_from(f ->> 'goal', goal_bodyweight_from((f ->> 'base')::numeric, (f ->> 'logged')::numeric), f -> 'targets') = (f ->> 'expect')::int,
+           'parity person: ' || (f ->> 'name'))
+  from _fx, jsonb_array_elements(_fx.j -> 'people') f;
 
 -- ---------------------------------------------------------------- seed
 -- 01 head coach T1 · 02 view-only T1 · 03 position coach T1 · 04 nutritionist T1 · 05 head coach T2
@@ -440,6 +452,10 @@ insert into _ch select start_team_challenge('7fd00000-0000-0000-0000-0000000000d
 select _ok((select count(*) from _ch where id is not null) = 1, 'challenge: the head coach starts one');
 select _ok(_try($q$select start_team_challenge('7fd00000-0000-0000-0000-0000000000d1', 'missed', current_date, current_date + 3, 3)$q$) like 'denied(23505)%',
   'challenge: one running per team');
+select _ok(_try($q$select start_team_challenge('7fd00000-0000-0000-0000-0000000000d1', 'missed', current_date + 7, current_date + 13, 5)$q$) like 'denied(23505)%',
+  'fix: scheduling next week while one runs is refused (one active or upcoming per team)');
+select _ok((select ended_at is null from team_challenges where id = (select id from _ch)),
+  'fix: and the running challenge is untouched');
 select _as('7fd00000-0000-0000-0000-00000000000a');
 select _ok((select count(*) from team_challenges) = 1, 'challenge read: the team''s athlete reads it');
 select _as('7fd00000-0000-0000-0000-00000000000b');
@@ -544,6 +560,77 @@ insert into team_week_pattern (team_id, pattern) values ('7fd00000-0000-0000-000
 select _ok(athlete_day_ctx('7fd00000-0000-0000-0000-00000000000f', '7fd00000-0000-0000-0000-0000000000d2', current_date) -> 'required'
            = '["breakfast","lunch","dinner"]'::jsonb,
   'standard: a rest day drops the training-day meal');
+
+-- ================================================================ review fix round
+-- 6. A lesson from a coach the athlete blocked: flagged, and no name.
+select _superuser();
+insert into user_blocks (blocker_id, blocked_id) values ('7fd00000-0000-0000-0000-00000000000a', '7fd00000-0000-0000-0000-000000000001');
+select _as('7fd00000-0000-0000-0000-00000000000a');
+select _ok((select (x ->> 'blocked')::boolean and x -> 'from' = 'null'::jsonb
+              from jsonb_array_elements(my_learning(current_date) -> 'assignments') x where x ->> 'lesson_id' = 'hydration-basics'),
+  'fix: a lesson from a coach I blocked is flagged and carries no name');
+select _superuser();
+delete from user_blocks where blocker_id = '7fd00000-0000-0000-0000-00000000000a';
+select _as('7fd00000-0000-0000-0000-00000000000a');
+select _ok((select not (x ->> 'blocked')::boolean and x ->> 'from' = 'Coach Grinch'
+              from jsonb_array_elements(my_learning(current_date) -> 'assignments') x where x ->> 'lesson_id' = 'hydration-basics'),
+  'fix: unblocked, it is from the coach again');
+
+-- 2. Push dedupe: the same team and lesson is announced at most once a day, even after a remove
+--    and a re-assign (or the same lesson to one of the team's rooms).
+select _as('7fd00000-0000-0000-0000-000000000004');
+select _ok(_try($q$insert into lesson_assignments (id, team_id, lesson_id) values ('7fd00000-0000-0000-0000-0000000000a5', '7fd00000-0000-0000-0000-0000000000d1', 'snacks-that-count')$q$) = 'ok',
+  'dedupe: an editor assigns a lesson');
+select _ok((claim_teach_push('lesson', '7fd00000-0000-0000-0000-0000000000a5') ->> 'claimed')::boolean, 'dedupe: its first push is claimed');
+select _ok(_n($q$delete from lesson_assignments where id = '7fd00000-0000-0000-0000-0000000000a5'$q$) = 1, 'dedupe: the editor removes it');
+select _ok(_try($q$insert into lesson_assignments (id, team_id, lesson_id) values ('7fd00000-0000-0000-0000-0000000000a6', '7fd00000-0000-0000-0000-0000000000d1', 'snacks-that-count')$q$) = 'ok',
+  'dedupe: and assigns it again');
+select _ok((select not (r ->> 'claimed')::boolean and (r ->> 'reason') = 'recent'
+            from (select claim_teach_push('lesson', '7fd00000-0000-0000-0000-0000000000a6') r) s),
+  'fix: the re-assigned lesson is not pushed again within a day');
+select _ok((select pushed_at is not null from lesson_assignments where id = '7fd00000-0000-0000-0000-0000000000a6'),
+  'dedupe: and it is marked, so it never pushes later either');
+select _ok(_try($q$insert into lesson_assignments (id, team_id, lesson_id, room_id) values ('7fd00000-0000-0000-0000-0000000000a7', '7fd00000-0000-0000-0000-0000000000d1', 'snacks-that-count', '7fd00000-0000-0000-0000-0000000000c1')$q$) = 'ok'
+  and not (claim_teach_push('lesson', '7fd00000-0000-0000-0000-0000000000a7') ->> 'claimed')::boolean,
+  'fix: the same lesson to a room of the same team inside the day is not pushed again');
+select _superuser();
+select _ok((select count(*) from teach_pushes where team_id = '7fd00000-0000-0000-0000-0000000000d1' and ref = 'snacks-that-count') = 1,
+  'dedupe: the log keeps one entry per push');
+select _as('7fd00000-0000-0000-0000-000000000001');
+select _ok(_try($q$select count(*) from teach_pushes$q$) <> 'ok', 'dedupe: the push log is not readable from the app');
+
+-- 5 + 2. A challenge that starts later says when; the same habit restarted inside a day is not pushed.
+select _as('7fd00000-0000-0000-0000-000000000001');
+select _ok((select end_team_challenge(id) from team_challenges where team_id = '7fd00000-0000-0000-0000-0000000000d1' and ended_at is null),
+  'challenge: the running one is ended');
+create temp table _ch2 (id uuid);
+insert into _ch2 select start_team_challenge('7fd00000-0000-0000-0000-0000000000d1', 'late', current_date + 3, current_date + 9, 5);
+select _ok((select r ->> 'body' = 'Coach Grinch set a team challenge: Meals logged on time. It starts '
+              || trim(to_char(current_date + 3, 'Day')) || '. Goal: 5 of 7 days.'
+            from (select claim_teach_push('challenge', (select id from _ch2)) r) s),
+  'fix: a challenge that starts later says when it starts');
+select _ok((select end_team_challenge(id) from _ch2), 'challenge: the scheduled one is ended');
+create temp table _ch3 (id uuid);
+insert into _ch3 select start_team_challenge('7fd00000-0000-0000-0000-0000000000d1', 'late', current_date, current_date + 6, 5);
+select _ok((select not (r ->> 'claimed')::boolean and r ->> 'reason' = 'recent' from (select claim_teach_push('challenge', (select id from _ch3)) r) s),
+  'fix: the same habit restarted inside a day is not pushed again');
+
+-- 3. Weight: the stored base weight, else the latest logged weight in the last 90 days, else 171.
+select _superuser();
+insert into athlete_profiles (athlete_id, base_goal, base_weight) values ('7fd00000-0000-0000-0000-00000000000f', 'gain', null)
+on conflict (athlete_id) do update set base_goal = 'gain', base_weight = null;
+insert into days (athlete_id, date, current_weight) values
+  ('7fd00000-0000-0000-0000-00000000000f', current_date - 100, 190),
+  ('7fd00000-0000-0000-0000-00000000000f', current_date - 40, 199),
+  ('7fd00000-0000-0000-0000-00000000000f', current_date - 10, 205)
+on conflict (athlete_id, date) do update set current_weight = excluded.current_weight;
+select _ok(athlete_protein_target('7fd00000-0000-0000-0000-00000000000f') = 205,
+  'fix: no stored weight: the latest logged weight sets the target (205 lb, gain: 205 g)');
+update days set current_weight = null where athlete_id = '7fd00000-0000-0000-0000-00000000000f' and date >= current_date - 90;
+select _ok(athlete_protein_target('7fd00000-0000-0000-0000-00000000000f') = 170,
+  'fix: a weight older than 90 days is not used: the 171 lb stand-in');
+update athlete_profiles set base_weight = 212 where athlete_id = '7fd00000-0000-0000-0000-00000000000f';
+select _ok(athlete_protein_target('7fd00000-0000-0000-0000-00000000000f') = 210, 'fix: the stored weight wins');
 
 -- ================================================================ scoreboard
 select _superuser();

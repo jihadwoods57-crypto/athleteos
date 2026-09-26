@@ -40,7 +40,15 @@
 --
 -- PUSH ONCE. claim_teach_push stamps pushed_at in one conditional update and hands the send-push
 -- function the audience; a second call finds it stamped and returns claimed:false. So an assignment
--- or a challenge is pushed at most once, whatever the client retries.
+-- or a challenge is pushed at most once, whatever the client retries. And at most once a DAY per
+-- team and lesson (or team and habit): teach_pushes remembers each push, so removing a lesson and
+-- assigning it again, or sending it to another room, does not notify the same athletes twice.
+--
+-- WEIGHT (review 2026-09-26). Prod had 30 of 30 goal-setting athletes with no base_weight (the
+-- current onboarding never asks), so the target fell to the 171 lb stand-in while the phone used
+-- the athlete's weigh-in. The server now reads base_weight, else the latest logged weight of the
+-- last 90 days, else 171 (goal_bodyweight_from), the same chain as state.js goalBodyweight; and the
+-- phone saves the weight it holds to base_weight once (weight-backfill.js, 0181's door).
 --
 -- Additive and idempotent. The client treats every object here as optional.
 
@@ -421,7 +429,15 @@ begin
   return greatest(80::float8, floor(bw * f / 5 + 0.5) * 5)::int;
 end $$;
 
+/* state.js goalBodyweight: the stored base weight, else the latest logged weight (the caller reads
+   it from the last 90 days), else null, which protein_target_from turns into the 171 lb stand-in. */
+create or replace function goal_bodyweight_from(p_base numeric, p_logged numeric) returns numeric
+language sql immutable set search_path = public as $$
+  select case when p_base > 0 then p_base when p_logged > 0 then p_logged else null end;
+$$;
+
 revoke all on function _focus_truthy(jsonb) from public, anon, authenticated;
+revoke all on function goal_bodyweight_from(numeric, numeric) from public, anon, authenticated;
 revoke all on function _focus_num(jsonb) from public, anon, authenticated;
 revoke all on function focus_slot_share(numeric, int) from public, anon, authenticated;
 revoke all on function focus_habit_applies(text, text[]) from public, anon, authenticated;
@@ -462,7 +478,13 @@ revoke all on function athlete_day_ctx(uuid, uuid, date) from public, anon, auth
 create or replace function athlete_protein_target(p_athlete uuid) returns int
 language sql stable security definer set search_path = public as $$
   select coalesce(
-    (select protein_target_from(ap.base_goal, ap.base_weight, ap.targets) from athlete_profiles ap where ap.athlete_id = p_athlete),
+    (select protein_target_from(ap.base_goal,
+              goal_bodyweight_from(ap.base_weight,
+                (select d.current_weight from days d
+                  where d.athlete_id = p_athlete and d.current_weight is not null and d.date >= current_date - 90
+                  order by d.date desc limit 1)),
+              ap.targets)
+       from athlete_profiles ap where ap.athlete_id = p_athlete),
     180);
 $$;
 revoke all on function athlete_protein_target(uuid) from public, anon, authenticated;
@@ -530,10 +552,11 @@ begin
     raise exception 'the goal is 1 day up to every day of the range' using errcode = '22023';
   end if;
   perform pg_advisory_xact_lock(hashtextextended('team_challenges:' || p_team::text, 0));
-  -- A challenge whose last day has passed (or that ends before this one starts) is over: close it
-  -- so the next one can start. An overlapping one is still running and refuses the new one.
+  -- A challenge whose last day has passed is over: close it so the next one can start. ONE ACTIVE
+  -- OR UPCOMING PER TEAM: a running (or scheduled) one refuses a new one, even a later one. It is
+  -- never ended to make room (review 2026-09-26): the coach ends it, or waits for it to finish.
   update team_challenges set ended_at = now()
-   where team_id = p_team and ended_at is null and (ends_on < current_date - 1 or ends_on < p_starts);
+   where team_id = p_team and ended_at is null and ends_on < current_date - 1;
   if exists (select 1 from team_challenges where team_id = p_team and ended_at is null) then
     raise exception 'a team challenge is already running' using errcode = '23505';
   end if;
@@ -774,8 +797,11 @@ begin
   return jsonb_build_object(
     'today', v_today,
     'assignments', coalesce((
+      -- A lesson from a coach this athlete blocked (0244) stays readable but carries no name, and
+      -- the app keeps it off Home (review 2026-09-26).
       select jsonb_agg(jsonb_build_object('id', a.id, 'lesson_id', a.lesson_id, 'due_on', a.due_on,
-               'created_at', a.created_at, 'from', staff_display_label(a.assigned_by, a.team_id))
+               'created_at', a.created_at, 'blocked', i_blocked(a.assigned_by),
+               'from', case when i_blocked(a.assigned_by) then null else staff_display_label(a.assigned_by, a.team_id) end)
              order by a.created_at desc)
         from lesson_assignments a
         join team_members tm on tm.team_id = a.team_id and tm.athlete_id = v_me and tm.status = 'active'
@@ -791,6 +817,21 @@ revoke all on function my_learning(date) from public, anon;
 grant execute on function my_learning(date) to authenticated;
 
 -- ================================================================ 6. push once
+/* Every teach push that went out, by team and lesson (or team and habit). Written only inside
+   claim_teach_push; nobody in the app reads it. */
+create table if not exists public.teach_pushes (
+  id        bigserial primary key,
+  team_id   uuid not null references public.teams(id) on delete cascade,
+  kind      text not null check (kind in ('lesson', 'challenge')),
+  ref       text not null check (char_length(ref) between 1 and 64),
+  pushed_at timestamptz not null default now()
+);
+create index if not exists teach_pushes_recent on public.teach_pushes (team_id, kind, ref, pushed_at desc);
+alter table public.teach_pushes enable row level security;
+revoke all on table public.teach_pushes from public, anon, authenticated;
+grant select, insert, delete on public.teach_pushes to service_role;
+grant usage, select on sequence public.teach_pushes_id_seq to service_role;
+
 /* The creator's client asks send-push to announce a new assignment or challenge; send-push calls
    this with the CALLER's session. It stamps pushed_at in one conditional update (a row already
    stamped, or older than a day, returns claimed:false) and returns the audience and the words.
@@ -808,9 +849,16 @@ begin
     select * into a from lesson_assignments where id = p_id;
     if not found then return jsonb_build_object('claimed', false); end if;
     if not can_set_team_phase(a.team_id) then raise exception 'not an editor of this team' using errcode = '42501'; end if;
+    perform pg_advisory_xact_lock(hashtextextended('teach_push:' || a.team_id::text || ':lesson:' || a.lesson_id, 0));
     update lesson_assignments set pushed_at = now()
      where id = p_id and pushed_at is null and created_at > now() - interval '1 day';
     if not found then return jsonb_build_object('claimed', false); end if;
+    -- Once a day per team and lesson: the row is marked (so it never pushes later) but nobody hears.
+    if exists (select 1 from teach_pushes t where t.team_id = a.team_id and t.kind = 'lesson' and t.ref = a.lesson_id
+                and t.pushed_at > now() - interval '24 hours') then
+      return jsonb_build_object('claimed', false, 'reason', 'recent');
+    end if;
+    insert into teach_pushes (team_id, kind, ref) values (a.team_id, 'lesson', a.lesson_id);
     v_ids := array(select m.athlete_id from team_members m where m.team_id = a.team_id and m.status = 'active'
                     and (a.room_id is null or m.room_id = a.room_id));
     v_from := staff_display_label(a.assigned_by, a.team_id);
@@ -821,15 +869,27 @@ begin
     select * into c from team_challenges where id = p_id;
     if not found then return jsonb_build_object('claimed', false); end if;
     if not can_set_team_phase(c.team_id) then raise exception 'not an editor of this team' using errcode = '42501'; end if;
+    perform pg_advisory_xact_lock(hashtextextended('teach_push:' || c.team_id::text || ':challenge:' || c.habit, 0));
     update team_challenges set pushed_at = now()
      where id = p_id and pushed_at is null and ended_at is null and created_at > now() - interval '1 day';
     if not found then return jsonb_build_object('claimed', false); end if;
+    if exists (select 1 from teach_pushes t where t.team_id = c.team_id and t.kind = 'challenge' and t.ref = c.habit
+                and t.pushed_at > now() - interval '24 hours') then
+      return jsonb_build_object('claimed', false, 'reason', 'recent');
+    end if;
+    insert into teach_pushes (team_id, kind, ref) values (c.team_id, 'challenge', c.habit);
     v_ids := array(select m.athlete_id from team_members m where m.team_id = c.team_id and m.status = 'active');
     v_from := staff_display_label(c.created_by, c.team_id);
+    -- A challenge set for later says when it starts: the weekday inside a week, else the date.
     return jsonb_build_object('claimed', true, 'kind', 'challenge', 'ref', null, 'route', 'home',
       'title', 'Team challenge',
-      'body', v_from || ' started a team challenge: ' || challenge_habit_title(c.habit) || '. Goal: '
-              || c.goal_days || ' of ' || (c.ends_on - c.starts_on + 1) || ' days.',
+      'body', v_from
+              || case when c.starts_on > current_date
+                   then ' set a team challenge: ' || challenge_habit_title(c.habit) || '. It starts '
+                        || case when c.starts_on - current_date <= 6 then trim(to_char(c.starts_on, 'Day'))
+                                else trim(to_char(c.starts_on, 'FMMonth FMDD')) end || '.'
+                   else ' started a team challenge: ' || challenge_habit_title(c.habit) || '.' end
+              || ' Goal: ' || c.goal_days || ' of ' || (c.ends_on - c.starts_on + 1) || ' days.',
       'athlete_ids', to_jsonb(v_ids));
   end if;
   raise exception 'unknown kind' using errcode = '22023';
