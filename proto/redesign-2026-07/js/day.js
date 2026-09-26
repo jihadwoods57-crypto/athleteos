@@ -800,7 +800,16 @@ export function streakDays(activationDate = /** @type {string | null} */ (null))
 
 /* ---- offline cache (per user) ---- */
 function cacheKey(userId) { return `onstd-day-${userId}-${DAY.date}`; }
-function saveCache(userId) { touch(); try { localStorage.setItem(cacheKey(userId), JSON.stringify(DAY)); } catch { /* quota */ } }
+/* One key per user per DATE and nothing removed old dates: 2.5M characters by 2026-09-26, a full
+   localStorage (storage-guard.js). Old dates are swept once a day; a refused write evicts and retries. */
+let swept = '';
+function saveCache(userId) {
+  touch();
+  const put = () => { try { localStorage.setItem(cacheKey(userId), JSON.stringify(DAY)); return true; } catch { return false; } };
+  const guard = () => import('./storage-guard.js');
+  if (swept !== DAY.date && typeof localStorage !== 'undefined') { swept = DAY.date; void guard().then((g) => g.sweepDays(localStorage, DAY.date), () => {}); }
+  if (!put() && typeof localStorage !== 'undefined') void guard().then((g) => g.onQuota('day', put), () => {});
+}
 /** Restore today's cached day onto DAY. True when the cache held TODAY for this user. */
 function loadCache(userId) {
   touch();

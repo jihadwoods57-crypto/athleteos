@@ -640,15 +640,18 @@ export function openingBlockHtml(M, { sum, fullText, modelProse = false, hasPers
   }
   if (M && M.analysisFailed) {
     const capacity = M.analysisFailed === 'capacity';
-    // photo_lost: the device's photo budget dropped the bytes before they uploaded. There is
-    // nothing left to read, so no retry chip — offering one would be a dead button.
+    // photo_lost: the phone lost the bytes before they uploaded, so nothing reached the server and
+    // there is nothing to read. "Read it again" would be a dead button; the way out is a retake,
+    // which replaces this log and keeps its logged time (act.logMeal).
     const lost = M.analysisFailed === 'photo_lost';
+    const coachLine = S.coach.hasCoach ? ` and your ${esc(S.coach.noun)} can't see it yet` : '';
     return wrap(aiRow(`
-          <div style="font-weight:700">${capacity ? "Nia couldn't get to this one today." : lost ? "Nia couldn't read this one." : "Nia couldn't read this plate."}</div>
+          <div style="font-weight:700">${capacity ? "Nia couldn't get to this one today." : lost ? "This photo didn't upload." : "Nia couldn't read this plate."}</div>
           <div style="margin-top:4px;color:var(--text-2)">${lost
-            ? "The photo couldn't be kept on this device, so there's nothing left to read. The log still counts for timing."
+            ? `It never left your phone, so Nia has nothing to read${coachLine}. Add it again and it goes through. Your logged time stays.`
             : `It's logged and counts for timing either way. Your photo is the proof.${capacity ? '' : ' Worth another try?'}`}</div>
           ${M.rereadError ? `<div class="mt-warnline">Couldn't fetch the photo just now. Try again in a moment.</div>` : ''}
+          ${lost ? `<div class="fq-chips"><button class="fx-chip" id="mt-retake-lost">${M.source === 'gallery' ? `${icon('image', 13)} Choose the photo again` : `${icon('camera', 13)} Retake the photo`}</button></div>` : ''}
           ${capacity || lost ? '' : `<div class="fq-chips"><button class="fx-chip" id="mt-retry-analysis">${icon('sparkle', 13)} Read it again</button></div>`}`, 'analysis-failed'), '');
   }
 
@@ -1342,7 +1345,7 @@ export function mealReadHtml(M, { exec = null, past = false, viewer = 'athlete',
         <div class="mqb-t">${M.pendingQuestions.length === 1 ? 'One answer from you and these are exact.' : `${M.pendingQuestions.length} answers and these are exact.`}</div>
         <button class="btn primary sm" id="mq-open-breakdown" type="button">${icon('sparkle', 15)} Answer</button>
       </div>` : ''}
-      ${M.analysisFailed ? `<div class="est-note" style="margin-top:10px">No numbers for this one. The photo is still your proof that the meal happened.</div>` : ''}
+      ${M.analysisFailed ? `<div class="est-note" style="margin-top:10px">${M.analysisFailed === 'photo_lost' ? 'No numbers yet. The photo never uploaded, so add it again below.' : 'No numbers for this one. The photo is still your proof that the meal happened.'}</div>` : ''}
     </section>` : !showNums ? `
     ${/* The Intuitive read's plate section wears the 09-15 section shape (a heading with its
           provenance once, beside it), not the old uppercase eyebrow whose "· estimated from
@@ -1512,9 +1515,12 @@ export const thread = {
       ${/* Loading is a skeleton shaped like the messages it stands in for, and only when there
             is no cached thread to paint instantly. The id stays: the mount removes it on load
             and rewrites it in place on failure. */''}
+      ${/* A job that can never sync must not promise to: a lost photo reaches the server only as a new photo. */''}
       ${M.mealId
         ? `<div id="thread-status">${THREAD_CACHE.mealId === M.mealId ? '' : skeletonRows(2, 'Loading the thread')}</div>`
-        : `<div class="msg-status" id="thread-status">${S.coach.hasCoach ? `Syncs when connected · your ${esc(S.coach.noun)} sees this log either way.` : 'Syncs when connected · this log is saved either way.'}</div>`}
+        : `<div class="msg-status" id="thread-status">${M.analysisFailed === 'photo_lost'
+          ? `Not sent · add the photo again to send this meal${S.coach.hasCoach ? ` to your ${esc(S.coach.noun)}` : ''}.`
+          : S.coach.hasCoach ? `Syncs when connected · your ${esc(S.coach.noun)} sees this log either way.` : 'Syncs when connected · this log is saved either way.'}</div>`}
     </div>
     ${M.mealId ? `
     ${/* "Ask a question" went first (founder, 2026-08-02): it carried data-qa="" — no prefill at
@@ -2386,13 +2392,15 @@ export const thread = {
         void act.confirmMemoryFact(id, fx.getAttribute('data-keep') === '1');
         return;
       }
-      const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mq-open-breakdown, #mt-retry-analysis, #mt-ai-on, #mt-reread, #open-full-chat, #thread-more') : null;
+      const t = ev.target && ev.target.closest ? ev.target.closest('#mq-thread-go, #mq-thread-skip, #mq-open-breakdown, #mt-retry-analysis, #mt-retake-lost, #mt-ai-on, #mt-reread, #open-full-chat, #thread-more') : null;
       if (!t) return;
       if (t.id === 'mt-ai-on') {
         // The consent sheet, asked on purpose. A yes re-queues this plate's read.
         void ensureAiConsent(RT.userId, { role: 'athlete', ask: true }).then((yes) => { if (yes) void act.retryAnalysis(M.slot); });
         return;
       }
+      // The photo never uploaded: a new one for THIS slot replaces the log (act.logMeal, lostPhotoSlot).
+      if (t.id === 'mt-retake-lost') { act.clearMeal(); window.__go('camera/' + M.slot, { dir: 'push' }); return; }
       if (t.id === 'mt-retry-analysis') {
         // Always answer the tap: in-flight label now, and retryAnalysis itself re-renders with
         // either the pending state or an honest failure line. The old handler called a function

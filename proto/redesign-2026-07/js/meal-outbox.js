@@ -1,27 +1,16 @@
-/* Durable meal outbox — the work that must survive a closed app.
+/* Durable meal outbox: the work that must survive a closed app. One entry per logged meal carrying
+ * the WHOLE remaining job (upload, insert, analyse, answers), written before any network call.
  *
- * WHY THIS EXISTS. Logging a meal used to be three fire-and-forget calls made while the athlete
- * watched a spinner: upload the photo (un-awaited, ZERO retry — a failure left the `meals` row
- * pointing at an object that was never stored), insert the row, run the analysis. Kill the app
- * mid-flow, or log from a cafeteria with no signal, and the photo was gone: it lived only in
- * sessionStorage, which a fresh launch correctly discards.
- *
- * So this queue holds ONE entry per logged meal carrying the WHOLE remaining job — upload, insert,
- * analyse, and any clarifying answers — not just the photo. The entry is written before any network
- * call, so the work is durable from the first instant. It is modelled on the roll-call ack queue
- * (src/lib/notify/rollcall.ts), which solves the same shape for a different signal.
- *
- * QUOTA. localStorage is ~5MB and a capture is 150-250KB of base64, so photos are the one thing
- * that can genuinely overflow it. Policy: at most MAX_PHOTOS entries carry base64; when a write
- * fails we drop the OLDEST photo (not the newest — the newest is the one the athlete is looking
- * at) and keep that entry's metadata so its thread state stays honest rather than vanishing.
- *
- * The pure half (queue math) is exported separately from the storage half so it can be unit-tested
- * in Node with no browser.
- */
+ * PHOTO BYTES DO NOT LIVE HERE (2026-09-26). The queue in localStorage is metadata; the ~250KB of
+ * base64 per capture lives in IndexedDB (outbox-photos.js, lazy) and in MEM for this session. The
+ * old writeQueue shed every photo when localStorage was full, which lost the founder's breakfast.
+ * Now nothing is shed on a refused write: the queue stays in memory (SHADOW), storage-guard.js
+ * evicts throwaway caches and retries, and a photo counts as gone only when the drain finds no copy
+ * (state.js _runMealJob → shedPhoto). No IndexedDB: the bytes ride in the entry's base64 as before,
+ * at most MAX_PHOTOS of them in localStorage. Pure queue math first; Node-testable. */
 
 const KEY = 'onstd-proto-outbox-v1';
-const MAX_PHOTOS = 2;      // entries allowed to carry base64 at once
+const MAX_PHOTOS = 2;      // localStorage FALLBACK only: entries whose base64 rides in the queue
 const MAX_TRIES = 3;       // analysis attempts before it becomes a visible, manual retry
 const CAP_MIN = 32;        // backoff ceiling, minutes
 
@@ -30,15 +19,7 @@ const CAP_MIN = 32;        // backoff ceiling, minutes
 /** Entry key: one job per athlete-day-slot. Re-logging the same slot replaces, never duplicates. */
 export function jobKey(uid, date, slot) { return `${uid}/${date}/${slot}`; }
 
-/**
- * Retry delay: 3s, 12s, 48s, 3m, 13m, 32m, 32m…
- *
- * The first attempts are in SECONDS on purpose. This used to start at a full MINUTE and double,
- * which is the right shape for an entry waiting on a dead network — and exactly the wrong one for
- * the case that actually happens: an athlete still standing over their plate, watching the thread
- * for their numbers, whose first read hit a cold edge function. A single blip read as a hang,
- * because the next attempt was two minutes away. Seconds first, minutes later, same ceiling.
- */
+/** Retry delay: 3s, 12s, 48s, 3m, 13m, 32m… seconds first: the usual failure is one cold read. */
 export function backoffMs(tries) {
   return Math.min(3 * 4 ** Math.max(0, tries), CAP_MIN * 60) * 1000;
 }
@@ -66,19 +47,26 @@ export function patchJob(list, k, patch) {
 }
 
 /**
- * Enforce the photo budget. Returns a NEW list with base64 stripped from the oldest entries
- * beyond MAX_PHOTOS. A stripped entry can no longer upload or analyse, so it is marked dead with
- * a reason the UI can explain honestly — it is not silently forgotten.
+ * What a job becomes once no copy of its photo is left. Uploaded already (needUpload false): the
+ * photo is safe in storage, so the meals row is STILL inserted with its photo_path and only the
+ * read is lost (`readLost`; "Read it again" rescues it from storage). Never uploaded: nothing can
+ * reach the server (0251 refuses a meal with no real photo), so the job is dead and the thread
+ * offers a retake (`lostPhoto`). Pure.
  */
+export function shedPhoto(e) {
+  const lost = !!e.needUpload;
+  return { ...e, base64: null, bytes: null, lostPhoto: lost, needUpload: false, needAnalysis: false,
+    ...(lost ? { dead: 'lost', needInsert: false } : { readLost: true }) };
+}
+
+/** Fallback budget: base64 stays in the persisted queue for the newest `max` entries only. The
+ *  older ones keep their bytes in MEM for this session (`bytes: 'mem'`); nothing is marked lost
+ *  here. Pure. */
 export function trimPhotos(list, max = MAX_PHOTOS) {
   const withPhoto = (list || []).filter((e) => e.base64);
   if (withPhoto.length <= max) return list || [];
   const strip = new Set(withPhoto.slice(0, withPhoto.length - max).map((e) => e.k));
-  // `lostPhoto` preserves the one fact the strip destroys: whether the photo had already made
-  // it to storage (needUpload false) or died with the bytes (needUpload true). The thread's
-  // failed state and the retry path both key on it.
-  return (list || []).map((e) =>
-    strip.has(e.k) ? { ...e, base64: null, lostPhoto: !!e.needUpload, needUpload: false, needAnalysis: false, dead: 'quota' } : e);
+  return (list || []).map((e) => (strip.has(e.k) ? { ...e, base64: null, bytes: 'mem' } : e));
 }
 
 /** All entries that may run now, oldest first. */
@@ -86,11 +74,16 @@ export function due(list, now) { return (list || []).filter((e) => runnable(e, n
 
 /* ---------------- storage (browser) ---------------- */
 
+const MEM = new Map();   // job key -> base64, this session
+let SHADOW = null;       // the queue as it should be, while localStorage refuses it
+
 const hasLS = () => {
   try { return typeof localStorage !== 'undefined'; } catch { return false; }
 };
+const photos = () => import('./outbox-photos.js');
 
 export function readQueue() {
+  if (SHADOW) return SHADOW;
   if (!hasLS()) return [];
   try {
     const j = JSON.parse(localStorage.getItem(KEY) || '[]');
@@ -98,25 +91,66 @@ export function readQueue() {
   } catch { return []; }
 }
 
-/**
- * Persist, shedding photos if the store refuses. Returns the list actually written, which may
- * differ from the one passed in — callers should use the return value, not their input.
- */
-export function writeQueue(list) {
-  if (!hasLS()) return list || [];
-  let out = trimPhotos(list || []);
-  try {
-    localStorage.setItem(KEY, JSON.stringify(out));
-    return out;
-  } catch {
-    // Quota: shed every photo but keep the jobs, so the thread can still say what happened.
-    out = out.map((e) => (e.base64 ? { ...e, base64: null, lostPhoto: !!e.needUpload, needUpload: false, needAnalysis: false, dead: 'quota' } : e));
-    try { localStorage.setItem(KEY, JSON.stringify(out)); } catch { /* in-memory only from here */ }
-    return out;
-  }
+function persist(list) {
+  try { localStorage.setItem(KEY, JSON.stringify(list)); SHADOW = null; return true; } catch { return false; }
 }
 
-export function putJob(entry) { return writeQueue(enqueue(readQueue(), entry)); }
-export function removeJob(k) { return writeQueue(dropJob(readQueue(), k)); }
+/**
+ * Persist. Returns the list the session now reads. A quota refusal never sheds a photo here: the
+ * queue stays whole in memory and storage-guard.js evicts the throwaway caches, reports
+ * `storage_quota`, and calls retryWrite().
+ */
+export function writeQueue(list) {
+  for (const e of list || []) if (e.base64 && !MEM.has(e.k)) MEM.set(e.k, e.base64);
+  const out = trimPhotos(list || []);
+  if (!hasLS() || persist(out)) return out;
+  SHADOW = out;
+  void import('./storage-guard.js').then((g) => g.onQuota('outbox', retryWrite), () => {});
+  return out;
+}
+
+/** Second attempt after eviction. Still full: drop the bytes riding in localStorage (fallback
+ *  mode only; their copies stay in MEM for this session) and try the lean queue. */
+export function retryWrite() {
+  if (!SHADOW) return true;
+  return persist(SHADOW) || persist(SHADOW.map((e) => (e.base64 ? { ...e, base64: null, bytes: 'mem' } : e)));
+}
+
+/** Enqueue a job. Its bytes go to MEM now and to IndexedDB next; the queue keeps `bytes: 'idb'`. */
+export function putJob(entry) {
+  const b = entry.base64;
+  if (b) { MEM.set(entry.k, b); entry = { ...entry, base64: null, bytes: 'idb' }; }
+  const out = writeQueue(enqueue(readQueue(), entry));
+  if (b) void photos().then((m) => m.stash(entry.k, b), () => fallback(entry.k, b));
+  return out;
+}
+
+/** No IndexedDB: the bytes ride in the queue itself (the pre-2026-09-26 behaviour). */
+export function fallback(k, b) {
+  if (MEM.get(k) === b && readQueue().some((e) => e.k === k)) writeQueue(patchJob(readQueue(), k, { base64: b, bytes: null }));
+}
+
+export function removeJob(k) {
+  MEM.delete(k);
+  void photos().then((m) => m.drop(k), () => {});
+  return writeQueue(dropJob(readQueue(), k));
+}
 export function updateJob(k, patch) { return writeQueue(patchJob(readQueue(), k, patch)); }
 export function getJob(k) { return readQueue().find((e) => e.k === k) || null; }
+
+/** Can this job still reach its photo bytes, as far as the queue knows? Synchronous. */
+export function hasPhoto(job) { return !!job && (MEM.has(job.k) || !!job.base64 || job.bytes === 'idb'); }
+
+/** The job's photo bytes (MEM, then the queue, then IndexedDB), or null when none is left. */
+export async function photoFor(job) {
+  if (!job) return null;
+  const b = MEM.get(job.k) || job.base64;
+  if (b || job.bytes !== 'idb') return b || null;
+  try { return await (await photos()).load(job.k); } catch { return null; }
+}
+
+/** First drain of a session: legacy base64 moves to IndexedDB, orphaned bytes are deleted. */
+export function migratePhotos() { return photos().then((m) => m.migrate(), () => {}); }
+
+/** Tests only. */
+export function _resetOutboxMemory() { MEM.clear(); SHADOW = null; }
