@@ -26,6 +26,7 @@ import {
 import { aiConsentCached, isConsentSkip, noteAiConsentRequired } from './ai-consent.js';
 import { heroGoalLine } from './season-phase.js';
 import { suggestionHtml, wireSuggestion, loadMySuggestion } from './target-suggest.js';
+import { loadHallMenus, hallMenusDue, hallIdeas } from './dining-today.js';
 
 /* ---------------- module state (survives every repaint, never persisted) ---------------- */
 let SUGGEST_READ = null;       // whose suggestion row was read this session (once, on the first Plan open)
@@ -108,7 +109,8 @@ const usuals = () => {
 const avoid = () => avoidWords(myPrefs(), RT.restrictions);
 const niaKey = (slot) => `${RT.userId}|${DAY.date}|${slot}|${prefsKey(myPrefs())}`;
 
-/** The ideas for one slot: usuals first, then Nia's (live for the up-next slot, cached for the rest). */
+/** The ideas for one slot: today's dining-hall plates (C), then usuals, then Nia's (live for the
+ *  up-next slot, cached for the rest). */
 function ideasFor(slot, slotTarget, max = 3) {
   const own = usuals() || [];
   let nia = [];
@@ -117,7 +119,13 @@ function ideasFor(slot, slotTarget, max = 3) {
     const s = store();
     nia = (s && readIdeasCache(s, RT.userId, DAY.date, slot, prefsKey(myPrefs()))) || [];
   }
-  return rankIdeas({ usuals: own, nia, slotTarget, avoid: avoid(), max });
+  const av = avoid();
+  // An Intuitive plate is sized by the plate rules (a palm of protein), never by hidden figures:
+  // no share, so no "Double" portion.
+  const PS = S.planStyle;
+  const share = PS.showMacros || PS.showCalories ? slotTarget : {};
+  const hall = hallIdeas({ slot, dayDate: DAY.date, dueMin: slotDeadline(slot), nowMin: minutesNow(), target: share, avoid: av });
+  return rankIdeas({ usuals: own, nia, hall, slotTarget, avoid: av, max });
 }
 
 /* ---------------- ONE door for a plan (Today, the chat picks, search, label, barcode) ----------------
@@ -248,10 +256,13 @@ function heroHtml(ctx) {
 /* ---------------- up next ---------------- */
 function ideaRow(idea, on, ctx) {
   const tag = ideaTag(idea, ctx.numbers);
+  // A dining-hall plate names its hall under the plate, where a long hall name has the row's width
+  // (the right-hand pill is sized for one short word).
+  const hall = idea.source === 'hall';
   return `<button type="button" class="pt-idea${on ? ' on' : ''}" role="radio" aria-checked="${on ? 'true' : 'false'}" data-pt-idea="${esc(idea.id)}">
     <span class="pt-dot" aria-hidden="true"></span>
-    <span class="pt-idea-b"><span class="pt-idea-n">${esc(idea.name)}</span><span class="pt-idea-m">${esc(ideaMeta(idea, ctx.PS))}</span></span>
-    ${tag ? `<span class="pt-tag${idea.source === 'nia' ? ' nia' : ''}">${esc(tag)}</span>` : ''}
+    <span class="pt-idea-b"><span class="pt-idea-n">${esc(idea.name)}</span><span class="pt-idea-m">${esc(ideaMeta(idea, ctx.PS))}</span>${hall && tag ? `<span class="pt-tag dh-tag">${esc(tag)}</span>` : ''}</span>
+    ${tag && !hall ? `<span class="pt-tag${idea.source === 'nia' ? ' nia' : ''}">${esc(tag)}</span>` : ''}
   </button>`;
 }
 
@@ -466,13 +477,20 @@ export function wireToday(root) {
     if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.matches && e.target.matches('[data-pt-focus]')) { e.preventDefault(); e.target.click(); }
   });
 
+  // C: today's published dining-hall menu first (an athlete on a team only; one read per open of
+  // the day). Nia is asked only once it is known, so a hall that already fills the list costs nothing.
+  if (!hallMenusDue()) { maybeNia(); return; }
+  void loadHallMenus().then((changed) => { if (changed) repaint(); else maybeNia(); });
+}
+
+function maybeNia() {
   const ctx = today();
   if (!ctx.T.upNext) return;
   const slot = ctx.T.slots.find((s) => s.key === ctx.T.upNext);
   if (!slot || slot.plan) return;
   const own = usuals();
   if (own === null) return;   // Food Memory still loading: ask once it lands, never twice
-  if (ideasFor(slot.key, ctx.T.slotTarget).filter((i) => i.source === 'usual').length >= 3) return;
+  if (ideasFor(slot.key, ctx.T.slotTarget).filter((i) => i.source !== 'nia').length >= 3) return;
   const pending = startNia(slot.key, ctx.T.slotTarget);
   if (pending) void pending.then(repaint);
 }

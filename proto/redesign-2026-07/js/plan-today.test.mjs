@@ -241,7 +241,8 @@ test('the ideas cache is per athlete, day, slot and preferences, and only today 
 
 test('Plan asks meal-chat for ideas only when the usuals leave room, and never pops the AI sheet', () => {
   const src = read('plan-today.js');
-  assert.match(src, /filter\(\(i\) => i\.source === 'usual'\)\.length >= 3\) return;/);
+  // C: a dining-hall plate fills the list as surely as a usual, so anything that is not Nia counts.
+  assert.match(src, /filter\(\(i\) => i\.source !== 'nia'\)\.length >= 3\) return;/);
   assert.match(src, /aiConsentCached\(uid\) !== true/, 'no yes to AI, no request (0243)');
   assert.doesNotMatch(src, /ensureAiConsent|openAiConsentSheet/);
   assert.match(src, /readIdeasCache\(s, uid, DAY\.date, slot, prefsKey\(myPrefs\(\)\)\)/, 'the cache is read before any request');

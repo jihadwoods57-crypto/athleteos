@@ -824,6 +824,8 @@ export const coachHome = {
     ${/* Phase B: the team's season (standards editors only) and the suggested target changes waiting
           on a decision, both painted async into their slots by season-coach.js (lazy). */''}
     <div id="sp-slot"></div>
+    ${/* Phase C: the door to the team's dining hall menus (standards editors only), dining-coach.js. */''}
+    <div id="dh-slot"></div>
     ${planCard()}
     ${pending.length ? `<div class="card" data-go="coach-inbox" style="padding:10px 15px;cursor:pointer;display:flex;align-items:center;gap:10px"><div class="lic" style="background:var(--blue-surface);color:var(--blue-bright)">${icon('user', 15)}</div><div style="flex:1;font-size:var(--t-sm);font-weight:700">${pending.length} join request${pending.length > 1 ? 's' : ''} waiting</div>${icon('chevron', 14, 'style="color:var(--text-3)"')}</div>` : ''}
     ${/* THE RING LEADS FOR EVERY BOOK (founder 2026-09-15: the coach's and the nutritionist's
@@ -908,6 +910,8 @@ export const coachHome = {
     paintNutritionBoard(root);
     // Phase B: the season control and the suggested target changes (season-coach.js, lazy).
     import('../season-coach.js').then((m) => { m.paintSeason(root); m.paintSuggestions(root); }).catch(() => {});
+    // Phase C: dining hall menus (dining-coach.js, lazy).
+    import('../dining-coach.js').then((m) => m.paintDining(root)).catch(() => {});
     // Empty-state invite card: Copy + native Share of the invite code (present only before
     // anyone has joined). operatorIdentity resolves the right code for a team OR a practice.
     const code = S.operatorIdentity.code;
