@@ -88,6 +88,12 @@ SUITES=(
   # PUBLISHED menus only; view-only staff, position coaches, other teams, guardians and outsiders
   # never write (and outside the team never read); the bucket is editor-only per team folder.
   "dining hall menus (0255)|dining_hall_test.sql"
+  # 0256 lessons + team challenges: only editors assign (team or own room) and start/end a
+  # challenge; athletes read what reaches them; completions only through complete_lesson, never a
+  # guardian's to read; a challenge's hits come from the day rows with the weekly focus's own
+  # definitions (the PARITY FIXTURES block is shared with proto js/challenge-parity.test.mjs);
+  # staff see names, an athlete sees a count; claim_teach_push hands out each audience once.
+  "lessons + team challenges (0256)|lessons_challenges_test.sql"
 )
 
 echo "==> SQL suites against: ${DB%%\?*}"

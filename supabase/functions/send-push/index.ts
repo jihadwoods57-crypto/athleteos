@@ -6,7 +6,10 @@
 // verify_jwt stays ON (default) — only a signed-in, linked overseer can call this.
 import { createClient } from 'npm:@supabase/supabase-js@2.110.0';
 import { clientIpFrom } from '../_shared/client-ip.ts';
-import { sanitizeBulkPayload, aggregateBulkResults, rollcallReportSilenced, ROLLCALL_KINDS } from './logic.mjs';
+import {
+  sanitizeBulkPayload, aggregateBulkResults, rollcallReportSilenced, ROLLCALL_KINDS,
+  sanitizeTeachPush, claimAudience, teachBellKind, planTeachPush,
+} from './logic.mjs';
 // Expo answers a REFUSED batch with HTTP 200 and per-message error tickets. Every branch below
 // used to read `r.ok` and report the whole chunk as delivered, which is how an unconfigured APNs
 // key stayed invisible for months. sendExpoPushAndPrune reads the tickets and retires dead ones.
@@ -97,6 +100,8 @@ Deno.serve(async (req) => {
      *  athlete 21). Authorization is set-based; see the branch below. */
     athlete_ids?: unknown; book_id?: string; book?: string;
     reasons?: Record<string, { reason_key?: string; tier?: string }>;
+    /** Lessons and team challenges (0256): announce a new assignment or challenge, once. */
+    teach_push?: { kind?: string; id?: string };
   };
   try {
     payload = await req.json();
@@ -224,6 +229,52 @@ Deno.serve(async (req) => {
     return json({ ok: true, pushed: out0.sent + ghost0, failed: out0.failed, errors: out0.errors }, 200, cors);
   }
 
+  // ---------- lessons and team challenges (teach_push mode) ----------
+  // A coach assigned a lesson or started a team challenge (0256). claim_teach_push runs with the
+  // CALLER's session: it checks they edit the team's standard, stamps the row's pushed_at in one
+  // conditional update and returns the audience and the words. A row already stamped returns
+  // claimed:false and nothing is sent, so a retry or a double tap never pushes twice.
+  if (payload.teach_push) {
+    const tp = sanitizeTeachPush(payload.teach_push);
+    if (!tp) return json({ error: 'bad request' }, 400, cors);
+    const callerT = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: authHeader } } });
+    const { data: meT, error: meErrT } = await callerT.auth.getUser();
+    const callerIdT = meT?.user?.id;
+    if (meErrT || !callerIdT) return json({ error: 'unauthorized' }, 401, cors);
+    const { data: claim, error: claimErr } = await callerT.rpc('claim_teach_push', { p_kind: tp.kind, p_id: tp.id });
+    if (claimErr) return json({ error: 'not authorized for this team' }, 403, cors);
+    if (!claim || (claim as { claimed?: boolean }).claimed !== true) return json({ ok: true, pushed: 0, already: true }, 200, cors);
+    const c = claim as { kind: string; ref?: string | null; route?: string; title?: string; body?: string; athlete_ids?: unknown };
+    const idsT = claimAudience(c);
+    if (!idsT.length) return json({ ok: true, pushed: 0, athletes: 0 }, 200, cors);
+    const svcT = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const { data: profsT } = await svcT.from('profiles')
+      .select('id,notifications_opt_out,team_standard_pushes_opt_out,quiet_from_min,quiet_to_min,timezone').in('id', idsT);
+    const blockedT = await blockersOf(svcT, callerIdT, idsT);
+    const planT = planTeachPush({ athleteIds: idsT, profiles: profsT ?? [], blocked: blockedT, nowMs: Date.now() });
+    logBlocked('send-push:teach', idsT.length - planT.bell.length);
+    const titleT = String(c.title ?? 'OnStandard').slice(0, 120);
+    const bodyT = String(c.body ?? '').slice(0, 300);
+    const routeT = typeof c.route === 'string' && /^[A-Za-z0-9/_-]{1,120}$/.test(c.route) ? c.route : 'home';
+    // The bell row is the durable record: it lands for everyone who can hear from this coach,
+    // pushes on or off, quiet hours or not.
+    if (planT.bell.length) {
+      await svcT.from('notifications').insert(planT.bell.map((id: string) => ({ user_id: id, kind: teachBellKind(c), title: titleT, body: bodyT })));
+    }
+    let pushedT = 0;
+    let errorsT: string[] = [];
+    if (planT.push.length) {
+      const { data: toksT } = await svcT.from('device_tokens').select('token').in('user_id', planT.push);
+      const tokensT = (toksT ?? []).map((t: { token: string }) => t.token).filter(Boolean);
+      if (tokensT.length) {
+        const outT = await sendExpoPushAndPrune(tokensT.map((to) => ({ to, title: titleT, body: bodyT, sound: 'default', data: { route: routeT } })), svcT);
+        pushedT = outT.sent;
+        errorsT = outT.errors;
+      }
+    }
+    return json({ ok: true, pushed: pushedT, athletes: idsT.length, ...(errorsT.length ? { errors: errorsT } : {}) }, 200, cors);
+  }
+
   // ---------- operator bulk nudge (athlete_ids mode) ----------
   // One call for a whole roster selection. The single-athlete path authorizes with can_view per
   // call, which is O(N) round trips from the client and guaranteed to trip the per-IP limiter at
@@ -305,7 +356,7 @@ Deno.serve(async (req) => {
     // whole roster undelivered (and one accepted token marked the whole roster delivered). Now the
     // accepted tokens are known by name, so each athlete's row below reports their OWN phones.
     const out3 = await sendExpoPushAndPrune(messages3, svc3);
-    const deadSet3 = new Set(out3.dead);
+    const deadSet3 = new Set<string>(out3.dead as string[]);
     const acceptedFor = (id: string) => {
       const toks = tokByUser.get(id) ?? [];
       if (!toks.length) return 0;

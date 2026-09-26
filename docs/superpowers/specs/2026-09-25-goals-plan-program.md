@@ -250,3 +250,91 @@ The founder approved C on 2026-09-26. Their words: "Maybe the nutritionist can u
   - staff: halls list, upload, draft review, published;
   - athlete: Today with a dining-hall plate (numbers and Intuitive);
   - chat: an answer referencing the menu (a stub is fine).
+
+## D in detail (C shipped 2026-09-26: merge fc96e80a, 0255, OTA 01a0de02. E is PARKED by the founder.)
+
+The founder approved D on 2026-09-26 ("Do D park E"). Everything in D is deterministic, with NO model calls.
+
+### 1. Sixty-second lessons
+- **Library.** 12 lessons as static content in a lazy proto module. Each lesson has an id, title, one-line summary, 3 to 5 short cards (at most 60 words each, one idea per card), and one quick check (a multiple-choice question with 3 options, and a one-line explanation shown after answering).
+- **Topics:**
+  1. protein at every meal
+  2. a breakfast that holds up
+  3. carbs are fuel
+  4. eating before training (general timing; the app does NOT know practice times)
+  5. the recovery meal after training
+  6. hydration basics
+  7. eating on the road (travel, fast food)
+  8. building a plate at the dining hall
+  9. game-day eating
+  10. snacks that count
+  11. reading a nutrition label
+  12. food first: supplements (conservative)
+- **Supplements lesson.**
+  - No product endorsements.
+  - Say plainly: "Talk to your team dietitian first. Some supplements contain substances banned by the NCAA and other governing bodies, and labels are not always accurate."
+  - Never recommend a specific supplement.
+- **Content rules:**
+  - Accurate, conservative, mainstream sports-nutrition guidance.
+  - No medical claims.
+  - No weight-loss framing for minors: for minors, weight words are replaced or the card is skipped.
+  - Intuitive variants replace figures with the plate model.
+  - Plain, second-person voice.
+  - No em dashes.
+  - Not signed by Nia. It's OnStandard content.
+  - Each lesson maps to the weekly-focus candidate it teaches, where one fits (breakfast protein → lesson 2, and so on). The weekly focus card links to its lesson.
+- **Athlete surfaces:**
+  - A "Learn" list, reachable from Plan (a sub-tab or a row: your call, keep it calm) with every lesson and a done check.
+  - A lesson view: swipe or tap through the cards, then the quick check, then "Done".
+  - An assigned lesson shows on Home as one compact card: "From Coach Grinch: Carbs are fuel · 1 min", with the due date if one is set. The card disappears when the lesson is done.
+- **Coach surfaces:**
+  - "Assign a lesson" from coach Home or the create menu.
+  - Pick a lesson, an audience (the whole team, or a room/position group if rooms exist), and an optional due date.
+  - A progress view per assignment: "14 of 22 done", with who has and hasn't finished (names are visible to staff only).
+  - Only staff with standards-edit rights can assign (0252's can_set_team_phase set). All staff can read progress.
+- **Push.** One push per assignment to the assigned athletes: "Coach Grinch assigned a 1-minute lesson: Carbs are fuel". Use the existing push path and notification preferences. Never push again for the same assignment.
+- **Storage** (next migration after 0255):
+  - `lesson_assignments`: team_id, lesson_id (text, checked against a known list or a pattern), room_id nullable, due_on nullable, assigned_by, created_at.
+  - `lesson_completions`: athlete_id, lesson_id, completed_at, quiz_correct boolean; unique (athlete_id, lesson_id).
+  - RLS:
+    - Staff of the team read assignments. Editors insert and delete.
+    - Assigned athletes read their team's assignments.
+    - An athlete writes only their own completions.
+    - Staff read completions of their athletes. Guardians and other teams see nothing.
+  - Grants per repo patterns. SQL tests go in supabase/tests.
+
+### 2. Team focus challenges
+- **Setup.** A coach picks one habit from the weekly-focus candidates:
+  - breakfast protein, lunch protein, dinner protein
+  - no missed required meals
+  - logging on time
+  - snack consistency, when the snack is required
+
+  They also pick a date range (default: this Mon-Sun, at most 14 days) and a goal (default 5 of 7 days). One active challenge per team at a time. Editors create and end it.
+- **Progress: computed on the SERVER from stored rows, so a phone can't fake it.** A SQL function computes each athlete's hits from `days` rows (checkin.slotMacros protein per slot vs the per-slot share of the stored target, mealLoggedAt/minutes-late, meals ticks), using the SAME definitions as `weekly-focus-model.js`. A parity test compares the SQL and JS results on shared fixtures. If full parity is impractical for one candidate, drop that candidate from challenges and document it.
+- **Athlete view (Home):**
+  - While a team challenge is active, it REPLACES the personal weekly-focus card, so there are never two focus cards.
+  - It shows the challenge title, the athlete's own tracker, and team progress as a count only ("14 of 22 on track"), never other athletes' names.
+  - Intuitive athletes see no grams.
+- **Coach view:** team progress, with each athlete's hits (staff only), and an End challenge action.
+- **Push.** One push when a challenge starts. No streak nagging.
+- **Storage:** `team_challenges` (team_id, habit, starts_on, ends_on, goal_days, created_by, ended_at), with the same RLS pattern and SQL tests.
+
+### Done means
+- **Tests:**
+  - lesson content lint: word caps, no em dashes, the minor/intuitive variants exist wherever figures appear, the supplements lesson carries its caution line, and each quick check has exactly one correct answer;
+  - completion recording;
+  - assignment RLS;
+  - challenge SQL parity with weekly-focus-model;
+  - challenge RLS;
+  - the Home card priority (a challenge replaces the focus card; an assigned lesson card sits above it);
+  - push-once.
+- **Gates:** all green, zip rebuilt.
+- **Screenshots** in qc/lessons/, dark and light at 390, and look at them:
+  - Learn list
+  - a lesson's cards and quick check
+  - Home with an assigned lesson
+  - coach assign sheet
+  - coach progress
+  - challenge on Home (athlete, numbers and Intuitive)
+  - coach challenge view

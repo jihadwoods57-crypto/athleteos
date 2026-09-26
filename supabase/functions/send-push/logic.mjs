@@ -2,6 +2,8 @@
 // logic.mjs idiom, so the sanitation + aggregation that used to live as a client loop in
 // coach-roster.js is covered by `npm run test:fn`.
 
+import { pushSkipReason } from '../_shared/quiet-hours.mjs';
+
 /** Hard cap on one bulk call. A college roster tops out well under this; anything larger is
  *  a bug or abuse, and the caller is told what was dropped instead of silently truncated. */
 export const BULK_CAP = 150;
@@ -12,11 +14,15 @@ const TIER_SET = new Set(['critical', 'below', 'due_soon']);
 /** Normalize + validate the bulk payload. Returns { ok:false, error } or
  *  { ok:true, ids, dropped, title, body, book, bookId, reasons }.
  *  `reasons` is athleteId -> { reason_key, tier } with junk clamped away, so the
- *  interventions insert can never carry an invalid tier into the table CHECK. */
+ *  interventions insert can never carry an invalid tier into the table CHECK.
+ *  @param {any} payload
+ *  @returns {{ ok: false, error: string } | { ok: true, ids: string[], dropped: number, title: string, body: string,
+ *    book: 'team' | 'practice', bookId: string, reasons: Record<string, { reason_key: string | null, tier: string | null }> }} */
 export function sanitizeBulkPayload(payload) {
   const p = payload || {};
   if (!Array.isArray(p.athlete_ids)) return { ok: false, error: 'athlete_ids must be an array' };
   const seen = new Set();
+  /** @type {string[]} */
   const ids = [];
   for (const v of p.athlete_ids) {
     if (typeof v !== 'string' || !UUID_RE.test(v)) continue;
@@ -31,6 +37,7 @@ export function sanitizeBulkPayload(payload) {
   const book = p.book === 'practice' ? 'practice' : 'team';
   const bookId = typeof p.book_id === 'string' && UUID_RE.test(p.book_id) ? p.book_id.toLowerCase() : null;
   if (!bookId) return { ok: false, error: 'book_id required' };
+  /** @type {Record<string, { reason_key: string | null, tier: string | null }>} */
   const reasons = {};
   if (p.reasons && typeof p.reasons === 'object' && !Array.isArray(p.reasons)) {
     for (const id of kept) {
@@ -72,4 +79,45 @@ export const ROLLCALL_KINDS = new Set(['rollcall_answered']);
  *  that no longer exists in their app. `flag` is the feature_flags row or null (no row = on). */
 export function rollcallReportSilenced(baseKind, flag) {
   return ROLLCALL_KINDS.has(String(baseKind || '')) && !!(flag && flag.kill_switch === true);
+}
+
+/* ---------------- lessons and team challenges (0256, goals and eating plan phase D) ----------------
+   A new assignment or challenge is announced ONCE: 0256 claim_teach_push stamps the row and hands
+   back the audience, and this decides who of that audience gets the bell row and who the push. */
+
+
+export const TEACH_KINDS = new Set(['lesson', 'challenge']);
+
+/** The request's { kind, id }, or null when it is not a well-formed teach push. */
+export function sanitizeTeachPush(tp) {
+  if (!tp || typeof tp !== 'object') return null;
+  const kind = TEACH_KINDS.has(tp.kind) ? tp.kind : null;
+  const id = typeof tp.id === 'string' && UUID_RE.test(tp.id) ? tp.id.toLowerCase() : null;
+  return kind && id ? { kind, id } : null;
+}
+
+/** The claim's audience, clean: uuids only, each once, at most 500. */
+export function claimAudience(claim) {
+  const raw = claim && Array.isArray(claim.athlete_ids) ? claim.athlete_ids : [];
+  return [...new Set(raw.filter((v) => typeof v === 'string' && UUID_RE.test(v)).map((v) => v.toLowerCase()))].slice(0, 500);
+}
+
+/** The bell row's kind: `lesson:<lessonId>` (the bell links the lesson) or `challenge`. */
+export function teachBellKind(claim) {
+  if (claim && claim.kind === 'lesson' && typeof claim.ref === 'string' && /^[a-z0-9-]{6,64}$/.test(claim.ref)) return `lesson:${claim.ref}`;
+  return claim && claim.kind === 'lesson' ? 'lesson' : 'challenge';
+}
+
+/**
+ * Who hears about it. A bell row for everyone in the audience except an athlete who blocked the
+ * coach (0244, the announcement rule). A push only for those who also have pushes on (the master
+ * switch and the team-standard switch, 0067/0221) and are outside their quiet hours now. Quiet
+ * hours do NOT defer it: the push is once, and the bell row carries it.
+ */
+export function planTeachPush({ athleteIds, profiles, blocked, nowMs }) {
+  const byId = new Map((Array.isArray(profiles) ? profiles : []).map((p) => [String(p.id).toLowerCase(), p]));
+  const blockedSet = blocked instanceof Set ? blocked : new Set(blocked || []);
+  const bell = (athleteIds || []).filter((id) => !blockedSet.has(id));
+  const push = bell.filter((id) => pushSkipReason(byId.get(id) || null, nowMs) === null);
+  return { bell, push };
 }

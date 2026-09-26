@@ -57,6 +57,8 @@ const KIND_META = {
   // Verified Profile lapse (a billing deadline) rendered as a grey "reminder" with no tap target.
   winback: { icon: 'heart', level: 'info', tag: 'welcome back' },
   verified_profile: { icon: 'alert', level: 'high', tag: 'plan' },
+  lesson: { icon: 'fileText', level: 'medium', tag: 'lesson' },
+  challenge: { icon: 'target', level: 'medium', tag: 'challenge' },
 };
 const DEFAULT_META = { icon: 'bell', level: 'medium' };
 
@@ -103,6 +105,8 @@ const KIND_ROUTE = {
   cs_missed: (s) => (SUFFIX_OK(s) ? `connected-standard/${s}` : null),
   winback: () => 'home',                                                 // athlete: one plate, from Home
   verified_profile: () => 'verified-profile',                            // athlete: renew from the profile screen
+  lesson: (s) => (SUFFIX_OK(s) ? `lesson/${s}` : 'learn'), // 0256
+  challenge: () => 'home',
 };
 
 /** '2m ago' · '3h ago' · 'Mon' · '' for junk. Compact, feed-style. */

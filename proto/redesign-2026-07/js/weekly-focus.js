@@ -23,6 +23,8 @@ import {
   tracker, recapDue, recapLine, loggedDays, slotShare,
 } from './weekly-focus-model.js';
 import { FIELDS, findPatterns, topInsights, isStrong, insightText } from './what-works-model.js';
+import { lessonForFocus, lessonById, LESSON_MINUTES } from './lessons-model.js';
+import { doneIds } from './learn-data.js';
 
 /* ---------------- the athlete's days, as the models read them ---------------- */
 const NOT_ATHLETE = new Set(['coach', 'trainer', 'parent']);
@@ -88,6 +90,8 @@ export function focusView() {
     track: tracker(r.key, byDate, { ...ctx, todayISO: DAY.date }),
     tips: focusTips(r.key).map((t, i) => ({ text: t, done: !!ticks[i] })),
     ask: canAsk() ? askQuestion(stats, { numbers, titleOf }) : null,
+    // D: the 60-second lesson that teaches this focus, when one does.
+    lesson: lessonForFocus(r.key),
     recap, insight,
   };
 }
@@ -111,10 +115,20 @@ export function focusHtml() {
     <ul class="wf-tips">
       ${v.tips.map((t, i) => `<li><button type="button" class="wf-tip${t.done ? ' on' : ''}" aria-pressed="${t.done ? 'true' : 'false'}" data-wf-tip="${i}"><span class="wf-box" aria-hidden="true">${icon('check', 12)}</span><span>${esc(t.text)}</span></button></li>`).join('')}
     </ul>
+    ${learnRow(v.lesson)}
     ${v.ask ? `<button type="button" class="wf-ask" data-wf-ask="${esc(v.ask)}">${icon('sparkle', 15)}Ask Nia why this matters</button>` : ''}
     ${v.recap ? `<p class="wf-recap">${esc(v.recap.replace(/ · /g, '\u00a0· '))}</p>` : ''}
     ${v.insight ? `<p class="wf-recap">${esc(v.insight)}</p>` : ''}
   </section>`;
+}
+
+/** The lesson link under the tips (phase D): "Learn: A breakfast that holds up · 1 min". */
+export function learnRow(id) {
+  const l = id && lessonById(id);
+  if (!l) return '';
+  let done = false;
+  try { done = doneIds().includes(id); } catch { done = false; }
+  return `<button type="button" class="wf-learn" data-go="lesson/${esc(id)}">${icon('fileText', 15)}<span class="wf-learn-t">${esc(`Learn: ${l.title}`)}</span><span class="wf-learn-m">${done ? 'Done' : `${LESSON_MINUTES} min`}</span></button>`;
 }
 
 /* THE ASK ONLY EVER PREFILLS (review 2026-09-26). The nutrition chat hangs a message on a meal,
@@ -138,10 +152,16 @@ function warmAsk(root) {
   const uid = RT.userId;
   void import('./roles.js').then((roles) => warmRecent(roles, uid)).then(() => {
     if (RT.userId !== uid || !canAsk()) return;
+    if (SLOT_PAINTER) { SLOT_PAINTER(root); return; }
     const slot = root && root.isConnected && root.querySelector('#wf-slot');
     if (slot) { slot.innerHTML = focusHtml(); wireFocus(root, false); }
   }, () => {});
 }
+
+/* The slot's owner (home-teach.js, phase D) draws more than this card, so a repaint from here goes
+   through it: redrawing only the focus card would wipe the lesson card above it. */
+let SLOT_PAINTER = null;
+export function setSlotPainter(fn) { SLOT_PAINTER = typeof fn === 'function' ? fn : null; }
 
 /** Wire the card inside `root` (Home's mount, every render). Ticks flip in place. */
 export function wireFocus(root, warm = true) {

@@ -3,7 +3,7 @@ import { icon } from '../icons.js';
 import { CD, loadBook, bookKindFor } from '../coach-data.js';
 import { armRosterTask } from './coach-roster.js';
 import { RT } from '../state.js';
-import { allowedCreateKeys, isReadonly } from '../staff-access.js';
+import { allowedCreateKeys, isReadonly, canSetTargets } from '../staff-access.js';
 import { ROLLCALL_OFF } from '../commitments.js';
 
 /* The + is a CREATE MENU now, not a single composer (Coach OS spec §3). Announcements, check-ins,
@@ -35,6 +35,10 @@ const OPTIONS = [
   { grp: 'standard', key: 'commitments',     cap: null,             icon: 'clock',     title: 'Schedule a commitment', sub: 'Practice, lift, study hall. Verified', go: 'coach-commit-manage' },
   // Connected Standards (0155). Distinct from 'commitments' above, which schedules a PLACE and a
   // time; this sets a measurable amount of activity the athlete's own device answers for.
+  // Phase D (0256): a 60-second lesson for the team or a room, and a team focus challenge. Only the
+  // standards editors (canSetTargets, 0252 can_set_team_phase) and only on a team; fails closed.
+  { grp: 'standard', key: 'lesson',          cap: 'standards',      icon: 'fileText',  title: 'Assign a lesson',       sub: 'A 60-second lesson for the team or a room', go: 'coach-lessons/assign' },
+  { grp: 'standard', key: 'challenge',       cap: 'standards',      icon: 'target',    title: 'Start a team challenge', sub: 'One habit, the whole team, a week or two', go: 'coach-challenge/new' },
   { grp: 'standard', key: 'activity',        cap: 'standards',      icon: 'bolt',      title: 'Set an activity standard', sub: 'Steps, distance or workouts. Verified by their watch', go: 'coach-standards-manage' },
   { grp: 'roster', key: 'add_athlete',     cap: null,             icon: 'user',      title: 'Add an athlete',        sub: 'Share your team code',              go: 'coach-profile/code' },
   { grp: 'roster', key: 'invite_staff',    cap: 'staffRoles',     icon: 'users',     title: 'Invite staff',          sub: 'Coordinator, room, or view-only',   go: 'coach-profile/staff' },
@@ -76,7 +80,8 @@ export const coachCreate = {
     // `commitments` is BOTH menu rows — the Wake-Up Roll Call and the general commitment
     // composer — and with the feature switched off (ROLLCALL_OFF) neither may be offered: the
     // server's write trigger would refuse whatever the coach filled in.
-    const opts = OPTIONS.filter((o) => allowed.includes(o.key) && (!o.cap || CD.caps[o.cap])
+    const teachKey = (k) => k === 'lesson' || k === 'challenge';
+    const opts = OPTIONS.filter((o) => (teachKey(o.key) ? (!practice && CD.kind === 'team' && canSetTargets(myRole)) : allowed.includes(o.key)) && (!o.cap || CD.caps[o.cap])
       && !(ROLLCALL_OFF && o.key === 'commitments'));
     /* GROUPED, NOT A FLAT TWELVE (2026-09-07 audit). Every option rendered as an identical row in
        one card, so a coach who wanted to say something to one athlete read past standards,

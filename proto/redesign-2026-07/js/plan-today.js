@@ -29,6 +29,8 @@ import { suggestionHtml, wireSuggestion, loadMySuggestion } from './target-sugge
 import { loadHallMenus, hallMenusDue, hallIdeas } from './dining-today.js';
 import { allergenKeysFrom } from './dining-menu.js';
 import { planButtonLabel } from './dining-plate-model.js';
+import { learning, doneIds, loadLearning } from './learn-data.js';
+import { LESSON_IDS, openAssignments } from './lessons-model.js';
 
 /* ---------------- module state (survives every repaint, never persisted) ---------------- */
 let SUGGEST_READ = null;       // whose suggestion row was read this session (once, on the first Plan open)
@@ -368,6 +370,21 @@ function doneHtml(ctx) {
   return `<div class="pt-alldone">${icon('checkCircle', 20)}<span>Every meal is in.${esc(tail)}</span></div>`;
 }
 
+/** D: the door to Learn, the 60-second lessons, at the foot of Today. */
+export function learnDoorHtml() {
+  const done = doneIds().filter((id) => LESSON_IDS.includes(id)).length;
+  const d = learning();
+  const assigned = d ? openAssignments(d.assignments, doneIds()).length : 0;
+  const sub = assigned
+    ? `${assigned} from your coach · ${done} of ${LESSON_IDS.length} done`
+    : done ? `${done} of ${LESSON_IDS.length} done` : 'Eating for your goal, a minute at a time';
+  return `<button type="button" class="ln-door" data-go="learn">
+    <span class="ln-door-ic" aria-hidden="true">${icon('fileText', 18)}</span>
+    <span class="ln-door-tx"><span class="ln-door-t">60-second lessons</span><span class="ln-door-s">${esc(sub)}</span></span>
+    ${icon('chevron', 15, 'class="chev-dim"')}
+  </button>`;
+}
+
 /** The whole Today tab. plan.js wraps it in the row mark its goal panel glides. */
 export function todayHtml() {
   if (S.planTargetsState === 'loading') return skeletonRows(3, 'Loading your plan');
@@ -375,7 +392,7 @@ export function todayHtml() {
   const hero = S.planTargetsState === 'offline'
     ? errorState({ title: "Can't reach your plan", body: 'Your targets will show when you reconnect. Nothing is lost, and logging still counts in the meantime.', retryId: 'plan-retry' })
     : heroHtml(ctx);
-  return `<div class="ptd">${hero}${suggestionHtml()}${upNextHtml(ctx)}${doneHtml(ctx)}${laterHtml(ctx)}${loggedHtml(ctx)}${alsoHtml(ctx.order)}</div>`;
+  return `<div class="ptd">${hero}${suggestionHtml()}${upNextHtml(ctx)}${doneHtml(ctx)}${laterHtml(ctx)}${loggedHtml(ctx)}${alsoHtml(ctx.order)}${learnDoorHtml()}</div>`;
 }
 
 /* ---------------- Nia's ideas: fetched once per athlete, day, slot and prefs ---------------- */
@@ -445,6 +462,8 @@ export function wireToday(root) {
   // B: a suggested target change (solo: decide it here; on a team: "your coach is reviewing").
   wireSuggestion(root);
   if (SUGGEST_READ !== RT.userId) { SUGGEST_READ = RT.userId; void loadMySuggestion().then((changed) => { if (changed) repaint(); }); }
+  // D: the Learn door's counts (my_learning, at most one read per two minutes).
+  void loadLearning(false).then((changed) => { if (changed) repaint(); }, () => {});
   pane.addEventListener('click', (e) => {
     const t = e.target && e.target.closest ? e.target : null;
     if (!t) return;
